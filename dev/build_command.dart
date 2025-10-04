@@ -34,11 +34,7 @@ class BuildCommand extends Command<void> {
         help: 'Obfuscate code (enabled by default in production).',
         defaultsTo: null,
       )
-      ..addFlag(
-        'tree-shake',
-        help: 'Remove unused code.',
-        defaultsTo: true,
-      );
+      ..addFlag('tree-shake', help: 'Remove unused code.', defaultsTo: true);
   }
 
   final bool verbose;
@@ -51,7 +47,7 @@ class BuildCommand extends Command<void> {
   String get description => 'Build production or development output.';
 
   @override
-  String get invocation => 'flutter-js build [options]';
+  String get invocation => 'flutterjs build [options]';
 
   @override
   Future<void> run() async {
@@ -66,7 +62,7 @@ class BuildCommand extends Command<void> {
     final shouldObfuscate = obfuscate ?? !isDev;
 
     _printHeader();
-    
+
     if (verbose) {
       print('Configuration:');
       print('  Mode:         ${isDev ? "Development" : "Production"}');

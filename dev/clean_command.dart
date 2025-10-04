@@ -18,8 +18,8 @@ class CleanCommand extends Command<void> {
   Future<void> run() async {
     print('🧹 Cleaning build artifacts...\n');
 
-    final directories = ['build/', '.flutter-js-cache/', 'node_modules/'];
-    
+    final directories = ['build/', '.flutterjs-cache/', 'node_modules/'];
+
     for (final dir in directories) {
       if (verbose) {
         print('Removing $dir');

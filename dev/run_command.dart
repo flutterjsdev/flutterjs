@@ -14,11 +14,7 @@ class RunCommand extends Command<void> {
         help: 'Port to run the development server on.',
         defaultsTo: '3000',
       )
-      ..addFlag(
-        'hot-reload',
-        help: 'Enable hot reload.',
-        defaultsTo: true,
-      )
+      ..addFlag('hot-reload', help: 'Enable hot reload.', defaultsTo: true)
       ..addFlag(
         'open',
         abbr: 'o',
@@ -42,7 +38,7 @@ class RunCommand extends Command<void> {
   String get description => 'Run development server with hot reload.';
 
   @override
-  String get invocation => 'flutter-js run [options]';
+  String get invocation => 'flutterjs run [options]';
 
   @override
   Future<void> run() async {
@@ -63,21 +59,21 @@ class RunCommand extends Command<void> {
 
     print('⚙️  Parsing Flutter widgets...');
     await Future.delayed(Duration(milliseconds: 300));
-    
+
     print('📦 Building development bundle...');
     await Future.delayed(Duration(milliseconds: 500));
-    
+
     print('✨ Server ready!\n');
     print('  Local:   http://$host:$port');
     print('  Network: http://192.168.1.100:$port\n');
-    
+
     if (openBrowser) {
       print('🌐 Opening browser...\n');
     }
-    
+
     print('Press Ctrl+C to stop\n');
     print('[INFO] Watching for file changes...');
-    
+
     if (hotReload) {
       print('[INFO] Hot reload enabled');
     }

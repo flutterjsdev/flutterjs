@@ -51,7 +51,7 @@ class DocsCommand extends Command<void> {
     if (serve) {
       print('📖 Serving docs at http://localhost:4000');
       print('Press Ctrl+C to stop\n');
-      
+
       // TODO: Implement doc server
       await ProcessSignal.sigint.watch().first;
     }

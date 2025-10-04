@@ -79,8 +79,8 @@
     </header>
 
     <section class="bg-white p-6 rounded-lg shadow-lg mb-8">
-      <h2 class="section-title">What flutter-js analyze Should Do</h2>
-      <p class="mb-4">The <code>flutter-js analyze</code> command provides insights into the Flutter-to-Web transpilation process, focusing on bundle analysis, widget usage, reactivity, and optimization suggestions.</p>
+      <h2 class="section-title">What flutterjs analyze Should Do</h2>
+      <p class="mb-4">The <code>flutterjs analyze</code> command provides insights into the Flutter-to-Web transpilation process, focusing on bundle analysis, widget usage, reactivity, and optimization suggestions.</p>
       
       <h3 class="subsection-title">1. Bundle Analysis</h3>
       <p class="mb-4">Analyzes the output of the transpilation process:</p>
@@ -129,7 +129,7 @@
       <h3 class="subsection-title">Phase 1: Basic Bundle Analysis (Week 15-16)</h3>
       <p class="mb-4">Implement basic bundle analysis to read the build directory and report file sizes and compression ratios.</p>
       <pre class="code-block"><code>
-flutter-js analyze
+flutterjs analyze
 // Reads build/ directory
 // Shows file sizes, compression ratios
 // Simple but useful immediately
@@ -147,7 +147,7 @@ flutter-js analyze
       <h3 class="subsection-title">Phase 3: Integration with dead_code_analyzer (Week 19+)</h3>
       <p class="mb-4">Integrate the <code>dead_code_analyzer</code> package to identify unused code and suggest optimizations.</p>
       <pre class="code-block"><code>
-flutter-js analyze --dead-code
+flutterjs analyze --dead-code
 // Runs YOUR dead_code_analyzer package
 // Shows unused Flutter widgets
 // Suggests removing unused imports
@@ -155,29 +155,29 @@ flutter-js analyze --dead-code
     </section>
 
     <section class="bg-white p-6 rounded-lg shadow-lg mb-8">
-      <h2 class="section-title">Updated flutter-js analyze Command</h2>
+      <h2 class="section-title">Updated flutterjs analyze Command</h2>
       <h3 class="subsection-title">Usage Examples</h3>
       <pre class="code-block"><code>
 # Full analysis (default)
-flutter-js analyze
+flutterjs analyze
 
 # Only bundle analysis (requires build/)
-flutter-js analyze --no-widgets --no-reactivity
+flutterjs analyze --no-widgets --no-reactivity
 
 # Only widget usage (no build required)
-flutter-js analyze --no-bundle --no-reactivity
+flutterjs analyze --no-bundle --no-reactivity
 
 # Run your dead_code_analyzer
-flutter-js analyze --dead-code
+flutterjs analyze --dead-code
 
 # Everything in verbose mode
-flutter-js analyze -v
+flutterjs analyze -v
 
 # Only dead code analysis
-flutter-js analyze --no-bundle --no-widgets --no-reactivity --dead-code
+flutterjs analyze --no-bundle --no-widgets --no-reactivity --dead-code
 
 # Custom source path
-flutter-js analyze --source=lib/features
+flutterjs analyze --source=lib/features
       </code></pre>
 
       <h3 class="subsection-title">Analysis Types</h3>

@@ -4,15 +4,20 @@ import 'analyze_command.dart';
 import 'build_command.dart';
 import 'clean_command.dart';
 import 'docs_command.dart';
+import 'init_project/init_project.dart';
 import 'model/package_profile.dart';
 import 'run_command.dart';
 import 'version_command.dart';
+
 class FlutterJSCommandRunner extends CommandRunner<void> {
   FlutterJSCommandRunner({
     required this.verbose,
     required this.verboseHelp,
     required this.muteCommandLogging,
-  }) : super('flutter-js', '${PackageProfile.kAppName} - Flutter Design Systems for HTML') {
+  }) : super(
+         'flutterjs',
+         '${PackageProfile.kAppName} - Flutter Design Systems for HTML',
+       ) {
     argParser
       ..addFlag(
         'verbose',
@@ -34,6 +39,7 @@ class FlutterJSCommandRunner extends CommandRunner<void> {
   final bool muteCommandLogging;
 
   void _addCommands() {
+    addCommand(InitProject(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(BuildCommand(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(RunCommand(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(AnalyzeCommand(verbose: verbose, verboseHelp: verboseHelp));
