@@ -1,0 +1,337 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flutter.js Logic & Package Handling Architecture</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .section-title {
+      @apply text-2xl md:text-3xl font-bold text-gray-800 mb-4 border-b-2 border-blue-500 pb-2;
+    }
+    .subsection-title {
+      @apply text-xl md:text-2xl font-semibold text-gray-700 mt-6 mb-3;
+    }
+    .code-block {
+      @apply bg-gray-800 text-white p-4 rounded-lg overflow-x-auto text-sm;
+    }
+    .table-container {
+      @apply overflow-x-auto;
+    }
+    .table {
+      @apply min-w-full bg-white border border-gray-300 rounded-lg;
+    }
+    .table th, .table td {
+      @apply border-b border-gray-200 px-4 py-2 text-left;
+    }
+    .table th {
+      @apply bg-gray-100 font-semibold;
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="container mx-auto px-4 py-8 max-w-5xl">
+    <header class="text-center mb-12">
+      <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900">Flutter.js Logic & Package Handling Architecture</h1>
+      <p class="text-lg text-gray-600 mt-2">A comprehensive overview of the logic storage, package handling, and transpilation strategies for Flutter.js</p>
+    </header>
+
+    <section class="bg-white p-6 rounded-lg shadow-lg mb-8">
+      <h2 class="section-title">1. Logic Storage System (Parallel to UI IR)</h2>
+      <h3 class="subsection-title">1.1 Enhanced FlatBuffers Schema</h3>
+      <pre class="code-block"><code>
+// Core Logic Structures
+table DartClass {
+  name: string;
+  type: ClassType; // StatefulWidget, StatelessWidget, Model, Service, etc.
+  extends: string;
+  implements: [string];
+  mixins: [string];
+  fields: [Field];
+  constructors: [Constructor];
+  methods: [Method];
+  getters: [Getter];
+  setters: [Setter];
+  annotations: [Annotation];
+  is_abstract: bool;
+  source_package: string;
+}
+table Field {
+  name: string;
+  type: string;
+  is_final: bool;
+  is_static: bool;
+  is_const: bool;
+  initial_value: Expression;
+  annotations: [Annotation];
+}
+table Method {
+  name: string;
+  return_type: string;
+  parameters: [Parameter];
+  body: MethodBody;
+  is_async: bool;
+  is_static: bool;
+  is_override: bool;
+  annotations: [Annotation];
+}
+table MethodBody {
+  type: BodyType;
+  statements: [Statement];
+  complexity_score: int;
+  uses_packages: [string];
+  ast_json: string;
+}
+table Statement {
+  type: StatementType;
+  expression: Expression;
+  children: [Statement];
+}
+table Expression {
+  type: ExprType;
+  value: string;
+  operator: string;
+  operands: [Expression];
+  function_name: string;
+  arguments: [Expression];
+}
+enum ClassType {
+  StatefulWidget, StatelessWidget, DataModel, Service, Controller, Provider, Repository, Utility, Mixin, Extension
+}
+enum BodyType {
+  Simple, Complex, External, Native, PackageBound
+}
+      </code></pre>
+    </section>
+
+    <section class="bg-white p-6 rounded-lg shadow-lg mb-8">
+      <h2 class="section-title">2. Package & Plugin Handling System</h2>
+      <h3 class="subsection-title">2.1 Package Classification</h3>
+      <pre class="code-block"><code>
+table PackageDependency {
+  name: string;
+  version: string;
+  type: PackageType;
+  mapping_strategy: MappingStrategy;
+  web_equivalent: string;
+  shim_required: bool;
+  support_level: SupportLevel;
+}
+enum PackageType {
+  CoreDart, FlutterFramework, StateManagement, Network, Storage, Navigation, UI, Utility, PlatformChannel, Unsupported
+}
+enum MappingStrategy {
+  DirectTranspile, NPMReplacement, BrowserAPI, ShimLayer, RuntimeEmulation, Polyfill, Unsupported
+}
+enum SupportLevel {
+  FullySupported, PartialSupport, ExperimentalSupport, NotSupported, RequiresManualImpl
+}
+      </code></pre>
+      <h3 class="subsection-title">2.2 Package Registry (Built-in Mappings)</h3>
+      <pre class="code-block"><code>
+{
+  "package_mappings": {
+    "http": {
+      "type": "Network",
+      "strategy": "NPMReplacement",
+      "web_equivalent": "axios@1.6.0",
+      "mapping": {
+        "http.get": "axios.get",
+        "http.post": "axios.post",
+        "Response": "AxiosResponse"
+      },
+      "support_level": "FullySupported"
+    },
+    "shared_preferences": {
+      "type": "Storage",
+      "strategy": "BrowserAPI",
+      "web_equivalent": "localStorage",
+      "shim_required": true,
+      "shim_path": "@flutter-js/shared-preferences-shim",
+      "support_level": "FullySupported"
+    },
+    "provider": {
+      "type": "StateManagement",
+      "strategy": "RuntimeEmulation",
+      "runtime_module": "flutter-js/provider.js",
+      "support_level": "PartialSupport",
+      "notes": "context.watch() and basic Provider work"
+    }
+  }
+}
+      </code></pre>
+    </section>
+
+    <section class="bg-white p-6 rounded-lg shadow-lg mb-8">
+      <h2 class="section-title">3. Transpilation Strategies by Category</h2>
+      <h3 class="subsection-title">3.1 Strategy 1: Direct Dart-to-JS (Simple Logic)</h3>
+      <p class="mb-4">For pure Dart classes with no Flutter dependencies.</p>
+      <pre class="code-block"><code>
+// Input: models/user.dart
+class User {
+  final String id;
+  final String name;
+  final int age;
+  User({required this.id, required this.name, required this.age});
+  bool get isAdult => age >= 18;
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'name': name, 'age': age};
+  }
+}
+      </code></pre>
+      <p class="my-4"><strong>JS Output:</strong></p>
+      <pre class="code-block"><code>
+class User {
+  constructor({id, name, age}) {
+    this.id = id;
+    this.name = name;
+    this.age = age;
+  }
+  get isAdult() {
+    return this.age >= 18;
+  }
+  toJson() {
+    return {id: this.id, name: this.name, age: this.age};
+  }
+}
+      </code></pre>
+    </section>
+
+    <section class="bg-white p-6 rounded-lg shadow-lg mb-8">
+      <h2 class="section-title">5. Package Support Matrix</h2>
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Tier</th>
+              <th>Package</th>
+              <th>Status</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Tier 1</td>
+              <td>http</td>
+              <td>✅ Fully Supported</td>
+              <td>Replaced with axios/fetch</td>
+            </tr>
+            <tr>
+              <td>Tier 1</td>
+              <td>shared_preferences</td>
+              <td>✅ Fully Supported</td>
+              <td>Uses localStorage</td>
+            </tr>
+            <tr>
+              <td>Tier 2</td>
+              <td>dio</td>
+              <td>⚠️ Partial Support</td>
+              <td>Limited interceptor support</td>
+            </tr>
+            <tr>
+              <td>Tier 3</td>
+              <td>camera</td>
+              <td>🔬 Experimental</td>
+              <td>Uses MediaDevices API</td>
+            </tr>
+            <tr>
+              <td>Not Supported</td>
+              <td>flutter_bluetooth_serial</td>
+              <td>❌ Not Supported</td>
+              <td>Requires native code</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="bg-white p-6 rounded-lg shadow-lg mb-8">
+      <h2 class="section-title">10. Example: Full Counter App</h2>
+      <h3 class="subsection-title">Input: lib/main.dart</h3>
+      <pre class="code-block"><code>
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'models/counter.dart';
+void main() {
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => Counter(),
+      child: MyApp(),
+    ),
+  );
+}
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: CounterPage(),
+    );
+  }
+}
+class CounterPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final counter = context.watch<Counter>();
+    return Scaffold(
+      appBar: AppBar(title: Text('Counter')),
+      body: Center(
+        child: Text('Count: ${counter.count}'),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: counter.increment,
+        child: Icon(Icons.add),
+      ),
+    );
+  }
+}
+      </code></pre>
+    </section>
+
+    <footer class="text-center text-gray-600 mt-12">
+      <p>Flutter.js Architecture Documentation | Generated on October 04, 2025</p>
+    </footer>
+  </div>
+</body>
+</html>
