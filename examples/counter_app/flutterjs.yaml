@@ -3,6 +3,7 @@
 project:
   name: my_flutter_app
   version: 1.0.0
+  description: A simple counter app built with FlutterJS.
 
 # Output paths
 paths:

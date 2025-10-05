@@ -1,12 +1,12 @@
 import 'package:args/command_runner.dart';
 
-import 'analyze_command.dart';
-import 'build_command.dart';
-import 'clean_command.dart';
+import 'analyzer/analyze_command.dart';
+import 'builder/build_command.dart';
+import 'cleaner/clean_command.dart';
 import 'docs_command.dart';
 import 'init_project/init_project.dart';
 import 'model/package_profile.dart';
-import 'run_command.dart';
+import 'runner/run_command.dart';
 import 'version_command.dart';
 
 class FlutterJSCommandRunner extends CommandRunner<void> {
