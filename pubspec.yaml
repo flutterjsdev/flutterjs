@@ -4,9 +4,7 @@ version: 1.0.0
 # repository: https://github.com/my_org/my_repo
 
 workspace:
-  - dev/
-  - examples/
-  - packages/
+  - examples/counter_app/
 
 environment:
   sdk: ^3.10.0-227.0.dev
@@ -14,6 +12,7 @@ environment:
 # Add regular dependencies here.
 dependencies:
   path: ^1.9.0
+  args: 
 
 dev_dependencies:
   lints: ^6.0.0
