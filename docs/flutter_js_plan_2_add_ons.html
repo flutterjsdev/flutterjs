@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flutter.js Execution Plan v3.0 - Complete Framework Strategy</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #2c3e50;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .header .version {
+            margin-top: 15px;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .nav {
+            background: #34495e;
+            padding: 15px 40px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+
+        .nav-links a:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+
+        .section h2 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .section h3 {
+            color: #764ba2;
+            font-size: 1.5em;
+            margin: 25px 0 15px 0;
+        }
+
+        .section h4 {
+            color: #34495e;
+            font-size: 1.2em;
+            margin: 20px 0 10px 0;
+        }
+
+        .highlight-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .new-feature {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+
+        .new-feature::before {
+            content: "🆕 NEW: ";
+            font-weight: bold;
+            color: #28a745;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        .code-block .comment {
+            color: #6a9955;
+        }
+
+        .code-block .keyword {
+            color: #569cd6;
+        }
+
+        .code-block .string {
+            color: #ce9178;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        table th {
+            background: #667eea;
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .timeline {
+            position: relative;
+            padding: 20px 0;
+        }
+
+        .timeline-item {
+            padding: 20px;
+            margin: 20px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.3s;
+        }
+
+        .timeline-item:hover {
+            transform: translateX(10px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .timeline-item .week {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 1.1em;
+        }
+
+        .timeline-item .phase {
+            font-weight: 600;
+            color: #764ba2;
+            margin: 5px 0;
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin: 5px 5px 5px 0;
+        }
+
+        .pill-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .pill-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .pill-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .pill-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .comparison-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s;
+        }
+
+        .comparison-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .comparison-card h4 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .feature-list li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .feature-list li.cross::before {
+            content: "✗";
+            color: #dc3545;
+        }
+
+        .architecture-diagram {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .flow-box {
+            display: inline-block;
+            background: white;
+            padding: 15px 25px;
+            margin: 10px;
+            border-radius: 8px;
+            border: 2px solid #667eea;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .arrow {
+            color: #667eea;
+            font-size: 1.5em;
+            margin: 0 10px;
+        }
+
+        .footer {
+            background: #34495e;
+            color: white;
+            padding: 30px 40px;
+            text-align: center;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            
+            .nav {
+                position: static;
+            }
+            
+            .timeline-item:hover {
+                transform: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .nav-links {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Flutter.js Execution Plan v3.0</h1>
+            <div class="subtitle">Complete Framework Strategy with Dart Function IR</div>
+            <div class="version">
+                <strong>Timeline:</strong> 26 Weeks to MVP | 
+                <strong>Updated:</strong> October 5, 2025 | 
+                <strong>Status:</strong> Production Ready
+            </div>
+        </div>
+
+        <nav class="nav">
+            <ul class="nav-links">
+                <li><a href="#executive">Executive Summary</a></li>
+                <li><a href="#framework">Framework Architecture</a></li>
+                <li><a href="#phases">Phases</a></li>
+                <li><a href="#dart-ir">Dart Function IR</a></li>
+                <li><a href="#timeline">Timeline</a></li>
+                <li><a href="#risks">Risk Mitigation</a></li>
+            </ul>
+        </nav>
+
+        <div class="content">
+            <section id="executive" class="section">
+                <h2>📋 Executive Summary</h2>
+                
+                <div class="highlight-box">
+                    <p><strong>Vision:</strong> Flutter.js is a complete framework that transpiles Flutter apps to optimized, SEO-friendly HTML/CSS/JS while maintaining 95%+ Material Design fidelity with its own lightweight runtime framework.</p>
+                </div>
+
+                <div class="new-feature">
+                    <strong>Flutter.js Framework</strong> - A purpose-built 15KB runtime that provides Flutter-like reactivity, state management, and component lifecycle without dependencies on React/Vue/Angular.
+                </div>
+
+                <h3>Key Differentiators</h3>
+                <div class="comparison-grid">
+                    <div class="comparison-card">
+                        <h4>Flutter.js</h4>
+                        <ul class="feature-list">
+                            <li>Pure Flutter API</li>
+                            <li>15KB runtime</li>
+                            <li>95%+ Material fidelity</li>
+                            <li>SEO-friendly HTML</li>
+                            <li>No framework lock-in</li>
+                        </ul>
+                    </div>
+                    <div class="comparison-card">
+                        <h4>Flutter Web</h4>
+                        <ul class="feature-list">
+                            <li>Canvas-based rendering</li>
+                            <li class="cross">2.1MB bundle</li>
+                            <li class="cross">Poor SEO</li>
+                            <li class="cross">Slow load times</li>
+                            <li>100% Flutter API</li>
+                        </ul>
+                    </div>
+                    <div class="comparison-card">
+                        <h4>React/Next.js</h4>
+                        <ul class="feature-list">
+                            <li>React API</li>
+                            <li class="cross">40KB+ runtime</li>
+                            <li class="cross">No Material Design</li>
+                            <li>SEO-friendly</li>
+                            <li class="cross">Different paradigm</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="framework" class="section">
+                <h2>🏗️ Flutter.js Framework Architecture</h2>
+
+                <div class="new-feature">
+                    <strong>Complete Framework Implementation</strong> - Not just a transpiler, but a full framework with its own runtime, lifecycle, and component system specifically designed for Flutter concepts.
+                </div>
+
+                <h3>Framework Components</h3>
+
+                <h4>1. Core Runtime (flutter.min.js - 15KB)</h4>
+                <div class="code-block">
+<span class="comment">// Flutter.js Framework Architecture</span>
+<span class="keyword">const</span> FlutterJS = {
+  <span class="comment">// 1. Widget System (3KB)</span>
+  widgets: {
+    <span class="keyword">create</span>(config) { <span class="comment">/* StatefulWidget equivalent */</span> },
+    <span class="keyword">register</span>(id, widget) { <span class="comment">/* Widget registry */</span> },
+    <span class="keyword">mount</span>(widget, container) { <span class="comment">/* Mount to DOM */</span> },
+    <span class="keyword">unmount</span>(widget) { <span class="comment">/* Cleanup */</span> }
+  },
+
+  <span class="comment">// 2. Reactivity System (4KB)</span>
+  reactivity: {
+    <span class="keyword">track</span>(widget, prop) { <span class="comment">/* Dependency tracking */</span> },
+    <span class="keyword">trigger</span>(widget, changes) { <span class="comment">/* Smart updates */</span> },
+    <span class="keyword">batch</span>(callback) { <span class="comment">/* Batch updates */</span> },
+    <span class="keyword">diff</span>(oldProps, newProps) { <span class="comment">/* Efficient diffing */</span> }
+  },
+
+  <span class="comment">// 3. State Management (2KB)</span>
+  state: {
+    <span class="keyword">setState</span>(widget, updater) { <span class="comment">/* Flutter setState() */</span> },
+    <span class="keyword">createContext</span>(value) { <span class="comment">/* InheritedWidget */</span> },
+    <span class="keyword">useContext</span>(context) { <span class="comment">/* Context consumption */</span> },
+    <span class="keyword">provide</span>(key, value) { <span class="comment">/* Provider pattern */</span> }
+  },
+
+  <span class="comment">// 4. Lifecycle Hooks (1KB)</span>
+  lifecycle: {
+    <span class="keyword">initState</span>() {},
+    <span class="keyword">didChangeDependencies</span>() {},
+    <span class="keyword">didUpdateWidget</span>(oldWidget) {},
+    <span class="keyword">dispose</span>() {}
+  },
+
+  <span class="comment">// 5. Navigation System (3KB)</span>
+  navigation: {
+    <span class="keyword">push</span>(route, args) { <span class="comment">/* Navigator.push */</span> },
+    <span class="keyword">pop</span>(result) { <span class="comment">/* Navigator.pop */</span> },
+    <span class="keyword">replace</span>(route, args) { <span class="comment">/* pushReplacement */</span> },
+    <span class="keyword">history</span>: [] <span class="comment">/* Browser history integration */</span>
+  },
+
+  <span class="comment">// 6. Theme System (2KB)</span>
+  theme: {
+    <span class="keyword">provide</span>(themeData) { <span class="comment">/* ThemeData */</span> },
+    <span class="keyword">of</span>(context) { <span class="comment">/* Theme.of(context) */</span> },
+    <span class="keyword">update</span>(changes) { <span class="comment">/* Dynamic theme updates */</span> },
+    <span class="keyword">dark</span>() { <span class="comment">/* Dark mode toggle */</span> }
+  }
+};
+                </div>
+
+                <h4>2. Framework Features</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Flutter Equivalent</th>
+                            <th>Size</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>FlutterJS.createWidget()</code></td>
+                            <td><code>StatefulWidget</code></td>
+                            <td>3KB</td>
+                            <td><span class="pill pill-success">Core</span></td>
+                        </tr>
+                        <tr>
+                            <td><code>setState()</code></td>
+                            <td><code>State.setState()</code></td>
+                            <td>1KB</td>
+                            <td><span class="pill pill-success">Core</span></td>
+                        </tr>
+                        <tr>
+                            <td><code>FlutterJS.context</code></td>
+                            <td><code>InheritedWidget</code></td>
+                            <td>2KB</td>
+                            <td><span class="pill pill-success">Core</span></td>
+                        </tr>
+                        <tr>
+                            <td><code>FlutterJS.navigation</code></td>
+                            <td><code>Navigator</code></td>
+                            <td>3KB</td>
+                            <td><span class="pill pill-success">Core</span></td>
+                        </tr>
+                        <tr>
+                            <td><code>FlutterJS.theme</code></td>
+                            <td><code>Theme/ThemeData</code></td>
+                            <td>2KB</td>
+                            <td><span class="pill pill-success">Core</span></td>
+                        </tr>
+                        <tr>
+                            <td><code>FlutterJS.provider</code></td>
+                            <td><code>Provider</code></td>
+                            <td>2KB</td>
+                            <td><span class="pill pill-info">Post-MVP</span></td>
+                        </tr>
+                        <tr>
+                            <td><code>FlutterJS.animation</code></td>
+                            <td><code>AnimationController</code></td>
+                            <td>2KB</td>
+                            <td><span class="pill pill-info">Post-MVP</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h4>3. Component Lifecycle</h4>
+                <div class="architecture-diagram">
+                    <div class="flow-box">Constructor</div>
+                    <span class="arrow">→</span>
+                    <div class="flow-box">initState()</div>
+                    <span class="arrow">→</span>
+                    <div class="flow-box">build()</div>
+                    <span class="arrow">→</span>
+                    <div class="flow-box">didChangeDependencies()</div>
+                    <br><br>
+                    <div class="flow-box">setState()</div>
+                    <span class="arrow">→</span>
+                    <div class="flow-box">build()</div>
+                    <span class="arrow">→</span>
+                    <div class="flow-box">didUpdateWidget()</div>
+                    <br><br>
+                    <div class="flow-box">dispose()</div>
+                </div>
+            </section>
+
+            <section id="dart-ir" class="section">
+                <h2>📦 Dart Function IR (NEW)</h2>
+
+                <div class="new-feature">
+                    <strong>Complete Dart-to-JavaScript Function Mapping</strong> - Full intermediate representation for all Dart functions, methods, and business logic with proper scope handling and type inference.
+                </div>
+
+                <h3>IR Schema for Dart Functions</h3>
+
+                <div class="code-block">
+<span class="comment">// Enhanced IR with Dart Function Support</span>
+<span class="keyword">table</span> FunctionDefinition {
+  id: string;
+  name: string;
+  type: FunctionType; <span class="comment">// method, getter, setter, constructor, static, async</span>
+  
+  <span class="comment">// Signature</span>
+  parameters: [Parameter];
+  return_type: TypeRef;
+  is_async: bool;
+  is_generator: bool; <span class="comment">// async*, sync*</span>
+  
+  <span class="comment">// Body Analysis</span>
+  body: FunctionBody;
+  captures: [VariableRef]; <span class="comment">// Closures</span>
+  calls: [FunctionCall]; <span class="comment">// Dependencies</span>
+  
+  <span class="comment">// Optimization hints</span>
+  is_pure: bool;
+  side_effects: [SideEffect];
+  complexity: int; <span class="comment">// For inlining decisions</span>
+}
+
+<span class="keyword">table</span> Parameter {
+  name: string;
+  type: TypeRef;
+  is_required: bool;
+  is_named: bool;
+  is_positional: bool;
+  default_value: Expression?;
+}
+
+<span class="keyword">table</span> FunctionBody {
+  type: BodyType; <span class="comment">// expression, block, native</span>
+  statements: [Statement];
+  local_variables: [Variable];
+  control_flow: ControlFlowGraph;
+}
+
+<span class="keyword">table</span> Expression {
+  type: ExprType; <span class="comment">// literal, binary, call, member, etc.</span>
+  dart_code: string;
+  js_equivalent: string; <span class="comment">// Pre-computed JS</span>
+  dependencies: [VariableRef];
+}
+
+<span class="keyword">table</span> Statement {
+  type: StmtType; <span class="comment">// if, for, while, return, etc.</span>
+  expressions: [Expression];
+  nested_statements: [Statement];
+  scope: Scope;
+}
+                </div>
+
+                <h3>Dart-to-JS Function Mapping</h3>
+
+                <h4>Example 1: Simple Method</h4>
+                <div class="code-block">
+<span class="comment">// Dart Code</span>
+<span class="keyword">int</span> calculateTotal(List&lt;int&gt; items) {
+  <span class="keyword">return</span> items.fold(0, (sum, item) => sum + item);
+}
+
+<span class="comment">// IR Representation</span>
+{
+  <span class="string">"id"</span>: <span class="string">"func_calculateTotal"</span>,
+  <span class="string">"name"</span>: <span class="string">"calculateTotal"</span>,
+  <span class="string">"type"</span>: <span class="string">"method"</span>,
+  <span class="string">"parameters"</span>: [
+    { <span class="string">"name"</span>: <span class="string">"items"</span>, <span class="string">"type"</span>: <span class="string">"List<int>"</span> }
+  ],
+  <span class="string">"return_type"</span>: <span class="string">"int"</span>,
+  <span class="string">"is_pure"</span>: <span class="keyword">true</span>
+}
+
+<span class="comment">// Generated JavaScript</span>
+<span class="keyword">function</span> calculateTotal(items) {
+  <span class="keyword">return</span> items.reduce((sum, item) => sum + item, 0);
+}
+                </div>
+
+                <h4>Example 2: Async Function with State</h4>
+                <div class="code-block">
+<span class="comment">// Dart Code</span>
+<span class="keyword">Future</span>&lt;<span class="keyword">void</span>&gt; loadUserData() <span class="keyword">async</span> {
+  setState(() {
+    isLoading = <span class="keyword">true</span>;
+  });
+  
+  <span class="keyword">final</span> user = <span class="keyword">await</span> api.fetchUser();
+  
+  setState(() {
+    currentUser = user;
+    isLoading = <span class="keyword">false</span>;
+  });
+}
+
+<span class="comment">// IR Representation</span>
+{
+  <span class="string">"id"</span>: <span class="string">"func_loadUserData"</span>,
+  <span class="string">"name"</span>: <span class="string">"loadUserData"</span>,
+  <span class="string">"type"</span>: <span class="string">"method"</span>,
+  <span class="string">"is_async"</span>: <span class="keyword">true</span>,
+  <span class="string">"calls"</span>: [
+    { <span class="string">"function"</span>: <span class="string">"setState"</span>, <span class="string">"context"</span>: <span class="string">"widget"</span> },
+    { <span class="string">"function"</span>: <span class="string">"api.fetchUser"</span>, <span class="string">"context"</span>: <span class="string">"external"</span> }
+  ],
+  <span class="string">"side_effects"</span>: [<span class="string">"state_mutation"</span>, <span class="string">"network_call"</span>]
+}
+
+<span class="comment">// Generated JavaScript (using Flutter.js runtime)</span>
+<span class="keyword">async</span> <span class="keyword">function</span> loadUserData() {
+  <span class="keyword">this</span>.setState({ isLoading: <span class="keyword">true</span> });
+  
+  <span class="keyword">const</span> user = <span class="keyword">await</span> api.fetchUser();
+  
+  <span class="keyword">this</span>.setState({
+    currentUser: user,
+    isLoading: <span class="keyword">false</span>
+  });
+}
+                </div>
+
+                <h4>Example 3: Closure with Context</h4>
+                <div class="code-block">
+<span class="comment">// Dart Code</span>
+<span class="keyword">void</span> setupHandlers() {
+  <span class="keyword">int</span> counter = 0;
+  
+  onIncrement = () {
+    setState(() {
+      counter++;
+      total = counter * multiplier;
+    });
+  };
+}
+
+<span class="comment">// IR Representation</span>
+{
+  <span class="string">"id"</span>: <span class="string">"func_setupHandlers"</span>,
+  <span class="string">"name"</span>: <span class="string">"setupHandlers"</span>,
+  <span class="string">"body"</span>: {
+    <span class="string">"local_variables"</span>: [
+      { <span class="string">"name"</span>: <span class="string">"counter"</span>, <span class="string">"type"</span>: <span class="string">"int"</span>, <span class="string">"initial"</span>: 0 }
+    ],
+    <span class="string">"closures"</span>: [
+      {
+        <span class="string">"name"</span>: <span class="string">"onIncrement"</span>,
+        <span class="string">"captures"</span>: [<span class="string">"counter"</span>],
+        <span class="string">"accesses_state"</span>: [<span class="string">"multiplier"</span>]
+      }
+    ]
+  }
+}
+
+<span class="comment">// Generated JavaScript</span>
+<span class="keyword">function</span> setupHandlers() {
+  <span class="keyword">let</span> counter = 0;
+  
+  <span class="keyword">this</span>.onIncrement = () => {
+    <span class="keyword">this</span>.setState({
+      counter: ++counter,
+      total: counter * <span class="keyword">this</span>.state.multiplier
+    });
+  };
+}
+                </div>
+
+                <h3>Dart Type to JavaScript Mapping</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Dart Type</th>
+                            <th>JavaScript Equivalent</th>
+                            <th>Runtime Check</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>int</code>, <code>double</code></td>
+                            <td><code>number</code></td>
+                            <td>Optional</td>
+                            <td>Number type</td>
+                        </tr>
+                        <tr>
+                            <td><code>String</code></td>
+                            <td><code>string</code></td>
+                            <td>Optional</td>
+                            <td>Template literals for interpolation</td>
+                        </tr>
+                        <tr>
+                            <td><code>bool</code></td>
+                            <td><code>boolean</code></td>
+                            <td>Optional</td>
+                            <td>Direct mapping</td>
+                        </tr>
+                        <tr>
+                            <td><code>List&lt;T&gt;</code></td>
+                            <td><code>Array&lt;T&gt;</code></td>
+                            <td>Optional</td>
+                            <td>Array methods map to List methods</td>
+                        </tr>
+                        <tr>
+                            <td><code>Map&lt
