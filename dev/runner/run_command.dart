@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+
+import '../dev_server/dev_server.dart';
 // ============================================================================
 // RUN COMMAND
 // ============================================================================
@@ -42,6 +44,7 @@ class RunCommand extends Command<void> {
 
   @override
   Future<void> run() async {
+    //if user pass the port then user argument else if used from manifest defined posrt else default port 3000
     final port = int.parse(argResults!['port'] as String);
     final host = argResults!['host'] as String;
     final hotReload = argResults!['hot-reload'] as bool;
@@ -85,6 +88,26 @@ class RunCommand extends Command<void> {
     //   hotReload: hotReload,
     //   verbose: verbose,
     // );
+    final server = DevServer(
+      buildDir: 'build/web/flutterjs/',
+      port: 8080,
+      host: 'localhost',
+      hotReload: true,
+      verbose: true,
+    );
+
+    try {
+      await server.initialize();
+
+      // Handle graceful shutdown
+      ProcessSignal.sigint.watch().listen((_) async {
+        await server.stop();
+        exit(0);
+      });
+    } catch (e) {
+      print('Failed to start server: $e');
+      exit(1);
+    }
 
     // Keep process alive
     await ProcessSignal.sigint.watch().first;
