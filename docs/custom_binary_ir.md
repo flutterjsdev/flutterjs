@@ -12,7 +12,7 @@ Complete implementation guide for building your own binary intermediate represen
 ┌─────────────────────────────────────┐
 │  Header (16 bytes)                  │
 ├─────────────────────────────────────┤
-│  Magic Bytes: "FJIR" (4 bytes)     │
+│  Magic Bytes: "FJIR" (4 bytes)      │
 │  Version: uint32 (4 bytes)          │
 │  Widget Count: uint32 (4 bytes)     │
 │  Function Count: uint32 (4 bytes)   │
