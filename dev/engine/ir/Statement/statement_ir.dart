@@ -1292,6 +1292,11 @@ class ProviderIR {
 
 enum ProviderType {
   changeNotifier,
+  valueNotifier,
+  stateNotifier,
+  inheritedWidget,
+  bloc,
+  cubit,
   value,
   stream,
   future,

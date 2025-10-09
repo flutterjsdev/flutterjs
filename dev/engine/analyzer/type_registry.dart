@@ -1,4 +1,5 @@
 // lib/src/analyzer/type_registry.dart
+import 'package:analyzer/dart/element/element.dart' as aelement;
 
 class TypeRegistry {
   final Map<String, TypeInfo> _types = {};
@@ -32,30 +33,69 @@ class TypeRegistry {
   }
 }
 
+
+
+ /// Type information extracted from declarations
 class TypeInfo {
   final String name;
-  final String sourceFile;
+  final String fullyQualifiedName;
   final TypeKind kind;
-  final String? superclass;
-  final List<String> mixins;
-  final List<String> interfaces;
+  final String filePath;
+  final aelement.Element element;
+  
+  // Class-specific
   final bool isAbstract;
+  final String? superType;
+  final List<String> interfaces;
+  final List<String> mixins;
+  final List<String> typeParameters;
+  
+  // Flutter-specific flags
+  final bool isWidget;
+  final bool isStatefulWidget;
+  final bool isStatelessWidget;
+  final bool isState;
+  
+  // Mixin-specific
+  final List<String> superclassConstraints;
+  
+  // Enum-specific
+  final List<String> enumValues;
+  
+  // Typedef-specific
+  final String? aliasedType;
+  
+  // Extension-specific
+  final String? extendedType;
 
   TypeInfo({
     required this.name,
-    required this.sourceFile,
+    required this.fullyQualifiedName,
     required this.kind,
-    this.superclass,
-    this.mixins = const [],
-    this.interfaces = const [],
+    required this.filePath,
+    required this.element,
     this.isAbstract = false,
+    this.superType,
+    this.interfaces = const [],
+    this.mixins = const [],
+    this.typeParameters = const [],
+    this.isWidget = false,
+    this.isStatefulWidget = false,
+    this.isStatelessWidget = false,
+    this.isState = false,
+    this.superclassConstraints = const [],
+    this.enumValues = const [],
+    this.aliasedType,
+    this.extendedType,
   });
 }
 
+/// Type kind enumeration
 enum TypeKind {
   class_,
+  abstractClass,
   mixin,
   enum_,
-  extension,
   typedef,
+  extension,
 }
