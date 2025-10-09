@@ -190,6 +190,7 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:analyzer/dart/element/element.dart';
+import '../ir/Expression/expression_ir.dart';
 import '../ir/Statement/statement_ir.dart';
 import '../ir/ir_schema.dart';
 import '../ir/widget/widget_ir.dart';
@@ -1863,6 +1864,1221 @@ class EnhancedASTVisitor extends RecursiveAstVisitor<void> {
     
     builder.addAsyncOperation(asyncOp);
   }
-  
-  void _extractWidgetInstantiation(InstanceCreationExpression node) {}
+
+  void _extractWidgetInstantiation(InstanceCreationExpression node) {
+    final typeName = node.constructorName.type.name2.toString();
+    final constructorName = node.constructorName.name?.name ?? '';
+    
+    final instantiation = WidgetInstantiationIR(
+      id: builder.generateId('instance'),
+      widgetType: typeName,
+      constructorName: constructorName,
+      arguments: node.argumentList.arguments
+          .where((arg) => arg is! NamedExpression)
+          .map((arg) => _extractExpression(arg))
+          .toList(),
+      namedArguments: Map.fromEntries(
+        node.argumentList.arguments
+            .whereType<NamedExpression>()
+            .map((arg) => MapEntry(
+                  arg.name.label.name,
+                  _extractExpression(arg.expression),
+                )),
+      ),
+      isConst: node.keyword?.type.toString() == 'const',
+      sourceLocation: _extractSourceLocation(node),
+      usedInBuildMethod: _isInBuildMethod(),
+    );
+    
+    builder.addWidgetInstantiation(instantiation);
   }
+  
+  void _extractAnimationController(InstanceCreationExpression node) {
+    final args = node.argumentList.arguments;
+    
+    // Extract vsync and duration
+    ExpressionIR? vsync;
+    ExpressionIR? duration;
+    ExpressionIR? lowerBound;
+    ExpressionIR? upperBound;
+    
+    for (final arg in args) {
+      if (arg is NamedExpression) {
+        final name = arg.name.label.name;
+        final value = _extractExpression(arg.expression);
+        
+        switch (name) {
+          case 'vsync':
+            vsync = value;
+            break;
+          case 'duration':
+            duration = value;
+            break;
+          case 'lowerBound':
+            lowerBound = value;
+            break;
+          case 'upperBound':
+            upperBound = value;
+            break;
+        }
+      }
+    }
+    
+    final animController = AnimationControllerIR(
+      id: builder.generateId('animController'),
+      vsync: vsync,
+      duration: duration,
+      lowerBound: lowerBound,
+      upperBound: upperBound,
+      isDisposed: false, // Will be determined in lifecycle analysis
+      sourceLocation: _extractSourceLocation(node),
+    );
+    
+    builder.addAnimationController(animController);
+  }
+  
+  void _extractAsyncBuilder(InstanceCreationExpression node) {
+    final typeName = node.constructorName.type.name2.toString();
+    final args = node.argumentList.arguments;
+    
+    ExpressionIR? future;
+    ExpressionIR? stream;
+    ExpressionIR? builder;
+    ExpressionIR? initialData;
+    
+    for (final arg in args) {
+      if (arg is NamedExpression) {
+        final name = arg.name.label.name;
+        final value = _extractExpression(arg.expression);
+        
+        switch (name) {
+          case 'future':
+            future = value;
+            break;
+          case 'stream':
+            stream = value;
+            break;
+          case 'builder':
+            builder = value;
+            break;
+          case 'initialData':
+            initialData = value;
+            break;
+        }
+      }
+    }
+    
+    final asyncBuilder = AsyncBuilderIR(
+      id: builder.generateId('asyncBuilder'),
+      type: typeName == 'FutureBuilder' 
+          ? AsyncBuilderType.futureBuilder 
+          : AsyncBuilderType.streamBuilder,
+      future: future,
+      stream: stream,
+      builder: builder,
+      initialData: initialData,
+      sourceLocation: _extractSourceLocation(node),
+    );
+    
+    builder.addAsyncBuilder(asyncBuilder);
+  }
+  
+  void _extractController(InstanceCreationExpression node) {
+    final typeName = node.constructorName.type.name2.toString();
+    
+    final controller = ControllerIR(
+      name: '', // Will be set from variable declaration context
+      type: _getControllerType(typeName),
+      initialization: _extractExpression(node),
+      isDisposedInDispose: false, // Will be determined later
+      usedIn: [],
+    );
+    
+    builder.addController(controller);
+  }
+
+  // ==========================================================================
+  // LIFECYCLE METHOD EXTRACTION
+  // ==========================================================================
+  
+  void _extractLifecycleMethod(MethodDeclaration node, LifecycleType type) {
+    final lifecycle = _extractLifecycleMethodFull(node, type);
+    builder.addLifecycleMethod(lifecycle);
+  }
+  
+  LifecycleMethodIR _extractLifecycleMethodFull(
+    MethodDeclaration node, 
+    LifecycleType type,
+  ) {
+    final statements = <StatementIR>[];
+    
+    if (node.body is BlockFunctionBody) {
+      final block = (node.body as BlockFunctionBody).block;
+      for (final statement in block.statements) {
+        statements.add(_extractStatement(statement));
+      }
+    }
+    
+    // Extract special lifecycle-specific information
+    final initializesControllers = type == LifecycleType.initState 
+        ? _findControllerInitializations(statements)
+        : [];
+    
+    final disposesControllers = type == LifecycleType.dispose
+        ? _findControllerDisposals(statements)
+        : [];
+    
+    final callsSuper = _checksForSuperCall(node);
+    
+    return LifecycleMethodIR(
+      type: type,
+      statements: statements,
+      callsSuper: callsSuper,
+      initializesControllers: initializesControllers,
+      disposesControllers: disposesControllers,
+      sourceLocation: _extractSourceLocation(node),
+    );
+  }
+  
+  List<String> _findControllerInitializations(List<StatementIR> statements) {
+    final controllers = <String>[];
+    
+    for (final stmt in statements) {
+      if (stmt is ExpressionStatementIR) {
+        final expr = stmt.expression;
+        if (expr is AssignmentExpressionIR) {
+          final target = expr.left;
+          final value = expr.right;
+          
+          if (target is IdentifierExpressionIR && 
+              value is MethodCallExpressionIR) {
+            final typeName = value.methodName;
+            if (_isController(typeName)) {
+              controllers.add(target.name);
+            }
+          }
+        }
+      }
+    }
+    
+    return controllers;
+  }
+  
+  List<String> _findControllerDisposals(List<StatementIR> statements) {
+    final disposals = <String>[];
+    
+    for (final stmt in statements) {
+      if (stmt is ExpressionStatementIR) {
+        final expr = stmt.expression;
+        if (expr is MethodCallExpressionIR && expr.methodName == 'dispose') {
+          if (expr.target is IdentifierExpressionIR) {
+            disposals.add((expr.target as IdentifierExpressionIR).name);
+          }
+        }
+      }
+    }
+    
+    return disposals;
+  }
+  
+  bool _checksForSuperCall(MethodDeclaration node) {
+    if (node.body is BlockFunctionBody) {
+      final block = (node.body as BlockFunctionBody).block;
+      for (final statement in block.statements) {
+        if (statement is ExpressionStatement) {
+          final expr = statement.expression;
+          if (expr is MethodInvocation && 
+              expr.target is SuperExpression &&
+              expr.methodName.name == node.name.lexeme) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  // ==========================================================================
+  // REGULAR CLASS/METHOD EXTRACTION
+  // ==========================================================================
+  
+  void _extractRegularClass(ClassDeclaration node) {
+    final classId = builder.generateId('class');
+    final className = node.name.lexeme;
+    
+    final fields = <FieldIR>[];
+    final methods = <MethodIR>[];
+    ConstructorIR? constructor;
+    
+    for (final member in node.members) {
+      if (member is FieldDeclaration) {
+        fields.addAll(_extractFields(member));
+      } else if (member is MethodDeclaration) {
+        methods.add(_extractMethodIR(member));
+      } else if (member is ConstructorDeclaration) {
+        constructor = _extractConstructor(member);
+      }
+    }
+    
+    final classIR = ClassIR(
+      id: classId,
+      name: className,
+      fields: fields,
+      methods: methods,
+      constructor: constructor,
+      superclass: node.extendsClause?.superclass.name2.toString(),
+      interfaces: node.implementsClause?.interfaces2
+              .map((i) => i.name2.toString())
+              .toList() ??
+          [],
+      mixins: node.withClause?.mixinTypes2
+              .map((m) => m.name2.toString())
+              .toList() ??
+          [],
+      isAbstract: node.abstractKeyword != null,
+      annotations: _extractAnnotations(node.metadata),
+      sourceLocation: _extractSourceLocation(node),
+    );
+    
+    builder.addClass(classIR);
+  }
+  
+  void _extractRegularMethod(MethodDeclaration node) {
+    final methodIR = _extractMethodIR(node);
+    builder.addMethod(methodIR);
+  }
+  
+  MethodIR _extractMethodIR(MethodDeclaration node) {
+    final statements = <StatementIR>[];
+    
+    if (node.body is BlockFunctionBody) {
+      final block = (node.body as BlockFunctionBody).block;
+      for (final statement in block.statements) {
+        statements.add(_extractStatement(statement));
+      }
+    }
+    
+    ExpressionIR? returnExpression;
+    if (node.body is ExpressionFunctionBody) {
+      returnExpression = _extractExpression(
+        (node.body as ExpressionFunctionBody).expression,
+      );
+    }
+    
+    return MethodIR(
+      name: node.name.lexeme,
+      returnType: _convertType(node.returnType?.type),
+      parameters: node.parameters != null 
+          ? _extractParameters(node.parameters!) 
+          : [],
+      body: statements,
+      returnExpression: returnExpression,
+      isAsync: node.body.isAsynchronous,
+      isGenerator: node.body.isGenerator,
+      isStatic: node.isStatic,
+      isAbstract: node.isAbstract,
+      annotations: _extractAnnotations(node.metadata),
+      sourceLocation: _extractSourceLocation(node),
+    );
+  }
+  
+  EventHandlerIR _extractEventHandler(MethodDeclaration node) {
+    final methodIR = _extractMethodIR(node);
+    
+    return EventHandlerIR(
+      name: methodIR.name,
+      handlerType: _inferHandlerType(methodIR.name),
+      parameters: methodIR.parameters,
+      body: methodIR.body,
+      isAsync: methodIR.isAsync,
+      triggersStateChange: _containsSetStateCall(methodIR.body),
+      triggersNavigation: _containsNavigationCall(methodIR.body),
+      sourceLocation: methodIR.sourceLocation,
+    );
+  }
+  
+  EventHandlerType _inferHandlerType(String name) {
+    if (name.contains('Tap') || name.contains('Press')) {
+      return EventHandlerType.tap;
+    } else if (name.contains('Submit')) {
+      return EventHandlerType.submit;
+    } else if (name.contains('Change')) {
+      return EventHandlerType.change;
+    } else if (name.contains('Scroll')) {
+      return EventHandlerType.scroll;
+    } else if (name.contains('Drag')) {
+      return EventHandlerType.drag;
+    } else if (name.contains('Focus')) {
+      return EventHandlerType.focus;
+    }
+    return EventHandlerType.custom;
+  }
+  
+  bool _containsSetStateCall(List<StatementIR> statements) {
+    for (final stmt in statements) {
+      if (stmt is ExpressionStatementIR) {
+        if (_isSetStateExpression(stmt.expression)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  
+  bool _isSetStateExpression(ExpressionIR expr) {
+    if (expr is MethodCallExpressionIR) {
+      return expr.methodName == 'setState';
+    }
+    return false;
+  }
+  
+  bool _containsNavigationCall(List<StatementIR> statements) {
+    for (final stmt in statements) {
+      if (stmt is ExpressionStatementIR) {
+        if (_isNavigationExpression(stmt.expression)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  
+  bool _isNavigationExpression(ExpressionIR expr) {
+    if (expr is MethodCallExpressionIR) {
+      return ['push', 'pop', 'pushNamed', 'pushReplacement'].contains(expr.methodName);
+    }
+    return false;
+  }
+
+  // ==========================================================================
+  // FUNCTION EXPRESSION EXTRACTION
+  // ==========================================================================
+  
+  FunctionExpressionIR _extractFunctionExpression(FunctionExpression node) {
+    final parameters = node.parameters != null 
+        ? _extractParameters(node.parameters!) 
+        : <ParameterIR>[];
+    
+    final statements = <StatementIR>[];
+    ExpressionIR? returnExpression;
+    
+    if (node.body is BlockFunctionBody) {
+      final block = (node.body as BlockFunctionBody).block;
+      for (final statement in block.statements) {
+        statements.add(_extractStatement(statement));
+      }
+    } else if (node.body is ExpressionFunctionBody) {
+      returnExpression = _extractExpression(
+        (node.body as ExpressionFunctionBody).expression,
+      );
+    }
+    
+    return FunctionExpressionIR(
+      id: builder.generateId('function'),
+      resultType: _inferFunctionReturnType(node),
+      sourceLocation: _extractSourceLocation(node),
+      parameters: parameters,
+      body: statements,
+      returnExpression: returnExpression,
+      capturedVariables: _capturedVariables.toList(),
+      isAsync: node.body.isAsynchronous,
+      isGenerator: node.body.isGenerator,
+    );
+  }
+
+  // ==========================================================================
+  // STATEMENT EXTRACTION IMPLEMENTATIONS
+  // ==========================================================================
+  
+  StatementIR _extractBlockStatement(Block node) {
+    final statements = node.statements
+        .map((stmt) => _extractStatement(stmt))
+        .toList();
+    
+    return BlockStatementIR(
+      id: builder.generateId('stmt'),
+      sourceLocation: _extractSourceLocation(node),
+      statements: statements,
+    );
+  }
+  
+  StatementIR _extractExpressionStatement(ExpressionStatement node) {
+    return ExpressionStatementIR(
+      id: builder.generateId('stmt'),
+      sourceLocation: _extractSourceLocation(node),
+      expression: _extractExpression(node.expression),
+    );
+  }
+  
+  StatementIR _extractVariableDeclarationStatement(VariableDeclarationStatement node) {
+    final variables = _extractLocalVariables(node);
+    
+    return VariableDeclarationStatementIR(
+      id: builder.generateId('stmt'),
+      sourceLocation: _extractSourceLocation(node),
+      variables: variables,
+    );
+  }
+  
+  StatementIR _extractIfStatement(IfStatement node) {
+    return IfStatementIR(
+      id: builder.generateId('stmt'),
+      sourceLocation: _extractSourceLocation(node),
+      condition: _extractExpression(node.expression),
+      thenStatement: _extractStatement(node.thenStatement),
+      elseStatement: node.elseStatement != null
+          ? _extractStatement(node.elseStatement!)
+          : null,
+    );
+  }
+  
+  StatementIR _extractForStatement(ForStatement node) {
+    final forLoopParts = node.forLoopParts;
+    
+    ExpressionIR? initialization;
+    ExpressionIR? condition;
+    List<ExpressionIR> updaters = [];
+    
+    if (forLoopParts is ForPartsWithDeclarations) {
+      // for (var i = 0; ...)
+      if (forLoopParts.variables.variables.isNotEmpty) {
+        final firstVar = forLoopParts.variables.variables.first;
+        if (firstVar.initializer != null) {
+          initialization = _extractExpression(firstVar.initializer!);
+        }
+      }
+      if (forLoopParts.condition != null) {
+        condition = _extractExpression(forLoopParts.condition!);
+      }
+      updaters = forLoopParts.updaters
+          .map((e) => _extractExpression(e))
+          .toList();
+    } else if (forLoopParts is ForPartsWithExpression) {
+      if (forLoopParts.initialization != null) {
+        initialization = _extractExpression(forLoopParts.initialization!);
+      }
+      if (forLoopParts.condition != null) {
+        condition = _extractExpression(forLoopParts.condition!);
+      }
+      updaters = forLoopParts.updaters
+          .map((e) => _extractExpression(e))
+          .toList();
+    }
+    
+    return ForStatementIR(
+      id: builder.generateId('stmt'),
+      sourceLocation: _extractSourceLocation(node),
+      initialization: initialization,
+      condition: condition,
+      updaters: updaters,
+      body: _extractStatement(node.body),
+    );
+  }
+  
+  StatementIR _extractForEachStatement(ForEachStatement node) {
+    return ForEachStatementIR(
+      id: builder.generateId('stmt'),
+      sourceLocation: _extractSourceLocation(node),
+      loopVariable: node.loopVariable.name.lexeme,
+      iterable: _extractExpression(node.iterable),
+      body: _extractStatement(node.body),
+      isAsync: node.awaitKeyword != null,
+    );
+  }
+  
+  StatementIR _extractWhileStatement(WhileStatement node) {
+    return WhileStatementIR(
+      id: builder.generateId('stmt'),
+      sourceLocation: _extractSourceLocation(node),
+      condition: _extractExpression(node.condition),
+      body: _extractStatement(node.body),
+    );
+  }
+  
+  StatementIR _extractDoWhileStatement(DoStatement node) {
+    return DoWhileStatementIR(
+      id: builder.generateId('stmt'),
+      sourceLocation: _extractSourceLocation(node),
+      body: _extractStatement(node.body),
+      condition: _extractExpression(node.condition),
+    );
+  }
+  
+  StatementIR _extractSwitchStatement(SwitchStatement node) {
+    final cases = node.members.map((member) {
+      if (member is SwitchCase) {
+        return SwitchCaseIR(
+          expression: _extractExpression(member.expression),
+          statements: member.statements
+              .map((stmt) => _extractStatement(stmt))
+              .toList(),
+        );
+      } else if (member is SwitchDefault) {
+        return SwitchCaseIR(
+          expression: null,
+          statements: member.statements
+              .map((stmt) => _extractStatement(stmt))
+              .toList(),
+        );
+      }
+      return SwitchCaseIR(expression: null, statements: []);
+    }).toList();
+    
+    return SwitchStatementIR(
+      id: builder.generateId('stmt'),
+      sourceLocation: _extractSourceLocation(node),
+      expression: _extractExpression(node.expression),
+      cases: cases,
+    );
+  }
+  
+  StatementIR _extractTryStatement(TryStatement node) {
+    final catchClauses = node.catchClauses.map((clause) {
+      return CatchClauseIR(
+        exceptionType: clause.exceptionType != null
+            ? _convertType(clause.exceptionType!.type)
+            : null,
+        exceptionParameter: clause.exceptionParameter?.name,
+        stackTraceParameter: clause.stackTraceParameter?.name,
+        body: _extractStatement(clause.body),
+      );
+    }).toList();
+    
+    return TryStatementIR(
+      id: builder.generateId('stmt'),
+      sourceLocation: _extractSourceLocation(node),
+      body: _extractStatement(node.body),
+      catchClauses: catchClauses,
+      finallyBlock: node.finallyBlock != null
+          ? _extractStatement(node.finallyBlock!)
+          : null,
+    );
+  }
+  
+  StatementIR _extractReturnStatement(ReturnStatement node) {
+    return ReturnStatementIR(
+      id: builder.generateId('stmt'),
+      sourceLocation: _extractSourceLocation(node),
+      expression: node.expression != null
+          ? _extractExpression(node.expression!)
+          : _createNullExpression(),
+    );
+  }
+  
+  StatementIR _extractBreakStatement(BreakStatement node) {
+    return BreakStatementIR(
+      id: builder.generateId('stmt'),
+      sourceLocation: _extractSourceLocation(node),
+      label: node.label?.name,
+    );
+  }
+  
+  StatementIR _extractContinueStatement(ContinueStatement node) {
+    return ContinueStatementIR(
+      id: builder.generateId('stmt'),
+      sourceLocation: _extractSourceLocation(node),
+      label: node.label?.name,
+    );
+  }
+
+  // ==========================================================================
+  // EXPRESSION EXTRACTION IMPLEMENTATIONS (Continued)
+  // ==========================================================================
+  
+  ExpressionIR _extractIntegerLiteral(IntegerLiteral expr) {
+    return LiteralExpressionIR(
+      id: builder.generateId('expr'),
+      resultType: _createIntType(),
+      sourceLocation: _extractSourceLocation(expr),
+      value: expr.value,
+      literalType: LiteralType.integer,
+    );
+  }
+  
+  ExpressionIR _extractDoubleLiteral(DoubleLiteral expr) {
+    return LiteralExpressionIR(
+      id: builder.generateId('expr'),
+      resultType: _createDoubleType(),
+      sourceLocation: _extractSourceLocation(expr),
+      value: expr.value,
+      literalType: LiteralType.double,
+    );
+  }
+  
+  ExpressionIR _extractBooleanLiteral(BooleanLiteral expr) {
+    return LiteralExpressionIR(
+      id: builder.generateId('expr'),
+      resultType: _createBoolType(),
+      sourceLocation: _extractSourceLocation(expr),
+      value: expr.value,
+      literalType: LiteralType.boolean,
+    );
+  }
+  
+  ExpressionIR _extractNullLiteral(NullLiteral expr) {
+    return LiteralExpressionIR(
+      id: builder.generateId('expr'),
+      resultType: _createNullType(),
+      sourceLocation: _extractSourceLocation(expr),
+      value: null,
+      literalType: LiteralType.nullLiteral,
+    );
+  }
+  
+  ExpressionIR _extractIdentifier(SimpleIdentifier expr) {
+    return IdentifierExpressionIR(
+      id: builder.generateId('expr'),
+      resultType: _inferIdentifierType(expr),
+      sourceLocation: _extractSourceLocation(expr),
+      name: expr.name,
+      isTypeReference: _isTypeIdentifier(expr),
+    );
+  }
+  
+  ExpressionIR _extractPropertyAccess(PropertyAccess expr) {
+    return PropertyAccessExpressionIR(
+      id: builder.generateId('expr'),
+      resultType: _inferPropertyAccessType(expr),
+      sourceLocation: _extractSourceLocation(expr),
+      target: _extractExpression(expr.target!),
+      propertyName: expr.propertyName.name,
+      isNullAware: expr.operator.type.toString() == '?.',
+    );
+  }
+  
+  ExpressionIR _extractConditionalExpression(ConditionalExpression expr) {
+    return ConditionalExpressionIR(
+      id: builder.generateId('expr'),
+      resultType: _inferConditionalType(expr),
+      sourceLocation: _extractSourceLocation(expr),
+      condition: _extractExpression(expr.condition),
+      thenExpression: _extractExpression(expr.thenExpression),
+      elseExpression: _extractExpression(expr.elseExpression),
+    );
+  }
+  
+  ExpressionIR _extractListLiteral(ListLiteral expr) {
+    return ListExpressionIR(
+      id: builder.generateId('expr'),
+      resultType: _inferListType(expr),
+      sourceLocation: _extractSourceLocation(expr),
+      elements: expr.elements.map((e) {
+        if (e is Expression) {
+          return _extractExpression(e);
+        }
+        return _createNullExpression();
+      }).toList(),
+      isConst: expr.constKeyword != null,
+    );
+  }
+  
+  ExpressionIR _extractMapLiteral(SetOrMapLiteral expr) {
+    if (expr.isMap) {
+      final entries = <MapEntryIR>[];
+      for (final element in expr.elements) {
+        if (element is MapLiteralEntry) {
+          entries.add(MapEntryIR(
+            key: _extractExpression(element.key),
+            value: _extractExpression(element.value),
+          ));
+        }
+      }
+      
+      return MapExpressionIR(
+        id: builder.generateId('expr'),
+        resultType: _inferMapType(expr),
+        sourceLocation: _extractSourceLocation(expr),
+        entries: entries,
+        isConst: expr.constKeyword != null,
+      );
+    } else {
+      return SetExpressionIR(
+        id: builder.generateId('expr'),
+        resultType: _inferSetType(expr),
+        sourceLocation: _extractSourceLocation(expr),
+        elements: expr.elements.map((e) {
+          if (e is Expression) {
+            return _extractExpression(e);
+          }
+          return _createNullExpression();
+        }).toList(),
+        isConst: expr.constKeyword != null,
+      );
+    }
+  }
+  
+  ExpressionIR _extractAwaitExpression(AwaitExpression expr) {
+    return AwaitExpressionIR(
+      id: builder.generateId('expr'),
+      resultType: _inferAwaitType(expr),
+      sourceLocation: _extractSourceLocation(expr),
+      expression: _extractExpression(expr.expression),
+    );
+  }
+  
+  ExpressionIR _extractAsExpression(AsExpression expr) {
+    return AsExpressionIR(
+      id: builder.generateId('expr'),
+      resultType: _convertType(expr.type.type),
+      sourceLocation: _extractSourceLocation(expr),
+      expression: _extractExpression(expr.expression),
+      targetType: _convertType(expr.type.type),
+    );
+  }
+  
+  ExpressionIR _extractIsExpression(IsExpression expr) {
+    return IsExpressionIR(
+      id: builder.generateId('expr'),
+      resultType: _createBoolType(),
+      sourceLocation: _extractSourceLocation(expr),
+      expression: _extractExpression(expr.expression),
+      testType: _convertType(expr.type.type),
+      isNegated: expr.notOperator != null,
+    );
+  }
+  
+  ExpressionIR _extractInstanceCreation(InstanceCreationExpression expr) {
+    return InstanceCreationExpressionIR(
+      id: builder.generateId('expr'),
+      resultType: _convertType(expr.constructorName.type.type),
+      sourceLocation: _extractSourceLocation(expr),
+      typeName: expr.constructorName.type.name2.toString(),
+      constructorName: expr.constructorName.name?.name ?? '',
+      arguments: expr.argumentList.arguments
+          .where((arg) => arg is! NamedExpression)
+          .map((arg) => _extractExpression(arg))
+          .toList(),
+      namedArguments: Map.fromEntries(
+        expr.argumentList.arguments
+            .whereType<NamedExpression>()
+            .map((arg) => MapEntry(
+                  arg.name.label.name,
+                  _extractExpression(arg.expression),
+                )),
+      ),
+      isConst: expr.keyword?.type.toString() == 'const',
+    );
+  }
+
+  // ==========================================================================
+  // TYPE INFERENCE AND CONVERSION
+  // ==========================================================================
+  
+  TypeIR _convertType(DartType? type) {
+    if (type == null) {
+      return DynamicTypeIR(id: builder.generateId('type'));
+    }
+    
+    if (type.isDynamic) {
+      return DynamicTypeIR(id: builder.generateId('type'));
+    } else if (type.isVoid) {
+      return VoidTypeIR(id: builder.generateId('type'));
+    } else if (type is InterfaceType) {
+      return InterfaceTypeIR(
+        id: builder.generateId('type'),
+        name: type.element2.name,
+        typeArguments: type.typeArguments.map(_convertType).toList(),
+        isNullable: type.nullabilitySuffix == NullabilitySuffix.question,
+      );
+    } else if (type is FunctionType) {
+      return FunctionTypeIR(
+        id: builder.generateId('type'),
+        returnType: _convertType(type.returnType),
+        parameters: type.parameters.map((param) {
+          return ParameterTypeIR(
+            name: param.name,
+            type: _convertType(param.type),
+            isRequired: param.isRequiredPositional || param.isRequiredNamed,
+            isNamed: param.isNamed,
+          );
+        }).toList(),
+        isNullable: type.nullabilitySuffix == NullabilitySuffix.question,
+      );
+    } else if (type is TypeParameterType) {
+      return TypeParameterTypeIR(
+        id: builder.generateId('type'),
+        name: type.element2.name,
+        bound: type.bound != null ? _convertType(type.bound) : null,
+        isNullable: type.nullabilitySuffix == NullabilitySuffix.question,
+      );
+    }
+    
+    return SimpleTypeIR(
+      id: builder.generateId('type'),
+      name: type.toString(),
+      isNullable: type.nullabilitySuffix == NullabilitySuffix.question,
+    );
+  }
+  
+  TypeIR _inferIdentifierType(SimpleIdentifier expr) {
+    // Try to get type from local types map
+    final name = expr.name;
+    if (_localTypes.containsKey(name)) {
+      return _convertType(_localTypes[name]);
+    }
+    
+    // Try to get from element
+    final element = expr.staticElement;
+    if (element != null) {
+      return _convertType(element.library!.typeSystem.typeOf(expr));
+    }
+    
+    return DynamicTypeIR(id: builder.generateId('type'));
+  }
+  
+TypeIR _inferBinaryResultType(BinaryExpression expr) {
+    final operator = expr.operator.type.toString();
+    
+    // Comparison operators return bool
+    if (['==', '!=', '<', '>', '<=', '>='].contains(operator)) {
+      return _createBoolType();
+    }
+    
+    // Logical operators return bool
+    if (['&&', '||'].contains(operator)) {
+      return _createBoolType();
+    }
+    
+    // Try to infer from operand types
+    final leftType = expr.leftOperand.staticType;
+    final rightType = expr.rightOperand.staticType;
+    
+    // String concatenation
+    if (operator == '+' && leftType?.isDartCoreString == true) {
+      return _createStringType();
+    }
+    
+    // Numeric operations - prefer double if either operand is double
+    if (['+', '-', '*', '/', '%', '~/', '^', '&', '|', '<<', '>>'].contains(operator)) {
+      if (leftType?.isDartCoreDouble == true || rightType?.isDartCoreDouble == true) {
+        return _createDoubleType();
+      }
+      if (leftType?.isDartCoreInt == true || rightType?.isDartCoreInt == true) {
+        return operator == '/' ? _createDoubleType() : _createIntType();
+      }
+      return _createDoubleType(); // Default to double for numeric operations
+    }
+    
+    // Try to use the static type from the expression itself
+    if (expr.staticType != null) {
+      return _convertType(expr.staticType);
+    }
+    
+    // Fallback to dynamic
+    return DynamicTypeIR(id: builder.generateId('type'));
+  }
+  
+  TypeIR _inferMethodCallType(MethodInvocation expr) {
+    // Try to get type from static type
+    if (expr.staticType != null) {
+      return _convertType(expr.staticType);
+    }
+    
+    // Try to infer from method element
+    final element = expr.methodName.staticElement;
+    if (element is ExecutableElement && element.returnType != null) {
+      return _convertType(element.returnType);
+    }
+    
+    return DynamicTypeIR(id: builder.generateId('type'));
+  }
+  
+  TypeIR _inferPropertyAccessType(PropertyAccess expr) {
+    if (expr.staticType != null) {
+      return _convertType(expr.staticType);
+    }
+    
+    final element = expr.propertyName.staticElement;
+    if (element is PropertyAccessorElement && element.returnType != null) {
+      return _convertType(element.returnType);
+    }
+    
+    return DynamicTypeIR(id: builder.generateId('type'));
+  }
+  
+  TypeIR _inferConditionalType(ConditionalExpression expr) {
+    // The type is the common type of then and else branches
+    if (expr.staticType != null) {
+      return _convertType(expr.staticType);
+    }
+    
+    // Try to use then expression type
+    if (expr.thenExpression.staticType != null) {
+      return _convertType(expr.thenExpression.staticType);
+    }
+    
+    return DynamicTypeIR(id: builder.generateId('type'));
+  }
+  
+  TypeIR _inferListType(ListLiteral expr) {
+    if (expr.staticType != null) {
+      return _convertType(expr.staticType);
+    }
+    
+    // Try to infer from type arguments
+    if (expr.typeArguments != null && expr.typeArguments!.arguments.isNotEmpty) {
+      final elementType = _convertType(expr.typeArguments!.arguments.first.type);
+      return InterfaceTypeIR(
+        id: builder.generateId('type'),
+        name: 'List',
+        typeArguments: [elementType],
+        isNullable: false,
+      );
+    }
+    
+    return InterfaceTypeIR(
+      id: builder.generateId('type'),
+      name: 'List',
+      typeArguments: [DynamicTypeIR(id: builder.generateId('type'))],
+      isNullable: false,
+    );
+  }
+  
+  TypeIR _inferMapType(SetOrMapLiteral expr) {
+    if (expr.staticType != null) {
+      return _convertType(expr.staticType);
+    }
+    
+    // Try to infer from type arguments
+    if (expr.typeArguments != null && expr.typeArguments!.arguments.length >= 2) {
+      final keyType = _convertType(expr.typeArguments!.arguments[0].type);
+      final valueType = _convertType(expr.typeArguments!.arguments[1].type);
+      return InterfaceTypeIR(
+        id: builder.generateId('type'),
+        name: 'Map',
+        typeArguments: [keyType, valueType],
+        isNullable: false,
+      );
+    }
+    
+    return InterfaceTypeIR(
+      id: builder.generateId('type'),
+      name: 'Map',
+      typeArguments: [
+        DynamicTypeIR(id: builder.generateId('type')),
+        DynamicTypeIR(id: builder.generateId('type')),
+      ],
+      isNullable: false,
+    );
+  }
+  
+  TypeIR _inferSetType(SetOrMapLiteral expr) {
+    if (expr.staticType != null) {
+      return _convertType(expr.staticType);
+    }
+    
+    // Try to infer from type arguments
+    if (expr.typeArguments != null && expr.typeArguments!.arguments.isNotEmpty) {
+      final elementType = _convertType(expr.typeArguments!.arguments.first.type);
+      return InterfaceTypeIR(
+        id: builder.generateId('type'),
+        name: 'Set',
+        typeArguments: [elementType],
+        isNullable: false,
+      );
+    }
+    
+    return InterfaceTypeIR(
+      id: builder.generateId('type'),
+      name: 'Set',
+      typeArguments: [DynamicTypeIR(id: builder.generateId('type'))],
+      isNullable: false,
+    );
+  }
+  
+  TypeIR _inferAwaitType(AwaitExpression expr) {
+    // Await unwraps Future<T> to T
+    if (expr.expression.staticType != null) {
+      final type = expr.expression.staticType!;
+      if (type is InterfaceType && type.element2.name == 'Future') {
+        if (type.typeArguments.isNotEmpty) {
+          return _convertType(type.typeArguments.first);
+        }
+      }
+    }
+    
+    return DynamicTypeIR(id: builder.generateId('type'));
+  }
+  
+  TypeIR _inferFunctionReturnType(FunctionExpression expr) {
+    if (expr.staticType != null && expr.staticType is FunctionType) {
+      final funcType = expr.staticType as FunctionType;
+      return _convertType(funcType.returnType);
+    }
+    
+    return DynamicTypeIR(id: builder.generateId('type'));
+  }
+  
+  bool _isTypeIdentifier(SimpleIdentifier expr) {
+    final parent = expr.parent;
+    return parent is TypeAnnotation || 
+           parent is ConstructorName ||
+           parent is NamedType;
+  }
+
+  // ==========================================================================
+  // TYPE CREATION HELPERS
+  // ==========================================================================
+  
+  TypeIR _createStringType() {
+    return SimpleTypeIR(
+      id: builder.generateId('type'),
+      name: 'String',
+      isNullable: false,
+    );
+  }
+  
+  TypeIR _createIntType() {
+    return SimpleTypeIR(
+      id: builder.generateId('type'),
+      name: 'int',
+      isNullable: false,
+    );
+  }
+  
+  TypeIR _createDoubleType() {
+    return SimpleTypeIR(
+      id: builder.generateId('type'),
+      name: 'double',
+      isNullable: false,
+    );
+  }
+  
+  TypeIR _createBoolType() {
+    return SimpleTypeIR(
+      id: builder.generateId('type'),
+      name: 'bool',
+      isNullable: false,
+    );
+  }
+  
+  TypeIR _createNullType() {
+    return SimpleTypeIR(
+      id: builder.generateId('type'),
+      name: 'Null',
+      isNullable: true,
+    );
+  }
+
+  // ==========================================================================
+  // UTILITY METHODS
+  // ==========================================================================
+  
+  BinaryOperator _convertOperator(Object operatorType) {
+    final opStr = operatorType.toString();
+    
+    switch (opStr) {
+      case '+': return BinaryOperator.add;
+      case '-': return BinaryOperator.subtract;
+      case '*': return BinaryOperator.multiply;
+      case '/': return BinaryOperator.divide;
+      case '%': return BinaryOperator.modulo;
+      case '~/': return BinaryOperator.modulo;
+      case '==': return BinaryOperator.equals;
+      case '!=': return BinaryOperator.notEquals;
+      case '<': return BinaryOperator.lessThan;
+      case '<=': return BinaryOperator.lessOrEqual;
+      case '>': return BinaryOperator.greaterThan;
+      case '>=': return BinaryOperator.greaterOrEqual;
+      case '&&': return BinaryOperator.logicalAnd;
+      case '||': return BinaryOperator.logicalOr;
+      case '&': return BinaryOperator.bitwiseAnd;
+      case '|': return BinaryOperator.bitwiseOr;
+      case '^': return BinaryOperator.bitwiseXor;
+      case '<<': return BinaryOperator.leftShift;
+      case '>>': return BinaryOperator.rightShift;
+      case '??': return BinaryOperator.nullCoalesce;
+      default: return BinaryOperator.add;
+    }
+  }
+  
+  List<AnnotationIR> _extractAnnotations(List<Annotation> metadata) {
+    return metadata.map((annotation) {
+      return AnnotationIR(
+        name: annotation.name.name,
+        arguments: annotation.arguments?.arguments
+                .map((arg) => _extractExpression(arg))
+                .toList() ??
+            [],
+      );
+    }).toList();
+  }
+  
+  SourceLocationIR _extractSourceLocation(AstNode node) {
+    final lineInfo = node.root.lineInfo;
+    final location = lineInfo?.getLocation(node.offset);
+    
+    return SourceLocationIR(
+      file: context.filePath,
+      line: location?.lineNumber ?? 0,
+      column: location?.columnNumber ?? 0,
+      offset: node.offset,
+      length: node.length,
+    );
+  }
+  
+  ExpressionIR _createNullExpression() {
+    return LiteralExpressionIR(
+      id: builder.generateId('expr'),
+      resultType: _createNullType(),
+      sourceLocation: SourceLocationIR(
+        file: '',
+        line: 0,
+        column: 0,
+        offset: 0,
+        length: 0,
+      ),
+      value: null,
+      literalType: LiteralType.nullValue,
+    );
+  }
+  
+  WidgetTreeIR _createEmptyWidgetTree() {
+    return WidgetTreeIR(
+      root: WidgetNodeIR(
+        id: builder.generateId('node'),
+        widgetType: 'Empty',
+        properties: {},
+        children: [],
+        key: null,
+        isConst: false,
+      ),
+      conditionalBranches: [],
+      iterations: [],
+      depth: 0,
+      nodeCount: 0,
+    );
+  }
+  
+  int _calculateDepth(WidgetNodeIR node) {
+    if (node.children.isEmpty) return 1;
+    return 1 + node.children.map(_calculateDepth).reduce((a, b) => a > b ? a : b);
+  }
+  
+  int _countNodes(WidgetNodeIR node) {
+    return 1 + node.children.fold<int>(0, (sum, child) => sum + _countNodes(child));
+  }
+}
+
+// ==========================================================================
+// SUPPORTING CLASSES
+// ==========================================================================
+
+class ScopeInfo {
+  final ScopeType type;
+  final String name;
+  final Set<String> declaredVariables;
+  
+  ScopeInfo({
+    required this.type,
+    required this.name,
+    required this.declaredVariables,
+  });
+}
+
+enum ScopeType {
+  classDecl,
+  method,
+  function,
+  block,
+}
