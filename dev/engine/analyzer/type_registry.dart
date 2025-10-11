@@ -9,7 +9,7 @@ class TypeRegistry {
     _types[typeInfo.name] = typeInfo;
     
     _fileTypes
-        .putIfAbsent(typeInfo.sourceFile, () => {})
+        .putIfAbsent(typeInfo.filePath, () => {})
         .add(typeInfo.name);
   }
 
