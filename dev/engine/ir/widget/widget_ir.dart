@@ -1,6 +1,7 @@
 
 import '../Expression/expression_ir.dart';
 import '../Statement/statement_ir.dart';
+import '../file_ir.dart';
 
 class WidgetIR {
   final String id;
@@ -60,6 +61,83 @@ class WidgetIR {
     required this.annotations,
     required this.sourceLocation,
   });
+
+  factory WidgetIR.fromJson(Map<String, dynamic> json) {
+    return WidgetIR(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      type: json['type'] as String,
+      classification: WidgetClassification.values.firstWhere(
+        (wc) => wc.name == json['classification'],
+        orElse: () => WidgetClassification.nonUI,
+      ),
+      isStateful: json['isStateful'] as bool? ?? false,
+      properties: (json['properties'] as List<dynamic>?)
+          ?.map((p) => PropertyIR.fromJson(p as Map<String, dynamic>))
+          .toList() ?? [],
+      fields: (json['fields'] as List<dynamic>?)
+          ?.map((f) => FieldIR.fromJson(f as Map<String, dynamic>))
+          .toList() ?? [],
+      constructor: json['constructor'] != null
+          ? ConstructorIR.fromJson(json['constructor'] as Map<String, dynamic>)
+          : null,
+      buildMethod: json['buildMethod'] != null
+          ? BuildMethodIR.fromJson(json['buildMethod'] as Map<String, dynamic>)
+          : null,
+      children: (json['children'] as List<dynamic>?)
+          ?.map((c) => WidgetIR.fromJson(c as Map<String, dynamic>))
+          .toList() ?? [],
+      widgetTree: json['widgetTree'] != null
+          ? WidgetTreeIR.fromJson(json['widgetTree'] as Map<String, dynamic>)
+          : null,
+      reactivityInfo: json['reactivityInfo'] != null
+          ? ReactivityInfoIR.fromJson(
+              json['reactivityInfo'] as Map<String, dynamic>)
+          : null,
+      stateBinding: json['stateBinding'] != null
+          ? StateBindingIR.fromJson(
+              json['stateBinding'] as Map<String, dynamic>)
+          : null,
+      lifecycleMethods: (json['lifecycleMethods'] as List<dynamic>?)
+          ?.map((lm) => LifecycleMethodIR.fromJson(lm as Map<String, dynamic>))
+          .toList() ?? [],
+      eventHandlers: (json['eventHandlers'] as List<dynamic>?)
+          ?.map((eh) => EventHandlerIR.fromJson(eh as Map<String, dynamic>))
+          .toList() ?? [],
+      key: json['key'] != null
+          ? KeyIR.fromJson(json['key'] as Map
+              <String, dynamic>)
+          : null,
+      annotations: (json['annotations'] as List<dynamic>?)
+          ?.map((a) => AnnotationIR.fromJson(a as Map<String, dynamic>))
+          .toList() ?? [],
+      sourceLocation: SourceLocationIR.fromJson(
+          json['sourceLocation'] as Map<String, dynamic>),
+    );
+  }
+    Map<String, dynamic> toJson() {
+    return {  
+      'id': id,
+      'name': name,
+      'type': type,
+      'classification': classification.name,
+      'isStateful': isStateful,
+      'properties': properties.map((p) => p.toJson()).toList(),
+      'fields': fields.map((f) => f.toJson()).toList(),
+      'constructor': constructor?.toJson(),
+      'buildMethod': buildMethod?.toJson(),
+      'children': children.map((c) => c.toJson()).toList(),
+      'widgetTree': widgetTree?.toJson(),
+      'reactivityInfo': reactivityInfo?.toJson(),
+      'stateBinding': stateBinding?.toJson(),
+      'lifecycleMethods': lifecycleMethods.map((lm) => lm.toJson()).toList(),
+      'eventHandlers': eventHandlers.map((eh) => eh.toJson()).toList(),
+      'key': key?.toJson(),
+      'annotations': annotations.map((a) => a.toJson()).toList(),
+      'sourceLocation': sourceLocation.toJson(),
+    };  
+
+}
 }
 
 enum WidgetClassification {
@@ -75,27 +153,6 @@ enum WidgetClassification {
   navigation,
 }
 
-class FieldIR {
-  final String name;
-  final TypeIR type;
-  final ExpressionIR? initializer;
-  final bool isFinal;
-  final bool isConst;
-  final bool isStatic;
-  final bool isLate;
-  final VisibilityModifier visibility;
-
-  FieldIR({
-    required this.name,
-    required this.type,
-    this.initializer,
-    this.isFinal = false,
-    this.isConst = false,
-    this.isStatic = false,
-    this.isLate = false,
-    this.visibility = VisibilityModifier.public,
-  });
-}
 
 enum VisibilityModifier {
   public,
@@ -119,27 +176,55 @@ class ConstructorIR {
     this.isConst = false,
     this.isFactory = false,
   });
+  factory ConstructorIR.fromJson(Map<String, dynamic> json) {
+    return ConstructorIR(
+      name: json['name'] as String,
+      parameters: (json['parameters'] as List<dynamic>)
+          .map((p) => ParameterIR.fromJson(p as Map<String, dynamic>))
+          .toList(),
+      initializers: (json['initializers'] as List<dynamic>?)
+          ?.map((s) => StatementIR.fromJson(s as Map<String, dynamic>))
+          .toList() ?? [],
+      body: json['body'] != null
+          ? StatementIR.fromJson(json['body'] as Map<String, dynamic>)
+          : null,
+      isConst: json['isConst'] as bool? ?? false,
+      isFactory: json['isFactory'] as bool? ?? false,
+    );
+  }
+ 
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'parameters': parameters.map((p) => p.toJson()).toList(),
+      'initializers': initializers.map((s) => s.toJson()).toList(),
+      'body': body?.toJson(),
+      'isConst': isConst,
+      'isFactory': isFactory,
+    };
+  }
+
 }
 
-class ParameterIR {
-  final String name;
-  final TypeIR type;
-  final ExpressionIR? defaultValue;
-  final bool isRequired;
-  final bool isNamed;
-  final bool isPositional;
-  final List<AnnotationIR> annotations;
+// class ParameterIR {
+//   final String name;
+//   final TypeIR type;
+//   final ExpressionIR? defaultValue;
+//   final bool isRequired;
+//   final bool isNamed;
+//   final bool isPositional;
+//   final List<AnnotationIR> annotations;
 
-  ParameterIR({
-    required this.name,
-    required this.type,
-    this.defaultValue,
-    this.isRequired = false,
-    this.isNamed = false,
-    this.isPositional = true,
-    this.annotations = const [],
-  });
-}
+//   ParameterIR({
+//     required this.name,
+//     required this.type,
+//     this.defaultValue,
+//     this.isRequired = false,
+//     this.isNamed = false,
+//     this.isPositional = true,
+//     this.annotations = const [],
+//   });
+// }
 
 class BuildMethodIR {
   final List<ParameterIR> parameters;
@@ -157,6 +242,35 @@ class BuildMethodIR {
     required this.capturedVariables,
     required this.widgetTree,
   });
+  factory BuildMethodIR.fromJson(Map<String, dynamic> json) {
+    return BuildMethodIR(
+      parameters: (json['parameters'] as List<dynamic>)
+          .map((p) => ParameterIR.fromJson(p as Map<String, dynamic>))
+          .toList(),
+      returnExpression:
+          ExpressionIR.fromJson(json['returnExpression'] as Map<String, dynamic>),
+      statements: (json['statements'] as List<dynamic>?)
+          ?.map((s) => StatementIR.fromJson(s as Map<String, dynamic>))
+          .toList() ?? [],
+      localVariables: (json['localVariables'] as List<dynamic>)
+          .map((lv) => LocalVariableIR.fromJson(lv as Map<String, dynamic>))
+          .toList(),
+      capturedVariables: (json['capturedVariables'] as List<dynamic>)
+          .map((cv) => cv as String)
+          .toList(),
+      widgetTree: WidgetTreeIR.fromJson(json['widgetTree'] as Map<String, dynamic>),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'parameters': parameters.map((p) => p.toJson()).toList(),
+      'returnExpression': returnExpression.toJson(),
+      'statements': statements.map((s) => s.toJson()).toList(),
+      'localVariables': localVariables.map((lv) => lv.toJson()).toList(),
+      'capturedVariables': capturedVariables,
+      'widgetTree': widgetTree.toJson(),
+    };
+  }
 }
 
 class LocalVariableIR {
@@ -173,6 +287,27 @@ class LocalVariableIR {
     this.isFinal = false,
     this.isLate = false,
   });
+
+  factory LocalVariableIR.fromJson(Map<String, dynamic> json) {
+    return LocalVariableIR(
+      name: json['name'] as String,
+      type: TypeIR.fromJson(json['type'] as Map<String, dynamic>),
+      initializer: json['initializer'] != null
+          ? ExpressionIR.fromJson(json['initializer'] as Map<String, dynamic>)
+          : null,
+      isFinal: json['isFinal'] as bool? ?? false,
+      isLate: json['isLate'] as bool? ?? false,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'type': type.toJson(),
+      'initializer': initializer?.toJson(),
+      'isFinal': isFinal,
+      'isLate': isLate,
+    };
+  }
 }
 
 class WidgetTreeIR {
@@ -189,24 +324,28 @@ class WidgetTreeIR {
     required this.depth,
     required this.nodeCount,
   });
-}
-
-class WidgetNodeIR {
-  final String id;
-  final String widgetType;
-  final Map<String, ExpressionIR> properties;
-  final List<WidgetNodeIR> children;
-  final KeyIR? key;
-  final bool isConst;
-
-  WidgetNodeIR({
-    required this.id,
-    required this.widgetType,
-    required this.properties,
-    this.children = const [],
-    this.key,
-    this.isConst = false,
-  });
+  factory WidgetTreeIR.fromJson(Map<String, dynamic> json) {
+    return WidgetTreeIR(
+      root: WidgetNodeIR.fromJson(json['root'] as Map<String, dynamic>),
+      conditionalBranches: (json['conditionalBranches'] as List<dynamic>?)
+          ?.map((cb) => ConditionalBranchIR.fromJson(cb as Map<String, dynamic>))
+          .toList() ?? [],
+      iterations: (json['iterations'] as List<dynamic>?)
+          ?.map((it) => IterationIR.fromJson(it as Map<String, dynamic>))
+          .toList() ?? [],
+      depth: json['depth'] as int,
+      nodeCount: json['nodeCount'] as int,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'root': root.toJson(),
+      'conditionalBranches': conditionalBranches.map((cb) => cb.toJson()).toList(),
+      'iterations': iterations.map((it) => it.toJson()).toList(),
+      'depth': depth,
+      'nodeCount': nodeCount,
+    };
+  }
 }
 
 class ConditionalBranchIR {
@@ -221,6 +360,27 @@ class ConditionalBranchIR {
     this.elseWidget,
     required this.type,
   });
+  factory ConditionalBranchIR.fromJson(Map<String, dynamic> json) {
+    return ConditionalBranchIR(
+      condition: ExpressionIR.fromJson(json['condition'] as Map<String, dynamic>),
+      thenWidget: WidgetNodeIR.fromJson(json['thenWidget'] as Map<String, dynamic>),
+      elseWidget: json['elseWidget'] != null
+          ? WidgetNodeIR.fromJson(json['elseWidget'] as Map<String, dynamic>)
+          : null,
+      type: ConditionalType.values.firstWhere(
+        (ct) => ct.name == json['type'],
+        orElse: () => ConditionalType.ifStatement,
+      ),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'condition': condition.toJson(),
+      'thenWidget': thenWidget.toJson(),
+      'elseWidget': elseWidget?.toJson(),
+      'type': type.name,
+    };
+  }
 }
 
 enum ConditionalType {
@@ -243,6 +403,31 @@ class IterationIR {
     required this.type,
     this.filter,
   });
+
+  factory IterationIR.fromJson(Map<String, dynamic> json) {
+    return IterationIR(
+      iteratorVariable: json['iteratorVariable'] as String,
+      iterable: ExpressionIR.fromJson(json['iterable'] as Map<String, dynamic>),
+      itemBuilder: WidgetNodeIR.fromJson(json['itemBuilder'] as Map<String, dynamic>),
+      type: IterationType.values.firstWhere(
+        (it) => it.name == json['type'],
+        orElse: () => IterationType.forEach,
+      ),
+      filter: json['filter'] != null
+          ? ExpressionIR.fromJson(json['filter'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'iteratorVariable': iteratorVariable,
+      'iterable': iterable.toJson(),
+      'itemBuilder': itemBuilder.toJson(),
+      'type': type.name,
+      'filter': filter?.toJson(),
+    };
+  }
 }
 
 enum IterationType {
@@ -260,6 +445,21 @@ class KeyIR {
     required this.type,
     required this.value,
   });
+  factory KeyIR.fromJson(Map<String, dynamic> json) {
+    return KeyIR(
+      type: KeyType.values.firstWhere(
+        (kt) => kt.name == json['type'],
+        orElse: () => KeyType.valueKey,
+      ),
+      value: ExpressionIR.fromJson(json['value'] as Map<String, dynamic>),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'type': type.name,
+      'value': value.toJson(),
+    };
+  }
 }
 
 enum KeyType {

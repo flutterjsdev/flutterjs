@@ -222,10 +222,10 @@ class FileIRGenerator extends RecursiveAstVisitor<void> {
     final providerType = _detectProviderType(element);
     
     _providers.add(ProviderIR(
-      name: element.name,
+      name: element.name??"",
       type: providerType,
       filePath: context.currentFile,
-      providedType: _extractProvidedType(element),
+     // providedType: _extractProvidedType(element),
       fields: _extractFields(node),
       methods: _extractMethods(node),
       dependencies: _extractDependencies(node),
