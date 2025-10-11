@@ -2375,7 +2375,7 @@ class EnhancedASTVisitor extends RecursiveAstVisitor<void> {
     );
   }
   
-  StatementIR _extractForEachStatement(ForEachStatement node) {
+  StatementIR _extractForEachStatement(ForEachStatementIR node) {
     return ForEachStatementIR(
       id: builder.generateId('stmt'),
       sourceLocation: _extractSourceLocation(node),
@@ -2383,6 +2383,7 @@ class EnhancedASTVisitor extends RecursiveAstVisitor<void> {
       iterable: _extractExpression(node.iterable),
       body: _extractStatement(node.body),
       isAsync: node.awaitKeyword != null,
+      variableType: 
     );
   }
   

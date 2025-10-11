@@ -931,6 +931,29 @@ class ImportInfo {
   bool get isRelative => !uri.startsWith('dart:') && !uri.startsWith('package:');
   bool get isPackageImport => uri.startsWith('package:');
   bool get isDartCoreImport => uri.startsWith('dart:');
+
+  factory ImportInfo.fromJson(Map<String, dynamic> json) {
+    return ImportInfo(
+      uri: json['uri'] as String,
+      prefix: json['prefix'] as String? ?? '',
+      isDeferred: json['isDeferred'] as bool? ?? false,
+      showCombinators: (json['showCombinators'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      hideCombinators: (json['hideCombinators'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+    );
+  }
+  Map<String, dynamic> toJson() => {
+        'uri': uri,
+        'prefix': prefix,
+        'isDeferred': isDeferred,
+        'showCombinators': showCombinators,
+        'hideCombinators': hideCombinators,
+      };
 }
 
 /// Context for analyzing a single file

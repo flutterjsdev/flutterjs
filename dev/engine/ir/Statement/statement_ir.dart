@@ -1,4 +1,5 @@
 import '../Expression/expression_ir.dart';
+import '../file_ir.dart';
 import '../widget/widget_ir.dart';
 
 abstract class StatementIR {
@@ -9,6 +10,196 @@ abstract class StatementIR {
     required this.id,
     required this.sourceLocation,
   });
+  factory StatementIR.fromJson(Map<String, dynamic> json) {
+    final type = json['type'];
+    switch (type) {
+      case 'BlockStatementIR':
+        return BlockStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          statements: (json['statements'] as List<dynamic>)
+              .map((e) => StatementIR.fromJson(e as Map<String, dynamic>))
+              .toList(),
+        );
+      case 'ExpressionStatementIR':
+        return ExpressionStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          expression: ExpressionIR.fromJson(json['expression'] as Map<String, dynamic>),
+        );
+      case 'VariableDeclarationStatementIR':
+        return VariableDeclarationStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          variables: (json['variables'] as List<dynamic>)
+              .map((e) => LocalVariableIR.fromJson(e as Map<String, dynamic>))
+              .toList(),
+        );
+      case 'IfStatementIR':
+        return IfStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          condition:
+              ExpressionIR.fromJson(json['condition'] as Map<String, dynamic>),
+          thenStatement: StatementIR.fromJson(
+              json['thenStatement'] as Map<String, dynamic>),
+          elseStatement: json['elseStatement'] != null
+              ? StatementIR.fromJson(
+                  json['elseStatement'] as Map<String, dynamic>)
+              : null,
+        );
+      case 'ForStatementIR':
+        return ForStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          variables: json['variables'] != null
+              ? (json['variables'] as List<dynamic>)
+                  .map((e) => LocalVariableIR.fromJson(e as Map<String, dynamic>))
+                  .toList()
+              : null,
+          initialization: json['initialization'] != null
+              ? ExpressionIR.fromJson(
+                  json['initialization'] as Map<String, dynamic>)
+              : null,
+          condition: json['condition'] != null
+              ? ExpressionIR.fromJson(json['condition'] as Map<String, dynamic>)
+              : null,
+          updaters: (json['updaters'] as List<dynamic>?)
+                  ?.map((e) => ExpressionIR.fromJson(e as Map<String, dynamic>))
+                  .toList() ??
+              [],
+          body: StatementIR.fromJson(json['body'] as Map<String, dynamic>),
+        );
+      case 'ForEachStatementIR':
+        return ForEachStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          loopVariable: json['loopVariable'],
+          variableType:
+              TypeIR.fromJson(json['variableType'] as Map<String, dynamic>),
+          iterable:
+              ExpressionIR.fromJson(json['iterable'] as Map<String, dynamic>),
+          body: StatementIR.fromJson(json['body'] as Map<String, dynamic>),
+          isAsync: json['isAsync'] ?? false,
+        );
+
+      case 'WhileStatementIR':
+        return WhileStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          condition:
+              ExpressionIR.fromJson(json['condition'] as Map<String, dynamic>),
+          body: StatementIR.fromJson(json['body'] as Map<String, dynamic>),
+        );
+      case 'DoWhileStatementIR':
+        return DoWhileStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          body: StatementIR.fromJson(json['body'] as Map<String, dynamic>),
+          condition:
+              ExpressionIR.fromJson(json['condition'] as Map<String, dynamic>),
+        );
+      case 'SwitchStatementIR':
+        return SwitchStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          expression:
+              ExpressionIR.fromJson(json['expression'] as Map<String, dynamic>),
+          cases: (json['cases'] as List<dynamic>)
+              .map((e) => SwitchCaseIR.fromJson(e as Map<String, dynamic>))
+              .toList(),
+          defaultStatements: json['defaultStatements'] != null
+              ? (json['defaultStatements'] as List<dynamic>)
+                  .map((e) => StatementIR.fromJson(e as Map<String, dynamic>))
+                  .toList()
+              : null,
+        );
+      case 'TryStatementIR':
+        return TryStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          body: StatementIR.fromJson(json['body'] as Map<String, dynamic>),
+          catchClauses: (json['catchClauses'] as List<dynamic>)
+              .map((e) => CatchClauseIR.fromJson(e as Map<String, dynamic>))
+              .toList(),
+          finallyBlock: json['finallyBlock'] != null
+              ? StatementIR.fromJson(
+                  json['finallyBlock'] as Map<String, dynamic>)
+              : null,
+        );
+      case 'ReturnStatementIR':
+        return ReturnStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          expression: json['expression'] != null
+              ? ExpressionIR.fromJson(json['expression'] as Map<String, dynamic>)
+              : null,
+        );
+      case 'BreakStatementIR':
+        return BreakStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          label: json['label'],
+        );
+      case 'ContinueStatementIR':
+        return ContinueStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          label: json['label'],
+        );
+      case 'ThrowStatementIR':
+        return ThrowStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          expression:
+              ExpressionIR.fromJson(json['expression'] as Map<String, dynamic>),
+        );
+      case 'AssertStatementIR':
+        return AssertStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          condition:
+              ExpressionIR.fromJson(json['condition'] as Map<String, dynamic>),
+          message: json['message'] != null
+              ? ExpressionIR.fromJson(json['message'] as Map<String, dynamic>)
+              : null,
+        );
+      case 'YieldStatementIR':
+        return YieldStatementIR(
+          id: json['id'],
+          sourceLocation:
+              SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+          expression:
+              ExpressionIR.fromJson(json['expression'] as Map<String, dynamic>),
+          isStar: json['isStar'] ?? false,
+        );
+      default:
+        throw UnimplementedError('Unknown StatementIR type: $type'); 
+    }
+    }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'sourceLocation': sourceLocation.toJson(),
+      'type': runtimeType.toString(),
+    };
+  }
+    
 }
 
 class BlockStatementIR extends StatementIR {
@@ -147,6 +338,25 @@ class SwitchCaseIR {
     required this.statements,
     required this.sourceLocation,
   });
+  factory SwitchCaseIR.fromJson(Map<String, dynamic> json) {
+    return SwitchCaseIR(
+      expressions: (json['expressions'] as List<dynamic>)
+          .map((e) => ExpressionIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      statements: (json['statements'] as List<dynamic>)
+          .map((e) => StatementIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      sourceLocation:
+          SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'expressions': expressions.map((e) => e.toJson()).toList(),
+      'statements': statements.map((s) => s.toJson()).toList(),
+      'sourceLocation': sourceLocation.toJson(),
+    };
+  }
 }
 
 class TryStatementIR extends StatementIR {
@@ -177,6 +387,27 @@ class CatchClauseIR {
     required this.body,
     required this.sourceLocation,
   });
+  factory CatchClauseIR.fromJson(Map<String, dynamic> json) {
+    return CatchClauseIR(
+      exceptionType: json['exceptionType'] != null
+          ? TypeIR.fromJson(json['exceptionType'] as Map<String, dynamic>)
+          : null,
+      exceptionParameter: json['exceptionParameter'],
+      stackTraceParameter: json['stackTraceParameter'],
+      body: StatementIR.fromJson(json['body'] as Map<String, dynamic>),
+      sourceLocation:
+          SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'exceptionType': exceptionType?.toJson(),
+      'exceptionParameter': exceptionParameter,
+      'stackTraceParameter': stackTraceParameter,
+      'body': body.toJson(),
+      'sourceLocation': sourceLocation.toJson(),
+    };
+  }
 }
 
 class ReturnStatementIR extends StatementIR {
@@ -257,6 +488,66 @@ abstract class TypeIR {
     required this.name,
     this.isNullable = false,
   });
+
+  factory TypeIR.fromJson(Map<String, dynamic> json) {
+    final type = json['type'];
+    switch (type) {
+      case 'SimpleTypeIR':
+        return SimpleTypeIR(
+          id: json['id'],
+          name: json['name'],
+          isNullable: json['isNullable'] ?? false,
+          typeArguments: (json['typeArguments'] as List<dynamic>?)
+                  ?.map((e) => TypeIR.fromJson(e as Map<String, dynamic>))
+                  .toList() ??
+              [],
+        );
+      case 'FunctionTypeIR':
+        return FunctionTypeIR(
+          id: json['id'],
+          name: json['name'],
+          isNullable: json['isNullable'] ?? false,
+          returnType:
+              TypeIR.fromJson(json['returnType'] as Map<String, dynamic>),
+          parameters: (json['parameters'] as List<dynamic>)
+              .map((e) => ParameterIR.fromJson(e as Map<String, dynamic>))
+              .toList(),
+          typeParameters: (json['typeParameters'] as List<dynamic>?)
+                  ?.map((e) => TypeParameterIR.fromJson(e as Map<String, dynamic>))
+                  .toList() ??
+              [],
+        );
+      case 'GenericTypeIR':
+        return GenericTypeIR(
+          id: json['id'],
+          name: json['name'],
+          isNullable: json['isNullable'] ?? false,
+          typeArguments: (json['typeArguments'] as List<dynamic>)
+              .map((e) => TypeIR.fromJson(e as Map<String, dynamic>))
+              .toList(),
+          typeParameters: (json['typeParameters'] as List<dynamic>?)
+                  ?.map((e) => TypeParameterIR.fromJson(e as Map<String, dynamic>))
+                  .toList() ??
+              [],
+        );
+      case 'DynamicTypeIR':
+        return DynamicTypeIR(id: json['id']);
+      case 'VoidTypeIR':
+        return VoidTypeIR(id: json['id']);
+      case 'NeverTypeIR':
+        return NeverTypeIR(id: json['id']);
+      default:
+        throw UnimplementedError('Unknown TypeIR type: $type');
+    }
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'isNullable': isNullable,
+      'type': runtimeType.toString(),
+    };
+  }
 }
 
 class SimpleTypeIR extends TypeIR {
@@ -306,6 +597,20 @@ class TypeParameterIR {
     required this.name,
     this.bound,
   });
+  factory TypeParameterIR.fromJson(Map<String, dynamic> json) {
+    return TypeParameterIR(
+      name: json['name'],
+      bound: json['bound'] != null
+          ? TypeIR.fromJson(json['bound'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'bound': bound?.toJson(),
+    };
+  }
 }
 
 class DynamicTypeIR extends TypeIR {
@@ -379,6 +684,75 @@ class StateClassIR {
     required this.mixins,
     required this.sourceLocation,
   });
+
+  factory StateClassIR.fromJson(Map<String, dynamic> json) {
+    return StateClassIR(
+      id: json['id'],
+      name: json['name'],
+      widgetType: json['widgetType'],
+      stateFields: (json['stateFields'] as List<dynamic>)
+          .map((e) => StateFieldIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      regularFields: (json['regularFields'] as List<dynamic>)
+          .map((e) => FieldIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      initState: json['initState'] != null
+          ? LifecycleMethodIR.fromJson(json['initState'] as Map<String, dynamic>)
+          : null,
+      dispose: json['dispose'] != null
+          ? LifecycleMethodIR.fromJson(json['dispose'] as Map<String, dynamic>)
+          : null,
+      didUpdateWidget: json['didUpdateWidget'] != null
+          ? LifecycleMethodIR.fromJson(
+              json['didUpdateWidget'] as Map<String, dynamic>)
+          : null,
+      didChangeDependencies: json['didChangeDependencies'] != null
+          ? LifecycleMethodIR.fromJson(
+              json['didChangeDependencies'] as Map<String, dynamic>)
+          : null,
+      reassemble: json['reassemble'] != null
+          ? LifecycleMethodIR.fromJson(
+              json['reassemble'] as Map<String, dynamic>)
+          : null,
+      buildMethod:
+          BuildMethodIR.fromJson(json['buildMethod'] as Map<String, dynamic>),
+      setStateCalls: (json['setStateCalls'] as List<dynamic>)
+          .map((e) => SetStateCallIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      controllers: (json['controllers'] as List<dynamic>)
+          .map((e) => ControllerIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      contextDependencies: (json['contextDependencies'] as List<dynamic>)
+          .map((e) => ContextDependencyIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      mixins: (json['mixins'] as List<dynamic>)
+          .map((e) => MixinIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      sourceLocation:
+          SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'widgetType': widgetType,
+      'stateFields': stateFields.map((f) => f.toJson()).toList(),
+      'regularFields': regularFields.map((f) => f.toJson()).toList(),
+      'initState': initState?.toJson(),
+      'dispose': dispose?.toJson(),
+      'didUpdateWidget': didUpdateWidget?.toJson(),
+      'didChangeDependencies': didChangeDependencies?.toJson(),
+      'reassemble': reassemble?.toJson(),
+      'buildMethod': buildMethod.toJson(),
+      'setStateCalls': setStateCalls.map((c) => c.toJson()).toList(),
+      'controllers': controllers.map((c) => c.toJson()).toList(),
+      'contextDependencies':
+          contextDependencies.map((d) => d.toJson()).toList(),
+      'mixins': mixins.map((m) => m.toJson()).toList(),
+      'sourceLocation': sourceLocation.toJson(),
+    };
+  }
 }
 
 class StateFieldIR {
@@ -399,6 +773,36 @@ class StateFieldIR {
     this.affectedBy = const [],
     this.affects = const [],
   });
+  factory StateFieldIR.fromJson(Map<String, dynamic> json) {
+    return StateFieldIR(
+      name: json['name'],
+      type: TypeIR.fromJson(json['type'] as Map<String, dynamic>),
+      initializer: json['initializer'] != null
+          ? ExpressionIR.fromJson(json['initializer'] as Map<String, dynamic>)
+          : null,
+      isMutable: json['isMutable'] ?? false,
+      isLate: json['isLate'] ?? false,
+      affectedBy: (json['affectedBy'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      affects: (json['affects'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'type': type.toJson(),
+      'initializer': initializer?.toJson(),
+      'isMutable': isMutable,
+      'isLate': isLate,
+      'affectedBy': affectedBy,
+      'affects': affects,
+    };
+  }
 }
 
 class LifecycleMethodIR {
@@ -415,6 +819,33 @@ class LifecycleMethodIR {
     required this.superCalls,
     required this.sourceLocation,
   });
+  factory LifecycleMethodIR.fromJson(Map<String, dynamic> json) {
+    return LifecycleMethodIR(
+      type: LifecycleType.values.firstWhere(
+          (e) => e.toString() == 'LifecycleType.${json['type']}',
+          orElse: () => LifecycleType.initState),
+      statements: (json['statements'] as List<dynamic>)
+          .map((e) => StatementIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      capturedVariables: (json['capturedVariables'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+      superCalls: (json['superCalls'] as List<dynamic>)
+          .map((e) => MethodCallExpressionIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      sourceLocation:
+          SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'type': type.toString().split('.').last,
+      'statements': statements.map((s) => s.toJson()).toList(),
+      'capturedVariables': capturedVariables,
+      'superCalls': superCalls.map((c) => c.toClassJson()).toList(),
+      'sourceLocation': sourceLocation.toJson(),
+    };
+  }
 }
 
 enum LifecycleType {
@@ -443,6 +874,32 @@ class SetStateCallIR {
     this.isAsync = false,
     required this.sourceLocation,
   });
+  factory SetStateCallIR.fromJson(Map<String, dynamic> json) {
+    return SetStateCallIR(
+      id: json['id'],
+      callback:
+          ExpressionIR.fromJson(json['callback'] as Map<String, dynamic>),
+      modifiedVariables: (json['modifiedVariables'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+      affectedProperties: (json['affectedProperties'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+      isAsync: json['isAsync'] ?? false,
+      sourceLocation:
+          SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'callback': callback.toJson(),
+      'modifiedVariables': modifiedVariables,
+      'affectedProperties': affectedProperties,
+      'isAsync': isAsync,
+      'sourceLocation': sourceLocation.toJson(),
+    };
+  }
 }
 
 class ControllerIR {
@@ -459,6 +916,29 @@ class ControllerIR {
     required this.isDisposedInDispose,
     required this.usedIn,
   });
+  factory ControllerIR.fromJson(Map<String, dynamic> json) {
+    return ControllerIR(
+      name: json['name'],
+      type: ControllerType.values.firstWhere(
+          (e) => e.toString() == 'ControllerType.${json['type']}',
+          orElse: () => ControllerType.custom),
+      initialization:
+          ExpressionIR.fromJson(json['initialization'] as Map<String, dynamic>),
+      isDisposedInDispose: json['isDisposedInDispose'] ?? false,
+      usedIn: (json['usedIn'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'type': type.toString().split('.').last,
+      'initialization': initialization.toJson(),
+      'isDisposedInDispose': isDisposedInDispose,
+      'usedIn': usedIn,
+    };
+  }
 }
 
 enum ControllerType {
@@ -483,6 +963,28 @@ class ContextDependencyIR {
     required this.accessedProperties,
     required this.sourceLocation,
   });
+  factory ContextDependencyIR.fromJson(Map<String, dynamic> json) {
+    return ContextDependencyIR(
+      type: ContextDependencyType.values.firstWhere(
+          (e) => e.toString() == 'ContextDependencyType.${json['type']}',
+          orElse: () => ContextDependencyType.inheritedWidget),
+      accessPattern: json['accessPattern'],
+      accessedProperties: (json['accessedProperties'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+      sourceLocation:
+          SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'type': type.toString().split('.').last,
+      'accessPattern': accessPattern,
+      'accessedProperties': accessedProperties,
+      'sourceLocation': sourceLocation.toJson(),
+    };
+  }
 }
 
 enum ContextDependencyType {
@@ -505,6 +1007,24 @@ class MixinIR {
     required this.type,
     required this.providedMembers,
   });
+  factory MixinIR.fromJson(Map<String, dynamic> json) {
+    return MixinIR(
+      name: json['name'],
+      type: MixinType.values.firstWhere(
+          (e) => e.toString() == 'MixinType.${json['type']}',
+          orElse: () => MixinType.custom),
+      providedMembers: (json['providedMembers'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'type': type.toString().split('.').last,
+      'providedMembers': providedMembers,
+    };
+  }
 }
 
 enum MixinType {
@@ -531,6 +1051,29 @@ class ReactivityInfoIR {
     required this.propagatesToChildren,
     this.reactivityGraph,
   });
+  factory ReactivityInfoIR.fromJson(Map<String, dynamic> json) {
+    return ReactivityInfoIR(
+      triggers: (json['triggers'] as List<dynamic>)
+          .map((e) => ReactivityTrigger.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      affectedProperties: (json['affectedProperties'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+      propagatesToChildren: json['propagatesToChildren'] ?? false,
+      reactivityGraph: json['reactivityGraph'] != null
+          ? ReactivityGraphIR.fromJson(
+              json['reactivityGraph'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'triggers': triggers.map((e) => e.toJson()).toList(),
+      'affectedProperties': affectedProperties,
+      'propagatesToChildren': propagatesToChildren,
+      'reactivityGraph': reactivityGraph?.toJson(),
+    };
+  }
 }
 
 class ReactivityTrigger {
@@ -543,6 +1086,24 @@ class ReactivityTrigger {
     required this.variables,
     required this.type,
   });
+  factory ReactivityTrigger.fromJson(Map<String, dynamic> json) {
+    return ReactivityTrigger(
+      source: json['source'],
+      variables: (json['variables'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+      type: TriggerType.values.firstWhere(
+          (e) => e.toString() == 'TriggerType.${json['type']}',
+          orElse: () => TriggerType.userInput),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'source': source,
+      'variables': variables,
+      'type': type.toString().split('.').last,
+    };
+  }
 }
 
 enum TriggerType {
@@ -563,6 +1124,22 @@ class ReactivityGraphIR {
     required this.nodes,
     required this.edges,
   });
+  factory ReactivityGraphIR.fromJson(Map<String, dynamic> json) {
+    return ReactivityGraphIR(
+      nodes: (json['nodes'] as List<dynamic>)
+          .map((e) => ReactivityNodeIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      edges: (json['edges'] as List<dynamic>)
+          .map((e) => ReactivityEdgeIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'nodes': nodes.map((e) => e.toJson()).toList(),
+      'edges': edges.map((e) => e.toJson()).toList(),
+    };
+  }
 }
 
 class ReactivityNodeIR {
@@ -575,6 +1152,22 @@ class ReactivityNodeIR {
     required this.name,
     required this.type,
   });
+  factory ReactivityNodeIR.fromJson(Map<String, dynamic> json) {
+    return ReactivityNodeIR(
+      id: json['id'],
+      name: json['name'],
+      type: ReactivityNodeType.values.firstWhere(
+          (e) => e.toString() == 'ReactivityNodeType.${json['type']}',
+          orElse: () => ReactivityNodeType.stateVariable),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'type': type.toString().split('.').last,
+    };
+  }
 }
 
 enum ReactivityNodeType {
@@ -596,6 +1189,22 @@ class ReactivityEdgeIR {
     required this.toId,
     required this.relation,
   });
+  factory ReactivityEdgeIR.fromJson(Map<String, dynamic> json) {
+    return ReactivityEdgeIR(
+      fromId: json['fromId'],
+      toId: json['toId'],
+      relation: ReactivityRelation.values.firstWhere(
+          (e) => e.toString() == 'ReactivityRelation.${json['relation']}',
+          orElse: () => ReactivityRelation.dependsOn),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'fromId': fromId,
+      'toId': toId,
+      'relation': relation.toString().split('.').last,
+    };
+  }
 }
 
 enum ReactivityRelation {
@@ -615,6 +1224,24 @@ class StateBindingIR {
     required this.propertyBindings,
     required this.callbackBindings,
   });
+  factory StateBindingIR.fromJson(Map<String, dynamic> json) {
+    return StateBindingIR(
+      stateClassName: json['stateClassName'],
+      propertyBindings: (json['propertyBindings'] as List<dynamic>)
+          .map((e) => PropertyBindingIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      callbackBindings: (json['callbackBindings'] as List<dynamic>)
+          .map((e) => CallbackBindingIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'stateClassName': stateClassName,
+      'propertyBindings': propertyBindings.map((e) => e.toJson()).toList(),
+      'callbackBindings': callbackBindings.map((e) => e.toJson()).toList(),
+    };
+  }
 }
 
 class PropertyBindingIR {
@@ -627,6 +1254,20 @@ class PropertyBindingIR {
     required this.stateField,
     this.isTwoWay = false,
   });
+  factory PropertyBindingIR.fromJson(Map<String, dynamic> json) {
+    return PropertyBindingIR(
+      propertyName: json['propertyName'],
+      stateField: json['stateField'],
+      isTwoWay: json['isTwoWay'] ?? false,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'propertyName': propertyName,
+      'stateField': stateField,
+      'isTwoWay': isTwoWay,
+    };
+  }
 }
 
 class CallbackBindingIR {
@@ -639,6 +1280,20 @@ class CallbackBindingIR {
     required this.methodName,
     this.triggersSetState = false,
   });
+  factory CallbackBindingIR.fromJson(Map<String, dynamic> json) {
+    return CallbackBindingIR(
+      callbackName: json['callbackName'],
+      methodName: json['methodName'],
+      triggersSetState: json['triggersSetState'] ?? false,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'callbackName': callbackName,
+      'methodName': methodName,
+      'triggersSetState': triggersSetState,
+    };
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -984,6 +1639,39 @@ class EventHandlerIR {
     this.modifiedStateVariables = const [],
     required this.sourceLocation,
   });
+  factory EventHandlerIR.fromJson(Map<String, dynamic> json) {
+    return EventHandlerIR(
+      id: json['id'],
+      name: json['name'],
+      type: EventType.values.firstWhere(
+          (e) => e.toString() == 'EventType.${json['type']}',
+          orElse: () => EventType.custom),
+      handler:
+          FunctionExpressionIR.fromJson(json['handler'] as Map<String, dynamic>),
+      capturedVariables: (json['capturedVariables'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+      triggersSetState: json['triggersSetState'] ?? false,
+      modifiedStateVariables: (json['modifiedStateVariables'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      sourceLocation:
+          SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'type': type.toString().split('.').last,
+      'handler': handler.toJson(),
+      'capturedVariables': capturedVariables,
+      'triggersSetState': triggersSetState,
+      'modifiedStateVariables': modifiedStateVariables,
+      'sourceLocation': sourceLocation.toJson(),
+    };
+  }
 }
 
 enum EventType {
@@ -1272,6 +1960,7 @@ class ProviderIR {
   final String id;
   final String name;
   final ProviderType type;
+  final String filePath;
   final TypeIR valueType;
   final List<FieldIR> fields;
   final List<MethodIR> methods;
@@ -1286,8 +1975,44 @@ class ProviderIR {
     required this.fields,
     required this.methods,
     required this.notifyListenerCalls,
+    required this.filePath, 
     this.extendsChangeNotifier = false,
   });
+  factory ProviderIR.fromJson(Map<String, dynamic> json) {
+    return ProviderIR(
+      id: json['id'],
+      name: json['name'],
+      filePath: json['filePath'],
+      type: ProviderType.values.firstWhere(
+          (e) => e.toString() == 'ProviderType.${json['type']}',
+          orElse: () => ProviderType.custom),
+      valueType: TypeIR.fromJson(json['valueType'] as Map<String, dynamic>),
+      fields: (json['fields'] as List<dynamic>)
+          .map((e) => FieldIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      methods: (json['methods'] as List<dynamic>)
+          .map((e) => MethodIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      notifyListenerCalls: (json['notifyListenerCalls'] as List<dynamic>)
+          .map((e) =>
+              NotifyListenerCallIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      extendsChangeNotifier: json['extendsChangeNotifier'] ?? false,
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'filePath': filePath,
+      'type': type.toString().split('.').last,
+      'valueType': valueType.toJson(),
+      'fields': fields.map((f) => f.toJson()).toList(),
+      'methods': methods.map((m) => m.toJson()).toList(),
+      'notifyListenerCalls': notifyListenerCalls.map((n) => n.toJson()).toList(),
+      'extendsChangeNotifier': extendsChangeNotifier,
+    };
+  }
 }
 
 enum ProviderType {
@@ -1314,6 +2039,23 @@ class NotifyListenerCallIR {
     required this.modifiedFields,
     required this.sourceLocation,
   });
+  factory NotifyListenerCallIR.fromJson(Map<String, dynamic> json) {
+    return NotifyListenerCallIR(
+      methodName: json['methodName'],
+      modifiedFields: (json['modifiedFields'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+      sourceLocation:
+          SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'methodName': methodName,
+      'modifiedFields': modifiedFields,
+      'sourceLocation': sourceLocation.toJson(),
+    };
+  }
 }
 
 class ProviderUsageIR {
@@ -1373,4 +2115,49 @@ class FunctionIR {
     this.capturedVariables = const [],
     required this.sourceLocation,
   });
+  factory FunctionIR.fromJson(Map<String, dynamic> json) {
+    return FunctionIR(
+      id: json['id'],
+      name: json['name'],
+      parameters: (json['parameters'] as List<dynamic>)
+          .map((e) => ParameterIR.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      returnType: TypeIR.fromJson(json['returnType'] as Map<String, dynamic>),
+      body: json['body'] != null
+          ? StatementIR.fromJson(json['body'] as Map<String, dynamic>)
+          : null,
+      expressionBody: json['expressionBody'] != null
+          ? ExpressionIR.fromJson(json['expressionBody'] as Map<String, dynamic>)
+          : null,
+      isAsync: json['isAsync'] ?? false,
+      isGenerator: json['isGenerator'] ?? false,
+      isStatic: json['isStatic'] ?? false,
+      typeParameters: (json['typeParameters'] as List<dynamic>?)
+              ?.map((e) => TypeParameterIR.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      capturedVariables: (json['capturedVariables'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      sourceLocation:
+          SourceLocationIR.fromJson(json['sourceLocation'] as Map<String, dynamic>),
+    );
+  }
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'parameters': parameters.map((p) => p.toJson()).toList(),
+      'returnType': returnType.toJson(),
+      'body': body?.toJson(),
+      'expressionBody': expressionBody?.toJson(),
+      'isAsync': isAsync,
+      'isGenerator': isGenerator,
+      'isStatic': isStatic,
+      'typeParameters': typeParameters.map((tp) => tp.toJson()).toList(),
+      'capturedVariables': capturedVariables,
+      'sourceLocation': sourceLocation.toJson(),
+    };
+  }
 }
