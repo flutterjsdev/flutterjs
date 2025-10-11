@@ -1,7 +1,76 @@
 
 import '../Statement/statement_ir.dart';
-import '../widget/widget_ir.dart';
 
+class AnnotationIR {
+  final String name;
+  final List<ExpressionIR> arguments;
+
+  AnnotationIR({
+    required this.name,
+    required this.arguments,
+  });
+}
+
+class ParameterIR {
+  final String name;
+  final TypeIR type;
+  final bool isOptional;
+  final bool isNamed;
+  final bool isRequired;
+  final ExpressionIR? defaultValue;
+
+  ParameterIR({
+    required this.name,
+    required this.type,
+    this.isOptional = false,
+    this.isNamed = false,
+    this.isRequired = false,
+    this.defaultValue,
+  });
+}
+
+class MethodIR {
+  final String name;
+  final TypeIR? returnType;
+  final List<ParameterIR> parameters;
+  final List<StatementIR> body;
+  final ExpressionIR? returnExpression;
+  final bool isAsync;
+  final bool isGenerator;
+  final bool isStatic;
+  final bool isAbstract;
+  final List<AnnotationIR> annotations;
+  final SourceLocationIR sourceLocation;
+
+  MethodIR({
+    required this.name,
+    required this.returnType,
+    required this.parameters,
+    required this.body,
+    required this.returnExpression,
+    required this.isAsync,
+    required this.isGenerator,
+    required this.isStatic,
+    required this.isAbstract,
+    required this.annotations,
+    required this.sourceLocation,
+  });
+}
+class SourceLocationIR {
+  final String file;      // Path to the source file
+  final int line;         // Line number (1-based)
+  final int column;       // Column number (1-based)
+  final int offset;       // Character offset from start of file (0-based)
+  final int length;       // Length of the code element in characters
+  
+  SourceLocationIR({
+    required this.file,
+    required this.line,
+    required this.column,
+    required this.offset,
+    required this.length,
+  });
+}
 
 abstract class ExpressionIR {
   final String id;

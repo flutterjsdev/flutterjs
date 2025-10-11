@@ -1586,8 +1586,8 @@ class EnhancedASTVisitor extends RecursiveAstVisitor<void> {
     final mixinClause = node.withClause;
     
     if (mixinClause != null) {
-      for (final mixinType in mixinClause.mixinTypes2) {
-        final name = mixinType.name2.toString();
+      for (final mixinType in mixinClause.mixinTypes) {
+        final name = mixinType.name.toString();
         mixins.add(MixinIR(
           name: name,
           type: _getMixinType(name),
@@ -2890,7 +2890,7 @@ TypeIR _inferBinaryResultType(BinaryExpression expr) {
     // Await unwraps Future<T> to T
     if (expr.expression.staticType != null) {
       final type = expr.expression.staticType!;
-      if (type is InterfaceType && type.element2.name == 'Future') {
+      if (type is InterfaceType && type.element.name == 'Future') {
         if (type.typeArguments.isNotEmpty) {
           return _convertType(type.typeArguments.first);
         }
