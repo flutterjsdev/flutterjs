@@ -4,9 +4,10 @@ import 'package:path/path.dart' as path;
 
 import '../engine/analyzer/analying_project.dart';
 import '../engine/analyzer/dependency_graph.dart';
+import '../engine/analyzer/type_registry.dart';
 
 // ============================================================================
-// ANALYZE COMMAND
+// ANALYZE COMMAND - Analysis Only (No IR Generation)
 // ============================================================================
 
 class AnalyzeCommand extends Command<void> {
@@ -20,26 +21,6 @@ class AnalyzeCommand extends Command<void> {
       ..addFlag(
         'suggestions',
         help: 'Show optimization suggestions.',
-        defaultsTo: true,
-      )
-      ..addFlag(
-        'bundle',
-        help: 'Analyze output bundle (requires build/ directory).',
-        defaultsTo: true,
-      )
-      ..addFlag(
-        'widgets',
-        help: 'Analyze Flutter widget usage in source code.',
-        defaultsTo: true,
-      )
-      ..addFlag(
-        'dead-code',
-        help: 'Run dead code analysis using dead_code_analyzer package.',
-        negatable: false,
-      )
-      ..addFlag(
-        'reactivity',
-        help: 'Analyze reactivity and state management.',
         defaultsTo: true,
       )
       ..addOption(
@@ -78,7 +59,7 @@ class AnalyzeCommand extends Command<void> {
   String get name => 'analyze';
 
   @override
-  String get description => 'Analyze bundle size and dependencies.';
+  String get description => 'Analyze Flutter project structure and dependencies (no IR generation).';
 
   @override
   Future<void> run() async {
@@ -100,6 +81,7 @@ class AnalyzeCommand extends Command<void> {
 
     print('📊 Analyzing Flutter.js project...');
     print('   Project: $absolutePath');
+    print('   Mode: Analysis only (no IR generation)');
     print('   Parallel: ${enableParallel ? 'enabled ($maxParallelism workers)' : 'disabled'}');
     print('   Cache: ${enableCache ? 'enabled' : 'disabled'}\n');
 
@@ -116,7 +98,7 @@ class AnalyzeCommand extends Command<void> {
       // Initialize
       await analyzer.initialize();
 
-      // Listen to progress (optional)
+      // Listen to progress
       if (!jsonOutput) {
         analyzer.progressStream.listen((progress) {
           final percentage = progress.percentage;
@@ -125,7 +107,7 @@ class AnalyzeCommand extends Command<void> {
         });
       }
 
-      // Run analysis
+      // Run analysis (ONLY parsing, dependency resolution, type resolution)
       final result = await analyzer.analyzeProject();
 
       if (!jsonOutput) {
@@ -156,7 +138,6 @@ class AnalyzeCommand extends Command<void> {
 
   void _printTextAnalysis(ProjectAnalysisResult result, bool showSuggestions) {
     final stats = result.statistics;
-    final appIR = result.appIR;
 
     // Summary Section
     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -169,6 +150,7 @@ class AnalyzeCommand extends Command<void> {
     print('  ├─ Processed:     ${stats.processedFiles}');
     print('  ├─ Cached:        ${stats.cachedFiles} (${(stats.cacheHitRate * 100).toStringAsFixed(1)}%)');
     print('  ├─ Changed:       ${stats.changedFiles}');
+    print('  ├─ Need IR:       ${result.filesToAnalyze.length}');
     print('  └─ Errors:        ${stats.errorFiles}${stats.errorFiles > 0 ? ' ⚠️' : ' ✓'}\n');
 
     // Performance Statistics
@@ -177,94 +159,70 @@ class AnalyzeCommand extends Command<void> {
     print('  ├─ Avg per file:  ${stats.avgTimePerFile.toStringAsFixed(1)}ms');
     print('  └─ Throughput:    ${stats.throughput.toStringAsFixed(1)} files/sec\n');
 
-    // App Structure
-    print('🏗️  Application Structure:');
-    print('  ├─ Widgets:       ${appIR.widgets.length}');
-    print('  ├─ State Classes: ${appIR.stateClasses.length}');
-    print('  ├─ Providers:     ${appIR.providers.length}');
-    print('  └─ Total Classes: ${result.fileIRs.values.fold(0, (sum, file) => sum + file.classes.length)}\n');
-
-    // Widget Breakdown
-    if (appIR.widgets.isNotEmpty) {
-      print('🎨 Widget Usage:');
-      final widgetCounts = <String, int>{};
-      for (final widget in appIR.widgets) {
-        final name = widget.name;
-        widgetCounts[name] = (widgetCounts[name] ?? 0) + 1;
-      }
-
-      final sortedWidgets = widgetCounts.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-
-      final topWidgets = sortedWidgets.take(10);
-      for (var i = 0; i < topWidgets.length; i++) {
-        final entry = topWidgets.elementAt(i);
-        final isLast = i == topWidgets.length - 1;
-        final prefix = isLast ? '└─' : '├─';
-        print('  $prefix ${entry.key.padRight(20)} ${entry.value} instances');
-      }
-      if (sortedWidgets.length > 10) {
-        print('  └─ ... and ${sortedWidgets.length - 10} more\n');
-      } else {
-        print('');
-      }
-    }
-
-    // State Management
-    if (appIR.stateClasses.isNotEmpty) {
-      print('📦 State Management:');
-      
-      // Count state classes by characteristics
-      var withInitState = 0;
-      var withDispose = 0;
-      var totalStateVars = 0;
-      var withLifecycleMethods = 0;
-      
-      for (final state in appIR.stateClasses) {
-        if (state.initState != null) withInitState++;
-        if (state.dispose != null) withDispose++;
-        totalStateVars += state.stateVariables.length;
-        if (state.lifecycleMethods.isNotEmpty) withLifecycleMethods++;
-      }
-      
-      print('  ├─ Total State Classes:     ${appIR.stateClasses.length}');
-      print('  ├─ With initState():        $withInitState');
-      print('  ├─ With dispose():          $withDispose');
-      print('  ├─ With lifecycle methods:  $withLifecycleMethods');
-      print('  ├─ Total state variables:   $totalStateVars');
-      print('  └─ Avg vars per class:      ${totalStateVars > 0 ? (totalStateVars / appIR.stateClasses.length).toStringAsFixed(1) : '0'}\n');
-    }
-
     // Dependency Graph Info
-    if (verbose) {
-      print('🔗 Dependency Graph:');
-      print('  ├─ Total nodes:   ${result.dependencyGraph.nodeCount}');
-      final cycles = result.dependencyGraph.detectCycles();
-      print('  ├─ Cycles:        ${cycles.length}${cycles.isNotEmpty ? ' ⚠️' : ' ✓'}');
-      print('  └─ Max depth:     ${_calculateMaxDepth(result.dependencyGraph)}\n');
+    print('🔗 Dependency Graph:');
+    print('  ├─ Total nodes:   ${result.dependencyGraph.nodeCount}');
+    final cycles = result.dependencyGraph.detectCycles();
+    print('  ├─ Cycles:        ${cycles.length}${cycles.isNotEmpty ? ' ⚠️' : ' ✓'}');
+    print('  └─ Max depth:     ${_calculateMaxDepth(result.dependencyGraph)}\n');
 
-      if (cycles.isNotEmpty && cycles.length <= 5) {
-        print('⚠️  Circular Dependencies:');
-        for (final cycle in cycles) {
-          print('  ├─ ${cycle.map((f) => path.basename(f)).join(' -> ')}');
-        }
+    if (cycles.isNotEmpty && verbose) {
+      print('⚠️  Circular Dependencies:');
+      for (final cycle in cycles.take(5)) {
+        print('  ├─ ${cycle.map((f) => path.basename(f)).join(' -> ')}');
+      }
+      if (cycles.length > 5) {
+        print('  └─ ... and ${cycles.length - 5} more\n');
+      } else {
         print('');
       }
     }
 
     // Type Registry
     print('🏷️  Type Registry:');
-    print('  └─ Total types:   ${result.typeRegistry.typeCount}\n');
+    print('  ├─ Total types:   ${result.typeRegistry.typeCount}');
+    print('  ├─ Widgets:       ${_countTypesByKind(result.typeRegistry, 'Widget')}');
+    print('  ├─ State classes: ${_countTypesByKind(result.typeRegistry, 'State')}');
+    print('  └─ Other classes: ${result.typeRegistry.typeCount - _countTypesByKind(result.typeRegistry, 'Widget') - _countTypesByKind(result.typeRegistry, 'State')}\n');
 
-    // Import Analysis
-    final totalImports = result.fileIRs.values.fold(0, (sum, file) => sum + file.imports.length);
-    print('📥 Imports:');
-    print('  └─ Total imports: $totalImports\n');
+    // Parsed Files Info
+    print('📋 Parsed Files:');
+    print('  ├─ Total parsed:  ${result.parsedUnits.length}');
+    final filesWithErrors = result.parsedUnits.values.where((f) => f.hasErrors).length;
+    final filesWithWarnings = result.parsedUnits.values.where((f) => f.analysisResult.warnings.isNotEmpty).length;
+    print('  ├─ With errors:   $filesWithErrors${filesWithErrors > 0 ? ' ⚠️' : ' ✓'}');
+    print('  └─ With warnings: $filesWithWarnings${filesWithWarnings > 0 ? ' ⚠️' : ''}\n');
+
+    // Import/Export Statistics
+    final totalImports = result.parsedUnits.values.fold(0, (sum, file) => sum + file.imports.length);
+    final totalExports = result.parsedUnits.values.fold(0, (sum, file) => sum + file.exports.length);
+    final dartImports = result.parsedUnits.values.fold(0, (sum, file) => 
+      sum + file.imports.where((i) => i.isDartCoreImport).length);
+    final packageImports = result.parsedUnits.values.fold(0, (sum, file) => 
+      sum + file.imports.where((i) => i.isPackageImport).length);
+    final relativeImports = result.parsedUnits.values.fold(0, (sum, file) => 
+      sum + file.imports.where((i) => i.isRelative).length);
+
+    print('📥 Imports & Exports:');
+    print('  ├─ Total imports:    $totalImports');
+    print('  │  ├─ Dart core:     $dartImports');
+    print('  │  ├─ Package:       $packageImports');
+    print('  │  └─ Relative:      $relativeImports');
+    print('  └─ Total exports:    $totalExports\n');
+
+    // Analysis Order Info
+    print('📐 Dependency Order:');
+    print('  ├─ Analysis order calculated: ${result.analysisOrder.length} files');
+    print('  └─ Ready for IR generation: ${result.filesToAnalyze.length} files\n');
 
     // Optimization suggestions
     if (showSuggestions) {
       _printSuggestions(result);
     }
+
+    // Next Steps
+    print('📝 Next Steps:');
+    print('  └─ Run "generate-ir" command to create IR for analyzed files\n');
 
     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   }
@@ -275,18 +233,8 @@ class AnalyzeCommand extends Command<void> {
     final suggestions = <String>[];
 
     // Cache hit rate
-    if (result.statistics.cacheHitRate < 0.5) {
+    if (result.statistics.cacheHitRate < 0.5 && result.statistics.changedFiles > 0) {
       suggestions.add('Low cache hit rate (${(result.statistics.cacheHitRate * 100).toStringAsFixed(0)}%) - run analysis again for faster incremental builds');
-    }
-
-    // Widget duplicates
-    final widgetCounts = <String, int>{};
-    for (final widget in result.appIR.widgets) {
-      widgetCounts[widget.name] = (widgetCounts[widget.name] ?? 0) + 1;
-    }
-    final duplicateWidgets = widgetCounts.entries.where((e) => e.value > 5).length;
-    if (duplicateWidgets > 0) {
-      suggestions.add('$duplicateWidgets widget types used more than 5 times - consider extracting reusable components');
     }
 
     // Circular dependencies
@@ -296,16 +244,33 @@ class AnalyzeCommand extends Command<void> {
     }
 
     // Large files
-    final largeFiles = result.fileIRs.entries
-        .where((e) => e.value.classes.length + e.value.widgets.length > 10)
+    final largeFiles = result.parsedUnits.values
+        .where((parsed) => parsed.unit.declarations.length > 10)
         .length;
     if (largeFiles > 0) {
       suggestions.add('$largeFiles files have 10+ declarations - consider splitting for better organization');
     }
 
-    // State management
-    if (result.appIR.stateClasses.isEmpty && result.appIR.widgets.length > 10) {
-      suggestions.add('No state management detected - consider using providers or state classes for complex UIs');
+    // Files with errors
+    final filesWithErrors = result.parsedUnits.values.where((f) => f.hasErrors).length;
+    if (filesWithErrors > 0) {
+      suggestions.add('$filesWithErrors files have errors - fix these before IR generation');
+    }
+
+    // Performance suggestion
+    if (result.statistics.avgTimePerFile > 100) {
+      suggestions.add('Average time per file is ${result.statistics.avgTimePerFile.toStringAsFixed(0)}ms - consider increasing --max-parallelism');
+    }
+
+    // Deep dependency chains
+    final maxDepth = _calculateMaxDepth(result.dependencyGraph);
+    if (maxDepth > 10) {
+      suggestions.add('Deep dependency chains detected (depth: $maxDepth) - consider flattening architecture');
+    }
+
+    // Many changed files
+    if (result.statistics.changedFiles > result.statistics.totalFiles * 0.5) {
+      suggestions.add('${result.statistics.changedFiles} files changed (${(result.statistics.changedFiles / result.statistics.totalFiles * 100).toStringAsFixed(0)}%) - incremental cache will be more effective on smaller changes');
     }
 
     // Display suggestions
@@ -322,26 +287,49 @@ class AnalyzeCommand extends Command<void> {
   }
 
   void _printJsonAnalysis(ProjectAnalysisResult result) {
+    final filesWithErrors = result.parsedUnits.values.where((f) => f.hasErrors).length;
+    final filesWithWarnings = result.parsedUnits.values.where((f) => f.analysisResult.warnings.isNotEmpty).length;
+
     final json = {
       'statistics': result.statistics.toJson(),
-      'app_structure': {
-        'widgets': result.appIR.widgets.length,
-        'state_classes': result.appIR.stateClasses.length,
-        'providers': result.appIR.providers.length,
-        'total_classes': result.fileIRs.values.fold(0, (sum, file) => sum + file.classes.length),
+      'files': {
+        'total': result.parsedUnits.length,
+        'need_ir': result.filesToAnalyze.length,
+        'with_errors': filesWithErrors,
+        'with_warnings': filesWithWarnings,
+        'analysis_order': result.analysisOrder.length,
       },
       'dependency_graph': {
         'node_count': result.dependencyGraph.nodeCount,
         'cycles': result.dependencyGraph.detectCycles().length,
+        'max_depth': _calculateMaxDepth(result.dependencyGraph),
       },
       'type_registry': {
-        'type_count': result.typeRegistry.typeCount,
+        'total_types': result.typeRegistry.typeCount,
+        'widgets': _countTypesByKind(result.typeRegistry, 'Widget'),
+        'state_classes': _countTypesByKind(result.typeRegistry, 'State'),
       },
-      'files': result.fileIRs.length,
+      'imports_exports': {
+        'total_imports': result.parsedUnits.values.fold(0, (sum, file) => sum + file.imports.length),
+        'total_exports': result.parsedUnits.values.fold(0, (sum, file) => sum + file.exports.length),
+        'dart_imports': result.parsedUnits.values.fold(0, (sum, file) => 
+          sum + file.imports.where((i) => i.isDartCoreImport).length),
+        'package_imports': result.parsedUnits.values.fold(0, (sum, file) => 
+          sum + file.imports.where((i) => i.isPackageImport).length),
+        'relative_imports': result.parsedUnits.values.fold(0, (sum, file) => 
+          sum + file.imports.where((i) => i.isRelative).length),
+      },
+      'files_to_analyze': result.filesToAnalyze,
+      'analysis_order': result.analysisOrder,
     };
 
-    // Pretty print JSON
     print(_prettyJsonEncode(json));
+  }
+
+  int _countTypesByKind(TypeRegistry registry, String kind) {
+    // This is a placeholder - you'll need to implement this based on your TypeRegistry
+    // For now, return 0
+    return 0;
   }
 
   String _createProgressBar(int percentage) {
@@ -364,7 +352,6 @@ class AnalyzeCommand extends Command<void> {
   }
 
   int _calculateMaxDepth(DependencyGraph graph) {
-    // Simple approximation - could be more sophisticated
     return graph.nodeCount > 0 ? (graph.nodeCount / 10).ceil() : 0;
   }
 
@@ -424,10 +411,6 @@ extension AnalysisPhaseDisplay on AnalysisPhase {
         return '🔄 Changes';
       case AnalysisPhase.typeResolution:
         return '🏷️  Types';
-      case AnalysisPhase.irGeneration:
-        return '🔨 IR Generation';
-      case AnalysisPhase.linking:
-        return '🔗 Linking';
       case AnalysisPhase.caching:
         return '💾 Caching';
       case AnalysisPhase.complete:

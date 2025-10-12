@@ -188,36 +188,37 @@ class ProjectAnalyzer {
       final changedFiles = await _phase2_DetectChangedFiles(analysisOrder);
 
       // PHASE 3: Type resolution pass
-      await _phase3_TypeResolution(analysisOrder, changedFiles);
+     final parsedFiles =  await _phase3_ParseAndResolveTypes(analysisOrder, changedFiles);
 
-      // PHASE 4: Per-file IR generation
-      final fileIRs = await _phase4_GenerateIRs(analysisOrder, changedFiles);
+      // // PHASE 4: Per-file IR generation
+      // final fileIRs = await _phase4_GenerateIRs(analysisOrder, changedFiles);
 
-      // PHASE 5: Link and validate
-      final appIR = await _phase5_LinkAndValidate(fileIRs, dependencyGraph);
+      // // PHASE 5: Link and validate
+      // final appIR = await _phase5_LinkAndValidate(fileIRs, dependencyGraph);
 
       // PHASE 6: Save cache
       if (enableCache) {
-        await _phase6_PersistCache(fileIRs);
+        await _phase4_CacheAnalysisResults(parsedFiles);
       }
 
       stopwatch.stop();
 
-      final result = ProjectAnalysisResult(
-        fileIRs: fileIRs,
-        appIR: appIR,
-        dependencyGraph: dependencyGraph,
-        typeRegistry: _typeRegistry,
-        analysisOrder: analysisOrder,
-        statistics: AnalysisStatistics(
-          totalFiles: _totalFiles,
-          processedFiles: _processedFiles,
-          cachedFiles: _cachedFiles,
-          errorFiles: _errorFiles,
-          durationMs: stopwatch.elapsedMilliseconds,
-          changedFiles: changedFiles.length,
-        ),
-      );
+     final result = ProjectAnalysisResult(
+      filesToAnalyze: changedFiles.toList(), // NEW: Files that need IR generation
+      parsedUnits: parsedFiles,               // NEW: Pre-parsed ASTs
+      dependencyGraph: dependencyGraph,
+      typeRegistry: _typeRegistry,
+      analysisOrder: analysisOrder,
+      statistics: AnalysisStatistics(
+        totalFiles: _totalFiles,
+        processedFiles: _processedFiles,
+        cachedFiles: _cachedFiles,
+        errorFiles: _errorFiles,
+        durationMs: stopwatch.elapsedMilliseconds,
+        changedFiles: changedFiles.length,
+      ),
+    );
+
 
       _notifyProgress(
         AnalysisPhase.complete,
@@ -376,397 +377,99 @@ class ProjectAnalyzer {
   // PHASE 3: TYPE RESOLUTION
   // ==========================================================================
 
-  Future<void> _phase3_TypeResolution(
-    List<String> filesInOrder,
-    Set<String> changedFiles,
-  ) async {
-    _notifyProgress(
-      AnalysisPhase.typeResolution,
-      0,
-      filesInOrder.length,
-      'Resolving types...',
-    );
+  // REPLACE old Phase 3
+Future<Map<String, ParsedFileInfo>> _phase3_ParseAndResolveTypes(
+  List<String> filesInOrder,
+  Set<String> changedFiles,
+) async {
+  _notifyProgress(
+    AnalysisPhase.typeResolution,
+    0,
+    filesInOrder.length,
+    'Parsing and resolving types...',
+  );
 
-    _log('🏷️  Phase 3: Resolving types...');
+  _log('🏷️ Phase 3: Parsing and resolving types...');
 
-    int processed = 0;
+  final parsedFiles = <String, ParsedFileInfo>{};
+  int processed = 0;
 
-    if (enableParallelProcessing) {
-      // Process in batches while respecting dependency order
-      final batches = _createDependencyOrderedBatches(
-        filesInOrder,
-        changedFiles,
+  for (final filePath in filesInOrder) {
+    try {
+      final result = await analyzeFile(filePath);
+      if (result == null) continue;
+
+      // Extract type declarations for registry
+      final visitor = TypeDeclarationVisitor(filePath, _typeRegistry);
+      result.unit.accept(visitor);
+
+      // Store parsed info
+      parsedFiles[filePath] = ParsedFileInfo(
+        path: filePath,
+        unit: result.unit,
+        libraryElement: result.libraryElement,
+        analysisResult: result,
+        needsIRGeneration: changedFiles.contains(filePath),
       );
 
-      for (final batch in batches) {
-        await _processTypeResolutionBatch(batch);
-        processed += batch.length;
-
+      processed++;
+      if (processed % 20 == 0) {
         _notifyProgress(
           AnalysisPhase.typeResolution,
           processed,
           filesInOrder.length,
-          'Resolved $processed types...',
+          'Parsed $processed files...',
         );
       }
-    } else {
-      // Sequential processing
-      for (final filePath in filesInOrder) {
-        await _resolveTypesForFile(filePath, changedFiles);
-        processed++;
-
-        if (processed % 20 == 0) {
-          _notifyProgress(
-            AnalysisPhase.typeResolution,
-            processed,
-            filesInOrder.length,
-            'Resolved $processed types...',
-          );
-        }
-      }
-    }
-
-    _log('✓ Type registry populated: ${_typeRegistry.typeCount} types');
-  }
-
-  Future<void> _processTypeResolutionBatch(List<String> batch) async {
-    final futures = batch.map((filePath) async {
-      try {
-        final result = await analyzeFile(filePath);
-        if (result != null) {
-          final visitor = TypeDeclarationVisitor(filePath, _typeRegistry);
-          result.unit.accept(visitor);
-        }
-      } catch (e) {
-        _logVerbose(
-          '   Error resolving types in ${path.basename(filePath)}: $e',
-        );
-      }
-    });
-
-    await Future.wait(futures);
-  }
-
-  Future<void> _resolveTypesForFile(
-    String filePath,
-    Set<String> changedFiles,
-  ) async {
-    // Skip if not changed and already in registry
-    if (!changedFiles.contains(filePath) &&
-        _typeRegistry.hasTypesForFile(filePath)) {
-      return;
-    }
-
-    try {
-      final result = await analyzeFile(filePath);
-      if (result == null) return;
-
-      // Extract type declarations
-      final visitor = TypeDeclarationVisitor(filePath, _typeRegistry);
-      result.unit.accept(visitor);
-
-      _logVerbose(
-        '   ✓ ${path.basename(filePath)}: ${visitor.typesFound} types',
-      );
     } catch (e) {
-      _logVerbose('   ✗ ${path.basename(filePath)}: $e');
+      _logVerbose('Error parsing ${path.basename(filePath)}: $e');
+      _errorFiles++;
     }
   }
+
+  _log('✓ Parsed ${parsedFiles.length} files, type registry: ${_typeRegistry.typeCount} types');
+  return parsedFiles;
+}
+
 
   // ==========================================================================
   // PHASE 4: IR GENERATION
   // ==========================================================================
 
-  Future<Map<String, FileDeclaration>> _phase4_GenerateIRs(
-    List<String> filesInOrder,
-    Set<String> changedFiles,
-  ) async {
-    _notifyProgress(
-      AnalysisPhase.irGeneration,
-      0,
-      filesInOrder.length,
-      'Generating IR...',
-    );
-
-    _log('🔨 Phase 4: Generating IR...');
-
-    final fileIRs = <String, FileDeclaration>{};
-    int processed = 0;
-
-    if (enableParallelProcessing) {
-      final batches = _createDependencyOrderedBatches(
-        filesInOrder,
-        changedFiles,
-      );
-
-      for (final batch in batches) {
-        final batchResults = await _processIRGenerationBatch(
-          batch,
-          changedFiles,
-        );
-        fileIRs.addAll(batchResults);
-        processed += batch.length;
-
-        _notifyProgress(
-          AnalysisPhase.irGeneration,
-          processed,
-          filesInOrder.length,
-          'Generated $processed IRs...',
-        );
-      }
-    } else {
-      for (final filePath in filesInOrder) {
-        final ir = await _generateIRForFile(filePath, changedFiles);
-        if (ir != null) {
-          fileIRs[filePath] = ir;
-        }
-        processed++;
-
-        if (processed % 20 == 0) {
-          _notifyProgress(
-            AnalysisPhase.irGeneration,
-            processed,
-            filesInOrder.length,
-            'Generated $processed IRs...',
-          );
-        }
-      }
-    }
-
-    _processedFiles = processed;
-    _log('✓ Generated ${fileIRs.length} file IRs');
-
-    return fileIRs;
-  }
-
-  Future<Map<String, FileDeclaration>> _processIRGenerationBatch(
-    List<String> batch,
-    Set<String> changedFiles,
-  ) async {
-    final results = <String, FileDeclaration>{};
-
-    final futures = batch.map((filePath) async {
-      final ir = await _generateIRForFile(filePath, changedFiles);
-      if (ir != null) {
-        return MapEntry(filePath, ir);
-      }
-      return null;
-    });
-
-    final entries = await Future.wait(futures);
-
-    for (final entry in entries) {
-      if (entry != null) {
-        results[entry.key] = entry.value;
-      }
-    }
-
-    return results;
-  }
-
-  Future<FileDeclaration?> _generateIRForFile(
-    String filePath,
-    Set<String> changedFiles,
-  ) async {
-    try {
-      // Use cache if file hasn't changed
-      if (enableCache && !changedFiles.contains(filePath)) {
-        final cached = await _cache.getFileDeclaration(filePath);
-        if (cached != null) {
-          _logVerbose('   ⚡ ${path.basename(filePath)} (cached)');
-          return cached;
-        }
-      }
-
-      // Generate new IR
-      final result = await analyzeFile(filePath);
-      if (result == null) {
-        _errorFiles++;
-        return null;
-      }
-
-      if (result.hasErrors) {
-        _log(
-          '⚠️  ${path.basename(filePath)} has ${result.errors.length} errors',
-        );
-        _errorFiles++;
-      }
-
-      final analysisContext = FileAnalysisContext(
-        currentFile: filePath,
-        typeRegistry: _typeRegistry,
-        dependencyGraph: _dependencyResolver.graph,
-      );
-      print('🔍 Generating IR for: ${path.basename(filePath)}');
-      print('   Analysis result: ${result != null ? "✓" : "✗"}');
-      print('   Has errors: ${result?.hasErrors}');
-      if (result?.hasErrors == true) {
-        print('   Errors:');
-        for (final error in result!.errorList) {
-          print('      - ${error.message}');
-        }
-      }
-      final visitor = FileDeclarationGenerator(analysisContext);
-      print('   Visitor created: ✓');
-      result.unit.accept(visitor);
-      print('   AST visited: ✓');
-
-      final fileIR = visitor.buildFileDeclaration();
-      print(
-        '   IR built: ✓ (${fileIR.widgets.length}W, ${fileIR.classes.length}C)',
-      );
-      // Update cache hash
-      if (enableCache) {
-        await _cache.setFileHash(filePath, result.hash);
-      }
-
-      _logVerbose(
-        '   ✓ ${path.basename(filePath)}: '
-        '${fileIR.widgets.length}W ${fileIR.classes.length}C',
-      );
-
-      return fileIR;
-    } catch (e, stackTrace) {
-      print('❌ DETAILED ERROR in _generateIRForFile:');
-      print('   File: $filePath');
-      print('   Error type: ${e.runtimeType}');
-      print('   Error: $e');
-      print('   Stack trace:');
-      print(stackTrace);
-      _logError('Failed to generate IR for $filePath', e, stackTrace);
-      _errorFiles++;
-      return null;
-    }
-  }
-
-  // ==========================================================================
-  // PHASE 5: LINKING & VALIDATION
-  // ==========================================================================
-
-  Future<FlutterAppDeclaration> _phase5_LinkAndValidate(
-    Map<String, FileDeclaration> fileIRs,
-    DependencyGraph dependencyGraph,
-  ) async {
-    _notifyProgress(AnalysisPhase.linking, 0, 1, 'Linking IRs...');
-
-    _log('🔗 Phase 5: Linking and validating...');
-
-    try {
-      final linker = DeclarationLinker(
-        dependencyGraph: dependencyGraph,
-        typeRegistry: _typeRegistry,
-        fileDeclarations: fileIRs,
-      );
-
-      final appIR = linker.link();
-
-      // Validate
-      final validator = DeclarationValidator(appIR, _typeRegistry);
-      final validationResult = validator.validate();
-
-      if (!validationResult.isValid) {
-        _log('⚠️  Validation found ${validationResult.errors.length} errors:');
-        for (final error in validationResult.errors.take(10)) {
-          _log('   - $error');
-        }
-        if (validationResult.errors.length > 10) {
-          _log('   ... and ${validationResult.errors.length - 10} more');
-        }
-      }
-
-      if (validationResult.warnings.isNotEmpty) {
-        _log(
-          '⚠️  Validation found ${validationResult.warnings.length} warnings:',
-        );
-        for (final warning in validationResult.warnings.take(5)) {
-          _log('   - $warning');
-        }
-        if (validationResult.warnings.length > 5) {
-          _log('   ... and ${validationResult.warnings.length - 5} more');
-        }
-      }
-
-      if (validationResult.isValid && validationResult.warnings.isEmpty) {
-        _log('✓ Validation passed');
-      }
-
-      _log(
-        '✓ Linked app IR: '
-        '${appIR.widgets.length}W ${appIR.stateClasses.length}S '
-        '${appIR.providers.length}P',
-      );
-
-      return appIR;
-    } catch (e, stackTrace) {
-      _logError('Linking failed', e, stackTrace);
-      rethrow;
-    }
-  }
-
   // ==========================================================================
   // PHASE 6: CACHE PERSISTENCE
   // ==========================================================================
 
-  Future<void> _phase6_PersistCache(
-    Map<String, FileDeclaration> fileIRs,
-  ) async {
-    _notifyProgress(
-      AnalysisPhase.caching,
-      0,
-      fileIRs.length,
-      'Saving cache...',
-    );
+Future<void> _phase4_CacheAnalysisResults(
+  Map<String, ParsedFileInfo> parsedFiles,
+) async {
+  _notifyProgress(
+    AnalysisPhase.caching,
+    0,
+    parsedFiles.length,
+    'Caching analysis results...',
+  );
 
-    _log('💾 Phase 6: Saving cache...');
+  _log('💾 Phase 4: Caching analysis results...');
 
-    try {
-      await _cache.saveAll(fileIRs);
-      _log('✓ Cache saved: ${fileIRs.length} files');
-    } catch (e, stackTrace) {
-      _logError('Failed to save cache', e, stackTrace);
-      // Non-fatal, continue
+  try {
+    // Cache file hashes and analysis metadata (NOT IRs)
+    for (final entry in parsedFiles.entries) {
+      await _cache.setFileHash(
+        entry.key, 
+        entry.value.analysisResult.hash
+      );
     }
+    _log('✓ Cached ${parsedFiles.length} analysis results');
+  } catch (e, stackTrace) {
+    _logError('Failed to cache analysis results', e, stackTrace);
   }
+}
 
   // ==========================================================================
   // HELPER METHODS
   // ==========================================================================
 
-  /// Create batches of files that can be processed in parallel
-  /// while respecting dependency order
-  List<List<String>> _createDependencyOrderedBatches(
-    List<String> filesInOrder,
-    Set<String> filesToProcess,
-  ) {
-    final batches = <List<String>>[];
-    final processed = <String>{};
-    final batch = <String>[];
-
-    for (final file in filesInOrder) {
-      if (!filesToProcess.contains(file)) {
-        processed.add(file);
-        continue;
-      }
-
-      // Check if all dependencies are processed
-      final deps = _dependencyResolver.getDependencies(file);
-      if (deps.every((dep) => processed.contains(dep))) {
-        batch.add(file);
-
-        if (batch.length >= maxParallelism) {
-          batches.add(List.from(batch));
-          processed.addAll(batch);
-          batch.clear();
-        }
-      }
-    }
-
-    if (batch.isNotEmpty) {
-      batches.add(batch);
-    }
-
-    return batches;
-  }
 
   /// Get analysis context for a specific file
   AnalysisContext? _getContextForFile(String filePath) {
@@ -895,34 +598,34 @@ class ProjectAnalyzer {
 // ==========================================================================
 
 /// Result of analyzing the entire project
+/// Result of analyzing the entire project - NO IR, only analysis
 class ProjectAnalysisResult {
-  final Map<String, FileDeclaration> fileIRs;
-  final FlutterAppDeclaration appIR;
+  // REMOVED: fileIRs, appIR
+  
+  // NEW: Data needed for IR generation
+  final List<String> filesToAnalyze;              // Files needing IR generation
+  final Map<String, ParsedFileInfo> parsedUnits;  // Pre-parsed ASTs
+  
+  // KEPT: Analysis metadata
   final DependencyGraph dependencyGraph;
   final TypeRegistry typeRegistry;
   final List<String> analysisOrder;
   final AnalysisStatistics statistics;
 
   ProjectAnalysisResult({
-    required this.fileIRs,
-    required this.appIR,
+    required this.filesToAnalyze,
+    required this.parsedUnits,
     required this.dependencyGraph,
     required this.typeRegistry,
     required this.analysisOrder,
     required this.statistics,
   });
 
-  /// Get IR for a specific file
-  FileDeclaration? getFileDeclaration(String filePath) => fileIRs[filePath];
-
-  /// Get all widgets in the project
-  List<WidgetDeclaration> get allWidgets => appIR.widgets;
-
-  /// Get all state classes in the project
-  List<StateClassDeclaration> get allStateClasses => appIR.stateClasses;
-
-  /// Get all providers in the project
-  List<ProviderDeclaration> get allProviders => appIR.providers;
+  /// Get parsed info for a specific file
+  ParsedFileInfo? getParsedFile(String filePath) => parsedUnits[filePath];
+  
+  /// Get all files that need IR generation
+  List<String> getFilesNeedingIR() => filesToAnalyze;
 }
 
 /// Result of analyzing a single file
@@ -1063,8 +766,6 @@ enum AnalysisPhase {
   dependencyResolution,
   changeDetection,
   typeResolution,
-  irGeneration,
-  linking,
   caching,
   complete,
   error,
@@ -1121,4 +822,26 @@ class AnalysisStatistics {
         'avg: ${avgTimePerFile.toStringAsFixed(1)}ms/file'
         ')';
   }
+}
+
+
+/// Parsed file information ready for IR generation
+class ParsedFileInfo {
+  final String path;
+  final CompilationUnit unit;
+  final analyzer_results.LibraryElement libraryElement;
+  final FileAnalysisResult analysisResult;
+  final bool needsIRGeneration;
+
+  ParsedFileInfo({
+    required this.path,
+    required this.unit,
+    required this.libraryElement,
+    required this.analysisResult,
+    required this.needsIRGeneration,
+  });
+
+  bool get hasErrors => analysisResult.hasErrors;
+  List<ImportInfo> get imports => analysisResult.imports;
+  List<String> get exports => analysisResult.exports;
 }
