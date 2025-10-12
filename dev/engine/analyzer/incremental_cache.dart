@@ -4,12 +4,12 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as path;
 
-import '../ir/file_ir.dart';
+import 'model/class_model.dart';
 
 class IncrementalCache {
   final String cacheDir;
   final Map<String, String> _fileHashes = {};
-  final Map<String, FileIR> _fileIRCache = {};
+  final Map<String, FileDeclaration> _fileIRCache = {};
 
   IncrementalCache(this.cacheDir);
 
@@ -31,7 +31,7 @@ class IncrementalCache {
     await _saveHashIndex();
   }
 
-  Future<FileIR?> getFileIR(String filePath) async {
+  Future<FileDeclaration?> getFileDeclaration(String filePath) async {
     if (_fileIRCache.containsKey(filePath)) {
       return _fileIRCache[filePath];
     }
@@ -40,13 +40,13 @@ class IncrementalCache {
     if (!await File(cacheFile).exists()) return null;
     
     final bytes = await File(cacheFile).readAsBytes();
-    final fileIR = FileIR.fromBinary(bytes);
+    final fileIR = FileDeclaration.fromBinary(bytes);
     _fileIRCache[filePath] = fileIR;
     
     return fileIR;
   }
 
-  Future<void> saveFileIR(String filePath, FileIR fileIR) async {
+  Future<void> saveFileIR(String filePath, FileDeclaration fileIR) async {
     final cacheFile = _getCacheFilePath(filePath);
     final bytes = fileIR.toBinary();
     
@@ -54,7 +54,7 @@ class IncrementalCache {
     _fileIRCache[filePath] = fileIR;
   }
 
-  Future<void> saveAll(Map<String, FileIR> fileIRs) async {
+  Future<void> saveAll(Map<String, FileDeclaration> fileIRs) async {
     for (final entry in fileIRs.entries) {
       await saveFileIR(entry.key, entry.value);
     }

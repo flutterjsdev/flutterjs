@@ -7,10 +7,8 @@ class TypeRegistry {
 
   void registerType(TypeInfo typeInfo) {
     _types[typeInfo.name] = typeInfo;
-    
-    _fileTypes
-        .putIfAbsent(typeInfo.filePath, () => {})
-        .add(typeInfo.name);
+
+    _fileTypes.putIfAbsent(typeInfo.filePath, () => {}).add(typeInfo.name);
   }
 
   TypeInfo? lookupType(String typeName) {
@@ -31,40 +29,50 @@ class TypeRegistry {
       _types.remove(typeName);
     }
   }
+
+  /// Returns the total number of registered types
+  int get typeCount => _types.length;
+
+  /// Check if a type is available in a given file context
+  bool isTypeAvailableIn(String typeName, String filePath) {
+    final typeInfo = _types[typeName];
+    if (typeInfo == null) return false;
+
+    // Type is available if it's in the same file or if the file imports it
+    return typeInfo.filePath == filePath;
+  }
 }
 
-
-
- /// Type information extracted from declarations
+/// Type information extracted from declarations
 class TypeInfo {
   final String name;
   final String fullyQualifiedName;
   final TypeKind kind;
   final String filePath;
   final aelement.Element element;
-  
+
   // Class-specific
   final bool isAbstract;
   final String? superType;
   final List<String> interfaces;
   final List<String> mixins;
   final List<String> typeParameters;
-  
+
   // Flutter-specific flags
   final bool isWidget;
   final bool isStatefulWidget;
   final bool isStatelessWidget;
   final bool isState;
-  
+
   // Mixin-specific
   final List<String> superclassConstraints;
-  
+
   // Enum-specific
   final List<String> enumValues;
-  
+
   // Typedef-specific
   final String? aliasedType;
-  
+
   // Extension-specific
   final String? extendedType;
 
@@ -91,11 +99,4 @@ class TypeInfo {
 }
 
 /// Type kind enumeration
-enum TypeKind {
-  class_,
-  abstractClass,
-  mixin,
-  enum_,
-  typedef,
-  extension,
-}
+enum TypeKind { class_, abstractClass, mixin, enum_, typedef, extension }

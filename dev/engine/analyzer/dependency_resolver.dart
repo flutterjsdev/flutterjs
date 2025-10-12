@@ -85,8 +85,15 @@ class DependencyResolver {
       }
     }
   }
-
+/// Gets all transitive dependents of a file (direct and indirect)
+Set<String> getAllDependents(String filePath) {
+  return graph.getTransitiveDependents(filePath);
+}
   List<String> getDependents(String filePath) {
     return graph.getDependents(filePath);
   }
+
+  List<String> getDependencies(String filePath) {
+  return graph.getDependencies(filePath);
+}
 }
