@@ -14,6 +14,64 @@ class DependencyGraph {
     _dependents[to]!.add(from);
   }
 
+  /// Returns the number of nodes in the graph
+  int get nodeCount => _dependencies.length;
+
+  /// Detects all cycles in the dependency graph
+  List<List<String>> detectCycles() {
+    final cycles = <List<String>>[];
+    final visited = <String>{};
+    final recursionStack = <String>{};
+    final path = <String>[];
+
+    void dfs(String node) {
+      visited.add(node);
+      recursionStack.add(node);
+      path.add(node);
+
+      for (final dependency in _dependencies[node] ?? <String>[]) {
+        if (!visited.contains(dependency)) {
+          dfs(dependency);
+        } else if (recursionStack.contains(dependency)) {
+          // Found a cycle
+          final cycleStartIndex = path.indexOf(dependency);
+          final cycle = path.sublist(cycleStartIndex)..add(dependency);
+          cycles.add(List.from(cycle));
+        }
+      }
+
+      path.removeLast();
+      recursionStack.remove(node);
+    }
+
+    for (final node in _dependencies.keys) {
+      if (!visited.contains(node)) {
+        dfs(node);
+      }
+    }
+
+    return cycles;
+  }
+
+  /// Gets all transitive dependents of a node
+  Set<String> getTransitiveDependents(String filePath) {
+    final result = <String>{};
+    final visited = <String>{};
+
+    void visit(String node) {
+      if (visited.contains(node)) return;
+      visited.add(node);
+
+      for (final dependent in _dependents[node] ?? <String>[]) {
+        result.add(dependent);
+        visit(dependent);
+      }
+    }
+
+    visit(filePath);
+    return result;
+  }
+
   List<String> getDependencies(String filePath) {
     return _dependencies[filePath]?.toList() ?? [];
   }
@@ -30,7 +88,7 @@ class DependencyGraph {
 
     void visit(String node) {
       if (visited.contains(node)) return;
-      
+
       if (visiting.contains(node)) {
         throw CircularDependencyException(
           'Circular dependency detected: $node',
@@ -68,7 +126,7 @@ class DependencyGraph {
 class CircularDependencyException implements Exception {
   final String message;
   CircularDependencyException(this.message);
-  
+
   @override
   String toString() => 'CircularDependencyException: $message';
 }
