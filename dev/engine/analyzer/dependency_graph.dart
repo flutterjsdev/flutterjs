@@ -81,33 +81,41 @@ class DependencyGraph {
   }
 
   /// Topological sort for correct analysis order
-  List<String> topologicalSort() {
+  List<String> topologicalSort({bool throwOnCycle = true}) {
     final sorted = <String>[];
     final visited = <String>{};
     final visiting = <String>{};
 
-    void visit(String node) {
-      if (visited.contains(node)) return;
+    bool visit(String node) {
+      if (visited.contains(node)) return true;
 
       if (visiting.contains(node)) {
-        throw CircularDependencyException(
-          'Circular dependency detected: $node',
-        );
+        if (throwOnCycle) {
+          throw CircularDependencyException(
+            'Circular dependency detected: $node',
+          );
+        }
+        return false; // Cycle detected but not throwing
       }
 
       visiting.add(node);
 
       for (final dependency in _dependencies[node] ?? <String>[]) {
-        visit(dependency);
+        if (!visit(dependency)) {
+          return false; // Propagate cycle detection
+        }
       }
 
       visiting.remove(node);
       visited.add(node);
       sorted.add(node);
+      return true;
     }
 
     for (final node in _dependencies.keys) {
-      visit(node);
+      if (!visit(node) && throwOnCycle) {
+        throw CircularDependencyException('Circular dependencies detected');
+      }
     }
 
     return sorted;

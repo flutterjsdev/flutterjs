@@ -2,9 +2,6 @@
 
 import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:analyzer/dart/ast/visitor.dart';
-import 'package:analyzer/dart/element/element.dart';
-
-import '../ir/statement/statement_ir.dart';
 import 'analying_project.dart';
 import 'analyze_flutter_app.dart';
 import 'model/class_model.dart';
@@ -12,43 +9,134 @@ import 'model/sate.dart';
 import 'type_registry.dart';
 import 'dependency_graph.dart';
 
-/// Generates FileDeclaration Declaration from Dart AST
-///
-/// This visitor traverses the AST and extracts:
-/// - Widget declarations (StatelessWidget, StatefulWidget)
-/// - State classes
-/// - Regular classes
-/// - Functions
-/// - Imports and exports
-class FileDeclarationGenerator extends RecursiveAstVisitor<void> {
-  final FileAnalysisContext context;
+// lib/src/analyzer/file_declaration_generator.dart
 
-  // Collected declarations
-  final List<WidgetDeclaration> _widgets = [];
-  final List<StateClassDeclaration> _stateClasses = [];
-  final List<ClassDeclaration> _classes = [];
-  final List<FunctionDeclaration> _functions = [];
-  final List<ImportDeclaration> _imports = [];
+
+/// Context for analyzing a single file
+/// 
+/// This provides the necessary context and utilities for analyzing
+/// a single Dart file, including access to:
+/// - Type registry for type resolution
+/// - Dependency graph for understanding file relationships
+class FileAnalysisContext {
+  final String currentFile;
+  final TypeRegistry typeRegistry;
+  final DependencyGraph dependencyGraph;
+  final FileAnalysisResult analysisResult;
+
+  FileAnalysisContext({
+    required this.currentFile,
+    required this.typeRegistry,
+    required this.dependencyGraph,
+    required this.analysisResult,
+  });
+
+  /// Get dependencies of current file
+  List<String> getDependencies() {
+    return dependencyGraph.getDependencies(currentFile);
+  }
+
+  /// Get all dependents (files that depend on this file)
+  List<String> getDependents() {
+    return dependencyGraph.getDependents(currentFile);
+  }
+
+  /// Resolve a type name to its full information
+  TypeInfo? resolveType(String typeName) {
+    return typeRegistry.lookupType(typeName);
+  }
+
+  /// Check if a type is available in current context
+  bool isTypeAvailable(String typeName) {
+    return typeRegistry.isTypeAvailableIn(
+      typeName,
+      currentFile,
+      analysisResult,
+    );
+  }
+}
+
+/// Simple metadata extracted from a Dart file
+/// 
+/// This is NOT IR - just basic information about what's in the file
+/// to help with change detection and dependency tracking
+class FileMetadata {
+  final String filePath;
+  final List<String> widgetNames;
+  final List<String> stateClassNames;
+  final List<String> classNames;
+  final List<String> functionNames;
+  final List<String> imports;
+  final List<String> exports;
+  final String? libraryName;
+
+  FileMetadata({
+    required this.filePath,
+    required this.widgetNames,
+    required this.stateClassNames,
+    required this.classNames,
+    required this.functionNames,
+    required this.imports,
+    required this.exports,
+    this.libraryName,
+  });
+
+  /// Get all declaration names (for quick lookup)
+  List<String> getAllDeclarations() {
+    return [
+      ...widgetNames,
+      ...stateClassNames,
+      ...classNames,
+      ...functionNames,
+    ];
+  }
+
+  @override
+  String toString() {
+    return 'FileMetadata('
+        'widgets: ${widgetNames.length}, '
+        'states: ${stateClassNames.length}, '
+        'classes: ${classNames.length}, '
+        'functions: ${functionNames.length}'
+        ')';
+  }
+}
+
+/// Extracts basic metadata from Dart AST
+/// 
+/// This visitor collects only the essential information needed for:
+/// 1. Change detection
+/// 2. Dependency tracking
+/// 3. Type registry population
+/// 
+/// NO IR GENERATION - that happens in Phase 2
+class FileMetadataExtractor extends RecursiveAstVisitor<void> {
+  final String filePath;
+
+  // Collected metadata
+  final List<String> _widgetNames = [];
+  final List<String> _stateClassNames = [];
+  final List<String> _classNames = [];
+  final List<String> _functionNames = [];
+  final List<String> _imports = [];
   final List<String> _exports = [];
 
   String? _libraryName;
   String? _currentClassName;
-  bool _inStatefulWidget = false;
 
-  FileDeclarationGenerator(this.context);
+  FileMetadataExtractor(this.filePath);
 
-  /// Build the final FileDeclaration
-  FileDeclaration buildFileDeclaration() {
-    return FileDeclaration(
-      filePath: context.currentFile,
-      widgets: _widgets,
-      stateClasses: _stateClasses,
-      classes: _classes,
-      functions: _functions,
-      imports: _imports,
-      exports: _exports,
+  /// Build the final metadata
+  FileMetadata buildMetadata() {
+    return FileMetadata(
+      filePath: filePath,
+      widgetNames: List.unmodifiable(_widgetNames),
+      stateClassNames: List.unmodifiable(_stateClassNames),
+      classNames: List.unmodifiable(_classNames),
+      functionNames: List.unmodifiable(_functionNames),
+      imports: List.unmodifiable(_imports),
+      exports: List.unmodifiable(_exports),
       libraryName: _libraryName,
-      location: SourceLocation(line: 0, column: 0, offset: 0),
     );
   }
 
@@ -65,26 +153,9 @@ class FileDeclarationGenerator extends RecursiveAstVisitor<void> {
   @override
   void visitImportDirective(ast.ImportDirective node) {
     final uri = node.uri.stringValue ?? '';
-    final prefix = node.prefix?.name ?? '';
-
-    _imports.add(
-      ImportDeclaration(
-        filePath: context.currentFile,
-        uri: uri,
-        prefix: prefix,
-        isDeferred: node.deferredKeyword != null,
-        showCombinators: node.combinators
-            .whereType<ast.ShowCombinator>()
-            .expand((c) => c.shownNames.map((n) => n.name))
-            .toList(),
-        hideCombinators: node.combinators
-            .whereType<ast.HideCombinator>()
-            .expand((c) => c.hiddenNames.map((n) => n.name))
-            .toList(),
-        location: _getLocation(node),
-      ),
-    );
-
+    if (uri.isNotEmpty) {
+      _imports.add(uri);
+    }
     super.visitImportDirective(node);
   }
 
@@ -106,21 +177,19 @@ class FileDeclarationGenerator extends RecursiveAstVisitor<void> {
     final className = node.name.lexeme;
     _currentClassName = className;
 
-    final extendsClause = node.extendsClause?.superclass.name2.toString();
+    final extendsClause = node.extendsClause?.superclass.name2?.toString();
     final isWidget = _isWidgetClass(extendsClause);
-    final isStateful = extendsClause == 'StatefulWidget';
+    final isState = _isStateClass(node);
 
     if (isWidget) {
-      _processWidgetClass(node, isStateful);
-    } else if (_isStateClass(node)) {
-      _processStateClass(node);
+      _widgetNames.add(className);
+    } else if (isState) {
+      _stateClassNames.add(className);
     } else {
-      _processRegularClass(node);
+      _classNames.add(className);
     }
 
-    _inStatefulWidget = isStateful;
     super.visitClassDeclaration(node);
-    _inStatefulWidget = false;
     _currentClassName = null;
   }
 
@@ -131,191 +200,8 @@ class FileDeclarationGenerator extends RecursiveAstVisitor<void> {
   }
 
   bool _isStateClass(ast.ClassDeclaration node) {
-    final extendsClause = node.extendsClause?.superclass.name2.toString();
+    final extendsClause = node.extendsClause?.superclass.name2?.toString();
     return extendsClause?.startsWith('State<') ?? false;
-  }
-
-  void _processWidgetClass(ast.ClassDeclaration node, bool isStateful) {
-    final className = node.name.lexeme;
-    final superClass = node.extendsClause?.superclass.name2.toString();
-
-    final properties = <WidgetPropertyDeclaration>[];
-    final methods = <WidgetMethodDeclaration>[];
-    BuildMethodDeclaration? buildMethod;
-
-    // Extract fields
-    for (final member in node.members) {
-      if (member is ast.FieldDeclaration) {
-        for (final variable in member.fields.variables) {
-          properties.add(
-            WidgetPropertyDeclaration(
-              name: variable.name.lexeme,
-              type: member.fields.type?.toSource() ?? 'dynamic',
-              isFinal: member.fields.isFinal,
-              isRequired: _hasRequiredAnnotation(member),
-              defaultValue: variable.initializer?.toSource(),
-              location: _getLocation(variable),
-            ),
-          );
-        }
-      } else if (member is ast.MethodDeclaration) {
-        if (member.name.lexeme == 'build') {
-          buildMethod = _extractBuildMethod(member);
-        } else {
-          methods.add(_extractMethod(member));
-        }
-      }
-    }
-
-    _widgets.add(
-      WidgetDeclaration(
-        id: _generateId(className),
-        name: className,
-        filePath: context.currentFile,
-        type: isStateful
-            ? WidgetType.statefulWidget
-            : WidgetType.statelessWidget,
-        superClass: superClass,
-        properties: properties,
-        methods: methods,
-        buildMethod: buildMethod,
-        mixins:
-            node.withClause?.mixinTypes
-                .map((m) => m.name.toString())
-                .toList() ??
-            [],
-        interfaces:
-            node.implementsClause?.interfaces
-                .map((i) => i.name.toString())
-                .toList() ??
-            [],
-        isStateful: isStateful,
-        stateClassName: isStateful ? '${className}State' : null,
-        location: _getLocation(node),
-        documentation: node.documentationComment?.toSource(),
-      ),
-    );
-  }
-
-  void _processStateClass(ast.ClassDeclaration node) {
-    final className = node.name.lexeme;
-    final extendsClause = node.extendsClause?.superclass.name.toString();
-
-    // Extract widget name from State<WidgetName>
-    final widgetNameMatch = RegExp(
-      r'State<(\w+)>',
-    ).firstMatch(extendsClause ?? '');
-    final widgetName = widgetNameMatch?.group(1) ?? '';
-
-    final stateVariables = <StatePropertyDeclaration>[];
-    final methods = <WidgetMethodDeclaration>[];
-    InitStateDeclaration? initState;
-    DisposeDeclaration? dispose;
-    final lifecycleMethods = <LifecycleMethodDeclaration>[];
-
-    // Extract members
-    for (final member in node.members) {
-      if (member is ast.FieldDeclaration) {
-        for (final variable in member.fields.variables) {
-          stateVariables.add(
-            StatePropertyDeclaration(
-              name: variable.name.lexeme,
-              type: member.fields.type?.toSource() ?? 'dynamic',
-              isMutable: !member.fields.isFinal && !member.fields.isConst,
-              initialValue: variable.initializer?.toSource(),
-              location: _getLocation(variable),
-            ),
-          );
-        }
-      } else if (member is ast.MethodDeclaration) {
-        final methodName = member.name.lexeme;
-
-        if (methodName == 'initState') {
-          initState = InitStateDeclaration(
-            body: _extractStatements(member.body),
-            location: _getLocation(member),
-          );
-        } else if (methodName == 'dispose') {
-          dispose = DisposeDeclaration(
-            body: _extractStatements(member.body),
-            location: _getLocation(member),
-          );
-        } else if (_isLifecycleMethod(methodName)) {
-          lifecycleMethods.add(
-            LifecycleMethodDeclaration(
-              name: methodName,
-              body: _extractStatements(member.body),
-              location: _getLocation(member),
-            ),
-          );
-        } else {
-          methods.add(_extractMethod(member));
-        }
-      }
-    }
-
-    _stateClasses.add(
-      StateClassDeclaration(
-        id: _generateId(className),
-        name: className,
-        widgetName: widgetName,
-        filePath: context.currentFile,
-        stateVariables: stateVariables,
-        methods: methods,
-        initState: initState,
-        dispose: dispose,
-        lifecycleMethods: lifecycleMethods,
-        location: _getLocation(node),
-      ),
-    );
-  }
-
-  void _processRegularClass(ast.ClassDeclaration node) {
-    final className = node.name.lexeme;
-    final superClass = node.extendsClause?.superclass.name2.toString();
-
-    final properties = <StatePropertyDeclaration>[];
-    final methods = <WidgetMethodDeclaration>[];
-
-    for (final member in node.members) {
-      if (member is ast.FieldDeclaration) {
-        for (final variable in member.fields.variables) {
-          properties.add(
-            StatePropertyDeclaration(
-              name: variable.name.lexeme,
-              type: member.fields.type?.toSource() ?? 'dynamic',
-              isMutable: !member.fields.isFinal,
-              initialValue: variable.initializer?.toSource(),
-              location: _getLocation(variable),
-            ),
-          );
-        }
-      } else if (member is ast.MethodDeclaration) {
-        methods.add(_extractMethod(member));
-      }
-    }
-
-    _classes.add(
-      ClassDeclaration(
-        id: _generateId(className),
-        name: className,
-        filePath: context.currentFile,
-        superClass: superClass,
-        mixins:
-            node.withClause?.mixinTypes
-                .map((m) => m.name.toString())
-                .toList() ??
-            [],
-        interfaces:
-            node.implementsClause?.interfaces
-                .map((i) => i.name.toString())
-                .toList() ??
-            [],
-        properties: properties,
-        methods: methods,
-        location: _getLocation(node),
-      ),
-    );
   }
 
   // ==========================================================================
@@ -331,343 +217,298 @@ class FileDeclarationGenerator extends RecursiveAstVisitor<void> {
     }
 
     final functionName = node.name.lexeme;
-    final returnType = node.returnType?.toSource() ?? 'dynamic';
-
-    final parameters =
-        node.functionExpression.parameters?.parameters
-            .map((p) => _extractParameter(p))
-            .toList() ??
-        [];
-
-    _functions.add(
-      FunctionDeclaration(
-        id: _generateId(functionName),
-        name: functionName,
-        filePath: context.currentFile,
-        returnType: returnType,
-        parameters: parameters,
-        body: _extractStatements(node.functionExpression.body),
-        isAsync: node.functionExpression.body.isAsynchronous,
-        isGenerator: node.functionExpression.body.isGenerator,
-        type: FunctionType.topLevel,
-        location: _getLocation(node),
-        documentation: node.documentationComment?.toSource(),
-      ),
-    );
+    _functionNames.add(functionName);
 
     super.visitFunctionDeclaration(node);
   }
+}
 
-  // ==========================================================================
-  // HELPER METHODS
-  // ==========================================================================
+// ==========================================================================
+// ANALYSIS SUMMARY
+// ==========================================================================
 
-  BuildMethodDeclaration _extractBuildMethod(ast.MethodDeclaration node) {
-    final statements = _extractStatements(node.body);
+/// Summary of analysis results for a file
+/// 
+/// Contains both the parsed AST and extracted metadata
+/// This is what Phase 1 produces and Phase 2 consumes
+class FileAnalysisSummary {
+  final String filePath;
+  final FileAnalysisResult analysisResult;
+  final FileMetadata metadata;
+  final bool hasErrors;
 
-    // Try to extract the return widget expression
-    ExpressionDeclaration? returnWidget;
-    if (node.body is ast.BlockFunctionBody) {
-      final block = node.body as ast.BlockFunctionBody;
-      final returnStatement = block.block.statements
-          .whereType<ast.ReturnStatement>()
-          .firstOrNull;
+  FileAnalysisSummary({
+    required this.filePath,
+    required this.analysisResult,
+    required this.metadata,
+    required this.hasErrors,
+  });
 
-      if (returnStatement?.expression != null) {
-        returnWidget = _convertExpression(returnStatement!.expression!);
-      }
-    }
-
-    return BuildMethodDeclaration(
-      body: statements,
-      returnWidget:
-          returnWidget ??
-          LiteralExpressionDeclaration(
-            value: null,
-            literalType: LiteralType.nullLiteral,
-            location: _getLocation(node),
-          ),
-      location: _getLocation(node),
-    );
+  /// Check if this file needs IR generation
+  bool needsIRGeneration(Set<String> changedFiles) {
+    return changedFiles.contains(filePath);
   }
 
-  WidgetMethodDeclaration _extractMethod(ast.MethodDeclaration node) {
-    final methodName = node.name.lexeme;
-    final returnType = node.returnType?.toSource() ?? 'dynamic';
-
-    final parameters =
-        node.parameters?.parameters.map((p) => _extractParameter(p)).toList() ??
-        [];
-
-    return WidgetMethodDeclaration(
-      name: methodName,
-      returnType: returnType,
-      parameters: parameters,
-      body: _extractStatements(node.body),
-      location: _getLocation(node),
-    );
-  }
-
-  ParameterDeclaration _extractParameter(ast.FormalParameter param) {
-    String name = '';
-    String type = 'dynamic';
-    bool isRequired = false;
-    bool isNamed = false;
-    String? defaultValue;
-
-    if (param is ast.DefaultFormalParameter) {
-      final innerParam = param.parameter;
-      isRequired = param.isRequired;
-      defaultValue = param.defaultValue?.toSource();
-
-      if (innerParam is ast.SimpleFormalParameter) {
-        name = innerParam.name?.lexeme ?? '';
-        type = innerParam.type?.toSource() ?? 'dynamic';
-      } else if (innerParam is ast.FieldFormalParameter) {
-        name = innerParam.name.lexeme;
-        type = innerParam.type?.toSource() ?? 'dynamic';
-      }
-
-      isNamed = param.isNamed;
-    } else if (param is ast.SimpleFormalParameter) {
-      name = param.name?.lexeme ?? '';
-      type = param.type?.toSource() ?? 'dynamic';
-    } else if (param is ast.FieldFormalParameter) {
-      name = param.name.lexeme;
-      type = param.type?.toSource() ?? 'dynamic';
-    }
-
-    return ParameterDeclaration(
-      name: name,
-      type: type,
-      isRequired: isRequired,
-      isNamed: isNamed,
-      defaultValue: defaultValue,
-      location: _getLocation(param),
-    );
-  }
-
-  List<StatementDeclaration> _extractStatements(ast.FunctionBody body) {
-    if (body is ast.BlockFunctionBody) {
-      return body.block.statements
-          .map((stmt) => _convertStatement(stmt))
-          .toList();
-    } else if (body is ast.ExpressionFunctionBody) {
-      return [
-        ReturnStatementDeclaration(
-          expression: _convertExpression(body.expression),
-          location: _getLocation(body),
-        ),
-      ];
-    }
-    return [];
-  }
-
-  StatementDeclaration _convertStatement(ast.Statement stmt) {
-    if (stmt is ast.VariableDeclarationStatement) {
-      final variable = stmt.variables.variables.first;
-      return VariableDeclarationDeclaration(
-        name: variable.name.lexeme,
-        variableType: stmt.variables.type?.toSource() ?? 'dynamic',
-        initializer: variable.initializer != null
-            ? _convertExpression(variable.initializer!)
-            : null,
-        isFinal: stmt.variables.isFinal,
-        isConst: stmt.variables.isConst,
-        isLate: stmt.variables.isLate,
-        location: _getLocation(stmt),
-      );
-    } else if (stmt is ast.ReturnStatement) {
-      return ReturnStatementDeclaration(
-        expression: stmt.expression != null
-            ? _convertExpression(stmt.expression!)
-            : null,
-        location: _getLocation(stmt),
-      );
-    } else if (stmt is ast.ExpressionStatement) {
-      return ExpressionStatementDeclaration(
-        expression: _convertExpression(stmt.expression),
-        location: _getLocation(stmt),
-      );
-    } else if (stmt is ast.IfStatement) {
-      return IfStatementDeclaration(
-        condition: _convertExpression(stmt.expression),
-        thenStatement: _convertStatement(stmt.thenStatement),
-        elseStatement: stmt.elseStatement != null
-            ? _convertStatement(stmt.elseStatement!)
-            : null,
-        location: _getLocation(stmt),
-      );
-    } else if (stmt is ast.Block) {
-      return BlockStatementDeclaration(
-        statements: stmt.statements.map((s) => _convertStatement(s)).toList(),
-        location: _getLocation(stmt),
-      );
-    }
-
-    // Fallback for unsupported statement types
-    return ExpressionStatementDeclaration(
-      expression: LiteralExpressionDeclaration(
-        value: null,
-        literalType: LiteralType.nullLiteral,
-        location: _getLocation(stmt),
-      ),
-      location: _getLocation(stmt),
-    );
-  }
-
-  ExpressionDeclaration _convertExpression(ast.Expression expr) {
-    if (expr is ast.StringLiteral) {
-      return LiteralExpressionDeclaration(
-        value: expr.stringValue,
-        literalType: LiteralType.string,
-        location: _getLocation(expr),
-      );
-    } else if (expr is ast.IntegerLiteral) {
-      return LiteralExpressionDeclaration(
-        value: expr.value,
-        literalType: LiteralType.integer,
-        location: _getLocation(expr),
-      );
-    } else if (expr is ast.DoubleLiteral) {
-      return LiteralExpressionDeclaration(
-        value: expr.value,
-        literalType: LiteralType.double,
-        location: _getLocation(expr),
-      );
-    } else if (expr is ast.BooleanLiteral) {
-      return LiteralExpressionDeclaration(
-        value: expr.value,
-        literalType: LiteralType.boolean,
-        location: _getLocation(expr),
-      );
-    } else if (expr is ast.NullLiteral) {
-      return LiteralExpressionDeclaration(
-        value: null,
-        literalType: LiteralType.nullLiteral,
-        location: _getLocation(expr),
-      );
-    } else if (expr is ast.SimpleIdentifier) {
-      return IdentifierExpressionDeclaration(
-        name: expr.name,
-        location: _getLocation(expr),
-      );
-    } else if (expr is ast.MethodInvocation) {
-      return MethodCallDeclaration(
-        target: expr.target != null ? _convertExpression(expr.target!) : null,
-        methodName: expr.methodName.name,
-        arguments: expr.argumentList.arguments
-            .where((arg) => arg is! ast.NamedExpression)
-            .map((arg) => _convertExpression(arg))
-            .toList(),
-        namedArguments: Map.fromEntries(
-          expr.argumentList.arguments.whereType<ast.NamedExpression>().map(
-            (arg) => MapEntry(
-              arg.name.label.name,
-              _convertExpression(arg.expression),
-            ),
-          ),
-        ),
-        location: _getLocation(expr),
-      );
-    } else if (expr is ast.InstanceCreationExpression) {
-      return InstanceCreationDeclaration(
-        className: expr.constructorName.type.name2.toString(),
-        constructorName: expr.constructorName.name?.name,
-        arguments: expr.argumentList.arguments
-            .where((arg) => arg is! ast.NamedExpression)
-            .map((arg) => _convertExpression(arg))
-            .toList(),
-        namedArguments: Map.fromEntries(
-          expr.argumentList.arguments.whereType<ast.NamedExpression>().map(
-            (arg) => MapEntry(
-              arg.name.label.name,
-              _convertExpression(arg.expression),
-            ),
-          ),
-        ),
-        isConst: expr.keyword?.lexeme == 'const',
-        location: _getLocation(expr),
-      );
-    } else if (expr is ast.PropertyAccess) {
-      return PropertyAccessDeclaration(
-        target: _convertExpression(expr.target!),
-        propertyName: expr.propertyName.name,
-        isNullAware: expr.operator.lexeme == '?.',
-        location: _getLocation(expr),
-      );
-    } else if (expr is ast.BinaryExpression) {
-      return BinaryOperationDeclaration(
-        left: _convertExpression(expr.leftOperand),
-        operator: expr.operator.lexeme,
-        right: _convertExpression(expr.rightOperand),
-        location: _getLocation(expr),
-      );
-    } else if (expr is ast.PrefixExpression) {
-      return UnaryOperationDeclaration(
-        operator: expr.operator.lexeme,
-        operand: _convertExpression(expr.operand),
-        isPrefix: true,
-        location: _getLocation(expr),
-      );
-    } else if (expr is ast.ListLiteral) {
-      return ListLiteralDeclaration(
-        elements: expr.elements
-            .whereType<ast.Expression>()
-            .map((e) => _convertExpression(e))
-            .toList(),
-        isConst: expr.constKeyword != null,
-        location: _getLocation(expr),
-      );
-    } else if (expr is ast.ThisExpression) {
-      return ThisExpressionDeclaration(location: _getLocation(expr));
-    }
-
-    // Fallback for unsupported expressions
-    return LiteralExpressionDeclaration(
-      value: expr.toSource(),
-      literalType: LiteralType.string,
-      location: _getLocation(expr),
-    );
-  }
-
-  bool _hasRequiredAnnotation(ast.FieldDeclaration field) {
-    return field.metadata.any(
-      (annotation) =>
-          annotation.name.name == 'required' ||
-          annotation.name.name == 'Required',
-    );
-  }
-
-  bool _isLifecycleMethod(String methodName) {
-    return const [
-      'didChangeDependencies',
-      'didUpdateWidget',
-      'deactivate',
-      'reassemble',
-    ].contains(methodName);
-  }
-
-  SourceLocation _getLocation(ast.AstNode node) {
-    final offset = node.offset;
-    final length = node.length;
-    final compilationUnit = node.thisOrAncestorOfType<ast.CompilationUnit>();
-    final lineInfo = compilationUnit?.lineInfo;
-    final location = lineInfo?.getLocation(offset);
-
-    return SourceLocation(
-      line: location?.lineNumber ?? 0,
-      column: location?.columnNumber ?? 0,
-      offset: offset,
-      length: length,
-    );
-  }
-
-  String _generateId(String name) {
-    return '${context.currentFile}#$name'.hashCode.toRadixString(16);
+  @override
+  String toString() {
+    return 'FileAnalysisSummary('
+        'path: $filePath, '
+        'metadata: $metadata, '
+        'errors: $hasErrors'
+        ')';
   }
 }
 
+// ==========================================================================
+// FILE ANALYZER
+// ==========================================================================
+
+/// Analyzes a single file and produces a summary
+/// 
+/// This is the main entry point for Phase 1 file analysis
+class FileAnalyzer {
+  final FileAnalysisContext context;
+
+  FileAnalyzer(this.context);
+
+  /// Analyze the file and produce a summary
+  FileAnalysisSummary analyze() {
+    final unit = context.analysisResult.unit;
+    
+    // Extract metadata
+    final extractor = FileMetadataExtractor(context.currentFile);
+    unit.accept(extractor);
+    final metadata = extractor.buildMetadata();
+
+    // Check for errors
+    final hasErrors = context.analysisResult.hasErrors;
+    
+    if (hasErrors) {
+      print('  ⚠️  File has ${context.analysisResult.errorList.length} errors');
+      for (final error in context.analysisResult.errorList.take(3)) {
+        print('     - ${error.message}');
+      }
+      if (context.analysisResult.errorList.length > 3) {
+        print('     ... and ${context.analysisResult.errorList.length - 3} more');
+      }
+    }
+
+    return FileAnalysisSummary(
+      filePath: context.currentFile,
+      analysisResult: context.analysisResult,
+      metadata: metadata,
+      hasErrors: hasErrors,
+    );
+  }
+}
+
+// ==========================================================================
+// PROJECT ANALYSIS ORCHESTRATOR
+// ==========================================================================
+
+/// Orchestrates the analysis of all files in a project
+/// 
+/// This coordinates:
+/// 1. Dependency resolution
+/// 2. Change detection  
+/// 3. Type registry population
+/// 4. File metadata extraction
+class ProjectAnalysisOrchestrator {
+  final ProjectAnalyzer projectAnalyzer;
+
+  ProjectAnalysisOrchestrator(this.projectAnalyzer);
+
+  /// Run the complete analysis pipeline
+  Future<ProjectAnalysisReport> analyze() async {
+    print('\n🔍 Starting Project Analysis Phase 1');
+    print('=' * 60);
+
+    // Run the analyzer
+    final result = await projectAnalyzer.analyzeProject();
+
+    // Extract file summaries
+    final summaries = <String, FileAnalysisSummary>{};
+    int processedCount = 0;
+    
+    for (final entry in result.parsedUnits.entries) {
+      final filePath = entry.key;
+      final parsedInfo = entry.value;
+
+      try {
+        // Create context
+        final context = FileAnalysisContext(
+          currentFile: filePath,
+          typeRegistry: result.typeRegistry,
+          dependencyGraph: result.dependencyGraph,
+          analysisResult: parsedInfo.analysisResult,
+        );
+
+        // Analyze file
+        final analyzer = FileAnalyzer(context);
+        final summary = analyzer.analyze();
+        summaries[filePath] = summary;
+        
+        processedCount++;
+        if (processedCount % 20 == 0) {
+          print('  Processed $processedCount/${result.parsedUnits.length} files...');
+        }
+      } catch (e, stackTrace) {
+        print('  ❌ Error analyzing $filePath: $e');
+        if (projectAnalyzer.enableVerboseLogging) {
+          print('     Stack trace: $stackTrace');
+        }
+      }
+    }
+
+    // Create report
+    final report = ProjectAnalysisReport(
+      analysisResult: result,
+      fileSummaries: summaries,
+      changedFiles: result.changedFiles,
+    );
+
+    _printReport(report);
+
+    return report;
+  }
+
+  void _printReport(ProjectAnalysisReport report) {
+    print('\n📊 Analysis Report');
+    print('=' * 60);
+    print('Total files analyzed: ${report.fileSummaries.length}');
+    print('Changed files: ${report.changedFiles.length}');
+    print('Files with errors: ${report.filesWithErrors.length}');
+    print('Total widgets: ${report.totalWidgets}');
+    print('Total state classes: ${report.totalStateClasses}');
+    print('Total classes: ${report.totalClasses}');
+    print('Total functions: ${report.totalFunctions}');
+    print('Total types in registry: ${report.analysisResult.typeRegistry.typeCount}');
+    
+    // Cache statistics
+    final stats = report.analysisResult.statistics;
+    print('Cache hit rate: ${(stats.cacheHitRate * 100).toStringAsFixed(1)}%');
+    print('Average time per file: ${stats.avgTimePerFile.toStringAsFixed(1)}ms');
+    print('=' * 60);
+
+    if (report.filesWithErrors.isNotEmpty) {
+      print('\n⚠️  Files with errors:');
+      for (final file in report.filesWithErrors.take(5)) {
+        final filename = file.split('/').last;
+        print('  - $filename');
+      }
+      if (report.filesWithErrors.length > 5) {
+        print('  ... and ${report.filesWithErrors.length - 5} more');
+      }
+    }
+
+    if (report.changedFiles.isNotEmpty) {
+      print('\n🔄 Changed files (need IR generation):');
+      for (final file in report.changedFiles.take(10)) {
+        final filename = file.split('/').last;
+        print('  - $filename');
+      }
+      if (report.changedFiles.length > 10) {
+        print('  ... and ${report.changedFiles.length - 10} more');
+      }
+    }
+
+    print('\n✅ Phase 1 Complete - Ready for IR Generation');
+    print('=' * 60);
+  }
+}
+
+// ==========================================================================
+// ANALYSIS REPORT
+// ==========================================================================
+
+/// Complete report of Phase 1 analysis
+/// 
+/// This is what gets passed to Phase 2 (IR Generation)
+class ProjectAnalysisReport {
+  final ProjectAnalysisResult analysisResult;
+  final Map<String, FileAnalysisSummary> fileSummaries;
+  final Set<String> changedFiles;
+
+  ProjectAnalysisReport({
+    required this.analysisResult,
+    required this.fileSummaries,
+    required this.changedFiles,
+  });
+
+  /// Get files that need IR generation
+  List<String> getFilesNeedingIR() {
+    return changedFiles.toList();
+  }
+
+  /// Get summary for a specific file
+  FileAnalysisSummary? getSummary(String filePath) {
+    return fileSummaries[filePath];
+  }
+
+  /// Get all files with errors
+  List<String> get filesWithErrors {
+    return fileSummaries.entries
+        .where((e) => e.value.hasErrors)
+        .map((e) => e.key)
+        .toList();
+  }
+
+  /// Statistics
+  int get totalWidgets => fileSummaries.values
+      .fold(0, (sum, s) => sum + s.metadata.widgetNames.length);
+
+  int get totalStateClasses => fileSummaries.values
+      .fold(0, (sum, s) => sum + s.metadata.stateClassNames.length);
+
+  int get totalClasses => fileSummaries.values
+      .fold(0, (sum, s) => sum + s.metadata.classNames.length);
+
+  int get totalFunctions => fileSummaries.values
+      .fold(0, (sum, s) => sum + s.metadata.functionNames.length);
+
+  /// Get all widget names across the project
+  List<String> getAllWidgetNames() {
+    return fileSummaries.values
+        .expand((s) => s.metadata.widgetNames)
+        .toList();
+  }
+
+  /// Get all state class names across the project
+  List<String> getAllStateClassNames() {
+    return fileSummaries.values
+        .expand((s) => s.metadata.stateClassNames)
+        .toList();
+  }
+
+  /// Check if analysis is ready for Phase 2
+  bool get isReadyForIRGeneration {
+    return filesWithErrors.isEmpty;
+  }
+
+  /// Get error summary
+  String getErrorSummary() {
+    if (filesWithErrors.isEmpty) {
+      return 'No errors detected';
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('${filesWithErrors.length} files with errors:');
+    
+    for (final file in filesWithErrors.take(5)) {
+      final summary = fileSummaries[file];
+      if (summary != null) {
+        final errorCount = summary.analysisResult.errorList.length;
+        buffer.writeln('  - $file: $errorCount errors');
+      }
+    }
+    
+    if (filesWithErrors.length > 5) {
+      buffer.writeln('  ... and ${filesWithErrors.length - 5} more');
+    }
+
+    return buffer.toString();
+  }
+}
 // ==========================================================================
 // DECLARATION LINKER
 // ==========================================================================
