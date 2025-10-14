@@ -29,7 +29,7 @@ void visitClassDeclaration(ClassDeclaration node) {
     
     final typeInfo = TypeInfo(
       name: element.name??"<anonymous>",
-      fullyQualifiedName: element.displayName,
+      fullyQualifiedName: element.displayName.isEmpty ? "<anonymous>" : element.displayName,
       kind: element.isAbstract ? TypeKind.abstractClass : TypeKind.class_,
       filePath: filePath,
       element: element,
@@ -63,7 +63,7 @@ void visitMixinDeclaration(MixinDeclaration node) {
     
     final typeInfo = TypeInfo(
       name: element.name??"<anonymous>",
-      fullyQualifiedName: element.displayName,
+      fullyQualifiedName: element.displayName.isEmpty ? "<anonymous>" : element.displayName,
       kind: TypeKind.mixin,
       filePath: filePath,
       element: element,
@@ -89,7 +89,7 @@ void visitEnumDeclaration(EnumDeclaration node) {
     
     final typeInfo = TypeInfo(
       name: element.name ?? "<anonymous>",
-      fullyQualifiedName: element.displayName,
+      fullyQualifiedName: element.displayName.isEmpty ? "<anonymous>" : element.displayName,
       kind: TypeKind.enum_,
       filePath: filePath,
       element: element,
@@ -113,7 +113,7 @@ void visitGenericTypeAlias(GenericTypeAlias node) {
     
     final typeInfo = TypeInfo(
       name: element.name ?? '<anonymous>',
-      fullyQualifiedName: element.displayName,
+      fullyQualifiedName: element.displayName.isEmpty ? '<anonymous>' : element.displayName,
       kind: TypeKind.typedef,
       filePath: filePath,
       element: element,
@@ -136,7 +136,7 @@ void visitExtensionDeclaration(ExtensionDeclaration node) {
     
     final typeInfo = TypeInfo(
       name: element.name ?? '<anonymous>',
-      fullyQualifiedName: element.displayName,
+      fullyQualifiedName: element.displayName.isEmpty ? '<anonymous>' : element.displayName,
       kind: TypeKind.extension,
       filePath: filePath,
       element: element,

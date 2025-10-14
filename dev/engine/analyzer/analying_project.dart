@@ -4,6 +4,7 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/file_system/physical_file_system.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
+import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart' as analyzer_diagnostic;
 import 'package:analyzer/dart/element/element.dart' as analyzer_results;
@@ -11,39 +12,10 @@ import 'package:analyzer/dart/element/element.dart' as analyzer_results;
 import 'TypeDeclarationVisitor.dart';
 import 'dependency_graph.dart';
 import 'dependency_resolver.dart';
-import 'analyze_flutter_app.dart';
 import 'incremental_cache.dart';
-import 'ir_linker.dart';
-import 'model/class_model.dart';
 import 'type_registry.dart';
 import 'dart:async';
 import 'package:analyzer/dart/ast/ast.dart';
-
-// void main() async {
-//   final analyzer = ProjectAnalyzer('/path/to/flutter/project');
-
-//   await analyzer.initialize();
-
-//   // First run: Full analysis
-//   print('First analysis...');
-//   var result = await analyzer.analyzeProject();
-//   print('Found ${result.fileIRs.length} files');
-
-//   // Make a change to one file
-//   print('\nMaking a change...');
-//   await File('/path/to/flutter/project/lib/widgets/button.dart')
-//       .writeAsString('// Modified\n' + content);
-
-//   // Second run: Incremental analysis (much faster)
-//   print('\nIncremental analysis...');
-//   result = await analyzer.analyzeProject();
-//   print('Only re-analyzed changed files + dependents');
-
-//   // Link into complete app IR
-//   final appIR = result.linkIntoAppIR();
-
-//   analyzer.dispose();
-// }
 
 /// Advanced multi-pass project analyzer with incremental compilation support
 ///
@@ -55,11 +27,7 @@ import 'package:analyzer/dart/ast/ast.dart';
 ///    ↓
 /// Phase 3: Type Resolution (Parallel)
 ///    ↓
-/// Phase 4: IR Generation (Parallel, Dependency-Ordered)
-///    ↓
-/// Phase 5: IR Linking & Validation
-///    ↓
-/// Phase 6: Cache Persistence
+/// Phase 4: Cache Persistence
 /// ```
 class ProjectAnalyzer {
   final String projectPath;
@@ -70,7 +38,7 @@ class ProjectAnalyzer {
   // Multi-pass components
   late DependencyResolver _dependencyResolver;
   late TypeRegistry _typeRegistry;
-  late IncrementalCache _cache;
+  late AnalysisCache _cache;
 
   // Configuration
   final int maxParallelism;
@@ -132,11 +100,14 @@ class ProjectAnalyzer {
       _log("✓ Analysis context created");
 
       // Initialize components
-      _dependencyResolver = DependencyResolver(projectPath);
+      _dependencyResolver = DependencyResolver(
+        projectPath,
+        excludePatterns: excludePatterns,
+      );
       _typeRegistry = TypeRegistry();
 
       if (enableCache) {
-        _cache = IncrementalCache(cacheDir);
+        _cache = AnalysisCache(cacheDir);
         await _cache.initialize();
       }
 
@@ -158,10 +129,10 @@ class ProjectAnalyzer {
       throw StateError('lib directory not found at $projectPath');
     }
 
-    final pubSpacPath = path.normalize(
+    final pubspecPath = path.normalize(
       path.absolute(path.join(projectPath, 'pubspec.yaml')),
     );
-    final pubspecFile = File(pubSpacPath);
+    final pubspecFile = File(pubspecPath);
     if (!await pubspecFile.exists()) {
       throw StateError('pubspec.yaml not found at $projectPath');
     }
@@ -188,37 +159,33 @@ class ProjectAnalyzer {
       final changedFiles = await _phase2_DetectChangedFiles(analysisOrder);
 
       // PHASE 3: Type resolution pass
-     final parsedFiles =  await _phase3_ParseAndResolveTypes(analysisOrder, changedFiles);
+      final parsedFiles = await _phase3_ParseAndResolveTypes(
+        analysisOrder,
+        changedFiles,
+      );
 
-      // // PHASE 4: Per-file IR generation
-      // final fileIRs = await _phase4_GenerateIRs(analysisOrder, changedFiles);
-
-      // // PHASE 5: Link and validate
-      // final appIR = await _phase5_LinkAndValidate(fileIRs, dependencyGraph);
-
-      // PHASE 6: Save cache
+      // PHASE 4: Save cache
       if (enableCache) {
         await _phase4_CacheAnalysisResults(parsedFiles);
       }
 
       stopwatch.stop();
 
-     final result = ProjectAnalysisResult(
-      filesToAnalyze: changedFiles.toList(), // NEW: Files that need IR generation
-      parsedUnits: parsedFiles,               // NEW: Pre-parsed ASTs
-      dependencyGraph: dependencyGraph,
-      typeRegistry: _typeRegistry,
-      analysisOrder: analysisOrder,
-      statistics: AnalysisStatistics(
-        totalFiles: _totalFiles,
-        processedFiles: _processedFiles,
-        cachedFiles: _cachedFiles,
-        errorFiles: _errorFiles,
-        durationMs: stopwatch.elapsedMilliseconds,
-        changedFiles: changedFiles.length,
-      ),
-    );
-
+      final result = ProjectAnalysisResult(
+        changedFiles: changedFiles,
+        parsedUnits: parsedFiles,
+        dependencyGraph: dependencyGraph,
+        typeRegistry: _typeRegistry,
+        analysisOrder: analysisOrder,
+        statistics: AnalysisStatistics(
+          totalFiles: _totalFiles,
+          processedFiles: _processedFiles,
+          cachedFiles: _cachedFiles,
+          errorFiles: _errorFiles,
+          durationMs: stopwatch.elapsedMilliseconds,
+          changedFiles: changedFiles.length,
+        ),
+      );
 
       _notifyProgress(
         AnalysisPhase.complete,
@@ -262,6 +229,7 @@ class ProjectAnalyzer {
           errors: result.diagnostics,
           imports: _extractImports(result.unit),
           exports: _extractExports(result.unit),
+          parts: _extractParts(result.unit),
           hash: await _computeFileHash(filePath),
         );
 
@@ -272,6 +240,7 @@ class ProjectAnalyzer {
       return null;
     } catch (e, stackTrace) {
       _logError('Failed to analyze file: $filePath', e, stackTrace);
+      _errorFiles++;
       return null;
     }
   }
@@ -290,23 +259,31 @@ class ProjectAnalyzer {
 
     _log('📊 Phase 1: Building dependency graph...');
 
-    final graph = await _dependencyResolver.buildGraph();
+    try {
+      final graph = await _dependencyResolver.buildGraph();
 
-    // Detect circular dependencies
-    final cycles = graph.detectCycles();
-    if (cycles.isNotEmpty) {
-      _log('⚠️  Warning: ${cycles.length} circular dependencies detected');
-      if (enableVerboseLogging) {
-        for (final cycle in cycles) {
-          _log('   ${cycle.map((f) => path.basename(f)).join(' -> ')}');
+      // Detect circular dependencies
+      final cycles = graph.detectCycles();
+      if (cycles.isNotEmpty) {
+        _log('⚠️  Warning: ${cycles.length} circular dependencies detected');
+        if (enableVerboseLogging) {
+          for (final cycle in cycles.take(5)) {
+            _log('   ${cycle.map((f) => path.basename(f)).join(' -> ')}');
+          }
+          if (cycles.length > 5) {
+            _log('   ... and ${cycles.length - 5} more');
+          }
         }
       }
+
+      final fileCount = graph.nodeCount;
+      _log('✓ Dependency graph built: $fileCount files');
+
+      return graph;
+    } catch (e, stackTrace) {
+      _logError('Failed to build dependency graph', e, stackTrace);
+      rethrow;
     }
-
-    final fileCount = graph.nodeCount;
-    _log('✓ Dependency graph built: $fileCount files');
-
-    return graph;
   }
 
   // ==========================================================================
@@ -329,14 +306,49 @@ class ProjectAnalyzer {
     }
 
     final changedFiles = <String>{};
+    final skippedFiles = <String>{};
     int checked = 0;
+    int quickSkipped = 0;
+    int hashComputed = 0;
 
     for (final filePath in allFiles) {
       try {
+        // STEP 1: Quick check - modification time
+        final file = File(filePath);
+        if (!await file.exists()) {
+          _logVerbose('   File not found: ${path.basename(filePath)}');
+          changedFiles.add(filePath);
+          continue;
+        }
+
+        final stat = await file.stat();
+        final currentModTime = stat.modified.millisecondsSinceEpoch;
+        final cachedModTime = await _cache.getFileModTime(filePath);
+
+        // If modification time hasn't changed, skip hash computation
+        if (cachedModTime != null && currentModTime == cachedModTime) {
+          quickSkipped++;
+          skippedFiles.add(filePath);
+
+          checked++;
+          if (checked % 100 == 0) {
+            _notifyProgress(
+              AnalysisPhase.changeDetection,
+              checked,
+              allFiles.length,
+              'Quick-checked $checked files (skipped: $quickSkipped)...',
+            );
+          }
+          continue;
+        }
+
+        // STEP 2: Modification time changed, compute hash to verify
+        hashComputed++;
         final currentHash = await _computeFileHash(filePath);
         final cachedHash = await _cache.getFileHash(filePath);
 
         if (currentHash != cachedHash) {
+          // Content actually changed
           changedFiles.add(filePath);
 
           // Invalidate all dependents recursively
@@ -347,7 +359,16 @@ class ProjectAnalyzer {
             '   Changed: ${path.basename(filePath)} '
             '(+${dependents.length} dependents)',
           );
+        } else {
+          // Hash same, just touch time changed (e.g., git checkout)
+          // Update mod time in cache but don't mark as changed
+          skippedFiles.add(filePath);
+          _logVerbose('   Touch only: ${path.basename(filePath)}');
         }
+
+        // Update cache with new values
+        await _cache.setFileHash(filePath, currentHash);
+        await _cache.setFileModTime(filePath, currentModTime);
 
         checked++;
         if (checked % 50 == 0) {
@@ -355,20 +376,27 @@ class ProjectAnalyzer {
             AnalysisPhase.changeDetection,
             checked,
             allFiles.length,
-            'Checked $checked files...',
+            'Checked $checked files (hashed: $hashComputed, skipped: $quickSkipped)...',
           );
         }
       } catch (e) {
         _logVerbose('   Error checking ${path.basename(filePath)}: $e');
-        // Treat as changed on error
+        // Treat as changed on error (safe default)
         changedFiles.add(filePath);
       }
     }
 
+    final cachedCount = skippedFiles.length;
+    _cachedFiles = cachedCount;
+
     _log(
-      '✓ ${changedFiles.length} files changed (${allFiles.length - changedFiles.length} cached)',
+      '✅ Change detection complete:\n'
+      '   Changed files: ${changedFiles.length}\n'
+      '   Cached (unchanged): $cachedCount\n'
+      '   Quick-skipped by mod time: $quickSkipped\n'
+      '   Hash computations: $hashComputed\n'
+      '   Cache hit rate: ${((cachedCount / allFiles.length) * 100).toStringAsFixed(1)}%',
     );
-    _cachedFiles = allFiles.length - changedFiles.length;
 
     return changedFiles;
   }
@@ -377,99 +405,118 @@ class ProjectAnalyzer {
   // PHASE 3: TYPE RESOLUTION
   // ==========================================================================
 
-  // REPLACE old Phase 3
-Future<Map<String, ParsedFileInfo>> _phase3_ParseAndResolveTypes(
-  List<String> filesInOrder,
-  Set<String> changedFiles,
-) async {
-  _notifyProgress(
-    AnalysisPhase.typeResolution,
-    0,
-    filesInOrder.length,
-    'Parsing and resolving types...',
-  );
+  Future<Map<String, ParsedFileInfo>> _phase3_ParseAndResolveTypes(
+    List<String> filesInOrder,
+    Set<String> changedFiles,
+  ) async {
+    _notifyProgress(
+      AnalysisPhase.typeResolution,
+      0,
+      filesInOrder.length,
+      'Parsing and resolving types...',
+    );
 
-  _log('🏷️ Phase 3: Parsing and resolving types...');
+    _log('🏷️ Phase 3: Parsing and resolving types...');
 
-  final parsedFiles = <String, ParsedFileInfo>{};
-  int processed = 0;
+    final parsedFiles = <String, ParsedFileInfo>{};
+    int processed = 0;
 
-  for (final filePath in filesInOrder) {
-    try {
-      final result = await analyzeFile(filePath);
-      if (result == null) continue;
+    for (final filePath in filesInOrder) {
+      try {
+        final result = await analyzeFile(filePath);
+        if (result == null) {
+          _logVerbose('   Skipping ${path.basename(filePath)} - parse failed');
+          continue;
+        }
 
-      // Extract type declarations for registry
-      final visitor = TypeDeclarationVisitor(filePath, _typeRegistry);
-      result.unit.accept(visitor);
+        // Extract type declarations for registry
+        final visitor = TypeDeclarationVisitor(filePath, _typeRegistry);
+        result.unit.accept(visitor);
 
-      // Store parsed info
-      parsedFiles[filePath] = ParsedFileInfo(
-        path: filePath,
-        unit: result.unit,
-        libraryElement: result.libraryElement,
-        analysisResult: result,
-        needsIRGeneration: changedFiles.contains(filePath),
-      );
-
-      processed++;
-      if (processed % 20 == 0) {
-        _notifyProgress(
-          AnalysisPhase.typeResolution,
-          processed,
-          filesInOrder.length,
-          'Parsed $processed files...',
+        _logVerbose(
+          '   Parsed ${path.basename(filePath)} - ${visitor.typesFound} types',
         );
+
+        // Store parsed info
+        parsedFiles[filePath] = ParsedFileInfo(
+          path: filePath,
+          unit: result.unit,
+          libraryElement: result.libraryElement,
+          analysisResult: result,
+          needsIRGeneration: changedFiles.contains(filePath),
+        );
+
+        processed++;
+        _processedFiles = processed; // FIX: Update progress counter
+
+        if (processed % 20 == 0) {
+          _notifyProgress(
+            AnalysisPhase.typeResolution,
+            processed,
+            filesInOrder.length,
+            'Parsed $processed/$filesInOrder.length files...',
+          );
+        }
+      } catch (e, stackTrace) {
+        _logError('Error parsing ${path.basename(filePath)}', e, stackTrace);
+        _errorFiles++;
       }
-    } catch (e) {
-      _logVerbose('Error parsing ${path.basename(filePath)}: $e');
-      _errorFiles++;
     }
+
+    _log(
+      '✓ Parsed ${parsedFiles.length} files, type registry: ${_typeRegistry.typeCount} types',
+    );
+    return parsedFiles;
   }
 
-  _log('✓ Parsed ${parsedFiles.length} files, type registry: ${_typeRegistry.typeCount} types');
-  return parsedFiles;
-}
-
-
   // ==========================================================================
-  // PHASE 4: IR GENERATION
+  // PHASE 4: CACHE PERSISTENCE
   // ==========================================================================
 
-  // ==========================================================================
-  // PHASE 6: CACHE PERSISTENCE
-  // ==========================================================================
+  Future<void> _phase4_CacheAnalysisResults(
+    Map<String, ParsedFileInfo> parsedFiles,
+  ) async {
+    _notifyProgress(
+      AnalysisPhase.caching,
+      0,
+      parsedFiles.length,
+      'Caching analysis results...',
+    );
 
-Future<void> _phase4_CacheAnalysisResults(
-  Map<String, ParsedFileInfo> parsedFiles,
-) async {
-  _notifyProgress(
-    AnalysisPhase.caching,
-    0,
-    parsedFiles.length,
-    'Caching analysis results...',
-  );
+    _log('💾 Phase 4: Caching analysis results...');
 
-  _log('💾 Phase 4: Caching analysis results...');
+    try {
+      int cached = 0;
+      for (final entry in parsedFiles.entries) {
+        await _cache.setFileHash(entry.key, entry.value.analysisResult.hash);
+        cached++;
 
-  try {
-    // Cache file hashes and analysis metadata (NOT IRs)
-    for (final entry in parsedFiles.entries) {
-      await _cache.setFileHash(
-        entry.key, 
-        entry.value.analysisResult.hash
-      );
+        if (cached % 50 == 0) {
+          _notifyProgress(
+            AnalysisPhase.caching,
+            cached,
+            parsedFiles.length,
+            'Cached $cached files...',
+          );
+        }
+      }
+
+      await _cache.saveMetadata({
+        'lastAnalysis': DateTime.now().toIso8601String(),
+        'fileCount': parsedFiles.length,
+        'typeCount': _typeRegistry.typeCount,
+      });
+
+      _log('✓ Cached ${parsedFiles.length} analysis results');
+    } catch (e, stackTrace) {
+      _logError('Failed to cache analysis results', e, stackTrace);
+      // Non-fatal - continue without cache
     }
-    _log('✓ Cached ${parsedFiles.length} analysis results');
-  } catch (e, stackTrace) {
-    _logError('Failed to cache analysis results', e, stackTrace);
   }
-}
 
   // ==========================================================================
   // HELPER METHODS
   // ==========================================================================
-
 
   /// Get analysis context for a specific file
   AnalysisContext? _getContextForFile(String filePath) {
@@ -479,26 +526,50 @@ Future<void> _phase4_CacheAnalysisResults(
     }
 
     // Find context
-    for (final context in _collection.contexts) {
-      if (context.contextRoot.isAnalyzed(filePath)) {
-        _fileToContext[filePath] = context;
-        return context;
+    try {
+      for (final context in _collection.contexts) {
+        final analyzedFiles = context.contextRoot.analyzedFiles();
+        if (analyzedFiles.contains(filePath)) {
+          _fileToContext[filePath] = context;
+          return context;
+        }
       }
+    } catch (e) {
+      _logVerbose('Error getting context for $filePath: $e');
     }
 
     return null;
   }
 
-  /// Compute hash of file content
+  /// Compute hash of file content with normalization
   Future<String> _computeFileHash(String filePath) async {
     try {
       final file = File(filePath);
-      final content = await file.readAsBytes();
-      return md5.convert(content).toString();
+      if (!await file.exists()) {
+        throw FileSystemException('File not found', filePath);
+      }
+
+      // Read and normalize content
+      var content = await file.readAsString(encoding: utf8);
+
+      // Normalize line endings and whitespace
+      content = content
+          .replaceAll('\r\n', '\n') // Windows -> Unix
+          .replaceAll('\r', '\n') // Old Mac -> Unix
+          .split('\n')
+          .map(
+            (line) => line.trimRight(),
+          ) // Remove trailing whitespace per line
+          .join('\n')
+          .trim(); // Remove leading/trailing empty lines
+
+      // Compute hash
+      final bytes = utf8.encode(content);
+      return md5.convert(bytes).toString();
     } catch (e) {
       _logVerbose('Failed to compute hash for $filePath: $e');
-      // Return timestamp-based hash as fallback
-      return DateTime.now().millisecondsSinceEpoch.toString();
+      // Return deterministic fallback based on file path
+      return md5.convert(utf8.encode(filePath)).toString();
     }
   }
 
@@ -529,6 +600,16 @@ Future<void> _phase4_CacheAnalysisResults(
     return unit.directives
         .whereType<ExportDirective>()
         .map((export) => export.uri.stringValue ?? '')
+        .where((uri) => uri.isNotEmpty)
+        .toList();
+  }
+
+  /// Extract part directives from compilation unit
+  List<String> _extractParts(CompilationUnit unit) {
+    return unit.directives
+        .whereType<PartDirective>()
+        .map((part) => part.uri.stringValue ?? '')
+        .where((uri) => uri.isNotEmpty)
         .toList();
   }
 
@@ -542,21 +623,21 @@ Future<void> _phase4_CacheAnalysisResults(
     int total,
     String message,
   ) {
-    _progressController.add(
-      AnalysisProgress(
-        phase: phase,
-        current: current,
-        total: total,
-        message: message,
-        timestamp: DateTime.now(),
-      ),
-    );
+    if (!_progressController.isClosed) {
+      _progressController.add(
+        AnalysisProgress(
+          phase: phase,
+          current: current,
+          total: total,
+          message: message,
+          timestamp: DateTime.now(),
+        ),
+      );
+    }
   }
 
   void _log(String message) {
-    // if (enableVerboseLogging) {
     print(message);
-    // }
   }
 
   void _logVerbose(String message) {
@@ -582,6 +663,12 @@ Future<void> _phase4_CacheAnalysisResults(
     _log('   Changed files:   ${stats.changedFiles}');
     _log('   Duration:        ${stats.durationMs}ms');
     _log('   Avg per file:    ${stats.avgTimePerFile.toStringAsFixed(1)}ms');
+
+    if (stats.totalFiles > 0) {
+      _log(
+        '   Cache hit rate:  ${(stats.cacheHitRate * 100).toStringAsFixed(1)}%',
+      );
+    }
   }
 
   /// Clean up resources
@@ -597,23 +684,22 @@ Future<void> _phase4_CacheAnalysisResults(
 // RESULT CLASSES
 // ==========================================================================
 
-/// Result of analyzing the entire project
-/// Result of analyzing the entire project - NO IR, only analysis
+/// Result of analyzing the entire project - NO IR, only analysis metadata
 class ProjectAnalysisResult {
-  // REMOVED: fileIRs, appIR
-  
-  // NEW: Data needed for IR generation
-  final List<String> filesToAnalyze;              // Files needing IR generation
-  final Map<String, ParsedFileInfo> parsedUnits;  // Pre-parsed ASTs
-  
-  // KEPT: Analysis metadata
+  // Files that need IR generation (changed + dependents)
+  final Set<String> changedFiles;
+
+  // Pre-parsed ASTs ready for IR generation
+  final Map<String, ParsedFileInfo> parsedUnits;
+
+  // Analysis metadata
   final DependencyGraph dependencyGraph;
   final TypeRegistry typeRegistry;
   final List<String> analysisOrder;
   final AnalysisStatistics statistics;
 
   ProjectAnalysisResult({
-    required this.filesToAnalyze,
+    required this.changedFiles,
     required this.parsedUnits,
     required this.dependencyGraph,
     required this.typeRegistry,
@@ -623,9 +709,12 @@ class ProjectAnalysisResult {
 
   /// Get parsed info for a specific file
   ParsedFileInfo? getParsedFile(String filePath) => parsedUnits[filePath];
-  
+
   /// Get all files that need IR generation
-  List<String> getFilesNeedingIR() => filesToAnalyze;
+  List<String> getFilesNeedingIR() => changedFiles.toList();
+
+  /// Get all successfully parsed files
+  List<String> getAllParsedFiles() => parsedUnits.keys.toList();
 }
 
 /// Result of analyzing a single file
@@ -636,6 +725,7 @@ class FileAnalysisResult {
   final List<analyzer_diagnostic.Diagnostic> errors;
   final List<ImportInfo> imports;
   final List<String> exports;
+  final List<String> parts;
   final String hash;
 
   FileAnalysisResult({
@@ -645,6 +735,7 @@ class FileAnalysisResult {
     required this.errors,
     required this.imports,
     required this.exports,
+    required this.parts,
     required this.hash,
   });
 
@@ -698,6 +789,7 @@ class ImportInfo {
           [],
     );
   }
+
   Map<String, dynamic> toJson() => {
     'uri': uri,
     'prefix': prefix,
@@ -705,39 +797,6 @@ class ImportInfo {
     'showCombinators': showCombinators,
     'hideCombinators': hideCombinators,
   };
-}
-
-/// Context for analyzing a single file
-class FileAnalysisContext {
-  final String currentFile;
-  final TypeRegistry typeRegistry;
-  final DependencyGraph dependencyGraph;
-
-  FileAnalysisContext({
-    required this.currentFile,
-    required this.typeRegistry,
-    required this.dependencyGraph,
-  });
-
-  /// Get dependencies of current file
-  List<String> getDependencies() {
-    return dependencyGraph.getDependencies(currentFile);
-  }
-
-  /// Get all dependents (files that depend on this file)
-  List<String> getDependents() {
-    return dependencyGraph.getDependents(currentFile);
-  }
-
-  /// Resolve a type name to its full information
-  TypeInfo? resolveType(String typeName) {
-    return typeRegistry.lookupType(typeName);
-  }
-
-  /// Check if a type is available in current context
-  bool isTypeAvailable(String typeName) {
-    return typeRegistry.isTypeAvailableIn(typeName, currentFile);
-  }
 }
 
 /// Analysis progress information
@@ -788,13 +847,11 @@ class AnalysisStatistics {
     required this.durationMs,
     required this.changedFiles,
   });
+
   double get cacheHitRate => totalFiles > 0 ? cachedFiles / totalFiles : 0.0;
-
   double get errorRate => totalFiles > 0 ? errorFiles / totalFiles : 0.0;
-
   double get avgTimePerFile =>
       processedFiles > 0 ? durationMs / processedFiles : 0.0;
-
   double get throughput =>
       durationMs > 0 ? (processedFiles * 1000.0) / durationMs : 0.0;
 
@@ -824,8 +881,7 @@ class AnalysisStatistics {
   }
 }
 
-
-/// Parsed file information ready for IR generation
+/// Parsed file information ready for IR generation (Phase 2)
 class ParsedFileInfo {
   final String path;
   final CompilationUnit unit;
@@ -844,4 +900,91 @@ class ParsedFileInfo {
   bool get hasErrors => analysisResult.hasErrors;
   List<ImportInfo> get imports => analysisResult.imports;
   List<String> get exports => analysisResult.exports;
+  List<String> get parts => analysisResult.parts;
 }
+
+// /// Simple cache for analysis metadata (NOT IR)
+// class AnalysisCache {
+//   final String cacheDir;
+//   final Map<String, String> _fileHashes = {};
+//   Map<String, dynamic> _metadata = {};
+
+//   AnalysisCache(this.cacheDir);
+
+//   Future<void> initialize() async {
+//     final dir = Directory(cacheDir);
+//     if (!await dir.exists()) {
+//       await dir.create(recursive: true);
+//     }
+
+//     await _loadHashIndex();
+//     await _loadMetadata();
+//   }
+
+//   Future<String?> getFileHash(String filePath) async {
+//     return _fileHashes[filePath];
+//   }
+
+//   Future<void> setFileHash(String filePath, String hash) async {
+//     _fileHashes[filePath] = hash;
+//   }
+
+//   Future<void> saveMetadata(Map<String, dynamic> metadata) async {
+//     _metadata = metadata;
+//     await _saveMetadata();
+//   }
+
+//   Future<Map<String, dynamic>> getMetadata() async {
+//     return Map.from(_metadata);
+//   }
+
+//   Future<void> _loadHashIndex() async {
+//     try {
+//       final indexFile = File(path.join(cacheDir, 'hash_index.json'));
+//       if (!await indexFile.exists()) return;
+
+//       final content = await indexFile.readAsString();
+//       final Map<String, dynamic> json = jsonDecode(content);
+//       _fileHashes.addAll(json.cast<String, String>());
+//     } catch (e) {
+//       print('Warning: Failed to load hash index: $e');
+//     }
+//   }
+
+//   Future<void> _loadMetadata() async {
+//     try {
+//       final metadataFile = File(path.join(cacheDir, 'metadata.json'));
+//       if (!await metadataFile.exists()) return;
+
+//       final content = await metadataFile.readAsString();
+//       _metadata = jsonDecode(content);
+//     } catch (e) {
+//       print('Warning: Failed to load metadata: $e');
+//     }
+//   }
+
+//   Future<void> _saveHashIndex() async {
+//     try {
+//       final indexFile = File(path.join(cacheDir, 'hash_index.json'));
+//       final content = jsonEncode(_fileHashes);
+//       await indexFile.writeAsString(content);
+//     } catch (e) {
+//       print('Warning: Failed to save hash index: $e');
+//     }
+//   }
+
+//   Future<void> _saveMetadata() async {
+//     try {
+//       final metadataFile = File(path.join(cacheDir, 'metadata.json'));
+//       final content = jsonEncode(_metadata);
+//       await metadataFile.writeAsString(content);
+//     } catch (e) {
+//       print('Warning: Failed to save metadata: $e');
+//     }
+//   }
+
+//   void dispose() {
+//     _fileHashes.clear();
+//     _metadata.clear();
+//   }
+// }
