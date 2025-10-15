@@ -4,16 +4,17 @@ import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'analying_project.dart';
 import 'analyze_flutter_app.dart';
-import 'model/class_model.dart';
-import 'model/sate.dart';
+import 'model/analyzer_model.dart';
+import 'model/other.dart' as other;
+import 'model/state.dart';
+import 'model/widget.dart';
 import 'type_registry.dart';
 import 'dependency_graph.dart';
 
 // lib/src/analyzer/file_declaration_generator.dart
 
-
 /// Context for analyzing a single file
-/// 
+///
 /// This provides the necessary context and utilities for analyzing
 /// a single Dart file, including access to:
 /// - Type registry for type resolution
@@ -57,7 +58,7 @@ class FileAnalysisContext {
 }
 
 /// Simple metadata extracted from a Dart file
-/// 
+///
 /// This is NOT IR - just basic information about what's in the file
 /// to help with change detection and dependency tracking
 class FileMetadata {
@@ -103,12 +104,12 @@ class FileMetadata {
 }
 
 /// Extracts basic metadata from Dart AST
-/// 
+///
 /// This visitor collects only the essential information needed for:
 /// 1. Change detection
 /// 2. Dependency tracking
 /// 3. Type registry population
-/// 
+///
 /// NO IR GENERATION - that happens in Phase 2
 class FileMetadataExtractor extends RecursiveAstVisitor<void> {
   final String filePath;
@@ -146,7 +147,7 @@ class FileMetadataExtractor extends RecursiveAstVisitor<void> {
 
   @override
   void visitLibraryDirective(ast.LibraryDirective node) {
-    _libraryName = node.name2?.toString();
+    _libraryName = node.name?.toString();
     super.visitLibraryDirective(node);
   }
 
@@ -177,7 +178,7 @@ class FileMetadataExtractor extends RecursiveAstVisitor<void> {
     final className = node.name.lexeme;
     _currentClassName = className;
 
-    final extendsClause = node.extendsClause?.superclass.name2?.toString();
+    final extendsClause = node.extendsClause?.superclass.name.toString();
     final isWidget = _isWidgetClass(extendsClause);
     final isState = _isStateClass(node);
 
@@ -200,7 +201,7 @@ class FileMetadataExtractor extends RecursiveAstVisitor<void> {
   }
 
   bool _isStateClass(ast.ClassDeclaration node) {
-    final extendsClause = node.extendsClause?.superclass.name2?.toString();
+    final extendsClause = node.extendsClause?.superclass.name.toString();
     return extendsClause?.startsWith('State<') ?? false;
   }
 
@@ -228,7 +229,7 @@ class FileMetadataExtractor extends RecursiveAstVisitor<void> {
 // ==========================================================================
 
 /// Summary of analysis results for a file
-/// 
+///
 /// Contains both the parsed AST and extracted metadata
 /// This is what Phase 1 produces and Phase 2 consumes
 class FileAnalysisSummary {
@@ -264,7 +265,7 @@ class FileAnalysisSummary {
 // ==========================================================================
 
 /// Analyzes a single file and produces a summary
-/// 
+///
 /// This is the main entry point for Phase 1 file analysis
 class FileAnalyzer {
   final FileAnalysisContext context;
@@ -274,7 +275,7 @@ class FileAnalyzer {
   /// Analyze the file and produce a summary
   FileAnalysisSummary analyze() {
     final unit = context.analysisResult.unit;
-    
+
     // Extract metadata
     final extractor = FileMetadataExtractor(context.currentFile);
     unit.accept(extractor);
@@ -282,14 +283,16 @@ class FileAnalyzer {
 
     // Check for errors
     final hasErrors = context.analysisResult.hasErrors;
-    
+
     if (hasErrors) {
       print('  ⚠️  File has ${context.analysisResult.errorList.length} errors');
       for (final error in context.analysisResult.errorList.take(3)) {
         print('     - ${error.message}');
       }
       if (context.analysisResult.errorList.length > 3) {
-        print('     ... and ${context.analysisResult.errorList.length - 3} more');
+        print(
+          '     ... and ${context.analysisResult.errorList.length - 3} more',
+        );
       }
     }
 
@@ -307,10 +310,10 @@ class FileAnalyzer {
 // ==========================================================================
 
 /// Orchestrates the analysis of all files in a project
-/// 
+///
 /// This coordinates:
 /// 1. Dependency resolution
-/// 2. Change detection  
+/// 2. Change detection
 /// 3. Type registry population
 /// 4. File metadata extraction
 class ProjectAnalysisOrchestrator {
@@ -329,7 +332,7 @@ class ProjectAnalysisOrchestrator {
     // Extract file summaries
     final summaries = <String, FileAnalysisSummary>{};
     int processedCount = 0;
-    
+
     for (final entry in result.parsedUnits.entries) {
       final filePath = entry.key;
       final parsedInfo = entry.value;
@@ -347,10 +350,12 @@ class ProjectAnalysisOrchestrator {
         final analyzer = FileAnalyzer(context);
         final summary = analyzer.analyze();
         summaries[filePath] = summary;
-        
+
         processedCount++;
         if (processedCount % 20 == 0) {
-          print('  Processed $processedCount/${result.parsedUnits.length} files...');
+          print(
+            '  Processed $processedCount/${result.parsedUnits.length} files...',
+          );
         }
       } catch (e, stackTrace) {
         print('  ❌ Error analyzing $filePath: $e');
@@ -382,12 +387,16 @@ class ProjectAnalysisOrchestrator {
     print('Total state classes: ${report.totalStateClasses}');
     print('Total classes: ${report.totalClasses}');
     print('Total functions: ${report.totalFunctions}');
-    print('Total types in registry: ${report.analysisResult.typeRegistry.typeCount}');
-    
+    print(
+      'Total types in registry: ${report.analysisResult.typeRegistry.typeCount}',
+    );
+
     // Cache statistics
     final stats = report.analysisResult.statistics;
     print('Cache hit rate: ${(stats.cacheHitRate * 100).toStringAsFixed(1)}%');
-    print('Average time per file: ${stats.avgTimePerFile.toStringAsFixed(1)}ms');
+    print(
+      'Average time per file: ${stats.avgTimePerFile.toStringAsFixed(1)}ms',
+    );
     print('=' * 60);
 
     if (report.filesWithErrors.isNotEmpty) {
@@ -422,7 +431,7 @@ class ProjectAnalysisOrchestrator {
 // ==========================================================================
 
 /// Complete report of Phase 1 analysis
-/// 
+///
 /// This is what gets passed to Phase 2 (IR Generation)
 class ProjectAnalysisReport {
   final ProjectAnalysisResult analysisResult;
@@ -454,23 +463,29 @@ class ProjectAnalysisReport {
   }
 
   /// Statistics
-  int get totalWidgets => fileSummaries.values
-      .fold(0, (sum, s) => sum + s.metadata.widgetNames.length);
+  int get totalWidgets => fileSummaries.values.fold(
+    0,
+    (sum, s) => sum + s.metadata.widgetNames.length,
+  );
 
-  int get totalStateClasses => fileSummaries.values
-      .fold(0, (sum, s) => sum + s.metadata.stateClassNames.length);
+  int get totalStateClasses => fileSummaries.values.fold(
+    0,
+    (sum, s) => sum + s.metadata.stateClassNames.length,
+  );
 
-  int get totalClasses => fileSummaries.values
-      .fold(0, (sum, s) => sum + s.metadata.classNames.length);
+  int get totalClasses => fileSummaries.values.fold(
+    0,
+    (sum, s) => sum + s.metadata.classNames.length,
+  );
 
-  int get totalFunctions => fileSummaries.values
-      .fold(0, (sum, s) => sum + s.metadata.functionNames.length);
+  int get totalFunctions => fileSummaries.values.fold(
+    0,
+    (sum, s) => sum + s.metadata.functionNames.length,
+  );
 
   /// Get all widget names across the project
   List<String> getAllWidgetNames() {
-    return fileSummaries.values
-        .expand((s) => s.metadata.widgetNames)
-        .toList();
+    return fileSummaries.values.expand((s) => s.metadata.widgetNames).toList();
   }
 
   /// Get all state class names across the project
@@ -493,7 +508,7 @@ class ProjectAnalysisReport {
 
     final buffer = StringBuffer();
     buffer.writeln('${filesWithErrors.length} files with errors:');
-    
+
     for (final file in filesWithErrors.take(5)) {
       final summary = fileSummaries[file];
       if (summary != null) {
@@ -501,7 +516,7 @@ class ProjectAnalysisReport {
         buffer.writeln('  - $file: $errorCount errors');
       }
     }
-    
+
     if (filesWithErrors.length > 5) {
       buffer.writeln('  ... and ${filesWithErrors.length - 5} more');
     }
@@ -614,7 +629,7 @@ class DeclarationLinker {
   ProviderDeclaration _convertToProvider(ClassDeclaration classDecl) {
     final methods = classDecl.methods
         .map(
-          (m) => ProviderMethodDeclaration(
+          (m) => other.ProviderMethodDeclaration(
             name: m.name,
             returnType: m.returnType,
             parameters: m.parameters,
@@ -706,16 +721,14 @@ class DeclarationLinker {
               stateClasses.first, // fallback (should validate earlier)
         );
 
-        if (stateClass != null) {
-          edges.add(
-            DependencyEdge(
-              fromId: widget.id,
-              toId: stateClass.id,
-              type: EdgeType.hasState,
-              label: 'creates',
-            ),
-          );
-        }
+        edges.add(
+          DependencyEdge(
+            fromId: widget.id,
+            toId: stateClass.id,
+            type: EdgeType.hasState,
+            label: 'creates',
+          ),
+        );
       }
     }
 
@@ -1255,7 +1268,7 @@ class DeclarationValidator {
     }
   }
 
-  bool _modifiesState(ProviderMethodDeclaration method) {
+  bool _modifiesState(other.ProviderMethodDeclaration method) {
     // Check if method body contains assignments to state variables
     // This is a simplified check
     return method.parameters.isEmpty && method.returnType == 'void';

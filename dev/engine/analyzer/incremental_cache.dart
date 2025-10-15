@@ -4,7 +4,6 @@ import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
 import 'package:path/path.dart' as path;
-import 'package:crypto/crypto.dart';
 
 /// Simple cache for analysis metadata (NOT IR)
 ///

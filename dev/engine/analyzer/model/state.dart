@@ -1,55 +1,213 @@
-import 'class_model.dart';
+import 'core.dart';
+import 'other.dart';
+import 'widget.dart';
 
-/// Base class for all statement Declaration nodes
-abstract class StatementDeclaration {
-  final StatementType type;
+
+
+class StateClassDeclaration  {
+  final String id;
+  final String name;
+  final String widgetName;
+  final String filePath;
+  final List<StatePropertyDeclaration > stateVariables;
+  final List<WidgetMethodDeclaration > methods;
+  final InitStateDeclaration ? initState;
+  final DisposeDeclaration ? dispose;
+  final List<LifecycleMethodDeclaration > lifecycleMethods;
   final SourceLocation location;
 
-  StatementDeclaration({
-    required this.type,
+  StateClassDeclaration ({
+    required this.id,
+    required this.name,
+    required this.widgetName,
+    required this.filePath,
+    this.stateVariables = const [],
+    this.methods = const [],
+    this.initState,
+    this.dispose,
+    this.lifecycleMethods = const [],
     required this.location,
   });
 
-  Map<String, dynamic> toJson();
-
-  factory StatementDeclaration.fromJson(Map<String, dynamic> json) {
-    final type = StatementType.values.firstWhere(
-      (t) => t.toString() == json['type'],
-      orElse: () => StatementType.unknown,
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'widgetName': widgetName,
+    'filePath': filePath,
+    'stateVariables': stateVariables.map((s) => s.toJson()).toList(),
+    'methods': methods.map((m) => m.toJson()).toList(),
+    'initState': initState?.toJson(),
+    'dispose': dispose?.toJson(),
+    'lifecycleMethods': lifecycleMethods.map((l) => l.toJson()).toList(),
+    'location': location.toJson(),
+  };
+  factory StateClassDeclaration.fromJson(Map<String, dynamic> json) {
+    return StateClassDeclaration(
+      id: json['id'],
+      name: json['name'],
+      widgetName: json['widgetName'],
+      filePath: json['filePath'],
+      stateVariables: (json['stateVariables'] as List?)
+          ?.map((s) => StatePropertyDeclaration.fromJson(s))
+          .toList() ?? [],
+      methods: (json['methods'] as List?)
+          ?.map((m) => WidgetMethodDeclaration.fromJson(m))
+          .toList() ?? [],
+      initState: json['initState'] != null 
+          ? InitStateDeclaration.fromJson(json['initState']) 
+          : null,
+      dispose: json['dispose'] != null 
+          ? DisposeDeclaration.fromJson(json['dispose']) 
+          : null,
+      lifecycleMethods: (json['lifecycleMethods'] as List?)
+          ?.map((l) => LifecycleMethodDeclaration.fromJson(l))
+          .toList() ?? [],
+      location: SourceLocation.fromJson(json['location']),
     );
-
-    switch (type) {
-      case StatementType.variableDeclaration:
-        return VariableDeclarationDeclaration.fromJson(json);
-      case StatementType.expressionStatement:
-        return ExpressionStatementDeclaration.fromJson(json);
-      case StatementType.returnStatement:
-        return ReturnStatementDeclaration.fromJson(json);
-      case StatementType.ifStatement:
-        return IfStatementDeclaration.fromJson(json);
-      case StatementType.forStatement:
-        return ForStatementDeclaration.fromJson(json);
-      case StatementType.whileStatement:
-        return WhileStatementDeclaration.fromJson(json);
-      case StatementType.switchStatement:
-        return SwitchStatementDeclaration.fromJson(json);
-      case StatementType.tryStatement:
-        return TryStatementDeclaration.fromJson(json);
-      case StatementType.block:
-        return BlockStatementDeclaration.fromJson(json);
-      case StatementType.breakStatement:
-        return BreakStatementDeclaration.fromJson(json);
-      case StatementType.continueStatement:
-        return ContinueStatementDeclaration.fromJson(json);
-      case StatementType.throwStatement:
-        return ThrowStatementDeclaration.fromJson(json);
-      case StatementType.assertStatement:
-        return AssertStatementDeclaration.fromJson(json);
-      default:
-        throw UnimplementedError('Unknown statement type: $type');
-    }
   }
 }
+
+class InitStateDeclaration  {
+  final List<StatementDeclaration > body;
+  final SourceLocation location;
+
+  InitStateDeclaration ({
+    required this.body,
+    required this.location,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'body': body.map((s) => s.toJson()).toList(),
+    'location': location.toJson(),
+  };
+  factory InitStateDeclaration.fromJson(Map<String, dynamic> json) {
+    return InitStateDeclaration(
+      body: (json['body'] as List?)
+          ?.map((s) => StatementDeclaration.fromJson(s))
+          .toList() ?? [],
+      location: SourceLocation.fromJson(json['location']),
+    );
+  }
+}
+
+class DisposeDeclaration  {
+  final List<StatementDeclaration > body;
+  final SourceLocation location;
+
+  DisposeDeclaration ({
+    required this.body,
+    required this.location,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'body': body.map((s) => s.toJson()).toList(),
+    'location': location.toJson(),
+  };
+  factory DisposeDeclaration.fromJson(Map<String, dynamic> json) {
+    return DisposeDeclaration(
+      body: (json['body'] as List?)
+          ?.map((s) => StatementDeclaration.fromJson(s))
+          .toList() ?? [],
+      location: SourceLocation.fromJson(json['location']),
+    );
+  }
+}
+
+extension StateClassDeclarationFromJson on StateClassDeclaration {
+  static StateClassDeclaration fromJson(Map<String, dynamic> json) {
+    return StateClassDeclaration(
+      id: json['id'],
+      name: json['name'],
+      widgetName: json['widgetName'],
+      filePath: json['filePath'],
+      stateVariables: (json['stateVariables'] as List?)
+          ?.map((s) => StatePropertyDeclaration.fromJson(s))
+          .toList() ?? [],
+      methods: (json['methods'] as List?)
+          ?.map((m) => WidgetMethodDeclaration.fromJson(m))
+          .toList() ?? [],
+      initState: json['initState'] != null 
+          ? InitStateDeclaration.fromJson(json['initState']) 
+          : null,
+      dispose: json['dispose'] != null 
+          ? DisposeDeclaration.fromJson(json['dispose']) 
+          : null,
+      lifecycleMethods: (json['lifecycleMethods'] as List?)
+          ?.map((l) => LifecycleMethodDeclaration.fromJson(l))
+          .toList() ?? [],
+      location: SourceLocation.fromJson(json['location']),
+    );
+  }
+}
+
+
+class LifecycleMethodDeclaration  {
+  final String name;
+  final List<StatementDeclaration > body;
+  final SourceLocation location;
+
+  LifecycleMethodDeclaration ({
+    required this.name,
+    required this.body,
+    required this.location,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'body': body.map((s) => s.toJson()).toList(),
+    'location': location.toJson(),
+  };
+  factory LifecycleMethodDeclaration.fromJson(Map<String, dynamic> json) {
+    return LifecycleMethodDeclaration(
+      name: json['name'],
+      body: (json['body'] as List?)
+          ?.map((s) => StatementDeclaration.fromJson(s))
+          .toList() ?? [],
+      location: SourceLocation.fromJson(json['location']),
+    );
+  }
+  
+}
+
+class StatePropertyDeclaration  {
+  final String name;
+  final String type;
+  final bool isMutable;
+  final String? initialValue;
+  final SourceLocation location;
+
+  StatePropertyDeclaration ({
+    required this.name,
+    required this.type,
+    this.isMutable = true,
+    this.initialValue,
+    required this.location,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'type': type,
+    'isMutable': isMutable,
+    'initialValue': initialValue,
+    'location': location.toJson(),
+  };
+  factory StatePropertyDeclaration.fromJson(Map<String, dynamic> json) {
+    return StatePropertyDeclaration(
+      name: json['name'],
+      type: json['type'],
+      isMutable: json['isMutable'] ?? true,
+      initialValue: json['initialValue'],
+      location: SourceLocation.fromJson(json['location']),
+    );
+  }
+}
+
+
+// import 'class_model.dart';
+// import 'widget.dart';
+
+// /// Base class for all statement Declaration nodes
+
 
 enum StatementType {
   variableDeclaration,
@@ -1127,43 +1285,7 @@ class FunctionExpressionDeclaration extends ExpressionDeclaration {
   }
 }
 
-class ParameterDeclaration {
-  final String name;
-  final String type;
-  final bool isRequired;
-  final bool isNamed;
-  final String? defaultValue;
-  final SourceLocation location;
 
-  ParameterDeclaration({
-    required this.name,
-    required this.type,
-    this.isRequired = false,
-    this.isNamed = false,
-    this.defaultValue,
-    required this.location,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'name': name,
-        'type': type,
-        'isRequired': isRequired,
-        'isNamed': isNamed,
-        'defaultValue': defaultValue,
-        'location': location.toJson(),
-      };
-
-  factory ParameterDeclaration.fromJson(Map<String, dynamic> json) {
-    return ParameterDeclaration(
-      name: json['name'],
-      type: json['type'],
-      isRequired: json['isRequired'] ?? false,
-      isNamed: json['isNamed'] ?? false,
-      defaultValue: json['defaultValue'],
-      location: SourceLocation.fromJson(json['location']),
-    );
-  }
-}
 
 // =============================================================================
 // ASSIGNMENT EXPRESSION
