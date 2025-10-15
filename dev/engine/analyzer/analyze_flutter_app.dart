@@ -1,6 +1,7 @@
 // Main Declaration container
 import 'ir_linker.dart' as ir_linker;
-import 'model/class_model.dart';
+import 'model/analyzer_model.dart';
+
 
 class FlutterAppDeclaration {
   final int version;
