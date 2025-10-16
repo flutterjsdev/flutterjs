@@ -3083,3 +3083,963 @@
 //   function,
 //   block,
 // }
+
+// lib/src/ir/ir_schema.dart
+// Complete IR schema showing how all types extend IRNode
+
+// import 'package:meta/meta.dart';
+// import 'ir_node.dart';
+
+// // =============================================================================
+// // TYPE SYSTEM - All extend IRNode
+// // =============================================================================
+
+// @immutable
+// abstract class TypeIR extends IRNode {
+//   final String name;
+//   final bool isNullable;
+
+//   const TypeIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.name,
+//     required this.isNullable,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//   );
+
+//   String get displayName => isNullable ? '$name?' : name;
+// }
+
+// @immutable
+// class SimpleTypeIR extends TypeIR {
+//   const SimpleTypeIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required String name,
+//     bool isNullable = false,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     name: name,
+//     isNullable: isNullable,
+//   );
+// }
+
+// @immutable
+// class DynamicTypeIR extends TypeIR {
+//   const DynamicTypeIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     name: 'dynamic',
+//     isNullable: true,
+//   );
+// }
+
+// @immutable
+// class VoidTypeIR extends TypeIR {
+//   const VoidTypeIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     name: 'void',
+//     isNullable: false,
+//   );
+// }
+
+// // =============================================================================
+// // EXPRESSIONS - All extend IRNode
+// // =============================================================================
+
+// @immutable
+// abstract class ExpressionIR extends IRNode {
+//   final TypeIR resultType;
+
+//   const ExpressionIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.resultType,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+// }
+
+// @immutable
+// class StringLiteralExpressionIR extends ExpressionIR {
+//   final String value;
+
+//   const StringLiteralExpressionIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.value,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     resultType: SimpleTypeIR(
+//       id: '${id}_type',
+//       sourceLocation: sourceLocation,
+//       name: 'String',
+//     ),
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() => '"$value"';
+// }
+
+// @immutable
+// class IntegerLiteralExpressionIR extends ExpressionIR {
+//   final int value;
+
+//   const IntegerLiteralExpressionIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.value,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     resultType: SimpleTypeIR(
+//       id: '${id}_type',
+//       sourceLocation: sourceLocation,
+//       name: 'int',
+//     ),
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() => '$value';
+// }
+
+// @immutable
+// class BooleanLiteralExpressionIR extends ExpressionIR {
+//   final bool value;
+
+//   const BooleanLiteralExpressionIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.value,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     resultType: SimpleTypeIR(
+//       id: '${id}_type',
+//       sourceLocation: sourceLocation,
+//       name: 'bool',
+//     ),
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() => value ? 'true' : 'false';
+// }
+
+// @immutable
+// class NullLiteralExpressionIR extends ExpressionIR {
+//   const NullLiteralExpressionIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     resultType: SimpleTypeIR(
+//       id: '${id}_type',
+//       sourceLocation: sourceLocation,
+//       name: 'Null',
+//       isNullable: true,
+//     ),
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() => 'null';
+// }
+
+// @immutable
+// class MethodCallExpressionIR extends ExpressionIR {
+//   final String methodName;
+//   final ExpressionIR? target;
+//   final List<ExpressionIR> arguments;
+//   final bool isNullAware;
+
+//   const MethodCallExpressionIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.methodName,
+//     required TypeIR resultType,
+//     this.target,
+//     this.arguments = const [],
+//     this.isNullAware = false,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     resultType: resultType,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       '${target?.toShortString()}${isNullAware ? '?.' : '.'}$methodName(...)';
+// }
+
+// @immutable
+// class PropertyAccessExpressionIR extends ExpressionIR {
+//   final ExpressionIR target;
+//   final String propertyName;
+//   final bool isNullAware;
+
+//   const PropertyAccessExpressionIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.target,
+//     required this.propertyName,
+//     required TypeIR resultType,
+//     this.isNullAware = false,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     resultType: resultType,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       '${target.toShortString()}${isNullAware ? '?.' : '.'}$propertyName';
+// }
+
+// @immutable
+// class BinaryExpressionIR extends ExpressionIR {
+//   final ExpressionIR left;
+//   final String operator;
+//   final ExpressionIR right;
+
+//   const BinaryExpressionIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.left,
+//     required this.operator,
+//     required this.right,
+//     required TypeIR resultType,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     resultType: resultType,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       '${left.toShortString()} $operator ${right.toShortString()}';
+// }
+
+// @immutable
+// class ConditionalExpressionIR extends ExpressionIR {
+//   final ExpressionIR condition;
+//   final ExpressionIR thenExpression;
+//   final ExpressionIR elseExpression;
+
+//   const ConditionalExpressionIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.condition,
+//     required this.thenExpression,
+//     required this.elseExpression,
+//     required TypeIR resultType,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     resultType: resultType,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() => 'condition ? then : else';
+// }
+
+// @immutable
+// class UnknownExpressionIR extends ExpressionIR {
+//   final String originalText;
+
+//   const UnknownExpressionIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.originalText,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     resultType: DynamicTypeIR(
+//       id: '${id}_type',
+//       sourceLocation: sourceLocation,
+//     ),
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() => originalText;
+// }
+
+// // =============================================================================
+// // STATEMENTS - All extend IRNode
+// // =============================================================================
+
+// @immutable
+// abstract class StatementIR extends IRNode {
+//   const StatementIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+// }
+
+// @immutable
+// class ExpressionStatementIR extends StatementIR {
+//   final ExpressionIR expression;
+
+//   const ExpressionStatementIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.expression,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() => expression.toShortString();
+// }
+
+// @immutable
+// class VariableDeclarationStatementIR extends StatementIR {
+//   final List<LocalVariableIR> variables;
+
+//   const VariableDeclarationStatementIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.variables,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() => 'var ${variables.length} variable(s)';
+// }
+
+// @immutable
+// class ReturnStatementIR extends StatementIR {
+//   final ExpressionIR? expression;
+
+//   const ReturnStatementIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     this.expression,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       'return${expression != null ? ' ${expression!.toShortString()}' : ''}';
+// }
+
+// @immutable
+// class BlockStatementIR extends StatementIR {
+//   final List<StatementIR> statements;
+
+//   const BlockStatementIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.statements,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() => '{ ${statements.length} statements }';
+// }
+
+// @immutable
+// class IfStatementIR extends StatementIR {
+//   final ExpressionIR condition;
+//   final StatementIR thenStatement;
+//   final StatementIR? elseStatement;
+
+//   const IfStatementIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.condition,
+//     required this.thenStatement,
+//     this.elseStatement,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       'if (${condition.toShortString()}) { ... }${elseStatement != null ? ' else { ... }' : ''}';
+// }
+
+// @immutable
+// class ForStatementIR extends StatementIR {
+//   final StatementIR body;
+
+//   const ForStatementIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.body,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() => 'for (...) { ... }';
+// }
+
+// @immutable
+// class UnknownStatementIR extends StatementIR {
+//   final String originalText;
+
+//   const UnknownStatementIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.originalText,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() => originalText;
+// }
+
+// // =============================================================================
+// // DECLARATIONS - All extend IRNode
+// // =============================================================================
+
+// @immutable
+// class FieldIR extends IRNode {
+//   final String name;
+//   final TypeIR type;
+//   final ExpressionIR? initializer;
+//   final bool isFinal;
+//   final bool isConst;
+//   final bool isStatic;
+
+//   const FieldIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.name,
+//     required this.type,
+//     this.initializer,
+//     this.isFinal = false,
+//     this.isConst = false,
+//     this.isStatic = false,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       '${isStatic ? 'static ' : ''}${isFinal ? 'final ' : ''}$name: ${type.displayName}';
+// }
+
+// @immutable
+// class LocalVariableIR extends IRNode {
+//   final String name;
+//   final TypeIR type;
+//   final ExpressionIR? initializer;
+//   final bool isFinal;
+
+//   const LocalVariableIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.name,
+//     required this.type,
+//     this.initializer,
+//     this.isFinal = false,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       '${isFinal ? 'final ' : ''}$name: ${type.displayName}';
+// }
+
+// @immutable
+// class ParameterIR extends IRNode {
+//   final String name;
+//   final TypeIR type;
+//   final bool isRequired;
+//   final bool isNamed;
+
+//   const ParameterIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.name,
+//     required this.type,
+//     this.isRequired = false,
+//     this.isNamed = false,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       '${isNamed ? '{' : ''}$name: ${type.displayName}${isNamed ? '}' : ''}';
+// }
+
+// @immutable
+// class PropertyIR extends IRNode {
+//   final String name;
+//   final TypeIR type;
+//   final bool isRequired;
+//   final ExpressionIR? defaultValue;
+
+//   const PropertyIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.name,
+//     required this.type,
+//     this.isRequired = false,
+//     this.defaultValue,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() => '$name: ${type.displayName}';
+// }
+
+// @immutable
+// class MethodIR extends IRNode {
+//   final String name;
+//   final TypeIR returnType;
+//   final List<ParameterIR> parameters;
+//   final List<StatementIR> body;
+//   final bool isAsync;
+//   final bool isStatic;
+
+//   const MethodIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.name,
+//     required this.returnType,
+//     this.parameters = const [],
+//     this.body = const [],
+//     this.isAsync = false,
+//     this.isStatic = false,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       '${isAsync ? 'async ' : ''}${isStatic ? 'static ' : ''}$name() -> ${returnType.displayName}';
+// }
+
+// @immutable
+// class BuildMethodIR extends MethodIR {
+//   final WidgetTreeIR widgetTree;
+//   final List<String> capturedVariables;
+
+//   const BuildMethodIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     ExpressionIR? returnExpression,
+//     List<StatementIR> statements = const [],
+//     List<LocalVariableIR> localVariables = const [],
+//     required this.widgetTree,
+//     this.capturedVariables = const [],
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     name: 'build',
+//     returnType: SimpleTypeIR(
+//       id: '${id}_return_type',
+//       sourceLocation: sourceLocation,
+//       name: 'Widget',
+//     ),
+//     body: statements,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       'build() -> Widget [tree: ${widgetTree.nodeCount} nodes]';
+// }
+
+// @immutable
+// class LifecycleMethodIR extends MethodIR {
+//   final LifecycleType type;
+//   final bool callsSuper;
+
+//   const LifecycleMethodIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.type,
+//     List<StatementIR> statements = const [],
+//     this.callsSuper = false,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     name: type.name,
+//     returnType: VoidTypeIR(
+//       id: '${id}_return_type',
+//       sourceLocation: sourceLocation,
+//     ),
+//     body: statements,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() => '${type.name}()${callsSuper ? ' [calls super]' : ''}';
+// }
+
+// enum LifecycleType {
+//   initState,
+//   dispose,
+//   didUpdateWidget,
+//   didChangeDependencies,
+//   reassemble,
+//   deactivate,
+//   activate,
+// }
+
+// // =============================================================================
+// // STATE & WIDGETS - All extend IRNode
+// // =============================================================================
+
+// @immutable
+// class StateFieldIR extends FieldIR {
+//   final bool isMutable;
+//   final List<String> affectedBy;
+//   final List<String> affects;
+
+//   const StateFieldIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required String name,
+//     required TypeIR type,
+//     ExpressionIR? initializer,
+//     this.isMutable = true,
+//     this.affectedBy = const [],
+//     this.affects = const [],
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     name: name,
+//     type: type,
+//     initializer: initializer,
+//     isFinal: !isMutable,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       'state: $name${isMutable ? ' (mutable)' : ' (immutable)'}';
+// }
+
+// @immutable
+// class ClassIR extends IRNode {
+//   final String name;
+//   final List<FieldIR> fields;
+//   final List<MethodIR> methods;
+//   final String? superclass;
+//   final List<String> interfaces;
+//   final bool isAbstract;
+
+//   const ClassIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.name,
+//     required this.fields,
+//     required this.methods,
+//     this.superclass,
+//     this.interfaces = const [],
+//     this.isAbstract = false,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       '${isAbstract ? 'abstract ' : ''}class $name${superclass != null ? ' extends $superclass' : ''}';
+// }
+
+// @immutable
+// class StateClassIR extends ClassIR {
+//   final List<StateFieldIR> stateFields;
+//   final BuildMethodIR? buildMethod;
+//   final LifecycleMethodIR? initState;
+//   final LifecycleMethodIR? dispose;
+//   final LifecycleMethodIR? didUpdateWidget;
+//   final LifecycleMethodIR? didChangeDependencies;
+
+//   const StateClassIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required String name,
+//     this.stateFields = const [],
+//     this.buildMethod,
+//     this.initState,
+//     this.dispose,
+//     this.didUpdateWidget,
+//     this.didChangeDependencies,
+//     List<FieldIR> fields = const [],
+//     List<MethodIR> methods = const [],
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     name: name,
+//     fields: fields,
+//     methods: methods,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       'State<$name> [${stateFields.length} state fields, ${buildMethod != null ? 'has build' : 'no build'}]';
+// }
+
+// enum WidgetType { stateless, stateful, inherited, scoped }
+
+// @immutable
+// class WidgetIR extends IRNode {
+//   final String name;
+//   final WidgetType type;
+//   final List<FieldIR> fields;
+//   final List<PropertyIR> properties;
+//   final BuildMethodIR? buildMethod;
+//   final String? stateBinding;
+
+//   const WidgetIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.name,
+//     required this.type,
+//     required this.fields,
+//     required this.properties,
+//     this.buildMethod,
+//     this.stateBinding,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       'Widget $name (${type.name})${stateBinding != null ? ' -> State<$stateBinding>' : ''}';
+// }
+
+// // =============================================================================
+// // WIDGET TREE - All extend IRNode
+// // =============================================================================
+
+// @immutable
+// class WidgetNodeIR extends IRNode {
+//   final String widgetType;
+//   final Map<String, ExpressionIR> properties;
+//   final List<WidgetNodeIR> children;
+//   final bool isConst;
+
+//   const WidgetNodeIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.widgetType,
+//     required this.properties,
+//     required this.children,
+//     this.isConst = false,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       '${isConst ? 'const ' : ''}$widgetType [${children.length} children]';
+// }
+
+// @immutable
+// class WidgetTreeIR extends IRNode {
+//   final WidgetNodeIR root;
+//   final int nodeCount;
+//   final int depth;
+
+//   const WidgetTreeIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.root,
+//     this.nodeCount = 0,
+//     this.depth = 0,
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       'WidgetTree [root: ${root.widgetType}, nodes: $nodeCount, depth: $depth]';
+// }
+
+// // =============================================================================
+// // COMPLETE FILE - The top-level container
+// // =============================================================================
+
+// @immutable
+// class FileIR extends IRNode {
+//   final String filePath;
+//   final String contentHash;
+//   final List<WidgetIR> widgets;
+//   final List<StateClassIR> stateClasses;
+//   final List<ClassIR> classes;
+//   final List<MethodIR> functions;
+//   final List<AnalysisIssueIR> issues;
+
+//   const FileIR({
+//     required String id,
+//     required SourceLocationIR sourceLocation,
+//     required this.filePath,
+//     required this.contentHash,
+//     this.widgets = const [],
+//     this.stateClasses = const [],
+//     this.classes = const [],
+//     this.functions = const [],
+//     this.issues = const [],
+//     Map<String, dynamic>? metadata,
+//   }) : super(
+//     id: id,
+//     sourceLocation: sourceLocation,
+//     metadata: metadata,
+//   );
+
+//   @override
+//   String toShortString() =>
+//       'File: $filePath [${widgets.length} widgets, ${classes.length} classes, ${issues.length} issues]';
+// }
+
+// // =============================================================================
+// // FILE IR BUILDER - Helper to construct FileIR incrementally
+// // =============================================================================
+
+// class FileAnalysisContext {
+//   final String filePath;
+//   final String projectRoot;
+
+//   FileAnalysisContext({
+//     required this.filePath,
+//     required this.projectRoot,
+//   });
+// }
+
+// class FileIRBuilder {
+//   final FileAnalysisContext context;
+//   final List<WidgetIR> _widgets = [];
+//   final List<StateClassIR> _stateClasses = [];
+//   final List<ClassIR> _classes = [];
+//   final List<MethodIR> _functions = [];
+//   final List<AnalysisIssueIR> _issues = [];
+//   int _idCounter = 0;
+
+//   FileIRBuilder(this.context);
+
+//   String generateId(String type, [String? name]) {
+//     _idCounter++;
+//     return '${type}_${name ?? "id"}_${_idCounter}';
+//   }
+
+//   void addWidget(WidgetIR widget) => _widgets.add(widget);
+//   void addStateClass(StateClassIR stateClass) => _stateClasses.add(stateClass);
+//   void addClass(ClassIR classIR) => _classes.add(classIR);
+//   void addFunction(MethodIR function) => _functions.add(function);
+//   void addIssue(AnalysisIssueIR issue) => _issues.add(issue);
+
+//   FileIR build() {
+//     final sourceLocation = SourceLocationIR(
+//       file: context.filePath,
+//       line: 0,
+//       column: 0,
+//       offset: 0,
+//       length: 0,
+//     );
+
+//     return FileIR(
+//       id: generateId('file', context.filePath.replaceAll('/', '_')),
+//       sourceLocation: sourceLocation,
+//       filePath: context.filePath,
+//       contentHash: '', // TODO: Compute actual hash
+//       widgets: _widgets,
+//       stateClasses: _stateClasses,
+//       classes: _classes,
+//       functions: _functions,
+//       issues: _issues,
+//     );
+//   }
+
