@@ -1,28 +1,33 @@
 import 'ir_node.dart';
 import 'type_ir.dart';
 
-class ExpressionIR extends IRNode {
+abstract class ExpressionIR extends IRNode {
   final TypeIR resultType;
+
+  /// Whether this expression can be evaluated at compile time
+  final bool isConstant;
 
   const ExpressionIR({
     required super.id,
     required super.sourceLocation,
     required this.resultType,
+    this.isConstant = false,
+    required super.metadata,
   });
-  
-
 
   factory ExpressionIR.fromJson(Map<String, dynamic> json) {
     final type = json['expressionType'] as String?;
     final sourceLocation = SourceLocationIR.fromJson(
       json['sourceLocation'] as Map<String, dynamic>,
     );
-    
+
     switch (type) {
       case 'LiteralExpressionIR':
         return LiteralExpressionIR(
           id: json['id'] as String,
-          resultType: TypeIR.fromJson(json['resultType'] as Map<String, dynamic>),
+          resultType: TypeIR.fromJson(
+            json['resultType'] as Map<String, dynamic>,
+          ),
           sourceLocation: sourceLocation,
           value: json['value'],
           literalType: LiteralType.values.firstWhere(
@@ -33,7 +38,9 @@ class ExpressionIR extends IRNode {
       case 'IdentifierExpressionIR':
         return IdentifierExpressionIR(
           id: json['id'] as String,
-          resultType: TypeIR.fromJson(json['resultType'] as Map<String, dynamic>),
+          resultType: TypeIR.fromJson(
+            json['resultType'] as Map<String, dynamic>,
+          ),
           sourceLocation: sourceLocation,
           name: json['name'] as String,
           isThisReference: json['isThisReference'] as bool? ?? false,
@@ -42,20 +49,20 @@ class ExpressionIR extends IRNode {
       case 'BinaryExpressionIR':
         return BinaryExpressionIR(
           id: json['id'] as String,
-          resultType: TypeIR.fromJson(json['resultType'] as Map<String, dynamic>),
+          resultType: TypeIR.fromJson(
+            json['resultType'] as Map<String, dynamic>,
+          ),
           sourceLocation: sourceLocation,
           left: ExpressionIR.fromJson(json['left'] as Map<String, dynamic>),
-          operator: BinaryOperator.values.firstWhere(
+          operator: BinaryOperatorIR.values.firstWhere(
             (op) => op.name == json['operator'],
-            orElse: () => BinaryOperator.add,
+            orElse: () => BinaryOperatorIR.add,
           ),
           right: ExpressionIR.fromJson(json['right'] as Map<String, dynamic>),
         );
       default:
         throw UnimplementedError('Unknown ExpressionIR type: $type');
     }
-
-    
   }
 
   Map<String, dynamic> toJson() {
@@ -84,7 +91,7 @@ enum LiteralType {
   mapValue,
 }
 
-enum BinaryOperator {
+enum BinaryOperatorIR {
   add,
   subtract,
   multiply,
@@ -110,15 +117,12 @@ class LiteralExpressionIR extends ExpressionIR {
     required super.sourceLocation,
     required this.value,
     required this.literalType,
+    super.metadata,
   });
 
   @override
   Map<String, dynamic> toJson() {
-    return {
-      ...super.toJson(),
-      'value': value,
-      'literalType': literalType.name,
-    };
+    return {...super.toJson(), 'value': value, 'literalType': literalType.name};
   }
 }
 
@@ -134,6 +138,7 @@ class IdentifierExpressionIR extends ExpressionIR {
     required this.name,
     this.isThisReference = false,
     this.isSuperReference = false,
+    super.metadata,
   });
 
   @override
@@ -149,7 +154,7 @@ class IdentifierExpressionIR extends ExpressionIR {
 
 class BinaryExpressionIR extends ExpressionIR {
   final ExpressionIR left;
-  final BinaryOperator operator;
+  final BinaryOperatorIR operator;
   final ExpressionIR right;
 
   const BinaryExpressionIR({
@@ -159,6 +164,7 @@ class BinaryExpressionIR extends ExpressionIR {
     required this.left,
     required this.operator,
     required this.right,
+    super.metadata,
   });
 
   @override
