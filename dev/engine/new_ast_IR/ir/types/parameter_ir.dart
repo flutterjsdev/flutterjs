@@ -1,8 +1,10 @@
 import '../expression_ir.dart';
+import '../ir_node.dart';
 import '../type_ir.dart';
+import 'package:flutter/foundation.dart';
 
 /// Represents a parameter in a function, method, or constructor
-class ParameterIR {
+class ParameterIR extends IRNode {
   final String name;
   final TypeIR type;
   final bool isOptional;
@@ -11,12 +13,15 @@ class ParameterIR {
   final ExpressionIR? defaultValue;
 
   ParameterIR({
+     required super. id,
+     required super. sourceLocation,
     required this.name,
     required this.type,
     this.isOptional = false,
     this.isNamed = false,
     this.isRequired = false,
     this.defaultValue,
+    super. metadata,
   });
 
   /// True if this parameter is positional (not named)
@@ -57,6 +62,15 @@ class ParameterIR {
       defaultValue: json['defaultValue'] != null
           ? ExpressionIR.fromJson(json['defaultValue'] as Map<String, dynamic>)
           : null,
+     id: json['id'] as String,
+     sourceLocation: SourceLocationIR.fromJson(
+       json['sourceLocation'] as Map<String, dynamic>,
+     ),
+     metadata: json['metadata'] != null
+         ? 
+             json['metadata'] as Map<String, dynamic>
+           
+         : null,     
     );
   }
 
@@ -76,13 +90,23 @@ class ParameterIR {
   String toString() => declaration;
 
   /// For testing: compare meaningful content
-  bool contentEquals(ParameterIR other) {
-    return name == other.name &&
-        type.contentEquals(other.type) &&
-        isOptional == other.isOptional &&
-        isNamed == other.isNamed &&
-        isRequired == other.isRequired;
-  }
+@override
+bool contentEquals(IRNode other) {
+  if (other is! ParameterIR) return false;
+
+  final defaultValueEqual = (defaultValue == null && other.defaultValue == null) ||
+      (defaultValue != null &&
+          other.defaultValue != null &&
+          defaultValue!.contentEquals(other.defaultValue!));
+
+  return name == other.name &&
+      type.contentEquals(other.type) &&
+      isOptional == other.isOptional &&
+      isNamed == other.isNamed &&
+      isRequired == other.isRequired &&
+      defaultValueEqual &&
+      mapEquals(metadata, other.metadata);
+}
 
   @override
   bool operator ==(Object other) =>

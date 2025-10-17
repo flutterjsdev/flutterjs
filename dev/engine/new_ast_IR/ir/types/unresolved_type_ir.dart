@@ -18,6 +18,7 @@ class UnresolvedTypeIR extends TypeIR {
     this.resolutionAttempts = const [],
     this.passNumber = 1,
     super.isNullable = false,
+    
   });
 
   @override
