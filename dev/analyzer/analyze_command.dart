@@ -4,7 +4,6 @@ import 'package:path/path.dart' as path;
 
 import '../engine/analyzer/analying_project.dart';
 import '../engine/analyzer/dependency_graph.dart';
-import '../engine/analyzer/type_registry.dart';
 import '../engine/analyzer/ir_linker.dart';
 
 // ============================================================================
