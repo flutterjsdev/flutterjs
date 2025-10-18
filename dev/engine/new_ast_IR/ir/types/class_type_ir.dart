@@ -1,4 +1,4 @@
-import '../ir_node.dart';
+import '../../diagnostics/source_location.dart';
 import '../type_ir.dart';
 
 /// Represents class references: Widget, MyCustomClass, etc.

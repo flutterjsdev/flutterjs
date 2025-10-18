@@ -1,6 +1,7 @@
-import '../ir_node.dart';
+
 import '../type_ir.dart';
 import 'parameter_ir.dart';
+import '../../diagnostics/source_location.dart';
 
 class FunctionTypeIR extends TypeIR {
   final TypeIR returnType;
