@@ -1,3 +1,4 @@
+import '../diagnostics/source_location.dart';
 import 'ir_node.dart';
 import 'type_ir.dart';
 

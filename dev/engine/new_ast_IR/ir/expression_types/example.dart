@@ -3,7 +3,6 @@
 
 
 
-import '../ir_node.dart';
 import '../statement/statement_ir.dart';
 import '../types/class_type_ir.dart';
 import '../types/function_type_ir.dart';
@@ -14,6 +13,7 @@ import 'function_method_calls/function_method_calls.dart';
 import 'literals/literals.dart';
 import 'operations/operations.dart';
 import 'variables_access/vaibales_access.dart';
+import '../../diagnostics/source_location.dart';
 
 /// Example 1: Converting a simple binary operation
 /// Dart code: int result = a + b * 2;

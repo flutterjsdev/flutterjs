@@ -1,4 +1,4 @@
-import '../ir_node.dart';
+import '../../diagnostics/source_location.dart';
 import '../type_ir.dart';
 
 class GenericTypeIR extends TypeIR {

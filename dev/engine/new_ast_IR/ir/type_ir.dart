@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import '../diagnostics/source_location.dart';
 import 'ir_node.dart';
 import 'types/function_type_ir.dart';
 import 'types/generic_type_ir.dart';

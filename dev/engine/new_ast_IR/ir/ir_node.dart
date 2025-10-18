@@ -2,6 +2,9 @@
 
 import 'package:meta/meta.dart';
 
+import '../diagnostics/analysis_issue.dart';
+import '../diagnostics/source_location.dart';
+
 /// Base class for all IR (Intermediate Representation) nodes
 /// 
 /// Every piece of information extracted from Dart code is an IRNode.
@@ -46,88 +49,95 @@ abstract class IRNode {
   }
 }
 
-/// Represents a physical location in source code
-@immutable
-class SourceLocationIR extends IRNode {
-  /// Full path to the .dart file
-  final String file;
+// /// Represents a physical location in source code
+// @immutable
+// class SourceLocationIR extends IRNode {
+//   /// Full path to the .dart file
+//   final String file;
 
-  /// 1-based line number
-  final int line;
+//   /// 1-based line number
+//   final int line;
 
-  /// 1-based column number
-  final int column;
+//   /// 1-based column number
+//   final int column;
 
-  /// 0-based byte offset from start of file
-  final int offset;
+//   /// 0-based byte offset from start of file
+//   final int offset;
 
-  /// Length of this element in bytes
-  final int length;
+//   /// Length of this element in bytes
+//   final int length;
 
-   SourceLocationIR({
-    required this.file,
-    required this.line,
-    required this.column,
-    required this.offset,
-    required this.length,
-  }) : super(
-    id: 'location_${file}_${line}_${column}',
-    sourceLocation:  SourceLocationIR(
-      file: '',
-      line: 0,
-      column: 0,
-      offset: 0,
-      length: 0,
-    ),
-  );
+//    SourceLocationIR({
+//     required this.file,
+//     required this.line,
+//     required this.column,
+//     required this.offset,
+//     required this.length,
+//   }) : super(
+//     id: 'location_${file}_${line}_${column}',
+//     sourceLocation:  SourceLocationIR(
+//       file: '',
+//       line: 0,
+//       column: 0,
+//       offset: 0,
+//       length: 0,
+//     ),
+//   );
 
-  /// Create an empty/unknown location
-  factory SourceLocationIR.unknown() {
-    return  SourceLocationIR(
-      file: '<unknown>',
-      line: 0,
-      column: 0,
-      offset: 0,
-      length: 0,
-    );
-  }
+// /// End line (useful for multi-line constructs)
+//   int get endLine => line + _countNewlines();
+//     int _countNewlines() {
+//     // Would need file content to compute accurately
+//     // This is approximate
+//     return 0;
+//   }
+//   /// Create an empty/unknown location
+//   factory SourceLocationIR.unknown() {
+//     return  SourceLocationIR(
+//       file: '<unknown>',
+//       line: 0,
+//       column: 0,
+//       offset: 0,
+//       length: 0,
+//     );
+//   }
 
-  /// Human-readable format: "path/to/file.dart:42:8"
-  String get humanReadable => '$file:$line:$column';
+//   /// Human-readable format: "path/to/file.dart:42:8"
+//   String get humanReadable => '$file:$line:$column';
 
-  @override
-  String toShortString() => humanReadable;
+//   @override
+//   String toShortString() => humanReadable;
 
-  @override
-  bool contentEquals(IRNode other) {
-    if (other is! SourceLocationIR) return false;
-    return file == other.file &&
-        line == other.line &&
-        column == other.column &&
-        offset == other.offset &&
-        length == other.length;
-  }
+//   @override
+//   bool contentEquals(IRNode other) {
+//     if (other is! SourceLocationIR) return false;
+//     return file == other.file &&
+//         line == other.line &&
+//         column == other.column &&
+//         offset == other.offset &&
+//         length == other.length;
+//   }
 
-  factory SourceLocationIR.fromJson(Map<String, dynamic> json) {
-    return SourceLocationIR(
-      file: json['file'] as String,
-      line: json['line'] as int,
-      column: json['column'] as int,
-      offset: json['offset'] as int,
-      length: json['length'] as int,
-    );
-  }
+//   factory SourceLocationIR.fromJson(Map<String, dynamic> json) {
+//     return SourceLocationIR(
+//       file: json['file'] as String,
+//       line: json['line'] as int,
+//       column: json['column'] as int,
+//       offset: json['offset'] as int,
+//       length: json['length'] as int,
+//     );
+//   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'file': file,
-      'line': line,
-      'column': column,
-      'offset': offset,
-      'length': length,
-    };
-  }
-}
+//   Map<String, dynamic> toJson() {
+//     return {
+//       'file': file,
+//       'line': line,
+//       'column': column,
+//       'offset': offset,
+//       'length': length,
+//     };
+//   }
+// }
 
 /// Represents a problem found during analysis
 @immutable
@@ -207,13 +217,6 @@ class AnalysisIssueIR extends IRNode {
   }
 }
 
-/// Severity levels for issues
-enum IssueSeverity {
-  error,      // Blocks execution or violates Dart rules
-  warning,    // Likely bug or poor practice
-  info,       // Suggestion for improvement
-  hint,       // Low-priority note
-}
 
 // =============================================================================
 // EXTENSION GUIDE: How to use IRNode in your AST Visitor

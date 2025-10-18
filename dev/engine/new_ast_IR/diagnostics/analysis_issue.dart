@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 
+import 'issue_category.dart';
 import 'source_location.dart';
 /// Severity levels for analysis issues
 enum IssueSeverity {
@@ -8,6 +9,8 @@ enum IssueSeverity {
   info,     // Suggestion for improvement
   hint,     // Low-priority note
 }
+
+
 
 /// Represents a problem found during analysis
 @immutable
@@ -18,6 +21,9 @@ class AnalysisIssue {
   /// Severity level of this issue
   final IssueSeverity severity;
 
+   /// Category of issue
+  final IssueCategory category;
+
   /// What went wrong (human-readable message)
   final String message;
 
@@ -25,13 +31,13 @@ class AnalysisIssue {
   final String code;
 
   /// Where the problem is in source code
-  final SourceLocation sourceLocation;
+  final SourceLocationIR sourceLocation;
 
   /// Suggested fix (if any)
   final String? suggestion;
 
   /// Related locations that provide context
-  final List<SourceLocation> relatedLocations;
+  final List<SourceLocationIR> relatedLocations;
 
   /// This issue is a duplicate of another (for deduplication)
   final bool isDuplicate;
@@ -48,6 +54,7 @@ class AnalysisIssue {
     required this.message,
     required this.code,
     required this.sourceLocation,
+    required this.category,
     this.suggestion,
     this.relatedLocations = const [],
     this.isDuplicate = false,
@@ -60,14 +67,17 @@ class AnalysisIssue {
     required String id,
     required String message,
     required String code,
-    required SourceLocation sourceLocation,
+    required SourceLocationIR sourceLocation,
+    required IssueCategory  category,
     String? suggestion,
-    List<SourceLocation> relatedLocations = const [],
+    List<SourceLocationIR> relatedLocations = const [],
     String? documentationUrl,
+   
   }) {
     return AnalysisIssue(
       id: id,
       severity: IssueSeverity.error,
+      category: category,
       message: message,
       code: code,
       sourceLocation: sourceLocation,
@@ -82,14 +92,16 @@ class AnalysisIssue {
     required String id,
     required String message,
     required String code,
-    required SourceLocation sourceLocation,
+    required SourceLocationIR sourceLocation,
+    required IssueCategory  category,
     String? suggestion,
-    List<SourceLocation> relatedLocations = const [],
+    List<SourceLocationIR> relatedLocations = const [],
     String? documentationUrl,
   }) {
     return AnalysisIssue(
       id: id,
       severity: IssueSeverity.warning,
+      category: category,
       message: message,
       code: code,
       sourceLocation: sourceLocation,
@@ -104,7 +116,8 @@ class AnalysisIssue {
     required String id,
     required String message,
     required String code,
-    required SourceLocation sourceLocation,
+    required SourceLocationIR sourceLocation,
+     required IssueCategory  category,
     String? suggestion,
   }) {
     return AnalysisIssue(
@@ -114,6 +127,7 @@ class AnalysisIssue {
       code: code,
       sourceLocation: sourceLocation,
       suggestion: suggestion,
+      category: category
     );
   }
 
@@ -122,7 +136,8 @@ class AnalysisIssue {
     required String id,
     required String message,
     required String code,
-    required SourceLocation sourceLocation,
+    required SourceLocationIR sourceLocation,
+     required IssueCategory  category,
   }) {
     return AnalysisIssue(
       id: id,
@@ -130,6 +145,7 @@ class AnalysisIssue {
       message: message,
       code: code,
       sourceLocation: sourceLocation,
+      category: category
     );
   }
 
@@ -182,17 +198,18 @@ class AnalysisIssue {
       ),
       message: json['message'] as String,
       code: json['code'] as String,
-      sourceLocation: SourceLocation.fromJson(
+      sourceLocation: SourceLocationIR.fromJson(
         json['sourceLocation'] as Map<String, dynamic>,
       ),
       suggestion: json['suggestion'] as String?,
       relatedLocations: (json['relatedLocations'] as List<dynamic>?)
-              ?.map((e) => SourceLocation.fromJson(e as Map<String, dynamic>))
+              ?.map((e) => SourceLocationIR.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
       isDuplicate: json['isDuplicate'] as bool? ?? false,
       documentationUrl: json['documentationUrl'] as String?,
       createdAtMillis: json['createdAtMillis'] as int?,
+      category: json['category'] 
     );
   }
 

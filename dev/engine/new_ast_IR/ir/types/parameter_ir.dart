@@ -2,6 +2,7 @@ import '../expression_ir.dart';
 import '../ir_node.dart';
 import '../type_ir.dart';
 import 'package:flutter/foundation.dart';
+import '../../diagnostics/source_location.dart';
 
 /// Represents a parameter in a function, method, or constructor
 class ParameterIR extends IRNode {

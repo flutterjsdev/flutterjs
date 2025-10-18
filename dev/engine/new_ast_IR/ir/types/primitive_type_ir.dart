@@ -1,5 +1,6 @@
-import '../ir_node.dart';
+
 import '../type_ir.dart';
+import '../../diagnostics/source_location.dart';
 
 class PrimitiveTypeIR extends TypeIR {
   final PrimitiveKind kind;

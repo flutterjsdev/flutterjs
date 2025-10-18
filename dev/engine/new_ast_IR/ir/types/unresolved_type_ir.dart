@@ -1,6 +1,6 @@
-import '../ir_node.dart';
-import '../type_ir.dart';
 
+import '../type_ir.dart';
+import '../../diagnostics/source_location.dart';
 /// Represents unresolved type references during multi-pass analysis
 /// Acts as a placeholder that can be resolved in a second pass
 class UnresolvedTypeIR extends TypeIR {
