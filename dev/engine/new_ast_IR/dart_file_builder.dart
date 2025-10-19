@@ -7,6 +7,7 @@ import 'diagnostics/analysis_issue.dart';
 import 'diagnostics/issue_category.dart';
 import 'function_decl.dart';
 import 'import_export_stmt.dart';
+import 'ir_id_generator.dart';
 import 'variable_decl.dart';
 
 // =============================================================================
@@ -245,6 +246,7 @@ Issues: ${analysisIssues.length}
 
 /// Builder for constructing DartFile instances
 class DartFileBuilder {
+  final IRIdGenerator idGenerator;
   late String filePath;
   String? package;
   String? library;
@@ -265,10 +267,25 @@ class DartFileBuilder {
   late DateTime createdAt;
   DateTime? lastAnalyzedAt;
 
-  DartFileBuilder(this.filePath) {
-    createdAt = DateTime.now();
-    metadata = LibraryMetadata();
-    contentHash = '';
+
+  DartFileBuilder({required String filePath, String? projectRoot})
+    : idGenerator = IRIdGenerator(
+        filePath: filePath,
+        projectRoot: projectRoot,
+      ),
+      createdAt = DateTime.now(),
+      metadata = LibraryMetadata(),
+      contentHash = '';
+
+
+      // Main method - use this in declaration_pass.dart
+  String generateId(String type, [String? name]) {
+    return idGenerator.generateId(type, name);
+  }
+  
+  // For nested contexts
+  String generateContextualId(String type, String name, String parent) {
+    return idGenerator.generateContextualId(type, name, parentContext: parent);
   }
 
   /// Set the package this file belongs to
@@ -298,6 +315,24 @@ class DartFileBuilder {
   /// Add an export
   DartFileBuilder addExport(ExportStmt export) {
     exports.add(export);
+    return this;
+  }
+
+  /// Add a part
+  DartFileBuilder addPart(PartStmt part) {
+    parts.add(part);
+    return this;
+  }
+
+  /// Add multiple parts
+  DartFileBuilder addParts(List<PartStmt> partList) {
+    parts.addAll(partList);
+    return this;
+  }
+
+  /// Set the part-of directive
+  DartFileBuilder withPartOf(PartOfStmt partOfStmt) {
+    partOf = partOfStmt;
     return this;
   }
 
@@ -368,4 +403,3 @@ class DartFileBuilder {
     );
   }
 }
-

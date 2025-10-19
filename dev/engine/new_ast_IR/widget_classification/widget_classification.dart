@@ -123,7 +123,7 @@ class WidgetDecl extends ClassDecl {
   /// Known issues or anti-patterns with this widget
   final List<String> knownIssues;
 
-  const WidgetDecl({
+   WidgetDecl({
     required super.id,
     required super.name,
     required this.widgetType,

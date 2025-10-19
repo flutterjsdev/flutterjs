@@ -104,7 +104,7 @@ class ProviderClassDecl extends ClassDecl {
   /// All detected issues with this provider
   final List<ProviderIssueIR> issues;
 
-  const ProviderClassDecl({
+   ProviderClassDecl({
     required super. id,
     required super. sourceLocation,
     required super. name,

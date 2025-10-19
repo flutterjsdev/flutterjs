@@ -1,5 +1,8 @@
 /// Comprehensive category of analysis issues with full Flutter support
 enum IssueCategory {
+
+  unresolvedType,
+  invalidImport,
   // ==========================================================================
   // CORE CATEGORIES
   // ==========================================================================
@@ -357,7 +360,8 @@ extension IssueCategoryExtension on IssueCategory {
   /// Get human-readable name
   String get displayName {
     return switch (this) {
-
+      IssueCategory.invalidImport=> "Invalid Import",
+      IssueCategory.unresolvedType=>'Unresolved Type',
       IssueCategory.syntaxError => 'Syntax Error',
       IssueCategory.typeError => 'Type Error',
       IssueCategory.unusedCode => 'Unused Code',
