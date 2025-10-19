@@ -1,5 +1,6 @@
 import 'diagnostics/source_location.dart';
 import 'package:meta/meta.dart';
+import 'variable_decl.dart';
 
 // =============================================================================
 // IMPORT/EXPORT STATEMENTS
@@ -30,7 +31,7 @@ class ImportStmt {
   final String? documentation;
 
   /// Metadata annotations on the import
-  final List<String> annotations;
+  final List<AnnotationIR> annotations;
 
   const ImportStmt({
     required this.uri,

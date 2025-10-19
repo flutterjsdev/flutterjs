@@ -30,7 +30,7 @@ class VariableDecl  extends IRNode{
   final String name;
 
   /// The type of this variable
-  final TypeIR type;
+   TypeIR type;
 
   /// Optional initializer expression
   /// 
@@ -47,6 +47,8 @@ class VariableDecl  extends IRNode{
   /// 
   /// Note: const implies final (const variables are always final)
   final bool isConst;
+
+  final bool isPrivate;
 
   /// Whether this is declared with `late` keyword
   /// 
@@ -89,7 +91,7 @@ class VariableDecl  extends IRNode{
   /// vs named parameter
   final bool isPositional;
 
-  const VariableDecl({
+   VariableDecl({
     required super.id,
     required this.name,
     required this.type,
@@ -105,6 +107,7 @@ class VariableDecl  extends IRNode{
     this.isRequired = false,
     this.isNamed = false,
     this.isPositional = true,
+    this.isPrivate=false,
   }) : assert(
     !isConst || !isLate,
     'Variable cannot be both const and late',
@@ -262,37 +265,27 @@ class FieldDecl extends VariableDecl {
   /// For setters: the parameter type (same as type)
   final TypeIR? propertyType;
 
-  const FieldDecl({
-    required String id,
-    required String name,
-    required TypeIR type,
-    ExpressionIR? initializer,
-    bool isFinal = false,
-    bool isConst = false,
-    bool isLate = false,
-    bool isStatic = false,
-    required SourceLocationIR sourceLocation,
-    String? documentation,
-    List<AnnotationIR> annotations = const [],
-    VisibilityModifier visibility = VisibilityModifier.public,
+   FieldDecl({
+    required super. id,
+    required super. name,
+    required super. type,
+    super. initializer,
+    super. isFinal = false,
+    super. isConst = false,
+    super. isLate = false,
+    super. isStatic = false,
+    required super. sourceLocation,
+    super.documentation,
+    super. annotations = const [],
+    super. visibility = VisibilityModifier.public,
     this.isAbstract = false,
     this.isGetter = false,
     this.isSetter = false,
     this.propertyType,
-  }) : super(
-    id: id,
-    name: name,
-    type: type,
-    initializer: initializer,
-    isFinal: isFinal,
-    isConst: isConst,
-    isLate: isLate,
-    isStatic: isStatic,
-    sourceLocation: sourceLocation,
-    documentation: documentation,
-    annotations: annotations,
-    visibility: visibility,
-  );
+    super.isPrivate,
+    super.isNamed,
+    super.isRequired
+  }) ;
 
   /// Whether this is a computed property (getter/setter, not a backing field)
   bool get isComputedProperty => isGetter || isSetter;

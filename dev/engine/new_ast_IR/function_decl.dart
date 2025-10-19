@@ -43,7 +43,7 @@ class FunctionDecl extends IRNode {
   /// For constructors: return type is implicit (the class itself)
   /// For generators (async*): wraps type in Stream<T>
   /// For async functions: wraps type in Future<T>
-  final TypeIR returnType;
+   TypeIR returnType;
 
   /// Parameters of this function
   final List<ParameterDecl> parameters;

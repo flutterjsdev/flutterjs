@@ -4,6 +4,7 @@ import '../diagnostics/analysis_issue.dart';
 import '../diagnostics/source_location.dart';
 import '../ir/expression_ir.dart';
 import '../ir/ir_node.dart';
+import '../variable_decl.dart';
 
 
 // =============================================================================

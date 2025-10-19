@@ -2,230 +2,10 @@ import 'package:meta/meta.dart';
 import 'diagnostics/source_location.dart';
 import 'ir/ir_node.dart';
 import 'ir/type_ir.dart';
+import 'ir/expression_ir.dart';
 import 'parameter_decl.dart';
-
 import 'function_decl.dart';
-
-// =============================================================================
-// FIELD DECLARATION
-// =============================================================================
-
-/// Represents a field/property declaration within a class
-@immutable
-class FieldDecl extends IRNode {
-  /// Field name
-  final String name;
-
-  /// Field type
-  final TypeIR type;
-
-  /// Optional initializer expression
-  final String? initializer;
-
-  /// Whether field is final (cannot be reassigned)
-  final bool isFinal;
-
-  /// Whether field is const (compile-time constant)
-  final bool isConst;
-
-  /// Whether field is static (belongs to class, not instance)
-  final bool isStatic;
-
-  /// Whether field is late (lazy initialization)
-  final bool isLate;
-
-  /// Visibility: public if name doesn't start with _, private otherwise
-  final bool isPrivate;
-
-  /// Documentation comment above field
-  final String? documentation;
-
-  /// Annotations on field (e.g., @override, @deprecated)
-  final List<String> annotations;
-
-  FieldDecl({
-    required super.id,
-    required super.sourceLocation,
-    required this.name,
-    required this.type,
-    this.initializer,
-    this.isFinal = false,
-    this.isConst = false,
-    this.isStatic = false,
-    this.isLate = false,
-    this.isPrivate = false,
-    this.documentation,
-    this.annotations = const [],
-    super.metadata,
-  });
-
-  /// Whether this field is accessible from outside the class
-  bool get isAccessible => !isPrivate;
-
-  /// Whether this field can be modified
-  bool get isMutable => !isFinal && !isConst;
-
-  @override
-  String toString() {
-    final modifiers = [
-      if (isStatic) 'static',
-      if (isConst) 'const',
-      if (isFinal) 'final',
-      if (isLate) 'late',
-    ].join(' ');
-
-    return '${modifiers.isNotEmpty ? '$modifiers ' : ''}$name: ${type.displayName}';
-  }
-}
-
-// =============================================================================
-// METHOD DECLARATION
-// =============================================================================
-
-/// Represents a method declaration within a class
-/// Extends FunctionDecl to reuse function signature logic
-// @immutable
-// class MethodDecl extends FunctionDecl {
-//   /// Whether this overrides a superclass method
-//   final bool isOverride;
-
-//   MethodDecl({
-//     required super.id,
-//     required super.sourceLocation,
-//     required super.name,
-//     required super.returnType,
-//     super.parameters = const [],
-//     super.body,
-//     super.isAsync = false,
-//     super.isGenerator = false,
-//     super.typeParameters = const [],
-//     super.documentation,
-//     super.annotations = const [],
-//     super.isStatic = false,
-//     super.isAbstract = false,
-//     super.isGetter = false,
-//     super.isSetter = false,
-//     this.isOverride = false,
-//   });
-
-//   /// Whether this method is accessible from outside the class
-//   bool get isAccessible => !name.startsWith('_');
-
-//   /// Whether this method can be called on instances
-//   bool get isInstanceMethod => !isStatic;
-
-//   @override
-//   String toString() {
-//     final modifiers = [
-//       if (isStatic) 'static',
-//       if (isAbstract) 'abstract',
-//       if (isAsync) 'async',
-//       if (isGenerator) '*',
-//     ].join(' ');
-
-//     final kind = isGetter
-//         ? 'get'
-//         : isStatic
-//         ? 'method'
-//         : 'method';
-//     return '${modifiers.isNotEmpty ? '$modifiers ' : ''}$kind $name() → ${returnType.displayName}';
-//   }
-// }
-
-// =============================================================================
-// CONSTRUCTOR DECLARATION
-// =============================================================================
-
-/// Represents a constructor declaration
-@immutable
-class ConstructorDecl extends IRNode {
-  /// Constructor name (empty string for default, name for named constructors)
-  final String name;
-
-  /// Constructor parameters
-  final List<ParameterDecl> parameters;
-
-  /// Field initializer expressions (e.g., : field = value)
-  final List<FieldInitializer> initializers;
-
-  /// Constructor body (might be empty)
-  final String? body;
-
-  /// Whether this is a const constructor
-  final bool isConst;
-
-  /// Whether this is a factory constructor
-  final bool isFactory;
-
-  /// Whether this redirects to another constructor
-  final bool isRedirecting;
-
-  /// Target constructor if redirecting
-  final String? redirectTarget;
-
-  /// Documentation comment
-  final String? documentation;
-
-  /// Annotations (e.g., @deprecated)
-  final List<String> annotations;
-
-  const ConstructorDecl({
-    required super.id,
-    required super.sourceLocation,
-    this.name = '',
-    this.parameters = const [],
-    this.initializers = const [],
-    this.body,
-    this.isConst = false,
-    this.isFactory = false,
-    this.isRedirecting = false,
-    this.redirectTarget,
-    this.documentation,
-    this.annotations = const [],
-    super.metadata,
-  });
-
-  /// Get display name (ClassName or ClassName.namedConstructor)
-  String displayName(String className) {
-    return name.isEmpty ? className : '$className.$name';
-  }
-
-  /// Whether this creates new instances (false if factory/redirecting)
-  bool get createsNewInstance => !isFactory && !isRedirecting;
-
-  @override
-  String toString() {
-    final modifiers = [
-      if (isConst) 'const',
-      if (isFactory) 'factory',
-      if (isRedirecting) 'redirecting',
-    ].join(' ');
-
-    return '${modifiers.isNotEmpty ? '$modifiers ' : ''}constructor ${name.isEmpty ? '' : name}(...)';
-  }
-}
-
-/// Represents a field initializer in a constructor
-@immutable
-class FieldInitializer {
-  /// Name of field being initialized
-  final String fieldName;
-
-  /// Expression initializing the field
-  final String expression;
-
-  /// Source location of this initializer
-  final SourceLocationIR sourceLocation;
-
-  const FieldInitializer({
-    required this.fieldName,
-    required this.expression,
-    required this.sourceLocation,
-  });
-
-  @override
-  String toString() => '$fieldName = $expression';
-}
+import 'variable_decl.dart';
 
 // =============================================================================
 // CLASS DECLARATION
@@ -238,7 +18,7 @@ class ClassDecl extends IRNode {
   final String name;
 
   /// Direct superclass (if any)
-  final TypeIR? superclass;
+   TypeIR? superclass;
 
   /// Interfaces/abstract classes this class implements
   final List<TypeIR> interfaces;
@@ -247,10 +27,10 @@ class ClassDecl extends IRNode {
   final List<TypeIR> mixins;
 
   /// Type parameters (e.g., <T, U>)
-  final List<String> typeParameters;
+  final List<TypeParameterDecl> typeParameters;
 
   /// All field declarations
-  final List<FieldDecl> fields;
+   List<FieldDecl> fields;
 
   /// All method declarations
   final List<MethodDecl> methods;
@@ -274,9 +54,9 @@ class ClassDecl extends IRNode {
   final String? documentation;
 
   /// Class annotations (e.g., @immutable, @deprecated)
-  final List<String> annotations;
+  final List<AnnotationIR> annotations;
 
-  const ClassDecl({
+   ClassDecl({
     required super.id,
     required super.sourceLocation,
     required this.name,
@@ -300,7 +80,7 @@ class ClassDecl extends IRNode {
   ConstructorDecl? get defaultConstructor {
     try {
       return constructors.firstWhere(
-        (c) => c.name.isEmpty && c.parameters.isEmpty,
+        (c) => c.constructorName == null && c.parameters.isEmpty,
       );
     } catch (e) {
       return null;
@@ -387,13 +167,13 @@ class ClassDecl extends IRNode {
         ? '<${typeParameters.join(', ')}>'
         : '';
     final superStr = superclass != null
-        ? ' extends ${superclass!.displayName}'
+        ? ' extends ${superclass!.displayName()}'
         : '';
     final mixinStr = mixins.isNotEmpty
-        ? ' with ${mixins.map((m) => m.displayName).join(', ')}'
+        ? ' with ${mixins.map((m) => m.displayName()).join(', ')}'
         : '';
     final ifaceStr = interfaces.isNotEmpty
-        ? ' implements ${interfaces.map((i) => i.displayName).join(', ')}'
+        ? ' implements ${interfaces.map((i) => i.displayName()).join(', ')}'
         : '';
 
     return '${modifiers.isNotEmpty ? '$modifiers ' : ''}class $name$typeParams$superStr$mixinStr$ifaceStr';
@@ -422,7 +202,7 @@ class EnhancedClassDecl extends ClassDecl {
   /// Cyclic inheritance detected
   final bool hasCyclicInheritance;
 
-  const EnhancedClassDecl({
+   EnhancedClassDecl({
     required super.id,
     required super.sourceLocation,
     required super.name,
@@ -448,7 +228,7 @@ class EnhancedClassDecl extends ClassDecl {
   });
 
   /// Whether class is dead code (not used anywhere)
-  bool get isDeadCode => !isUsed && !annotations.contains('deprecated');
+  bool get isDeadCode => !isUsed && !annotations.any((a) => a.name == 'deprecated');
 
   /// Inheritance depth (0 = no superclass, 1 = extends one class, etc.)
   int get inheritanceDepth {
@@ -474,7 +254,7 @@ class ClassHierarchyUtils {
     if (subclass.superclass == null) return false;
 
     // Direct inheritance
-    if (subclass.superclass!.displayName == superclass.name) {
+    if (subclass.superclass!.displayName() == superclass.name) {
       return true;
     }
 
@@ -484,7 +264,7 @@ class ClassHierarchyUtils {
 
   /// Check if a class implements another class/interface
   static bool implementsClass(ClassDecl impl, ClassDecl iface) {
-    return impl.interfaces.any((i) => i.displayName == iface.name);
+    return impl.interfaces.any((i) => i.displayName() == iface.name);
   }
 
   /// Get all methods from class and superclasses
@@ -502,16 +282,33 @@ class ClassHierarchyUtils {
 
   /// Find potential unimplemented abstract methods
   static List<MethodDecl> findUnimplementedMethods(ClassDecl cls) {
-    if (cls.isAbstract)
+    if (cls.isAbstract) {
       return []; // Abstract classes can have unimplemented methods
+    }
 
     // All abstract methods in this class plus all from interfaces
     return cls.abstractMethods;
   }
 }
 
-// =============================================================================
-// PARAMETER DECLARATION (for constructors and methods)
-// =============================================================================
+/// Represents a field initializer in a constructor
+@immutable
+class FieldInitializer {
+  /// Name of field being initialized
+  final String fieldName;
 
-/// Represents a parameter in a function/method/constructor
+  /// Expression initializing the field
+  final ExpressionIR expression;
+
+  /// Source location of this initializer
+  final SourceLocationIR sourceLocation;
+
+  const FieldInitializer({
+    required this.fieldName,
+    required this.expression,
+    required this.sourceLocation,
+  });
+
+  @override
+  String toString() => '$fieldName = ${expression.toShortString()}';
+}

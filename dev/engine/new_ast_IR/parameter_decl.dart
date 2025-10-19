@@ -1,6 +1,8 @@
 import 'package:meta/meta.dart';
 import 'ir/ir_node.dart';
 import 'ir/type_ir.dart';
+import 'ir/expression_ir.dart';
+import 'variable_decl.dart';
 
 @immutable
 class ParameterDecl extends IRNode {
@@ -8,10 +10,10 @@ class ParameterDecl extends IRNode {
   final String name;
 
   /// Parameter type
-  final TypeIR type;
+   TypeIR type;
 
   /// Optional default value expression
-  final String? defaultValue;
+  final ExpressionIR? defaultValue;
 
   /// Whether parameter is required
   final bool isRequired;
@@ -23,11 +25,11 @@ class ParameterDecl extends IRNode {
   final bool isNamed;
 
   /// Annotations on parameter (e.g., @required, @deprecated)
-  final List<String> annotations;
+  final List<AnnotationIR> annotations;
 
    ParameterDecl({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.name,
     required this.type,
     this.defaultValue,
@@ -35,7 +37,7 @@ class ParameterDecl extends IRNode {
     this.isPositional = true,
     this.isNamed = false,
     this.annotations = const [],
-    super. metadata,
+    super.metadata,
   });
 
   /// Whether this parameter can be omitted in function calls
@@ -50,6 +52,6 @@ class ParameterDecl extends IRNode {
     final bracket = isNamed ? '{' : isPositional ? '' : '[';
     final closeBracket = isNamed ? '}' : isPositional ? '' : ']';
 
-    return '${modifiers.isNotEmpty ? '$modifiers ' : ''}$bracket$name: ${type.displayName}${defaultValue != null ? ' = $defaultValue' : ''}$closeBracket';
+    return '${modifiers.isNotEmpty ? '$modifiers ' : ''}$bracket${type.displayName()} $name${defaultValue != null ? ' = ${defaultValue!.toShortString()}' : ''}$closeBracket';
   }
 }
