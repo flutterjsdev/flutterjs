@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
 import '../class_decl.dart';
+import '../diagnostics/analysis_issue.dart';
 
 
 // =============================================================================
@@ -607,16 +608,6 @@ enum LifecycleIssueType {
   other,
 }
 
-enum IssueSeverity {
-  /// Must fix (crash or major bug likely)
-  error,
-
-  /// Should fix (potential issue)
-  warning,
-
-  /// Could improve (style/optimization)
-  info,
-}
 
 // =============================================================================
 // STATE CLASS ANALYZER

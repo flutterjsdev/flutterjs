@@ -7,7 +7,9 @@ import '../ir/ir_node.dart';
 import '../ir/statement/statement_ir.dart';
 import '../ir/type_ir.dart';
 import '../parameter_decl.dart';
-import 'key_widget_ir.dart';
+import 'key_type_ir.dart';
+import 'widget_node_ir.dart';
+import 'widget_tree_ir.dart';
 
 
 // =============================================================================

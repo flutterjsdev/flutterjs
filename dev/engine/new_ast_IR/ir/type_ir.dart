@@ -173,8 +173,14 @@ class SimpleTypeIR extends TypeIR {
         : baseName;
     return isNullable ? '$withArgs?' : withArgs;
   }
-  @override
-  bool get isBuiltIn => false;
+  // @override
+  // bool get isBuiltIn => false;
+
+   @override
+  bool get isBuiltIn {
+    const builtins = {'int', 'double', 'bool', 'String', 'dynamic', 'void', 'null'};
+    return builtins.contains(name.toLowerCase());
+  }
 
   @override
   bool get isGeneric => typeArguments.isNotEmpty;
