@@ -66,6 +66,7 @@ class LifecycleMethodDecl {
   String toString() => '${type.name}() [${statements.length} statements]';
 }
 
+
 /// Enum for lifecycle method types
 enum LifecycleMethodType {
   /// initState - called when State is created
@@ -567,9 +568,19 @@ class LifecycleIssue {
   String toString() => '${type.name} (${severity.name}): $message';
 }
 
+
 enum LifecycleIssueType {
   /// initState doesn't call super
   initStateNoSuper,
+
+  missingSuper,
+  resourceLeak,
+  useBeforeInit,
+  disposedTwice,
+  orderingProblem,
+  missingAsyncHandling,
+  noErrorHandling,
+  statefulVsStateless,
 
   /// dispose doesn't call super
   disposeNoSuper,
