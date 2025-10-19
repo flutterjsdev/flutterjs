@@ -160,18 +160,6 @@ class StateFieldDecl {
     this.isDisposedProperly = false,
   });
 
-  /// Heuristic: is this field likely a controller?
-  static bool _isLikelyController(String type) {
-    return type.contains('Controller') ||
-        type == 'AnimationController' ||
-        type == 'TextEditingController' ||
-        type == 'ScrollController' ||
-        type == 'PageController' ||
-        type == 'TabController' ||
-        type == 'VideoPlayerController' ||
-        type == 'StreamSubscription';
-  }
-
   @override
   String toString() =>
       '$name: $type${isAccessedInBuild ? ' (accessed in build)' : ''}';

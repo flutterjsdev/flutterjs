@@ -2,6 +2,8 @@ import 'package:meta/meta.dart';
 import '../class_decl.dart' ;
 import 'dart:core';
 
+import '../function_decl.dart';
+
 // =============================================================================
 // WIDGET CLASSIFICATION ENUMS
 // =============================================================================
@@ -686,8 +688,6 @@ class WidgetClassifier {
     // Heuristic: analyze class complexity
     final methodCount = classDecl.methods.length;
     final fieldCount = classDecl.fields.length;
-    final hasComplexMethods = classDecl.methods.any((m) =>
-        m.name.contains('build') && m.body != null);
 
     if (classDecl.name.contains('Future') || classDecl.name.contains('Stream')) {
       return PerformanceProfile.expensive;
