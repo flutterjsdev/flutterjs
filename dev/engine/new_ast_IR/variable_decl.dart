@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 import 'diagnostics/source_location.dart';
 import 'ir/expression_ir.dart';
+import 'ir/ir_node.dart';
 import 'ir/type_ir.dart';
 
 // =============================================================================
@@ -22,9 +23,8 @@ import 'ir/type_ir.dart';
 /// - `late StreamController<int> controller;`
 /// - `required String title` (parameter)
 @immutable
-class VariableDecl {
-  /// Unique identifier for this variable declaration
-  final String id;
+class VariableDecl  extends IRNode{
+
 
   /// Variable name
   final String name;
@@ -62,9 +62,6 @@ class VariableDecl {
   /// Whether this is declared with `static` keyword (for fields only)
   final bool isStatic;
 
-  /// File location where this variable is declared
-  final SourceLocationIR sourceLocation;
-
   /// Documentation/comments above this variable
   final String? documentation;
 
@@ -93,7 +90,7 @@ class VariableDecl {
   final bool isPositional;
 
   const VariableDecl({
-    required this.id,
+    required super.id,
     required this.name,
     required this.type,
     this.initializer,
@@ -101,7 +98,7 @@ class VariableDecl {
     this.isConst = false,
     this.isLate = false,
     this.isStatic = false,
-    required this.sourceLocation,
+    required super.sourceLocation,
     this.documentation,
     this.annotations = const [],
     this.visibility = VisibilityModifier.public,
