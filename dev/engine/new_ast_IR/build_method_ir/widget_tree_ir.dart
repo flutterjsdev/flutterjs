@@ -97,7 +97,7 @@ class WidgetTreeIR extends IRNode {
   List<String> validateTree() {
     final issues = <String>[];
 
-    if (root == null) {
+    if (root.treeDepth ==0) {
       issues.add('Widget tree has no root widget');
     }
 
@@ -321,13 +321,13 @@ class TreeMetricsIR extends IRNode {
   final int estimatedMemoryBytes;
 
   TreeMetricsIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super. id,
+    required super. sourceLocation,
     this.averageBranchingFactor = 0.0,
     this.leafNodeCount = 0,
     this.estimatedBuildTimeUs = 0,
     this.estimatedMemoryBytes = 0,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  }) ;
 
   @override
   String toShortString() =>
