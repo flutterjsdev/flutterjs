@@ -84,53 +84,53 @@ class FieldDecl extends IRNode {
 
 /// Represents a method declaration within a class
 /// Extends FunctionDecl to reuse function signature logic
-@immutable
-class MethodDecl extends FunctionDecl {
-  /// Whether this overrides a superclass method
-  final bool isOverride;
+// @immutable
+// class MethodDecl extends FunctionDecl {
+//   /// Whether this overrides a superclass method
+//   final bool isOverride;
 
-  MethodDecl({
-    required super.id,
-    required super.sourceLocation,
-    required super.name,
-    required super.returnType,
-    super.parameters = const [],
-    super.body,
-    super.isAsync = false,
-    super.isGenerator = false,
-    super.typeParameters = const [],
-    super.documentation,
-    super.annotations = const [],
-    super.isStatic = false,
-    super.isAbstract = false,
-    super.isGetter = false,
-    super.isSetter = false,
-    this.isOverride = false,
-  });
+//   MethodDecl({
+//     required super.id,
+//     required super.sourceLocation,
+//     required super.name,
+//     required super.returnType,
+//     super.parameters = const [],
+//     super.body,
+//     super.isAsync = false,
+//     super.isGenerator = false,
+//     super.typeParameters = const [],
+//     super.documentation,
+//     super.annotations = const [],
+//     super.isStatic = false,
+//     super.isAbstract = false,
+//     super.isGetter = false,
+//     super.isSetter = false,
+//     this.isOverride = false,
+//   });
 
-  /// Whether this method is accessible from outside the class
-  bool get isAccessible => !name.startsWith('_');
+//   /// Whether this method is accessible from outside the class
+//   bool get isAccessible => !name.startsWith('_');
 
-  /// Whether this method can be called on instances
-  bool get isInstanceMethod => !isStatic;
+//   /// Whether this method can be called on instances
+//   bool get isInstanceMethod => !isStatic;
 
-  @override
-  String toString() {
-    final modifiers = [
-      if (isStatic) 'static',
-      if (isAbstract) 'abstract',
-      if (isAsync) 'async',
-      if (isGenerator) '*',
-    ].join(' ');
+//   @override
+//   String toString() {
+//     final modifiers = [
+//       if (isStatic) 'static',
+//       if (isAbstract) 'abstract',
+//       if (isAsync) 'async',
+//       if (isGenerator) '*',
+//     ].join(' ');
 
-    final kind = isGetter
-        ? 'get'
-        : isStatic
-        ? 'method'
-        : 'method';
-    return '${modifiers.isNotEmpty ? '$modifiers ' : ''}$kind $name() → ${returnType.displayName}';
-  }
-}
+//     final kind = isGetter
+//         ? 'get'
+//         : isStatic
+//         ? 'method'
+//         : 'method';
+//     return '${modifiers.isNotEmpty ? '$modifiers ' : ''}$kind $name() → ${returnType.displayName}';
+//   }
+// }
 
 // =============================================================================
 // CONSTRUCTOR DECLARATION

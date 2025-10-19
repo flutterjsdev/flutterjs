@@ -91,6 +91,56 @@ abstract class TypeIR extends IRNode {
     }
   }
 
+   /// Create a Widget type (commonly used in build methods)
+  factory TypeIR.widget() {
+    return SimpleTypeIR(
+      id: 'widget_type',
+      sourceLocation: SourceLocationIR(
+        file: '',
+        line: 0,
+        column: 0,
+        offset: 0,
+        length: 0, 
+        id: '',
+      ),
+      name: 'Widget',
+      isNullable: false,
+    );
+  }
+
+  /// Create a Future type wrapping another type
+  factory TypeIR.future(TypeIR innerType) {
+    return GenericTypeIR(
+      id: 'future_${innerType.id}',
+      sourceLocation: innerType.sourceLocation,
+      name: 'Future',
+      typeArguments: [innerType],
+      isNullable: false,
+    );
+  }
+
+  /// Create a Stream type wrapping another type
+  factory TypeIR.stream(TypeIR innerType) {
+    return GenericTypeIR(
+      id: 'stream_${innerType.id}',
+      sourceLocation: innerType.sourceLocation,
+      name: 'Stream',
+      typeArguments: [innerType],
+      isNullable: false,
+    );
+  }
+
+  /// Create a List type wrapping an element type
+  factory TypeIR.list(TypeIR elementType) {
+    return GenericTypeIR(
+      id: 'list_${elementType.id}',
+      sourceLocation: elementType.sourceLocation,
+      name: 'List',
+      typeArguments: [elementType],
+      isNullable: false,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
