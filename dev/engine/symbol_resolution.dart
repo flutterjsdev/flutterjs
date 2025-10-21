@@ -10,6 +10,7 @@ import 'new_ast_IR/variable_decl.dart';
 import 'new_ast_IR/diagnostics/analysis_issue.dart';
 import 'new_ast_IR/diagnostics/issue_category.dart';
 import 'new_ast_IR/diagnostics/source_location.dart';
+import 'type_inference_pass.dart';
 
 /// Pass 2: Symbol Resolution
 /// 
@@ -272,14 +273,15 @@ class SymbolResolutionPass {
         if (_isChangeNotifier(classDecl)) {
           providerRegistry[classDecl.name] = ProviderInfo(
             className: classDecl.name,
-            type: ProviderType.changeNotifier,
+            type: ProviderTypeState.changeNotifier,
+
             filePath: dartFile.filePath,
             declaration: classDecl,
           );
         } else if (_isProvider(classDecl)) {
           providerRegistry[classDecl.name] = ProviderInfo(
             className: classDecl.name,
-            type: ProviderType.stateNotifier,
+            type: ProviderTypeState.stateNotifier,
             filePath: dartFile.filePath,
             declaration: classDecl,
           );
@@ -638,21 +640,9 @@ class ImportResolution {
   });
 }
 
-class ProviderInfo {
-  final String className;
-  final ProviderType type;
-  final String filePath;
-  final ClassDecl declaration;
-  
-  ProviderInfo({
-    required this.className,
-    required this.type,
-    required this.filePath,
-    required this.declaration,
-  });
-}
 
-enum ProviderType {
+
+enum ProviderTypeState {
   changeNotifier,
   stateNotifier,
   riverpod,

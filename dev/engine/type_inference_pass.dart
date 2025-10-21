@@ -1,15 +1,18 @@
 import 'package:collection/collection.dart';
 
+import 'analyzer/model/core.dart';
 import 'new_ast_IR/class_decl.dart';
 import 'new_ast_IR/dart_file_builder.dart';
 import 'new_ast_IR/function_decl.dart';
 import 'new_ast_IR/ir/expression_ir.dart';
 import 'new_ast_IR/ir/type_ir.dart';
 import 'new_ast_IR/parameter_decl.dart';
+import 'new_ast_IR/state_management/state_management.dart';
 import 'new_ast_IR/variable_decl.dart';
 import 'new_ast_IR/diagnostics/analysis_issue.dart';
 import 'new_ast_IR/diagnostics/issue_category.dart';
 import 'new_ast_IR/diagnostics/source_location.dart';
+import 'symbol_resolution.dart';
 
 /// Pass 3: Type Inference
 /// 
@@ -787,15 +790,23 @@ class TypeInferencePass {
 // SUPPORTING TYPES
 // =========================================================================
 
+
+
 class ProviderInfo {
   final String className;
+  final ProviderTypeState type;
   final String filePath;
+  final ClassDecl declaration;
   
   ProviderInfo({
     required this.className,
+    required this.type,
     required this.filePath,
+    required this.declaration,
   });
 }
+
+
 
 class TypeInferenceInfo {
   /// Cache of inferred types: expression_id -> inferred_type

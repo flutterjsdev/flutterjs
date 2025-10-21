@@ -19,13 +19,7 @@ import '../new_ast_IR/parameter_decl.dart';
 import '../new_ast_IR/variable_decl.dart';
 import 'binary_constain.dart';
 
-/// Serializes Flutter IR to binary format
-///
-/// Binary Format:
-/// [HEADER (8 bytes)]
-/// [STRING_TABLE (variable)]
-/// [IR_DATA (variable)]
-/// [CHECKSUM (32 bytes, optional)]
+/// Serializes Flutter IR to binary format with checksums and validation
 class BinaryIRWriter {
   final BytesBuilder _buffer = BytesBuilder();
   final List<String> _stringTable = [];
@@ -42,12 +36,15 @@ class BinaryIRWriter {
 
   /// Serialize a DartFile IR to binary format
   Uint8List writeFileIR(DartFile fileIR) {
-    // Validate before writing
+    // =====================================================================
+    // STEP 1: Validate before doing any work
+    // =====================================================================
     final validationErrors = _validateFileIR(fileIR);
     if (validationErrors.isNotEmpty) {
       throw SerializationException(
         'Cannot serialize invalid FileIR:\n${validationErrors.join('\n')}',
         offset: 0,
+        context: 'validation',
       );
     }
 
@@ -55,25 +52,36 @@ class BinaryIRWriter {
     _stringTable.clear();
     _stringIndices.clear();
 
-    // Step 1: Collect all strings for deduplication
-    _collectStrings(fileIR);
+    try {
+      // Step 2: Collect all strings for deduplication
+      _collectStrings(fileIR);
 
-    // Step 2: Write header
-    _writeHeader();
+      // Step 3: Write header
+      _writeHeader();
 
-    // Step 3: Write string table
-    _writeStringTable();
+      // Step 4: Write string table
+      _writeStringTable();
 
-    // Step 4: Write IR data
-    _writeFileIRData(fileIR);
+      // Step 5: Write IR data
+      _writeFileIRData(fileIR);
 
-    // Step 5: Write checksum (optional)
-    if (_shouldWriteChecksum) {
-      final data = _buffer.toBytes();
-      _writeChecksum(data);
+      // ===================================================================
+      // STEP 6: Write checksum if enabled
+      // ===================================================================
+      if (_shouldWriteChecksum) {
+        final dataBeforeChecksum = _buffer.toBytes();
+        _writeChecksum(dataBeforeChecksum);
+      }
+
+      return _buffer.toBytes();
+    } catch (e) {
+      if (e is SerializationException) rethrow;
+      throw SerializationException(
+        'Serialization failed: $e',
+        offset: _buffer.length,
+        context: 'writeFileIR',
+      );
     }
-
-    return _buffer.toBytes();
   }
 
   // =========================================================================
@@ -81,20 +89,28 @@ class BinaryIRWriter {
   // =========================================================================
 
   void _writeHeader() {
-    // Magic number (4 bytes): "FLIR"
-    _writeUint32(BinaryConstants.MAGIC_NUMBER);
+    try {
+      // Magic number (4 bytes): "FLIR"
+      _writeUint32(BinaryConstants.MAGIC_NUMBER);
 
-    // Format version (2 bytes)
-    _writeUint16(BinaryConstants.FORMAT_VERSION);
+      // Format version (2 bytes)
+      _writeUint16(BinaryConstants.FORMAT_VERSION);
 
-    // Flags (2 bytes)
-    int flags = 0;
-    if (_shouldWriteChecksum) {
-      flags |= BinaryConstants.FLAG_HAS_CHECKSUM;
+      // Flags (2 bytes)
+      int flags = 0;
+      if (_shouldWriteChecksum) {
+        flags = BinaryConstants.setFlag(flags, BinaryConstants.FLAG_HAS_CHECKSUM);
+      }
+      _writeUint16(flags);
+
+      _headerWritten = true;
+    } catch (e) {
+      throw SerializationException(
+        'Failed to write header: $e',
+        offset: _buffer.length,
+        context: 'header',
+      );
     }
-    _writeUint16(flags);
-
-    _headerWritten = true;
   }
 
   // =========================================================================
@@ -102,14 +118,22 @@ class BinaryIRWriter {
   // =========================================================================
 
   void _writeStringTable() {
-    _stringTableStartOffset = _buffer.length;
+    try {
+      _stringTableStartOffset = _buffer.length;
 
-    // String count
-    _writeUint32(_stringTable.length);
+      // String count
+      _writeUint32(_stringTable.length);
 
-    // Write each string
-    for (final str in _stringTable) {
-      _writeString(str);
+      // Write each string
+      for (int i = 0; i < _stringTable.length; i++) {
+        _writeString(_stringTable[i]);
+      }
+    } catch (e) {
+      throw SerializationException(
+        'Failed to write string table: $e',
+        offset: _buffer.length,
+        context: 'string_table',
+      );
     }
   }
 
@@ -198,50 +222,58 @@ class BinaryIRWriter {
   // =========================================================================
 
   void _writeFileIRData(DartFile fileIR) {
-    _irDataStartOffset = _buffer.length;
+    try {
+      _irDataStartOffset = _buffer.length;
 
-    // File metadata
-    _writeUint32(_getStringRef(fileIR.filePath));
-    _writeUint32(_getStringRef(fileIR.contentHash));
-    _writeUint32(_getStringRef(fileIR.library ?? "<unknown>"));
+      // File metadata
+      _writeUint32(_getStringRef(fileIR.filePath));
+      _writeUint32(_getStringRef(fileIR.contentHash));
+      _writeUint32(_getStringRef(fileIR.library ?? "<unknown>"));
 
-    // Analysis metadata
-    _writeUint64(DateTime.now().millisecondsSinceEpoch);
+      // Analysis metadata
+      _writeUint64(DateTime.now().millisecondsSinceEpoch);
 
-    // Imports
-    _writeUint32(fileIR.imports.length);
-    for (final import in fileIR.imports) {
-      _writeImportStmt(import);
-    }
+      // Imports
+      _writeUint32(fileIR.imports.length);
+      for (final import in fileIR.imports) {
+        _writeImportStmt(import);
+      }
 
-    // Exports
-    _writeUint32(fileIR.exports.length);
-    for (final export in fileIR.exports) {
-      _writeExportStmt(export);
-    }
+      // Exports
+      _writeUint32(fileIR.exports.length);
+      for (final export in fileIR.exports) {
+        _writeExportStmt(export);
+      }
 
-    // Top-level variables
-    _writeUint32(fileIR.variableDeclarations.length);
-    for (final variable in fileIR.variableDeclarations) {
-      _writeVariableDecl(variable);
-    }
+      // Top-level variables
+      _writeUint32(fileIR.variableDeclarations.length);
+      for (final variable in fileIR.variableDeclarations) {
+        _writeVariableDecl(variable);
+      }
 
-    // Functions
-    _writeUint32(fileIR.functionDeclarations.length);
-    for (final func in fileIR.functionDeclarations) {
-      _writeFunctionDecl(func);
-    }
+      // Functions
+      _writeUint32(fileIR.functionDeclarations.length);
+      for (final func in fileIR.functionDeclarations) {
+        _writeFunctionDecl(func);
+      }
 
-    // Classes
-    _writeUint32(fileIR.classDeclarations.length);
-    for (final classDecl in fileIR.classDeclarations) {
-      _writeClassDecl(classDecl);
-    }
+      // Classes
+      _writeUint32(fileIR.classDeclarations.length);
+      for (final classDecl in fileIR.classDeclarations) {
+        _writeClassDecl(classDecl);
+      }
 
-    // Analysis issues
-    _writeUint32(fileIR.analysisIssues.length);
-    for (final issue in fileIR.analysisIssues) {
-      _writeAnalysisIssue(issue);
+      // Analysis issues
+      _writeUint32(fileIR.analysisIssues.length);
+      for (final issue in fileIR.analysisIssues) {
+        _writeAnalysisIssue(issue);
+      }
+    } catch (e) {
+      throw SerializationException(
+        'Failed to write file IR data: $e',
+        offset: _buffer.length,
+        context: 'file_ir_data',
+      );
     }
   }
 
@@ -508,7 +540,62 @@ class BinaryIRWriter {
       _writeByte(BinaryConstants.EXPR_MAP_LITERAL);
       _writeMapLiteralExpression(expr);
     } else if (expr is SetExpressionIR) {
+      _writeByte(BinaryConstants.EXPR_SET_LITERAL);
       _writeSetExpression(expr);
+    } else if (expr is UnaryExpressionIR) {
+      _writeByte(BinaryConstants.EXPR_UNARY);
+      _writeUnaryExpression(expr);
+    } else if (expr is CompoundAssignmentExpressionIR) {
+      _writeByte(BinaryConstants.EXPR_COMPOUND_ASSIGNMENT);
+      _writeCompoundAssignmentExpression(expr);
+    } else if (expr is AssignmentExpressionIR) {
+      _writeByte(BinaryConstants.EXPR_ASSIGNMENT);
+      _writeAssignmentExpression(expr);
+    } else if (expr is IndexAccessExpressionIR) {
+      _writeByte(BinaryConstants.EXPR_INDEX_ACCESS);
+      _writeIndexAccessExpression(expr);
+    } else if (expr is CascadeExpressionIR) {
+      _writeByte(BinaryConstants.EXPR_CASCADE);
+      _writeCascadeExpression(expr);
+    } else if (expr is CastExpressionIR) {
+      _writeByte(BinaryConstants.EXPR_CAST);
+      _writeCastExpression(expr);
+    } else if (expr is TypeCheckExpr) {
+      _writeByte(BinaryConstants.EXPR_TYPE_CHECK);
+      _writeTypeCheckExpression(expr);
+    } else if (expr is AwaitExpr) {
+      _writeByte(BinaryConstants.EXPR_AWAIT);
+      _writeAwaitExpression(expr);
+    } else if (expr is ThrowExpr) {
+      _writeByte(BinaryConstants.EXPR_THROW);
+      _writeThrowExpression(expr);
+    } else if (expr is NullAwareAccessExpressionIR) {
+      _writeByte(BinaryConstants.EXPR_NULL_AWARE);
+      _writeNullAwareAccessExpression(expr);
+    } else if (expr is NullCoalescingExpressionIR) {
+      _writeByte(BinaryConstants.OP_NULL_COALESCE);
+      _writeNullCoalescingExpression(expr);
+    } else if (expr is FunctionCallExpr) {
+      _writeByte(BinaryConstants.EXPR_FUNCTION_CALL);
+      _writeFunctionCallExpression(expr);
+    } else if (expr is StringInterpolationExpressionIR) {
+      _writeByte(BinaryConstants.EXPR_STRING_INTERPOLATION);
+      _writeStringInterpolationExpression(expr);
+    } else if (expr is InstanceCreationExpressionIR) {
+      _writeByte(BinaryConstants.EXPR_INSTANCE_CREATION);
+      _writeInstanceCreationExpression(expr);
+    } else if (expr is LambdaExpr) {
+      _writeByte(BinaryConstants.EXPR_LAMBDA);
+      _writeLambdaExpression(expr);
+    } else if (expr is ThisExpressionIR) {
+      _writeByte(BinaryConstants.EXPR_THIS);
+      _writeThisExpression(expr);
+    } else if (expr is SuperExpressionIR) {
+      _writeByte(BinaryConstants.EXPR_SUPER);
+      _writeSuperExpression(expr);
+    } else if (expr is ParenthesizedExpressionIR) {
+      _writeByte(BinaryConstants.EXPR_PARENTHESIZED);
+      _writeParenthesizedExpression(expr);
     } else {
       _writeByte(BinaryConstants.EXPR_UNKNOWN);
     }
@@ -539,148 +626,16 @@ class BinaryIRWriter {
 
   void _writeBinaryExpression(BinaryExpressionIR expr) {
     _writeExpression(expr.left);
-    _writeUint32(_getStringRef(expr.operator.name));
+    _writeByte(expr.operator.index);
     _writeExpression(expr.right);
     _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
 
-
-
-
-  void _writeConditionalExpression(ConditionalExpressionIR expr) {
-    _writeExpression(expr.condition);
-    _writeExpression(expr.thenExpression);
-    _writeExpression(expr.elseExpression);
-    _writeType(expr.resultType);
-    _writeSourceLocation(expr.sourceLocation);
-  }
-
-  void _writeListLiteralExpression(ListExpressionIR expr) {
-    _writeUint32(expr.elements.length);
-    for (final elem in expr.elements) {
-      _writeExpression(elem);
-    }
-    _writeSourceLocation(expr.sourceLocation);
-  }
-
-  void _writeMapLiteralExpression(MapExpressionIR expr) {
-    _writeUint32(expr.entries.length);
-    for (final entry in expr.entries) {
-      _writeExpression(entry.key);
-      _writeExpression(entry.value);
-    }
-    _writeType(expr.resultType);
-    _writeSourceLocation(expr.sourceLocation);
-  }
-
-  // =========================================================================
-  // SOURCE LOCATION WRITING
-  // =========================================================================
-
-  void _writeSourceLocation(SourceLocationIR location) {
-    _writeUint32(_getStringRef(location.file));
-    _writeUint32(location.line);
-    _writeUint32(location.column);
-    _writeUint32(location.offset);
-    _writeUint32(location.length);
-  }
-
-  // =========================================================================
-  // LOW-LEVEL BINARY WRITING
-  // =========================================================================
-
-  void _writeByte(int value) {
-    _buffer.addByte(value & 0xFF);
-  }
-
-  void _writeUint16(int value) {
-    _buffer.addByte((value & 0xFF));
-    _buffer.addByte((value >> 8) & 0xFF);
-  }
-
-  void _writeUint32(int value) {
-    _buffer.addByte((value & 0xFF));
-    _buffer.addByte((value >> 8) & 0xFF);
-    _buffer.addByte((value >> 16) & 0xFF);
-    _buffer.addByte((value >> 24) & 0xFF);
-  }
-
-  void _writeInt64(int value) {
-    _writeUint32(value & 0xFFFFFFFF);
-    _writeUint32((value >> 32) & 0xFFFFFFFF);
-  }
-
-  void _writeUint64(int value) {
-    _writeInt64(value);
-  }
-
-  void _writeDouble(double value) {
-    final bytes = Float64List(1)..[0] = value;
-    _buffer.add(bytes.buffer.asUint8List());
-  }
-
-  void _writeString(String str) {
-    final bytes = utf8.encode(str);
-    if (bytes.length > BinaryConstants.MAX_STRING_LENGTH) {
-      throw SerializationException(
-        'String too long: ${bytes.length} bytes (max ${BinaryConstants.MAX_STRING_LENGTH})',
-        offset: _buffer.length,
-      );
-    }
-    _writeUint16(bytes.length);
-    _buffer.add(bytes);
-  }
-
-  void _writeChecksum(Uint8List data) {
-    final digest = sha256.convert(data);
-    _buffer.add(digest.bytes);
-  }
-
-  // =========================================================================
-  // VALIDATION
-  // =========================================================================
-
-  List<String> _validateFileIR(DartFile fileIR) {
-    final errors = <String>[];
-
-    if (fileIR.filePath.isEmpty) {
-      errors.add('FileIR.filePath is empty');
-    }
-    if (fileIR.contentHash.isEmpty) {
-      errors.add('FileIR.contentHash is empty');
-    }
-
-    for (final classDecl in fileIR.classDeclarations) {
-      if (classDecl.name.isEmpty) {
-        errors.add('Class has empty name');
-      }
-    }
-
-    return errors;
-  }
-
-
-
-  void _writeSetExpression(SetExpressionIR expr) {
-    _writeUint32(expr.elements.length);
-    for (final elem in expr.elements) {
-      _writeExpression(elem);
-    }
-    _writeType(expr.resultType);
-    _writeSourceLocation(expr.sourceLocation);
-  }
-
-  // --- Binary & Unary Operations ---
-
-
-
   void _writeUnaryExpression(UnaryExpressionIR expr) {
-    _writeUint32(
-      _getStringRef(expr.operator.name),
-    ); // Store operator as string reference
+    _writeByte(expr.operator.index);
     _writeExpression(expr.operand);
-    _writeByte(expr.isPrefix ? 1 : 0); // Store prefix flag
+    _writeByte(expr.isPrefix ? 1 : 0);
     _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
@@ -693,13 +648,11 @@ class BinaryIRWriter {
     _writeSourceLocation(expr.sourceLocation);
   }
 
-  // --- Assignment & Access ---
-
-  void _writeAssignmentExpression(AssignmentExpr expr) {
+  void _writeAssignmentExpression(AssignmentExpressionIR expr) {
     _writeExpression(expr.target);
     _writeExpression(expr.value);
-    _writeByte(expr.isCompound ? 1 : 0);
     _writeSourceLocation(expr.sourceLocation);
+    _writeType(expr.resultType);
   }
 
   void _writeIndexAccessExpression(IndexAccessExpressionIR expr) {
@@ -716,14 +669,14 @@ class BinaryIRWriter {
     for (final section in expr.cascadeSections) {
       _writeExpression(section);
     }
+    _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
-
-  // --- Type Operations ---
 
   void _writeCastExpression(CastExpressionIR expr) {
     _writeExpression(expr.expression);
     _writeType(expr.targetType);
+    _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
 
@@ -731,10 +684,9 @@ class BinaryIRWriter {
     _writeExpression(expr.expression);
     _writeType(expr.typeToCheck);
     _writeByte(expr.isNegated ? 1 : 0);
+    _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
-
-  // --- Async Operations ---
 
   void _writeAwaitExpression(AwaitExpr expr) {
     _writeExpression(expr.futureExpression);
@@ -744,10 +696,9 @@ class BinaryIRWriter {
 
   void _writeThrowExpression(ThrowExpr expr) {
     _writeExpression(expr.exceptionExpression);
+    _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
-
-  // --- Null-Aware Operations ---
 
   void _writeNullAwareAccessExpression(NullAwareAccessExpressionIR expr) {
     _writeExpression(expr.target);
@@ -766,8 +717,6 @@ class BinaryIRWriter {
     _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
-
-  // --- Function & Method Calls ---
 
   void _writeMethodCallExpression(MethodCallExpressionIR expr) {
     _writeByte(expr.target != null ? 1 : 0);
@@ -791,32 +740,23 @@ class BinaryIRWriter {
   }
 
   void _writeFunctionCallExpression(FunctionCallExpr expr) {
-  // Write function name (not expression)
-  _writeUint32(_getStringRef(expr.functionName));
-  
-  // Write positional arguments
-  _writeUint32(expr.arguments.length);
-  for (final arg in expr.arguments) {
-    _writeExpression(arg);
+    _writeUint32(_getStringRef(expr.functionName));
+    _writeUint32(expr.arguments.length);
+    for (final arg in expr.arguments) {
+      _writeExpression(arg);
+    }
+    _writeUint32(expr.namedArguments.length);
+    for (final entry in expr.namedArguments.entries) {
+      _writeUint32(_getStringRef(entry.key));
+      _writeExpression(entry.value);
+    }
+    _writeUint32(expr.typeArguments.length);
+    for (final typeArg in expr.typeArguments) {
+      _writeType(typeArg);
+    }
+    _writeType(expr.resultType);
+    _writeSourceLocation(expr.sourceLocation);
   }
-  
-  // Write named arguments
-  _writeUint32(expr.namedArguments.length);
-  for (final entry in expr.namedArguments.entries) {
-    _writeUint32(_getStringRef(entry.key));
-    _writeExpression(entry.value);
-  }
-  
-  // Write type arguments
-  _writeUint32(expr.typeArguments.length);
-  for (final typeArg in expr.typeArguments) {
-    _writeType(typeArg);
-  }
-  
-  // Write result type and source location
-  _writeType(expr.resultType);
-  _writeSourceLocation(expr.sourceLocation);
-}
 
   void _writeInstanceCreationExpression(InstanceCreationExpressionIR expr) {
     _writeType(expr.type);
@@ -838,44 +778,30 @@ class BinaryIRWriter {
     _writeSourceLocation(expr.sourceLocation);
   }
 
- void _writeLambdaExpression(LambdaExpr expr) {
-  // Write parameters count
-  _writeUint32(expr.parameters.length);
-  
-  // Write each parameter - convert ParameterIR to ParameterDecl-compatible format
-  for (final param in expr.parameters) {
-    _writeUint32(_getStringRef(param.id));
-    _writeUint32(_getStringRef(param.name));
-    _writeType(param.type);
-    
-    _writeByte(param.isRequired ? 1 : 0);
-    _writeByte(param.isNamed ? 1 : 0);
-    _writeByte(param.isOptional ? 1 : 0);
-    
-    _writeByte(param.defaultValue != null ? 1 : 0);
-    if (param.defaultValue != null) {
-      _writeExpression(param.defaultValue!);
+  void _writeLambdaExpression(LambdaExpr expr) {
+    _writeUint32(expr.parameters.length);
+    for (final param in expr.parameters) {
+      _writeUint32(_getStringRef(param.id));
+      _writeUint32(_getStringRef(param.name));
+      _writeType(param.type);
+      _writeByte(param.isRequired ? 1 : 0);
+      _writeByte(param.isNamed ? 1 : 0);
+      _writeByte(param.isOptional ? 1 : 0);
+      _writeByte(param.defaultValue != null ? 1 : 0);
+      if (param.defaultValue != null) {
+        _writeExpression(param.defaultValue!);
+      }
+      _writeSourceLocation(param.sourceLocation);
     }
-    
-    // ParameterIR should have sourceLocation
-    _writeSourceLocation(param.sourceLocation);
+    _writeByte(expr.body != null ? 1 : 0);
+    if (expr.body != null) {
+      _writeExpression(expr.body!);
+    }
+    _writeType(expr.resultType);
+    _writeSourceLocation(expr.sourceLocation);
   }
-  
-  // Write body
-  _writeByte(expr.body != null ? 1 : 0);
-  if (expr.body != null) {
-    _writeExpression(expr.body!);
-  }
-  
-  // Write result type and source location
-  _writeType(expr.resultType);
-  _writeSourceLocation(expr.sourceLocation);
-}
-  // --- String Interpolation ---
 
-  void _writeStringInterpolationExpression(
-    StringInterpolationExpressionIR expr,
-  ) {
+  void _writeStringInterpolationExpression(StringInterpolationExpressionIR expr) {
     _writeUint32(expr.parts.length);
     for (final part in expr.parts) {
       _writeByte(part.isExpression ? 1 : 0);
@@ -885,13 +811,6 @@ class BinaryIRWriter {
         _writeUint32(_getStringRef(part.text!));
       }
     }
-    _writeSourceLocation(expr.sourceLocation);
-  }
-
-  // --- Identifiers & Access ---
-
-  void _writeIdentifierExpression(IdentifierExpressionIR expr) {
-    _writeUint32(_getStringRef(expr.name));
     _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
@@ -904,264 +823,63 @@ class BinaryIRWriter {
     _writeSourceLocation(expr.sourceLocation);
   }
 
- 
+  void _writeConditionalExpression(ConditionalExpressionIR expr) {
+    _writeExpression(expr.condition);
+    _writeExpression(expr.thenExpression);
+    _writeExpression(expr.elseExpression);
+    _writeType(expr.resultType);
+    _writeSourceLocation(expr.sourceLocation);
+  }
 
-  // --- Special ---
+  void _writeListLiteralExpression(ListExpressionIR expr) {
+    _writeUint32(expr.elements.length);
+    for (final elem in expr.elements) {
+      _writeExpression(elem);
+    }
+    _writeByte(expr.isConst ? 1 : 0);
+    _writeType(expr.resultType);
+    _writeSourceLocation(expr.sourceLocation);
+  }
+
+  void _writeMapLiteralExpression(MapExpressionIR expr) {
+    _writeUint32(expr.entries.length);
+    for (final entry in expr.entries) {
+      _writeExpression(entry.key);
+      _writeExpression(entry.value);
+    }
+    _writeByte(expr.isConst ? 1 : 0);
+    _writeType(expr.resultType);
+    _writeSourceLocation(expr.sourceLocation);
+  }
+
+  void _writeSetExpression(SetExpressionIR expr) {
+    _writeUint32(expr.elements.length);
+    for (final elem in expr.elements) {
+      _writeExpression(elem);
+    }
+    _writeType(expr.resultType);
+    _writeSourceLocation(expr.sourceLocation);
+  }
 
   void _writeThisExpression(ThisExpressionIR expr) {
+    _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
 
   void _writeSuperExpression(SuperExpressionIR expr) {
+    _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
 
   void _writeParenthesizedExpression(ParenthesizedExpressionIR expr) {
     _writeExpression(expr.innerExpression);
+    _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
 
-  // ============================================================================
-  // STATEMENT SERIALIZATION - WRITER METHODS
-  // ============================================================================
-  // Add these methods to BinaryIRWriter class
-
-  // --- Simple Statements ---
-
-  void _writeExpressionStatement(ExpressionStmt stmt) {
-    _writeExpression(stmt.expression);
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-void _writeVariableDeclarationStatement(VariableDeclarationStmt stmt) {
-  _writeUint32(_getStringRef(stmt.name));
-  
-  // Write optional type
-  _writeByte(stmt.type != null ? 1 : 0);
-  if (stmt.type != null) {
-    _writeType(stmt.type!);
-  }
-  
-  // Write optional initializer
-  _writeByte(stmt.initializer != null ? 1 : 0);
-  if (stmt.initializer != null) {
-    _writeExpression(stmt.initializer!);
-  }
-  
-  // Write modifiers
-  _writeByte(stmt.isFinal ? 1 : 0);
-  _writeByte(stmt.isConst ? 1 : 0);
-  _writeByte(stmt.isLate ? 1 : 0);
-  
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeReturnStatement(ReturnStmt stmt) {
-  _writeByte(stmt.expression != null ? 1 : 0);
-  if (stmt.expression != null) {
-    _writeExpression(stmt.expression!);
-  }
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-  void _writeBreakStatement(BreakStmt stmt) {
-    _writeByte(stmt.label != null ? 1 : 0);
-    if (stmt.label != null) {
-      _writeUint32(_getStringRef(stmt.label!));
-    }
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-  void _writeContinueStatement(ContinueStmt stmt) {
-    _writeByte(stmt.label != null ? 1 : 0);
-    if (stmt.label != null) {
-      _writeUint32(_getStringRef(stmt.label!));
-    }
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-  void _writeThrowStatement(ThrowStmt stmt) {
-    _writeExpression(stmt.exceptionExpression);
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-  void _writeAssertStatement(AssertStatementIR stmt) {
-    _writeExpression(stmt.condition);
-    _writeByte(stmt.message != null ? 1 : 0);
-    if (stmt.message != null) {
-      _writeExpression(stmt.message!);
-    }
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-  void _writeEmptyStatement(EmptyStatementIR stmt) {
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-  // --- Compound Statements ---
-
-  void _writeBlockStatement(BlockStmt stmt) {
-    _writeUint32(stmt.statements.length);
-    for (final s in stmt.statements) {
-      _writeStatement(s);
-    }
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-  void _writeIfStatement(IfStmt stmt) {
-    _writeExpression(stmt.condition);
-    _writeStatement(stmt.thenBranch);
-    _writeByte(stmt.elseBranch != null ? 1 : 0);
-    if (stmt.elseBranch != null) {
-      _writeStatement(stmt.elseBranch!);
-    }
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-  void _writeForStatement(ForStmt stmt) {
-    // Init
-    _writeByte(stmt.initialization != null ? 1 : 0);
-    if (stmt.initialization != null) {
-      if (stmt.initialization is VariableDeclarationStmt) {
-        _writeByte(0);
-        _writeVariableDeclarationStatement(
-          stmt.initialization as VariableDeclarationStmt,
-        );
-      } else {
-        _writeByte(1);
-        _writeExpression(stmt.initialization as ExpressionIR);
-      }
-    }
-
-    // Condition
-    _writeByte(stmt.condition != null ? 1 : 0);
-    if (stmt.condition != null) {
-      _writeExpression(stmt.condition!);
-    }
-
-    // Update
-    _writeUint32(stmt.updaters.length);
-    for (final update in stmt.updaters) {
-      _writeExpression(update);
-    }
-
-    // Body
-    _writeStatement(stmt.body);
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-  void _writeForEachStatement(ForEachStmt stmt) {
-    _writeUint32(_getStringRef(stmt.loopVariable));
-    _writeExpression(stmt.iterable);
-    _writeStatement(stmt.body);
-    _writeByte(stmt.isAsync ? 1 : 0);
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-  void _writeWhileStatement(WhileStmt stmt) {
-    _writeExpression(stmt.condition);
-    _writeStatement(stmt.body);
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-  void _writeDoWhileStatement(DoWhileStmt stmt) {
-    _writeStatement(stmt.body);
-    _writeExpression(stmt.condition);
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-  void _writeSwitchStatement(SwitchStmt stmt) {
-    _writeExpression(stmt.expression);
-    _writeUint32(stmt.cases.length);
-    for (final switchCase in stmt.cases) {
-      _writeSwitchCase(switchCase);
-    }
-    _writeByte(stmt.defaultCase != null ? 1 : 0);
-    if (stmt.defaultCase != null) {
-      _writeUint32(stmt.defaultCase!.statements.length);
-      for (final s in stmt.defaultCase!.statements) {
-        _writeStatement(s);
-      }
-    }
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
- void _writeSwitchCase(SwitchCaseStmt switchCase) {
-  // Write isDefault flag
-  _writeByte(switchCase.isDefault ? 1 : 0);
-  
-  // Write patterns (can be null)
-  _writeByte(switchCase.patterns != null ? 1 : 0);
-  if (switchCase.patterns != null) {
-    _writeUint32(switchCase.patterns!.length);
-    for (final pattern in switchCase.patterns!) {
-      _writeExpression(pattern);
-    }
-  }
-  
-  // Write statements
-  _writeUint32(switchCase.statements.length);
-  for (final s in switchCase.statements) {
-    _writeStatement(s);
-  }
-}
-  void _writeTryStatement(TryStmt stmt) {
-    _writeStatement(stmt.tryBlock);
-
-    _writeUint32(stmt.catchClauses.length);
-    for (final catchClause in stmt.catchClauses) {
-      _writeCatchClause(catchClause);
-    }
-
-    _writeByte(stmt.finallyBlock != null ? 1 : 0);
-    if (stmt.finallyBlock != null) {
-      _writeStatement(stmt.finallyBlock!);
-    }
-
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
- void _writeCatchClause(CatchClauseStmt catchClause) {
-  // Write exception type (can be null)
-  _writeByte(catchClause.exceptionType != null ? 1 : 0);
-  if (catchClause.exceptionType != null) {
-    _writeType(catchClause.exceptionType!);
-  }
-  
-  // Write exception parameter (can be null)
-  _writeByte(catchClause.exceptionParameter != null ? 1 : 0);
-  if (catchClause.exceptionParameter != null) {
-    _writeUint32(_getStringRef(catchClause.exceptionParameter!));
-  }
-  
-  // Write stack trace parameter (can be null)
-  _writeByte(catchClause.stackTraceParameter != null ? 1 : 0);
-  if (catchClause.stackTraceParameter != null) {
-    _writeUint32(_getStringRef(catchClause.stackTraceParameter!));
-  }
-  
-  // Write body statement
-  _writeStatement(catchClause.body);
-}
-
-  void _writeLabeledStatement(LabeledStatementIR stmt) {
-    _writeUint32(_getStringRef(stmt.label));
-    _writeStatement(stmt.statement);
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-  // --- Special Statements ---
-
-  void _writeYieldStatement(YieldStatementIR stmt) {
-    _writeExpression(stmt.value);
-    _writeByte(stmt.isYieldEach ? 1 : 0);
-    _writeSourceLocation(stmt.sourceLocation);
-  }
-
-  void _writeFunctionDeclarationStatement(FunctionDeclarationStatementIR stmt) {
-    _writeFunctionDecl(stmt.function);
-    _writeSourceLocation(stmt.sourceLocation);
-  }
+  // =========================================================================
+  // STATEMENT WRITING
+  // =========================================================================
 
   void _writeStatement(StatementIR stmt) {
     if (stmt is ExpressionStmt) {
@@ -1225,15 +943,390 @@ void _writeReturnStatement(ReturnStmt stmt) {
       _writeByte(BinaryConstants.STMT_UNKNOWN);
     }
   }
+
+  void _writeExpressionStatement(ExpressionStmt stmt) {
+    _writeExpression(stmt.expression);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeVariableDeclarationStatement(VariableDeclarationStmt stmt) {
+    _writeUint32(_getStringRef(stmt.name));
+    _writeByte(stmt.type != null ? 1 : 0);
+    if (stmt.type != null) {
+      _writeType(stmt.type!);
+    }
+    _writeByte(stmt.initializer != null ? 1 : 0);
+    if (stmt.initializer != null) {
+      _writeExpression(stmt.initializer!);
+    }
+    _writeByte(stmt.isFinal ? 1 : 0);
+    _writeByte(stmt.isConst ? 1 : 0);
+    _writeByte(stmt.isLate ? 1 : 0);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeReturnStatement(ReturnStmt stmt) {
+    _writeByte(stmt.expression != null ? 1 : 0);
+    if (stmt.expression != null) {
+      _writeExpression(stmt.expression!);
+    }
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeBreakStatement(BreakStmt stmt) {
+    _writeByte(stmt.label != null ? 1 : 0);
+    if (stmt.label != null) {
+      _writeUint32(_getStringRef(stmt.label!));
+    }
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeContinueStatement(ContinueStmt stmt) {
+    _writeByte(stmt.label != null ? 1 : 0);
+    if (stmt.label != null) {
+      _writeUint32(_getStringRef(stmt.label!));
+    }
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeThrowStatement(ThrowStmt stmt) {
+    _writeExpression(stmt.exceptionExpression);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeAssertStatement(AssertStatementIR stmt) {
+    _writeExpression(stmt.condition);
+    _writeByte(stmt.message != null ? 1 : 0);
+    if (stmt.message != null) {
+      _writeExpression(stmt.message!);
+    }
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeEmptyStatement(EmptyStatementIR stmt) {
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeBlockStatement(BlockStmt stmt) {
+    _writeUint32(stmt.statements.length);
+    for (final s in stmt.statements) {
+      _writeStatement(s);
+    }
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeIfStatement(IfStmt stmt) {
+    _writeExpression(stmt.condition);
+    _writeStatement(stmt.thenBranch);
+    _writeByte(stmt.elseBranch != null ? 1 : 0);
+    if (stmt.elseBranch != null) {
+      _writeStatement(stmt.elseBranch!);
+    }
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeForStatement(ForStmt stmt) {
+    _writeByte(stmt.initialization != null ? 1 : 0);
+    if (stmt.initialization != null) {
+      if (stmt.initialization is VariableDeclarationStmt) {
+        _writeByte(0);
+        _writeVariableDeclarationStatement(stmt.initialization as VariableDeclarationStmt);
+      } else {
+        _writeByte(1);
+        _writeExpression(stmt.initialization as ExpressionIR);
+      }
+    }
+    _writeByte(stmt.condition != null ? 1 : 0);
+    if (stmt.condition != null) {
+      _writeExpression(stmt.condition!);
+    }
+    _writeUint32(stmt.updaters.length);
+    for (final update in stmt.updaters) {
+      _writeExpression(update);
+    }
+    _writeStatement(stmt.body);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeForEachStatement(ForEachStmt stmt) {
+    _writeUint32(_getStringRef(stmt.loopVariable));
+    _writeByte(stmt.loopVariableType != null ? 1 : 0);
+    if (stmt.loopVariableType != null) {
+      _writeType(stmt.loopVariableType!);
+    }
+    _writeExpression(stmt.iterable);
+    _writeStatement(stmt.body);
+    _writeByte(stmt.isAsync ? 1 : 0);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeWhileStatement(WhileStmt stmt) {
+    _writeExpression(stmt.condition);
+    _writeStatement(stmt.body);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeDoWhileStatement(DoWhileStmt stmt) {
+    _writeStatement(stmt.body);
+    _writeExpression(stmt.condition);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeSwitchStatement(SwitchStmt stmt) {
+    _writeExpression(stmt.expression);
+    _writeUint32(stmt.cases.length);
+    for (final switchCase in stmt.cases) {
+      _writeSwitchCase(switchCase);
+    }
+    _writeByte(stmt.defaultCase != null ? 1 : 0);
+    if (stmt.defaultCase != null) {
+      _writeUint32(stmt.defaultCase!.statements.length);
+      for (final s in stmt.defaultCase!.statements) {
+        _writeStatement(s);
+      }
+    }
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeSwitchCase(SwitchCaseStmt switchCase) {
+    _writeByte(switchCase.isDefault ? 1 : 0);
+    _writeByte(switchCase.patterns != null ? 1 : 0);
+    if (switchCase.patterns != null) {
+      _writeUint32(switchCase.patterns!.length);
+      for (final pattern in switchCase.patterns!) {
+        _writeExpression(pattern);
+      }
+    }
+    _writeUint32(switchCase.statements.length);
+    for (final s in switchCase.statements) {
+      _writeStatement(s);
+    }
+  }
+
+  void _writeTryStatement(TryStmt stmt) {
+    _writeStatement(stmt.tryBlock);
+    _writeUint32(stmt.catchClauses.length);
+    for (final catchClause in stmt.catchClauses) {
+      _writeCatchClause(catchClause);
+    }
+    _writeByte(stmt.finallyBlock != null ? 1 : 0);
+    if (stmt.finallyBlock != null) {
+      _writeStatement(stmt.finallyBlock!);
+    }
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeCatchClause(CatchClauseStmt catchClause) {
+    _writeByte(catchClause.exceptionType != null ? 1 : 0);
+    if (catchClause.exceptionType != null) {
+      _writeType(catchClause.exceptionType!);
+    }
+    _writeByte(catchClause.exceptionParameter != null ? 1 : 0);
+    if (catchClause.exceptionParameter != null) {
+      _writeUint32(_getStringRef(catchClause.exceptionParameter!));
+    }
+    _writeByte(catchClause.stackTraceParameter != null ? 1 : 0);
+    if (catchClause.stackTraceParameter != null) {
+      _writeUint32(_getStringRef(catchClause.stackTraceParameter!));
+    }
+    _writeStatement(catchClause.body);
+  }
+
+  void _writeLabeledStatement(LabeledStatementIR stmt) {
+    _writeUint32(_getStringRef(stmt.label));
+    _writeStatement(stmt.statement);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeYieldStatement(YieldStatementIR stmt) {
+    _writeExpression(stmt.value);
+    _writeByte(stmt.isYieldEach ? 1 : 0);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeFunctionDeclarationStatement(FunctionDeclarationStatementIR stmt) {
+    _writeFunctionDecl(stmt.function);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  // =========================================================================
+  // SOURCE LOCATION WRITING
+  // =========================================================================
+
+  void _writeSourceLocation(SourceLocationIR location) {
+    _writeUint32(_getStringRef(location.file));
+    _writeUint32(location.line);
+    _writeUint32(location.column);
+    _writeUint32(location.offset);
+    _writeUint32(location.length);
+  }
+
+  // =========================================================================
+  // CHECKSUM WRITING (PRIORITY 1)
+  // =========================================================================
+
+  /// Computes SHA256 checksum of data and appends it to buffer
+  void _writeChecksum(Uint8List data) {
+    try {
+      final digest = sha256.convert(data);
+      final checksumBytes = digest.bytes;
+      _buffer.add(checksumBytes);
+    } catch (e) {
+      throw SerializationException(
+        'Failed to compute checksum: $e',
+        offset: _buffer.length,
+        context: 'checksum_write',
+      );
+    }
+  }
+
+  // =========================================================================
+  // VALIDATION (PRIORITY 2)
+  // =========================================================================
+
+  /// Enhanced validation before serialization
+  List<String> _validateFileIR(DartFile fileIR) {
+    final errors = <String>[];
+
+    // Basic file validation
+    if (fileIR.filePath.isEmpty) {
+      errors.add('FileIR.filePath is empty');
+    } else if (fileIR.filePath.length > BinaryConstants.MAX_STRING_LENGTH) {
+      errors.add('File path too long: ${fileIR.filePath.length} bytes');
+    }
+
+    if (fileIR.contentHash.isEmpty) {
+      errors.add('FileIR.contentHash is empty');
+    }
+
+    // Validate collections aren't too large
+    if (fileIR.classDeclarations.length > BinaryConstants.MAX_ARRAY_COUNT) {
+      errors.add('Too many classes: ${fileIR.classDeclarations.length}');
+    }
+    if (fileIR.functionDeclarations.length > BinaryConstants.MAX_ARRAY_COUNT) {
+      errors.add('Too many functions: ${fileIR.functionDeclarations.length}');
+    }
+    if (fileIR.variableDeclarations.length > BinaryConstants.MAX_ARRAY_COUNT) {
+      errors.add('Too many variables: ${fileIR.variableDeclarations.length}');
+    }
+
+    // Validate class declarations
+    for (final classDecl in fileIR.classDeclarations) {
+      if (classDecl.name.isEmpty) {
+        errors.add('Class has empty name');
+      } else if (classDecl.name.length > BinaryConstants.MAX_STRING_LENGTH) {
+        errors.add('Class name too long: "${classDecl.name}"');
+      }
+
+      if (classDecl.fields.length > BinaryConstants.MAX_ARRAY_COUNT) {
+        errors.add('Class ${classDecl.name} has too many fields');
+      }
+      if (classDecl.methods.length > BinaryConstants.MAX_ARRAY_COUNT) {
+        errors.add('Class ${classDecl.name} has too many methods');
+      }
+
+      for (final field in classDecl.fields) {
+        if (field.name.isEmpty) {
+          errors.add('Field in class ${classDecl.name} has empty name');
+        }
+      }
+
+      for (final method in classDecl.methods) {
+        if (method.name.isEmpty) {
+          errors.add('Method in class ${classDecl.name} has empty name');
+        }
+        if (method.parameters.length > BinaryConstants.MAX_ARRAY_COUNT) {
+          errors.add('Method ${classDecl.name}.${method.name} has too many parameters');
+        }
+      }
+    }
+
+    // Validate function declarations
+    for (final func in fileIR.functionDeclarations) {
+      if (func.name.isEmpty) {
+        errors.add('Function has empty name');
+      } else if (func.name.length > BinaryConstants.MAX_STRING_LENGTH) {
+        errors.add('Function name too long: "${func.name}"');
+      }
+
+      if (func.parameters.length > BinaryConstants.MAX_ARRAY_COUNT) {
+        errors.add('Function ${func.name} has too many parameters');
+      }
+    }
+
+    // Validate imports
+    for (final import in fileIR.imports) {
+      if (import.uri.isEmpty) {
+        errors.add('Import has empty URI');
+      }
+      if (import.showList.length > BinaryConstants.MAX_ARRAY_COUNT) {
+        errors.add('Import ${import.uri} has too many show items');
+      }
+    }
+
+    return errors;
+  }
+
+  // =========================================================================
+  // LOW-LEVEL BINARY WRITING
+  // =========================================================================
+
+  void _writeByte(int value) {
+    _buffer.addByte(value & 0xFF);
+  }
+
+  void _writeUint16(int value) {
+    _buffer.addByte((value & 0xFF));
+    _buffer.addByte((value >> 8) & 0xFF);
+  }
+
+  void _writeUint32(int value) {
+    _buffer.addByte((value & 0xFF));
+    _buffer.addByte((value >> 8) & 0xFF);
+    _buffer.addByte((value >> 16) & 0xFF);
+    _buffer.addByte((value >> 24) & 0xFF);
+  }
+
+  void _writeInt64(int value) {
+    _writeUint32(value & 0xFFFFFFFF);
+    _writeUint32((value >> 32) & 0xFFFFFFFF);
+  }
+
+  void _writeUint64(int value) {
+    _writeInt64(value);
+  }
+
+  void _writeDouble(double value) {
+    final bytes = Float64List(1)..[0] = value;
+    _buffer.add(bytes.buffer.asUint8List());
+  }
+
+  void _writeString(String str) {
+    final bytes = utf8.encode(str);
+    if (bytes.length > BinaryConstants.MAX_STRING_LENGTH) {
+      throw SerializationException(
+        'String too long: ${bytes.length} bytes (max ${BinaryConstants.MAX_STRING_LENGTH})',
+        offset: _buffer.length,
+        context: 'string_write',
+      );
+    }
+    _writeUint16(bytes.length);
+    _buffer.add(bytes);
+  }
 }
 
-/// Exception thrown during serialization
+/// Enhanced exception with context information
 class SerializationException implements Exception {
   final String message;
   final int offset;
+  final String context;
 
-  SerializationException(this.message, {required this.offset});
+  SerializationException(
+    this.message, {
+    required this.offset,
+    this.context = 'unknown',
+  });
 
   @override
-  String toString() => 'SerializationException at offset $offset: $message';
+  String toString() => 'SerializationException [$context] at offset $offset: $message';
 }

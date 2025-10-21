@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
-
+import 'package:crypto/crypto.dart';
 import '../new_ast_IR/class_decl.dart';
 import '../new_ast_IR/dart_file_builder.dart';
 import '../new_ast_IR/diagnostics/analysis_issue.dart';
@@ -31,7 +31,7 @@ class BinaryIRReader {
   late ByteData _data;
   late List<String> _stringTable;
   int _offset = 0;
-
+ bool _hasChecksumFlag = false;
   // =========================================================================
   // PUBLIC API
   // =========================================================================
@@ -60,6 +60,9 @@ class BinaryIRReader {
       final fileIR = _readFileIRData();
 
       // Step 4: Validate checksum if present (handled in header)
+       if (_hasChecksumFlag) {
+        _validateChecksum(bytes);
+      }
 
       return fileIR;
     } catch (e) {
@@ -97,7 +100,7 @@ class BinaryIRReader {
 
     // Flags
     final flags = _readUint16();
-    final hasChecksum = (flags & BinaryConstants.FLAG_HAS_CHECKSUM) != 0;
+     _hasChecksumFlag  = (flags & BinaryConstants.FLAG_HAS_CHECKSUM) != 0;
     final isCompressed = (flags & BinaryConstants.FLAG_COMPRESSED) != 0;
 
     if (isCompressed) {
@@ -107,7 +110,7 @@ class BinaryIRReader {
       );
     }
 
-    // TODO: Implement checksum validation if hasChecksum
+     print('Header read - Checksum present: $_hasChecksumFlag');
   }
 
   // =========================================================================
@@ -507,6 +510,52 @@ class BinaryIRReader {
       isFactory: isFactory,
       sourceLocation: sourceLocation,
     );
+  }
+
+  
+  // =========================================================================
+  // STEP 6: Add checksum validation method (NEW)
+  // =========================================================================
+  /// Validates the checksum at the end of the file
+    bool _bytesEqual(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+  void _validateChecksum(Uint8List allBytes) {
+    // Checksum is the last 32 bytes
+    if (allBytes.length < BinaryConstants.CHECKSUM_SIZE) {
+      throw SerializationException(
+        'File too small for checksum: ${allBytes.length} bytes',
+        offset: allBytes.length,
+      );
+    }
+
+    // Extract checksum from end of file
+    final checksumStart = allBytes.length - BinaryConstants.CHECKSUM_SIZE;
+    final checksumFromFile = allBytes.sublist(checksumStart);
+
+    // Get data WITHOUT the checksum
+    final dataWithoutChecksum = allBytes.sublist(0, checksumStart);
+
+    // Recompute checksum
+    final computedDigest = sha256.convert(dataWithoutChecksum);
+    final computedChecksum = computedDigest.bytes;
+
+    // Compare
+    if (!_bytesEqual(computedChecksum, checksumFromFile)) {
+      print('File checksum: ${checksumFromFile.map((b) => b.toRadixString(16).padLeft(2, '0')).join('')}');
+      print('Computed checksum: ${computedDigest.toString()}');
+      
+      throw SerializationException(
+        'Checksum mismatch: file may be corrupted or tampered with',
+        offset: checksumStart,
+      );
+    }
+
+    print('Checksum verified: ${computedDigest.toString().substring(0, 16)}...');
   }
 
   AnalysisIssue _readAnalysisIssue() {
