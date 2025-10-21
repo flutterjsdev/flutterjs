@@ -9,6 +9,9 @@ import '../new_ast_IR/diagnostics/source_location.dart';
 import '../new_ast_IR/function_decl.dart';
 import '../new_ast_IR/import_export_stmt.dart';
 import '../new_ast_IR/ir/expression_ir.dart';
+import '../new_ast_IR/ir/expression_types/advanced/advanced.dart';
+import '../new_ast_IR/ir/expression_types/function_method_calls/function_method_calls.dart';
+import '../new_ast_IR/ir/expression_types/operations/operations.dart';
 import '../new_ast_IR/ir/statement/statement_ir.dart';
 import '../new_ast_IR/ir/type_ir.dart';
 import '../new_ast_IR/parameter_decl.dart';
@@ -698,7 +701,7 @@ class BinaryIRWriter {
     for (final elem in expr.elements) {
       _writeExpression(elem);
     }
-    _writeType(expr.elementType);
+    _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
 
@@ -729,7 +732,7 @@ class BinaryIRWriter {
 
   // --- Assignment & Access ---
 
-  void _writeAssignmentExpression(AssignmentExpressionIR expr) {
+  void _writeAssignmentExpression(AssignmentExpr expr) {
     _writeExpression(expr.target);
     _writeExpression(expr.value);
     _writeByte(expr.isCompound ? 1 : 0);
@@ -761,23 +764,23 @@ class BinaryIRWriter {
     _writeSourceLocation(expr.sourceLocation);
   }
 
-  void _writeTypeCheckExpression(TypeCheckExpressionIR expr) {
+  void _writeTypeCheckExpression(TypeCheckExpr expr) {
     _writeExpression(expr.expression);
-    _writeType(expr.checkType);
+    _writeType(expr.typeToCheck);
     _writeByte(expr.isNegated ? 1 : 0);
     _writeSourceLocation(expr.sourceLocation);
   }
 
   // --- Async Operations ---
 
-  void _writeAwaitExpression(AwaitExpressionIR expr) {
+  void _writeAwaitExpression(AwaitExpr expr) {
     _writeExpression(expr.futureExpression);
     _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
 
-  void _writeThrowExpression(ThrowExpressionIR expr) {
-    _writeExpression(expr.exception);
+  void _writeThrowExpression(ThrowExpr expr) {
+    _writeExpression(expr.exceptionExpression);
     _writeSourceLocation(expr.sourceLocation);
   }
 
@@ -824,7 +827,7 @@ class BinaryIRWriter {
     _writeSourceLocation(expr.sourceLocation);
   }
 
-  void _writeFunctionCallExpression(FunctionCallExpressionIR expr) {
+  void _writeFunctionCallExpression(FunctionCallExpr expr) {
     _writeExpression(expr.function);
     _writeUint32(expr.arguments.length);
     for (final arg in expr.arguments) {
@@ -859,7 +862,7 @@ class BinaryIRWriter {
     _writeSourceLocation(expr.sourceLocation);
   }
 
-  void _writeLambdaExpression(LambdaExpressionIR expr) {
+  void _writeLambdaExpression(LambdaExpr expr) {
     _writeUint32(expr.parameters.length);
     for (final param in expr.parameters) {
       _writeParameterDecl(param);
@@ -868,7 +871,7 @@ class BinaryIRWriter {
     if (expr.body != null) {
       _writeExpression(expr.body!);
     }
-    _writeType(expr.returnType);
+    _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
 
@@ -937,12 +940,12 @@ class BinaryIRWriter {
 
 // --- Simple Statements ---
 
-void _writeExpressionStatement(ExpressionStatementIR stmt) {
+void _writeExpressionStatement(ExpressionStmt stmt) {
   _writeExpression(stmt.expression);
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeVariableDeclarationStatement(VariableDeclarationStatementIR stmt) {
+void _writeVariableDeclarationStatement(VariableDeclarationStmt stmt) {
   _writeUint32(stmt.variables.length);
   for (final variable in stmt.variables) {
     _writeVariableDecl(variable);
@@ -950,7 +953,7 @@ void _writeVariableDeclarationStatement(VariableDeclarationStatementIR stmt) {
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeReturnStatement(ReturnStatementIR stmt) {
+void _writeReturnStatement(ReturnStmt stmt) {
   _writeByte(stmt.value != null ? 1 : 0);
   if (stmt.value != null) {
     _writeExpression(stmt.value!);
@@ -958,7 +961,7 @@ void _writeReturnStatement(ReturnStatementIR stmt) {
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeBreakStatement(BreakStatementIR stmt) {
+void _writeBreakStatement(BreakStmt stmt) {
   _writeByte(stmt.label != null ? 1 : 0);
   if (stmt.label != null) {
     _writeUint32(_getStringRef(stmt.label!));
@@ -966,7 +969,7 @@ void _writeBreakStatement(BreakStatementIR stmt) {
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeContinueStatement(ContinueStatementIR stmt) {
+void _writeContinueStatement(ContinueStmt stmt) {
   _writeByte(stmt.label != null ? 1 : 0);
   if (stmt.label != null) {
     _writeUint32(_getStringRef(stmt.label!));
@@ -974,7 +977,7 @@ void _writeContinueStatement(ContinueStatementIR stmt) {
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeThrowStatement(ThrowStatementIR stmt) {
+void _writeThrowStatement(ThrowStmt stmt) {
   _writeExpression(stmt.exception);
   _writeSourceLocation(stmt.sourceLocation);
 }
@@ -994,7 +997,7 @@ void _writeEmptyStatement(EmptyStatementIR stmt) {
 
 // --- Compound Statements ---
 
-void _writeBlockStatement(BlockStatementIR stmt) {
+void _writeBlockStatement(BlockStmt stmt) {
   _writeUint32(stmt.statements.length);
   for (final s in stmt.statements) {
     _writeStatement(s);
@@ -1002,7 +1005,7 @@ void _writeBlockStatement(BlockStatementIR stmt) {
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeIfStatement(IfStatementIR stmt) {
+void _writeIfStatement(IfStmt stmt) {
   _writeExpression(stmt.condition);
   _writeStatement(stmt.thenBranch);
   _writeByte(stmt.elseBranch != null ? 1 : 0);
@@ -1012,16 +1015,16 @@ void _writeIfStatement(IfStatementIR stmt) {
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeForStatement(ForStatementIR stmt) {
+void _writeForStatement(ForStmt stmt) {
   // Init
-  _writeByte(stmt.init != null ? 1 : 0);
-  if (stmt.init != null) {
-    if (stmt.init is VariableDeclarationStatementIR) {
+  _writeByte(stmt.initialization != null ? 1 : 0);
+  if (stmt.initialization != null) {
+    if (stmt.initialization is VariableDeclarationStmt) {
       _writeByte(0);
-      _writeVariableDeclarationStatement(stmt.init as VariableDeclarationStatementIR);
+      _writeVariableDeclarationStatement(stmt.initialization as VariableDeclarationStmt);
     } else {
       _writeByte(1);
-      _writeExpression(stmt.init as ExpressionIR);
+      _writeExpression(stmt.initialization as ExpressionIR);
     }
   }
 
@@ -1032,8 +1035,8 @@ void _writeForStatement(ForStatementIR stmt) {
   }
 
   // Update
-  _writeUint32(stmt.updates.length);
-  for (final update in stmt.updates) {
+  _writeUint32(stmt.updaters.length);
+  for (final update in stmt.updaters) {
     _writeExpression(update);
   }
 
@@ -1042,27 +1045,27 @@ void _writeForStatement(ForStatementIR stmt) {
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeForEachStatement(ForEachStatementIR stmt) {
-  _writeUint32(_getStringRef(stmt.variable));
+void _writeForEachStatement(ForEachStmt stmt) {
+  _writeUint32(_getStringRef(stmt.loopVariable));
   _writeExpression(stmt.iterable);
   _writeStatement(stmt.body);
   _writeByte(stmt.isAsync ? 1 : 0);
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeWhileStatement(WhileStatementIR stmt) {
+void _writeWhileStatement(WhileStmt stmt) {
   _writeExpression(stmt.condition);
   _writeStatement(stmt.body);
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeDoWhileStatement(DoWhileStatementIR stmt) {
+void _writeDoWhileStatement(DoWhileStmt stmt) {
   _writeStatement(stmt.body);
   _writeExpression(stmt.condition);
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeSwitchStatement(SwitchStatementIR stmt) {
+void _writeSwitchStatement(SwitchStmt stmt) {
   _writeExpression(stmt.expression);
   _writeUint32(stmt.cases.length);
   for (final switchCase in stmt.cases) {
@@ -1078,7 +1081,7 @@ void _writeSwitchStatement(SwitchStatementIR stmt) {
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeSwitchCase(SwitchCaseIR switchCase) {
+void _writeSwitchCase(SwitchCaseStmt switchCase) {
   _writeUint32(switchCase.labels.length);
   for (final label in switchCase.labels) {
     _writeExpression(label);
@@ -1089,7 +1092,7 @@ void _writeSwitchCase(SwitchCaseIR switchCase) {
   }
 }
 
-void _writeTryStatement(TryStatementIR stmt) {
+void _writeTryStatement(TryStmt stmt) {
   _writeStatement(stmt.tryBlock);
   
   _writeUint32(stmt.catchClauses.length);
@@ -1105,7 +1108,7 @@ void _writeTryStatement(TryStatementIR stmt) {
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeCatchClause(CatchClauseIR catchClause) {
+void _writeCatchClause(CatchClauseStmt catchClause) {
   _writeType(catchClause.exceptionType);
   _writeByte(catchClause.exceptionVariable != null ? 1 : 0);
   if (catchClause.exceptionVariable != null) {
@@ -1138,52 +1141,53 @@ void _writeFunctionDeclarationStatement(FunctionDeclarationStatementIR stmt) {
 }
 
 void _writeStatement(StatementIR stmt) {
-  if (stmt is ExpressionStatementIR) {
+  if (stmt is ExpressionStmt) {
     _writeByte(BinaryConstants.STMT_EXPRESSION);
     _writeExpressionStatement(stmt);
-  } else if (stmt is VariableDeclarationStatementIR) {
+  } else if (stmt is VariableDeclarationStmt) {
     _writeByte(BinaryConstants.STMT_VAR_DECL);
     _writeVariableDeclarationStatement(stmt);
-  } else if (stmt is ReturnStatementIR) {
+  } else if (stmt is ReturnStmt) {
     _writeByte(BinaryConstants.STMT_RETURN);
     _writeReturnStatement(stmt);
-  } else if (stmt is BreakStatementIR) {
+  } else if (stmt is BreakStmt) {
     _writeByte(BinaryConstants.STMT_BREAK);
     _writeBreakStatement(stmt);
-  } else if (stmt is ContinueStatementIR) {
+  } else if (stmt is ContinueStmt) {
     _writeByte(BinaryConstants.STMT_CONTINUE);
     _writeContinueStatement(stmt);
-  } else if (stmt is ThrowStatementIR) {
+  } else if (stmt is ThrowStmt) {
     _writeByte(BinaryConstants.STMT_THROW);
     _writeThrowStatement(stmt);
   } else if (stmt is AssertStatementIR) {
     _writeByte(BinaryConstants.STMT_ASSERT);
     _writeAssertStatement(stmt);
-  } else if (stmt is EmptyStatementIR) {
+  }
+   else if (stmt is EmptyStatementIR) {
     _writeByte(BinaryConstants.STMT_EMPTY);
     _writeEmptyStatement(stmt);
-  } else if (stmt is BlockStatementIR) {
+  } else if (stmt is BlockStmt) {
     _writeByte(BinaryConstants.STMT_BLOCK);
     _writeBlockStatement(stmt);
-  } else if (stmt is IfStatementIR) {
+  } else if (stmt is IfStmt) {
     _writeByte(BinaryConstants.STMT_IF);
     _writeIfStatement(stmt);
-  } else if (stmt is ForStatementIR) {
+  } else if (stmt is ForStmt) {
     _writeByte(BinaryConstants.STMT_FOR);
     _writeForStatement(stmt);
-  } else if (stmt is ForEachStatementIR) {
+  } else if (stmt is ForEachStmt) {
     _writeByte(BinaryConstants.STMT_FOR_EACH);
     _writeForEachStatement(stmt);
-  } else if (stmt is WhileStatementIR) {
+  } else if (stmt is WhileStmt) {
     _writeByte(BinaryConstants.STMT_WHILE);
     _writeWhileStatement(stmt);
-  } else if (stmt is DoWhileStatementIR) {
+  } else if (stmt is DoWhileStmt) {
     _writeByte(BinaryConstants.STMT_DO_WHILE);
     _writeDoWhileStatement(stmt);
-  } else if (stmt is SwitchStatementIR) {
+  } else if (stmt is SwitchStmt) {
     _writeByte(BinaryConstants.STMT_SWITCH);
     _writeSwitchStatement(stmt);
-  } else if (stmt is TryStatementIR) {
+  } else if (stmt is TryStmt) {
     _writeByte(BinaryConstants.STMT_TRY);
     _writeTryStatement(stmt);
   } else if (stmt is LabeledStatementIR) {
