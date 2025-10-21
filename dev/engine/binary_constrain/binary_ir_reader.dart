@@ -1354,28 +1354,28 @@ class BinaryIRReader {
 
   // --- Collections ---
 
-  ListLiteralExpressionIR _readListLiteralExpression() {
+  ListExpressionIR _readListLiteralExpression() {
     final elementCount = _readUint32();
     final elements = <ExpressionIR>[];
     for (int i = 0; i < elementCount; i++) {
       elements.add(_readExpression());
     }
-    final elementType = _readType();
+  
     final isConst = _readByte() != 0;
     final resultType = _readType();
     final sourceLocation = _readSourceLocation();
 
-    return ListLiteralExpressionIR(
+    return ListExpressionIR(
       id: 'expr_list',
       elements: elements,
-      elementType: elementType,
+    
       isConst: isConst,
       resultType: resultType,
       sourceLocation: sourceLocation,
     );
   }
 
-  MapLiteralExpressionIR _readMapLiteralExpression() {
+  MapExpressionIR _readMapLiteralExpression() {
     final entryCount = _readUint32();
     final entries = <MapEntryIR>[];
     for (int i = 0; i < entryCount; i++) {
@@ -1389,7 +1389,7 @@ class BinaryIRReader {
     final resultType = _readType();
     final sourceLocation = _readSourceLocation();
 
-    return MapLiteralExpressionIR(
+    return MapExpressionIR(
       id: 'expr_map',
       entries: entries,
       keyType: keyType,
@@ -1402,22 +1402,6 @@ class BinaryIRReader {
 
   // --- Control Flow ---
 
-  ConditionalExpressionIR _readConditionalExpression() {
-    final condition = _readExpression();
-    final thenExpression = _readExpression();
-    final elseExpression = _readExpression();
-    final resultType = _readType();
-    final sourceLocation = _readSourceLocation();
-
-    return ConditionalExpressionIR(
-      id: 'expr_cond',
-      condition: condition,
-      thenExpression: thenExpression,
-      elseExpression: elseExpression,
-      resultType: resultType,
-      sourceLocation: sourceLocation,
-    );
-  }
 
   // --- Special ---
 
@@ -1451,72 +1435,75 @@ class BinaryIRReader {
 
   // --- Simple Statements ---
 
-  ExpressionStatementIR _readExpressionStatement() {
+  ExpressionStmt _readExpressionStatement() {
     final expression = _readExpression();
     final sourceLocation = _readSourceLocation();
-    return ExpressionStatementIR(
+    return ExpressionStmt(
       id: 'stmt_expr',
       expression: expression,
       sourceLocation: sourceLocation,
     );
   }
 
-  VariableDeclarationStatementIR _readVariableDeclarationStatement() {
+  VariableDeclarationStmt _readVariableDeclarationStatement() {
     final varCount = _readUint32();
     final variables = <VariableDecl>[];
     for (int i = 0; i < varCount; i++) {
       variables.add(_readVariableDecl());
     }
     final sourceLocation = _readSourceLocation();
-    return VariableDeclarationStatementIR(
+    return VariableDeclarationStmt(
       id: 'stmt_var_decl',
+      name: ,
       variables: variables,
       sourceLocation: sourceLocation,
     );
   }
 
-  ReturnStatementIR _readReturnStatement() {
+  ReturnStmt _readReturnStatement() {
     final hasValue = _readByte() != 0;
     ExpressionIR? value;
     if (hasValue) {
       value = _readExpression();
     }
     final sourceLocation = _readSourceLocation();
-    return ReturnStatementIR(
+    return ReturnStmt(
       id: 'stmt_return',
-      value: value,
+      expression: value,
       sourceLocation: sourceLocation,
     );
   }
 
-  BreakStatementIR _readBreakStatement() {
+  BreakStmt _readBreakStatement() {
     final hasLabel = _readByte() != 0;
     final label = hasLabel ? _readStringRef() : null;
     final sourceLocation = _readSourceLocation();
-    return BreakStatementIR(
+    return BreakStmt(
       id: 'stmt_break',
       label: label,
       sourceLocation: sourceLocation,
     );
   }
 
-  ContinueStatementIR _readContinueStatement() {
+  ContinueStmt _readContinueStatement() {
     final hasLabel = _readByte() != 0;
     final label = hasLabel ? _readStringRef() : null;
     final sourceLocation = _readSourceLocation();
-    return ContinueStatementIR(
+    return ContinueStmt(
       id: 'stmt_continue',
       label: label,
       sourceLocation: sourceLocation,
     );
   }
 
-  ThrowStatementIR _readThrowStatement() {
+  ThrowStmt _readThrowStatement() {
     final exception = _readExpression();
     final sourceLocation = _readSourceLocation();
-    return ThrowStatementIR(
+    return ThrowStmt(
       id: 'stmt_throw',
-      exception: exception,
+      // exception: exception,
+      exceptionExpression: exception,
+
       sourceLocation: sourceLocation,
     );
   }
@@ -1544,21 +1531,21 @@ class BinaryIRReader {
 
   // --- Compound Statements ---
 
-  BlockStatementIR _readBlockStatement() {
+  BlockStmt _readBlockStatement() {
     final stmtCount = _readUint32();
     final statements = <StatementIR>[];
     for (int i = 0; i < stmtCount; i++) {
       statements.add(_readStatement());
     }
     final sourceLocation = _readSourceLocation();
-    return BlockStatementIR(
+    return BlockStmt(
       id: 'stmt_block',
       statements: statements,
       sourceLocation: sourceLocation,
     );
   }
 
-  IfStatementIR _readIfStatement() {
+  IfStmt _readIfStatement() {
     final condition = _readExpression();
     final thenBranch = _readStatement();
     final hasElse = _readByte() != 0;
@@ -1567,7 +1554,7 @@ class BinaryIRReader {
       elseBranch = _readStatement();
     }
     final sourceLocation = _readSourceLocation();
-    return IfStatementIR(
+    return IfStmt(
       id: 'stmt_if',
       condition: condition,
       thenBranch: thenBranch,
@@ -1576,7 +1563,7 @@ class BinaryIRReader {
     );
   }
 
-  ForStatementIR _readForStatement() {
+  ForStmt _readForStatement() {
     dynamic init;
     final hasInit = _readByte() != 0;
     if (hasInit) {
@@ -1603,26 +1590,30 @@ class BinaryIRReader {
     final body = _readStatement();
     final sourceLocation = _readSourceLocation();
 
-    return ForStatementIR(
+    return ForStmt(
       id: 'stmt_for',
-      init: init,
+
+      initialization: init,
       condition: condition,
-      updates: updates,
+   
+      updaters:updates ,
       body: body,
       sourceLocation: sourceLocation,
     );
   }
 
-  ForEachStatementIR _readForEachStatement() {
+  ForEachStmt _readForEachStatement() {
     final variable = _readStringRef();
     final iterable = _readExpression();
     final body = _readStatement();
     final isAsync = _readByte() != 0;
     final sourceLocation = _readSourceLocation();
 
-    return ForEachStatementIR(
+    return ForEachStmt(
       id: 'stmt_for_each',
-      variable: variable,
+      // variable: variable,
+      loopVariable:variable ,
+      loopVariableType: ,
       iterable: iterable,
       body: body,
       isAsync: isAsync,
@@ -1630,12 +1621,13 @@ class BinaryIRReader {
     );
   }
 
-  WhileStatementIR _readWhileStatement() {
+  WhileStmt _readWhileStatement() {
     final condition = _readExpression();
     final body = _readStatement();
     final sourceLocation = _readSourceLocation();
 
-    return WhileStatementIR(
+    return WhileStmt(
+
       id: 'stmt_while',
       condition: condition,
       body: body,
@@ -1643,12 +1635,12 @@ class BinaryIRReader {
     );
   }
 
-  DoWhileStatementIR _readDoWhileStatement() {
+  DoWhileStmt _readDoWhileStatement() {
     final body = _readStatement();
     final condition = _readExpression();
     final sourceLocation = _readSourceLocation();
 
-    return DoWhileStatementIR(
+    return DoWhileStmt(
       id: 'stmt_do_while',
       body: body,
       condition: condition,
@@ -1656,23 +1648,23 @@ class BinaryIRReader {
     );
   }
 
-  SwitchStatementIR _readSwitchStatement() {
+  SwitchStmt _readSwitchStatement() {
     final expression = _readExpression();
     final caseCount = _readUint32();
-    final cases = <SwitchCaseIR>[];
+    final cases = <SwitchCaseStmt>[];
     for (int i = 0; i < caseCount; i++) {
       cases.add(_readSwitchCase());
     }
 
     final hasDefault = _readByte() != 0;
-    BlockStatementIR? defaultCase;
+    BlockStmt? defaultCase;
     if (hasDefault) {
       final stmtCount = _readUint32();
       final statements = <StatementIR>[];
       for (int i = 0; i < stmtCount; i++) {
         statements.add(_readStatement());
       }
-      defaultCase = BlockStatementIR(
+      defaultCase = BlockStmt(
         id: 'stmt_switch_default',
         statements: statements,
         sourceLocation: SourceLocationIR(
@@ -1688,7 +1680,8 @@ class BinaryIRReader {
 
     final sourceLocation = _readSourceLocation();
 
-    return SwitchStatementIR(
+    return SwitchStmt(
+      
       id: 'stmt_switch',
       expression: expression,
       cases: cases,
@@ -1697,8 +1690,9 @@ class BinaryIRReader {
     );
   }
 
-  SwitchCaseIR _readSwitchCase() {
+  SwitchCaseStmt _readSwitchCase() {
     final labelCount = _readUint32();
+      final sourceLocation = _readSourceLocation();
     final labels = <ExpressionIR>[];
     for (int i = 0; i < labelCount; i++) {
       labels.add(_readExpression());
@@ -1710,14 +1704,17 @@ class BinaryIRReader {
       statements.add(_readStatement());
     }
 
-    return SwitchCaseIR(labels: labels, statements: statements);
+    return SwitchCaseStmt(
+      id: 'stmt_switch_case' ,
+      sourceLocation: sourceLocation,
+      patterns:  labels, statements: statements);
   }
 
-  TryStatementIR _readTryStatement() {
+  TryStmt _readTryStatement() {
     final tryBlock = _readStatement();
 
     final catchCount = _readUint32();
-    final catchClauses = <CatchClauseIR>[];
+    final catchClauses = <CatchClauseStmt>[];
     for (int i = 0; i < catchCount; i++) {
       catchClauses.add(_readCatchClause());
     }
@@ -1730,7 +1727,7 @@ class BinaryIRReader {
 
     final sourceLocation = _readSourceLocation();
 
-    return TryStatementIR(
+    return TryStmt(
       id: 'stmt_try',
       tryBlock: tryBlock,
       catchClauses: catchClauses,
@@ -1739,7 +1736,7 @@ class BinaryIRReader {
     );
   }
 
-  CatchClauseIR _readCatchClause() {
+  CatchClauseStmt _readCatchClause() {
     final exceptionType = _readType();
 
     final hasExceptionVar = _readByte() != 0;
@@ -1747,13 +1744,16 @@ class BinaryIRReader {
 
     final hasStackTraceVar = _readByte() != 0;
     final stackTraceVariable = hasStackTraceVar ? _readStringRef() : null;
-
+ final sourceLocation = _readSourceLocation();
     final body = _readStatement();
 
-    return CatchClauseIR(
+    return CatchClauseStmt(
+      id: "stmt_catch_clause",
       exceptionType: exceptionType,
-      exceptionVariable: exceptionVariable,
-      stackTraceVariable: stackTraceVariable,
+
+     sourceLocation: sourceLocation,
+  exceptionParameter:exceptionVariable ,
+      stackTraceParameter:stackTraceVariable ,
       body: body,
     );
   }
