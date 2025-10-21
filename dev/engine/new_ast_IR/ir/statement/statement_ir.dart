@@ -2,6 +2,7 @@
 // Complete Statement IR hierarchy for Phase 2
 
 import 'package:meta/meta.dart';
+import '../../function_decl.dart';
 import '../expression_ir.dart';
 import '../ir_node.dart';
 import '../type_ir.dart';
@@ -333,221 +334,135 @@ class CatchClauseStmt extends IRNode {
   }
 }
 
-// // =============================================================================
-// // VISITOR PATTERN FOR TRAVERSAL
-// // =============================================================================
 
-// /// Base visitor for traversing expression trees
-// abstract class ExpressionVisitor<R> {
-//   // Literals
-//   R visitIntLiteral(IntLiteralExpr expr);
-//   R visitDoubleLiteral(DoubleLiteralExpr expr);
-//   R visitStringLiteral(StringLiteralExpr expr);
-//   R visitBoolLiteral(BoolLiteralExpr expr);
-//   R visitNullLiteral(NullLiteralExpr expr);
-//   R visitListLiteral(ListLiteralExpr expr);
-//   R visitMapLiteral(MapLiteralExpr expr);
-//   R visitSetLiteral(SetLiteralExpr expr);
+// =============================================================================
+// ASSERT STATEMENT
+// =============================================================================
 
-//   // Variable & Access
-//   R visitIdentifier(IdentifierExpr expr);
-//   R visitPropertyAccess(PropertyAccessExpr expr);
-//   R visitIndexAccess(IndexAccessExpr expr);
+/// Represents an assert statement in Dart
+/// Used for debugging and enforcing runtime conditions
+/// 
+/// Example: `assert(value > 0);`, `assert(value != null, 'Value cannot be null');`
+@immutable
+class AssertStatementIR extends StatementIR {
+  /// The condition being asserted
+  final ExpressionIR condition;
 
-//   // Operations
-//   R visitBinaryOp(BinaryOpExpr expr);
-//   R visitUnaryOp(UnaryOpExpr expr);
-//   R visitAssignment(AssignmentExpr expr);
-//   R visitConditional(ConditionalExpr expr);
+  /// Optional message to display if assertion fails
+  final ExpressionIR? message;
 
-//   // Function/Method Calls
-//   R visitFunctionCall(FunctionCallExpr expr);
-//   R visitMethodCall(MethodCallExpr expr);
-//   R visitConstructorCall(ConstructorCallExpr expr);
+  const AssertStatementIR({
+    required super.id,
+    required super.sourceLocation,
+    required this.condition,
+    this.message,
+    super.metadata,
+  });
 
-//   // Advanced
-//   R visitLambda(LambdaExpr expr);
-//   R visitAwait(AwaitExpr expr);
-//   R visitThrow(ThrowExpr expr);
-//   R visitCast(CastExpr expr);
-//   R visitTypeCheck(TypeCheckExpr expr);
-// }
+  @override
+  String toShortString() => message != null
+      ? 'assert(${condition.toShortString()}, ${message!.toShortString()})'
+      : 'assert(${condition.toShortString()})';
+}
 
-// /// Base visitor for traversing statement trees
-// abstract class StatementVisitor<R> {
-//   R visitExpressionStmt(ExpressionStmt stmt);
-//   R visitVariableDeclaration(VariableDeclarationStmt stmt);
-//   R visitReturn(ReturnStmt stmt);
-//   R visitBreak(BreakStmt stmt);
-//   R visitContinue(ContinueStmt stmt);
-//   R visitThrow(ThrowStmt stmt);
-  
-//   R visitBlock(BlockStmt stmt);
-//   R visitIf(IfStmt stmt);
-//   R visitFor(ForStmt stmt);
-//   R visitForEach(ForEachStmt stmt);
-//   R visitWhile(WhileStmt stmt);
-//   R visitDoWhile(DoWhileStmt stmt);
-//   R visitSwitch(SwitchStmt stmt);
-//   R visitTry(TryStmt stmt);
-// }
+// =============================================================================
+// EMPTY STATEMENT
+// =============================================================================
 
-// // =============================================================================
-// // CONCRETE VISITORS FOR ANALYSIS
-// // =============================================================================
+/// Represents an empty statement in Dart
+/// A statement that does nothing
+/// 
+/// Example: `;` (just a semicolon)
+@immutable
+class EmptyStatementIR extends StatementIR {
+  const EmptyStatementIR({
+    required super.id,
+    required super.sourceLocation,
+    super.metadata,
+  });
 
-// /// Calculates expression nesting depth
-// class ExpressionDepthCalculator implements ExpressionVisitor<int> {
-//   @override
-//   int visitIntLiteral(IntLiteralExpr expr) => 1;
-  
-//   @override
-//   int visitDoubleLiteral(DoubleLiteralExpr expr) => 1;
-  
-//   @override
-//   int visitStringLiteral(StringLiteralExpr expr) => 1;
-  
-//   @override
-//   int visitBoolLiteral(BoolLiteralExpr expr) => 1;
-  
-//   @override
-//   int visitNullLiteral(NullLiteralExpr expr) => 1;
-  
-//   @override
-//   int visitListLiteral(ListLiteralExpr expr) {
-//     final maxElementDepth = expr.elements.isEmpty 
-//         ? 0 
-//         : expr.elements.map(_visit).reduce((a, b) => a > b ? a : b);
-//     return 1 + maxElementDepth;
-//   }
-  
-//   @override
-//   int visitMapLiteral(MapLiteralExpr expr) {
-//     final depths = <int>[];
-//     for (final entry in expr.entries) {
-//       depths.add(_visit(entry.key));
-//       depths.add(_visit(entry.value));
-//     }
-//     return depths.isEmpty ? 1 : 1 + depths.reduce((a, b) => a > b ? a : b);
-//   }
-  
-//   @override
-//   int visitSetLiteral(SetLiteralExpr expr) {
-//     final maxElementDepth = expr.elements.isEmpty 
-//         ? 0 
-//         : expr.elements.map(_visit).reduce((a, b) => a > b ? a : b);
-//     return 1 + maxElementDepth;
-//   }
-  
-//   @override
-//   int visitIdentifier(IdentifierExpr expr) => 1;
-  
-//   @override
-//   int visitPropertyAccess(PropertyAccessExpr expr) => 1 + _visit(expr.target);
-  
-//   @override
-//   int visitIndexAccess(IndexAccessExpr expr) {
-//     final targetDepth = _visit(expr.target);
-//     final indexDepth = _visit(expr.index);
-//     return 1 + (targetDepth > indexDepth ? targetDepth : indexDepth);
-//   }
-  
-//   @override
-//   int visitBinaryOp(BinaryOpExpr expr) {
-//     final leftDepth = _visit(expr.left);
-//     final rightDepth = _visit(expr.right);
-//     return 1 + (leftDepth > rightDepth ? leftDepth : rightDepth);
-//   }
-  
-//   @override
-//   int visitUnaryOp(UnaryOpExpr expr) => 1 + _visit(expr.operand);
-  
-//   @override
-//   int visitAssignment(AssignmentExpr expr) {
-//     final targetDepth = _visit(expr.target);
-//     final valueDepth = _visit(expr.value);
-//     return 1 + (targetDepth > valueDepth ? targetDepth : valueDepth);
-//   }
-  
-//   @override
-//   int visitConditional(ConditionalExpr expr) {
-//     final condDepth = _visit(expr.condition);
-//     final thenDepth = _visit(expr.thenExpr);
-//     final elseDepth = _visit(expr.elseExpr);
-//     final maxDepth = [condDepth, thenDepth, elseDepth].reduce((a, b) => a > b ? a : b);
-//     return 1 + maxDepth;
-//   }
-  
-//   @override
-//   int visitFunctionCall(FunctionCallExpr expr) {
-//     final argDepths = expr.arguments.map(_visit).toList();
-//     final namedDepths = expr.namedArguments.values.map(_visit).toList();
-//     final allDepths = [...argDepths, ...namedDepths];
-//     return 1 + (allDepths.isEmpty ? 0 : allDepths.reduce((a, b) => a > b ? a : b));
-//   }
-  
-//   @override
-//   int visitMethodCall(MethodCallExpr expr) {
-//     final receiverDepth = expr.receiver != null ? _visit(expr.receiver!) : 0;
-//     final argDepths = expr.arguments.map(_visit).toList();
-//     final namedDepths = expr.namedArguments.values.map(_visit).toList();
-//     final allDepths = [receiverDepth, ...argDepths, ...namedDepths];
-//     return 1 + (allDepths.isEmpty ? 0 : allDepths.reduce((a, b) => a > b ? a : b));
-//   }
-  
-//   @override
-//   int visitConstructorCall(ConstructorCallExpr expr) {
-//     final argDepths = expr.arguments.map(_visit).toList();
-//     final namedDepths = expr.namedArguments.values.map(_visit).toList();
-//     final allDepths = [...argDepths, ...namedDepths];
-//     return 1 + (allDepths.isEmpty ? 0 : allDepths.reduce((a, b) => a > b ? a : b));
-//   }
-  
-//   @override
-//   int visitLambda(LambdaExpr expr) {
-//     if (expr.body != null) {
-//       return 1 + _visit(expr.body!);
-//     }
-//     return 1;
-//   }
-  
-//   @override
-//   int visitAwait(AwaitExpr expr) => 1 + _visit(expr.futureExpression);
-  
-//   @override
-//   int visitThrow(ThrowExpr expr) => 1 + _visit(expr.exceptionExpression);
-  
-//   @override
-//   int visitCast(CastExpr expr) => 1 + _visit(expr.expression);
-  
-//   @override
-//   int visitTypeCheck(TypeCheckExpr expr) => 1 + _visit(expr.expression);
+  @override
+  String toShortString() => ';';
+}
 
-//   int _visit(ExpressionIR expr) {
-//     if (expr is IntLiteralExpr) return visitIntLiteral(expr);
-//     if (expr is DoubleLiteralExpr) return visitDoubleLiteral(expr);
-//     if (expr is StringLiteralExpr) return visitStringLiteral(expr);
-//     if (expr is BoolLiteralExpr) return visitBoolLiteral(expr);
-//     if (expr is NullLiteralExpr) return visitNullLiteral(expr);
-//     if (expr is ListLiteralExpr) return visitListLiteral(expr);
-//     if (expr is MapLiteralExpr) return visitMapLiteral(expr);
-//     if (expr is SetLiteralExpr) return visitSetLiteral(expr);
-//     if (expr is IdentifierExpr) return visitIdentifier(expr);
-//     if (expr is PropertyAccessExpr) return visitPropertyAccess(expr);
-//     if (expr is IndexAccessExpr) return visitIndexAccess(expr);
-//     if (expr is BinaryOpExpr) return visitBinaryOp(expr);
-//     if (expr is UnaryOpExpr) return visitUnaryOp(expr);
-//     if (expr is AssignmentExpr) return visitAssignment(expr);
-//     if (expr is ConditionalExpr) return visitConditional(expr);
-//     if (expr is FunctionCallExpr) return visitFunctionCall(expr);
-//     if (expr is MethodCallExpr) return visitMethodCall(expr);
-//     if (expr is ConstructorCallExpr) return visitConstructorCall(expr);
-//     if (expr is LambdaExpr) return visitLambda(expr);
-//     if (expr is AwaitExpr) return visitAwait(expr);
-//     if (expr is ThrowExpr) return visitThrow(expr);
-//     if (expr is CastExpr) return visitCast(expr);
-//     if (expr is TypeCheckExpr) return visitTypeCheck(expr);
-//     return 1;
-//   }
-// }
+// =============================================================================
+// YIELD STATEMENT
+// =============================================================================
 
+/// Represents a yield statement in Dart
+/// Used in generator functions to produce values
+/// 
+/// Example: `yield value;`, `yield* iterable;`
+@immutable
+class YieldStatementIR extends StatementIR {
+  /// The value being yielded
+  final ExpressionIR value;
+
+  /// Whether this is a yield* (yield each) operation
+  final bool isYieldEach;
+
+  const YieldStatementIR({
+    required super.id,
+    required super.sourceLocation,
+    required this.value,
+    this.isYieldEach = false,
+    super.metadata,
+  });
+
+  @override
+  String toShortString() =>
+      'yield${isYieldEach ? '*' : ''} ${value.toShortString()}';
+}
+
+@immutable
+class LabeledStatementIR extends StatementIR {
+  /// The label identifier
+  final String label;
+
+  /// The statement being labeled
+  final StatementIR statement;
+
+  const LabeledStatementIR({
+    required super.id,
+    required super.sourceLocation,
+    required this.label,
+    required this.statement,
+    super.metadata,
+  });
+
+  @override
+  String toShortString() => '$label: ${statement.toShortString()}';
+}
+
+
+// =============================================================================
+// FUNCTION DECLARATION STATEMENT
+// =============================================================================
+
+/// Represents a function declaration as a statement
+/// Used for nested functions declared inside other functions or blocks
+/// 
+/// Example: 
+/// ```dart
+/// void outer() {
+///   void inner() {  // <-- This is a FunctionDeclarationStmt
+///     print('nested');
+///   }
+///   inner();
+/// }
+/// ```
+@immutable
+class FunctionDeclarationStatementIR extends StatementIR {
+  /// The function being declared
+  final FunctionDecl function;
+
+  const FunctionDeclarationStatementIR({
+    required super.id,
+    required super.sourceLocation,
+    required this.function,
+    super.metadata,
+  });
+
+  @override
+  String toShortString() => 'function ${function.name}() { ... }';
+}

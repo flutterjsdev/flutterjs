@@ -10,6 +10,7 @@ import '../new_ast_IR/function_decl.dart';
 import '../new_ast_IR/import_export_stmt.dart';
 import '../new_ast_IR/ir/expression_ir.dart';
 import '../new_ast_IR/ir/expression_types/advanced/advanced.dart';
+import '../new_ast_IR/ir/expression_types/cascade_expression_ir.dart';
 import '../new_ast_IR/ir/expression_types/function_method_calls/function_method_calls.dart';
 import '../new_ast_IR/ir/expression_types/operations/operations.dart';
 import '../new_ast_IR/ir/statement/statement_ir.dart';
@@ -544,22 +545,8 @@ class BinaryIRWriter {
     _writeSourceLocation(expr.sourceLocation);
   }
 
-  void _writeMethodCallExpression(MethodCallExpressionIR expr) {
-    _writeByte(expr.target != null ? 1 : 0);
-    if (expr.target != null) {
-      _writeExpression(expr.target!);
-    }
-    _writeUint32(_getStringRef(expr.methodName));
-    _writeType(expr.resultType);
-    _writeSourceLocation(expr.sourceLocation);
-  }
 
-  void _writePropertyAccessExpression(PropertyAccessExpressionIR expr) {
-    _writeExpression(expr.target);
-    _writeUint32(_getStringRef(expr.propertyName));
-    _writeType(expr.resultType);
-    _writeSourceLocation(expr.sourceLocation);
-  }
+
 
   void _writeConditionalExpression(ConditionalExpressionIR expr) {
     _writeExpression(expr.condition);
@@ -673,28 +660,7 @@ class BinaryIRWriter {
     return errors;
   }
 
-  //   void _writeLiteralExpression(LiteralExpressionIR expr) {
-  //   _writeByte(expr.literalType.index);
-  //   switch (expr.literalType) {
-  //     case LiteralType.stringValue:
-  //       _writeUint32(_getStringRef(expr.value as String));
-  //       break;
-  //     case LiteralType.intValue:
-  //       _writeInt64(int.parse(expr.value.toString()));
-  //       break;
-  //     case LiteralType.doubleValue:
-  //       _writeDouble(double.parse(expr.value.toString()));
-  //       break;
-  //     case LiteralType.boolValue:
-  //       _writeByte((expr.value as bool) ? 1 : 0);
-  //       break;
-  //     case LiteralType.nullValue:
-  //       break;
-  //     default:
-  //       break;
-  //   }
-  //   _writeSourceLocation(expr.sourceLocation);
-  // }
+
 
   void _writeSetExpression(SetExpressionIR expr) {
     _writeUint32(expr.elements.length);
@@ -707,17 +673,14 @@ class BinaryIRWriter {
 
   // --- Binary & Unary Operations ---
 
-  // void _writeBinaryExpression(BinaryExpressionIR expr) {
-  //   _writeExpression(expr.left);
-  //   _writeByte(expr.operator.index); // Enum index
-  //   _writeExpression(expr.right);
-  //   _writeType(expr.resultType);
-  //   _writeSourceLocation(expr.sourceLocation);
-  // }
+
 
   void _writeUnaryExpression(UnaryExpressionIR expr) {
-    _writeByte(expr.operator.index); // Enum index
+    _writeUint32(
+      _getStringRef(expr.operator.name),
+    ); // Store operator as string reference
     _writeExpression(expr.operand);
+    _writeByte(expr.isPrefix ? 1 : 0); // Store prefix flag
     _writeType(expr.resultType);
     _writeSourceLocation(expr.sourceLocation);
   }
@@ -828,19 +791,32 @@ class BinaryIRWriter {
   }
 
   void _writeFunctionCallExpression(FunctionCallExpr expr) {
-    _writeExpression(expr.function);
-    _writeUint32(expr.arguments.length);
-    for (final arg in expr.arguments) {
-      _writeExpression(arg);
-    }
-    _writeUint32(expr.namedArguments.length);
-    for (final entry in expr.namedArguments.entries) {
-      _writeUint32(_getStringRef(entry.key));
-      _writeExpression(entry.value);
-    }
-    _writeType(expr.resultType);
-    _writeSourceLocation(expr.sourceLocation);
+  // Write function name (not expression)
+  _writeUint32(_getStringRef(expr.functionName));
+  
+  // Write positional arguments
+  _writeUint32(expr.arguments.length);
+  for (final arg in expr.arguments) {
+    _writeExpression(arg);
   }
+  
+  // Write named arguments
+  _writeUint32(expr.namedArguments.length);
+  for (final entry in expr.namedArguments.entries) {
+    _writeUint32(_getStringRef(entry.key));
+    _writeExpression(entry.value);
+  }
+  
+  // Write type arguments
+  _writeUint32(expr.typeArguments.length);
+  for (final typeArg in expr.typeArguments) {
+    _writeType(typeArg);
+  }
+  
+  // Write result type and source location
+  _writeType(expr.resultType);
+  _writeSourceLocation(expr.sourceLocation);
+}
 
   void _writeInstanceCreationExpression(InstanceCreationExpressionIR expr) {
     _writeType(expr.type);
@@ -862,19 +838,39 @@ class BinaryIRWriter {
     _writeSourceLocation(expr.sourceLocation);
   }
 
-  void _writeLambdaExpression(LambdaExpr expr) {
-    _writeUint32(expr.parameters.length);
-    for (final param in expr.parameters) {
-      _writeParameterDecl(param);
+ void _writeLambdaExpression(LambdaExpr expr) {
+  // Write parameters count
+  _writeUint32(expr.parameters.length);
+  
+  // Write each parameter - convert ParameterIR to ParameterDecl-compatible format
+  for (final param in expr.parameters) {
+    _writeUint32(_getStringRef(param.id));
+    _writeUint32(_getStringRef(param.name));
+    _writeType(param.type);
+    
+    _writeByte(param.isRequired ? 1 : 0);
+    _writeByte(param.isNamed ? 1 : 0);
+    _writeByte(param.isOptional ? 1 : 0);
+    
+    _writeByte(param.defaultValue != null ? 1 : 0);
+    if (param.defaultValue != null) {
+      _writeExpression(param.defaultValue!);
     }
-    _writeByte(expr.body != null ? 1 : 0);
-    if (expr.body != null) {
-      _writeExpression(expr.body!);
-    }
-    _writeType(expr.resultType);
-    _writeSourceLocation(expr.sourceLocation);
+    
+    // ParameterIR should have sourceLocation
+    _writeSourceLocation(param.sourceLocation);
   }
-
+  
+  // Write body
+  _writeByte(expr.body != null ? 1 : 0);
+  if (expr.body != null) {
+    _writeExpression(expr.body!);
+  }
+  
+  // Write result type and source location
+  _writeType(expr.resultType);
+  _writeSourceLocation(expr.sourceLocation);
+}
   // --- String Interpolation ---
 
   void _writeStringInterpolationExpression(
@@ -908,15 +904,7 @@ class BinaryIRWriter {
     _writeSourceLocation(expr.sourceLocation);
   }
 
-  // --- Control Flow ---
-
-  void _writeConditionalExpression(ConditionalExpressionIR expr) {
-    _writeExpression(expr.condition);
-    _writeExpression(expr.thenExpression);
-    _writeExpression(expr.elseExpression);
-    _writeType(expr.resultType);
-    _writeSourceLocation(expr.sourceLocation);
-  }
+ 
 
   // --- Special ---
 
@@ -934,276 +922,309 @@ class BinaryIRWriter {
   }
 
   // ============================================================================
-// STATEMENT SERIALIZATION - WRITER METHODS
-// ============================================================================
-// Add these methods to BinaryIRWriter class
+  // STATEMENT SERIALIZATION - WRITER METHODS
+  // ============================================================================
+  // Add these methods to BinaryIRWriter class
 
-// --- Simple Statements ---
+  // --- Simple Statements ---
 
-void _writeExpressionStatement(ExpressionStmt stmt) {
-  _writeExpression(stmt.expression);
-  _writeSourceLocation(stmt.sourceLocation);
-}
+  void _writeExpressionStatement(ExpressionStmt stmt) {
+    _writeExpression(stmt.expression);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
 
 void _writeVariableDeclarationStatement(VariableDeclarationStmt stmt) {
-  _writeUint32(stmt.variables.length);
-  for (final variable in stmt.variables) {
-    _writeVariableDecl(variable);
+  _writeUint32(_getStringRef(stmt.name));
+  
+  // Write optional type
+  _writeByte(stmt.type != null ? 1 : 0);
+  if (stmt.type != null) {
+    _writeType(stmt.type!);
   }
+  
+  // Write optional initializer
+  _writeByte(stmt.initializer != null ? 1 : 0);
+  if (stmt.initializer != null) {
+    _writeExpression(stmt.initializer!);
+  }
+  
+  // Write modifiers
+  _writeByte(stmt.isFinal ? 1 : 0);
+  _writeByte(stmt.isConst ? 1 : 0);
+  _writeByte(stmt.isLate ? 1 : 0);
+  
   _writeSourceLocation(stmt.sourceLocation);
 }
 
 void _writeReturnStatement(ReturnStmt stmt) {
-  _writeByte(stmt.value != null ? 1 : 0);
-  if (stmt.value != null) {
-    _writeExpression(stmt.value!);
+  _writeByte(stmt.expression != null ? 1 : 0);
+  if (stmt.expression != null) {
+    _writeExpression(stmt.expression!);
   }
   _writeSourceLocation(stmt.sourceLocation);
 }
 
-void _writeBreakStatement(BreakStmt stmt) {
-  _writeByte(stmt.label != null ? 1 : 0);
-  if (stmt.label != null) {
-    _writeUint32(_getStringRef(stmt.label!));
-  }
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeContinueStatement(ContinueStmt stmt) {
-  _writeByte(stmt.label != null ? 1 : 0);
-  if (stmt.label != null) {
-    _writeUint32(_getStringRef(stmt.label!));
-  }
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeThrowStatement(ThrowStmt stmt) {
-  _writeExpression(stmt.exception);
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeAssertStatement(AssertStatementIR stmt) {
-  _writeExpression(stmt.condition);
-  _writeByte(stmt.message != null ? 1 : 0);
-  if (stmt.message != null) {
-    _writeExpression(stmt.message!);
-  }
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeEmptyStatement(EmptyStatementIR stmt) {
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-// --- Compound Statements ---
-
-void _writeBlockStatement(BlockStmt stmt) {
-  _writeUint32(stmt.statements.length);
-  for (final s in stmt.statements) {
-    _writeStatement(s);
-  }
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeIfStatement(IfStmt stmt) {
-  _writeExpression(stmt.condition);
-  _writeStatement(stmt.thenBranch);
-  _writeByte(stmt.elseBranch != null ? 1 : 0);
-  if (stmt.elseBranch != null) {
-    _writeStatement(stmt.elseBranch!);
-  }
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeForStatement(ForStmt stmt) {
-  // Init
-  _writeByte(stmt.initialization != null ? 1 : 0);
-  if (stmt.initialization != null) {
-    if (stmt.initialization is VariableDeclarationStmt) {
-      _writeByte(0);
-      _writeVariableDeclarationStatement(stmt.initialization as VariableDeclarationStmt);
-    } else {
-      _writeByte(1);
-      _writeExpression(stmt.initialization as ExpressionIR);
+  void _writeBreakStatement(BreakStmt stmt) {
+    _writeByte(stmt.label != null ? 1 : 0);
+    if (stmt.label != null) {
+      _writeUint32(_getStringRef(stmt.label!));
     }
+    _writeSourceLocation(stmt.sourceLocation);
   }
 
-  // Condition
-  _writeByte(stmt.condition != null ? 1 : 0);
-  if (stmt.condition != null) {
-    _writeExpression(stmt.condition!);
+  void _writeContinueStatement(ContinueStmt stmt) {
+    _writeByte(stmt.label != null ? 1 : 0);
+    if (stmt.label != null) {
+      _writeUint32(_getStringRef(stmt.label!));
+    }
+    _writeSourceLocation(stmt.sourceLocation);
   }
 
-  // Update
-  _writeUint32(stmt.updaters.length);
-  for (final update in stmt.updaters) {
-    _writeExpression(update);
+  void _writeThrowStatement(ThrowStmt stmt) {
+    _writeExpression(stmt.exceptionExpression);
+    _writeSourceLocation(stmt.sourceLocation);
   }
 
-  // Body
-  _writeStatement(stmt.body);
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeForEachStatement(ForEachStmt stmt) {
-  _writeUint32(_getStringRef(stmt.loopVariable));
-  _writeExpression(stmt.iterable);
-  _writeStatement(stmt.body);
-  _writeByte(stmt.isAsync ? 1 : 0);
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeWhileStatement(WhileStmt stmt) {
-  _writeExpression(stmt.condition);
-  _writeStatement(stmt.body);
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeDoWhileStatement(DoWhileStmt stmt) {
-  _writeStatement(stmt.body);
-  _writeExpression(stmt.condition);
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeSwitchStatement(SwitchStmt stmt) {
-  _writeExpression(stmt.expression);
-  _writeUint32(stmt.cases.length);
-  for (final switchCase in stmt.cases) {
-    _writeSwitchCase(switchCase);
+  void _writeAssertStatement(AssertStatementIR stmt) {
+    _writeExpression(stmt.condition);
+    _writeByte(stmt.message != null ? 1 : 0);
+    if (stmt.message != null) {
+      _writeExpression(stmt.message!);
+    }
+    _writeSourceLocation(stmt.sourceLocation);
   }
-  _writeByte(stmt.defaultCase != null ? 1 : 0);
-  if (stmt.defaultCase != null) {
-    _writeUint32(stmt.defaultCase!.statements.length);
-    for (final s in stmt.defaultCase!.statements) {
+
+  void _writeEmptyStatement(EmptyStatementIR stmt) {
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  // --- Compound Statements ---
+
+  void _writeBlockStatement(BlockStmt stmt) {
+    _writeUint32(stmt.statements.length);
+    for (final s in stmt.statements) {
       _writeStatement(s);
     }
+    _writeSourceLocation(stmt.sourceLocation);
   }
-  _writeSourceLocation(stmt.sourceLocation);
-}
 
-void _writeSwitchCase(SwitchCaseStmt switchCase) {
-  _writeUint32(switchCase.labels.length);
-  for (final label in switchCase.labels) {
-    _writeExpression(label);
+  void _writeIfStatement(IfStmt stmt) {
+    _writeExpression(stmt.condition);
+    _writeStatement(stmt.thenBranch);
+    _writeByte(stmt.elseBranch != null ? 1 : 0);
+    if (stmt.elseBranch != null) {
+      _writeStatement(stmt.elseBranch!);
+    }
+    _writeSourceLocation(stmt.sourceLocation);
   }
+
+  void _writeForStatement(ForStmt stmt) {
+    // Init
+    _writeByte(stmt.initialization != null ? 1 : 0);
+    if (stmt.initialization != null) {
+      if (stmt.initialization is VariableDeclarationStmt) {
+        _writeByte(0);
+        _writeVariableDeclarationStatement(
+          stmt.initialization as VariableDeclarationStmt,
+        );
+      } else {
+        _writeByte(1);
+        _writeExpression(stmt.initialization as ExpressionIR);
+      }
+    }
+
+    // Condition
+    _writeByte(stmt.condition != null ? 1 : 0);
+    if (stmt.condition != null) {
+      _writeExpression(stmt.condition!);
+    }
+
+    // Update
+    _writeUint32(stmt.updaters.length);
+    for (final update in stmt.updaters) {
+      _writeExpression(update);
+    }
+
+    // Body
+    _writeStatement(stmt.body);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeForEachStatement(ForEachStmt stmt) {
+    _writeUint32(_getStringRef(stmt.loopVariable));
+    _writeExpression(stmt.iterable);
+    _writeStatement(stmt.body);
+    _writeByte(stmt.isAsync ? 1 : 0);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeWhileStatement(WhileStmt stmt) {
+    _writeExpression(stmt.condition);
+    _writeStatement(stmt.body);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeDoWhileStatement(DoWhileStmt stmt) {
+    _writeStatement(stmt.body);
+    _writeExpression(stmt.condition);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeSwitchStatement(SwitchStmt stmt) {
+    _writeExpression(stmt.expression);
+    _writeUint32(stmt.cases.length);
+    for (final switchCase in stmt.cases) {
+      _writeSwitchCase(switchCase);
+    }
+    _writeByte(stmt.defaultCase != null ? 1 : 0);
+    if (stmt.defaultCase != null) {
+      _writeUint32(stmt.defaultCase!.statements.length);
+      for (final s in stmt.defaultCase!.statements) {
+        _writeStatement(s);
+      }
+    }
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+ void _writeSwitchCase(SwitchCaseStmt switchCase) {
+  // Write isDefault flag
+  _writeByte(switchCase.isDefault ? 1 : 0);
+  
+  // Write patterns (can be null)
+  _writeByte(switchCase.patterns != null ? 1 : 0);
+  if (switchCase.patterns != null) {
+    _writeUint32(switchCase.patterns!.length);
+    for (final pattern in switchCase.patterns!) {
+      _writeExpression(pattern);
+    }
+  }
+  
+  // Write statements
   _writeUint32(switchCase.statements.length);
   for (final s in switchCase.statements) {
     _writeStatement(s);
   }
 }
+  void _writeTryStatement(TryStmt stmt) {
+    _writeStatement(stmt.tryBlock);
 
-void _writeTryStatement(TryStmt stmt) {
-  _writeStatement(stmt.tryBlock);
+    _writeUint32(stmt.catchClauses.length);
+    for (final catchClause in stmt.catchClauses) {
+      _writeCatchClause(catchClause);
+    }
+
+    _writeByte(stmt.finallyBlock != null ? 1 : 0);
+    if (stmt.finallyBlock != null) {
+      _writeStatement(stmt.finallyBlock!);
+    }
+
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+ void _writeCatchClause(CatchClauseStmt catchClause) {
+  // Write exception type (can be null)
+  _writeByte(catchClause.exceptionType != null ? 1 : 0);
+  if (catchClause.exceptionType != null) {
+    _writeType(catchClause.exceptionType!);
+  }
   
-  _writeUint32(stmt.catchClauses.length);
-  for (final catchClause in stmt.catchClauses) {
-    _writeCatchClause(catchClause);
+  // Write exception parameter (can be null)
+  _writeByte(catchClause.exceptionParameter != null ? 1 : 0);
+  if (catchClause.exceptionParameter != null) {
+    _writeUint32(_getStringRef(catchClause.exceptionParameter!));
   }
-
-  _writeByte(stmt.finallyBlock != null ? 1 : 0);
-  if (stmt.finallyBlock != null) {
-    _writeStatement(stmt.finallyBlock!);
+  
+  // Write stack trace parameter (can be null)
+  _writeByte(catchClause.stackTraceParameter != null ? 1 : 0);
+  if (catchClause.stackTraceParameter != null) {
+    _writeUint32(_getStringRef(catchClause.stackTraceParameter!));
   }
-
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeCatchClause(CatchClauseStmt catchClause) {
-  _writeType(catchClause.exceptionType);
-  _writeByte(catchClause.exceptionVariable != null ? 1 : 0);
-  if (catchClause.exceptionVariable != null) {
-    _writeUint32(_getStringRef(catchClause.exceptionVariable!));
-  }
-  _writeByte(catchClause.stackTraceVariable != null ? 1 : 0);
-  if (catchClause.stackTraceVariable != null) {
-    _writeUint32(_getStringRef(catchClause.stackTraceVariable!));
-  }
+  
+  // Write body statement
   _writeStatement(catchClause.body);
 }
 
-void _writeLabeledStatement(LabeledStatementIR stmt) {
-  _writeUint32(_getStringRef(stmt.label));
-  _writeStatement(stmt.statement);
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-// --- Special Statements ---
-
-void _writeYieldStatement(YieldStatementIR stmt) {
-  _writeExpression(stmt.value);
-  _writeByte(stmt.isYieldEach ? 1 : 0);
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeFunctionDeclarationStatement(FunctionDeclarationStatementIR stmt) {
-  _writeFunctionDecl(stmt.function);
-  _writeSourceLocation(stmt.sourceLocation);
-}
-
-void _writeStatement(StatementIR stmt) {
-  if (stmt is ExpressionStmt) {
-    _writeByte(BinaryConstants.STMT_EXPRESSION);
-    _writeExpressionStatement(stmt);
-  } else if (stmt is VariableDeclarationStmt) {
-    _writeByte(BinaryConstants.STMT_VAR_DECL);
-    _writeVariableDeclarationStatement(stmt);
-  } else if (stmt is ReturnStmt) {
-    _writeByte(BinaryConstants.STMT_RETURN);
-    _writeReturnStatement(stmt);
-  } else if (stmt is BreakStmt) {
-    _writeByte(BinaryConstants.STMT_BREAK);
-    _writeBreakStatement(stmt);
-  } else if (stmt is ContinueStmt) {
-    _writeByte(BinaryConstants.STMT_CONTINUE);
-    _writeContinueStatement(stmt);
-  } else if (stmt is ThrowStmt) {
-    _writeByte(BinaryConstants.STMT_THROW);
-    _writeThrowStatement(stmt);
-  } else if (stmt is AssertStatementIR) {
-    _writeByte(BinaryConstants.STMT_ASSERT);
-    _writeAssertStatement(stmt);
+  void _writeLabeledStatement(LabeledStatementIR stmt) {
+    _writeUint32(_getStringRef(stmt.label));
+    _writeStatement(stmt.statement);
+    _writeSourceLocation(stmt.sourceLocation);
   }
-   else if (stmt is EmptyStatementIR) {
-    _writeByte(BinaryConstants.STMT_EMPTY);
-    _writeEmptyStatement(stmt);
-  } else if (stmt is BlockStmt) {
-    _writeByte(BinaryConstants.STMT_BLOCK);
-    _writeBlockStatement(stmt);
-  } else if (stmt is IfStmt) {
-    _writeByte(BinaryConstants.STMT_IF);
-    _writeIfStatement(stmt);
-  } else if (stmt is ForStmt) {
-    _writeByte(BinaryConstants.STMT_FOR);
-    _writeForStatement(stmt);
-  } else if (stmt is ForEachStmt) {
-    _writeByte(BinaryConstants.STMT_FOR_EACH);
-    _writeForEachStatement(stmt);
-  } else if (stmt is WhileStmt) {
-    _writeByte(BinaryConstants.STMT_WHILE);
-    _writeWhileStatement(stmt);
-  } else if (stmt is DoWhileStmt) {
-    _writeByte(BinaryConstants.STMT_DO_WHILE);
-    _writeDoWhileStatement(stmt);
-  } else if (stmt is SwitchStmt) {
-    _writeByte(BinaryConstants.STMT_SWITCH);
-    _writeSwitchStatement(stmt);
-  } else if (stmt is TryStmt) {
-    _writeByte(BinaryConstants.STMT_TRY);
-    _writeTryStatement(stmt);
-  } else if (stmt is LabeledStatementIR) {
-    _writeByte(BinaryConstants.STMT_LABELED);
-    _writeLabeledStatement(stmt);
-  } else if (stmt is YieldStatementIR) {
-    _writeByte(BinaryConstants.STMT_YIELD);
-    _writeYieldStatement(stmt);
-  } else if (stmt is FunctionDeclarationStatementIR) {
-    _writeByte(BinaryConstants.STMT_FUNCTION_DECL);
-    _writeFunctionDeclarationStatement(stmt);
-  } else {
-    _writeByte(BinaryConstants.STMT_UNKNOWN);
-  }
-}
 
+  // --- Special Statements ---
+
+  void _writeYieldStatement(YieldStatementIR stmt) {
+    _writeExpression(stmt.value);
+    _writeByte(stmt.isYieldEach ? 1 : 0);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeFunctionDeclarationStatement(FunctionDeclarationStatementIR stmt) {
+    _writeFunctionDecl(stmt.function);
+    _writeSourceLocation(stmt.sourceLocation);
+  }
+
+  void _writeStatement(StatementIR stmt) {
+    if (stmt is ExpressionStmt) {
+      _writeByte(BinaryConstants.STMT_EXPRESSION);
+      _writeExpressionStatement(stmt);
+    } else if (stmt is VariableDeclarationStmt) {
+      _writeByte(BinaryConstants.STMT_VAR_DECL);
+      _writeVariableDeclarationStatement(stmt);
+    } else if (stmt is ReturnStmt) {
+      _writeByte(BinaryConstants.STMT_RETURN);
+      _writeReturnStatement(stmt);
+    } else if (stmt is BreakStmt) {
+      _writeByte(BinaryConstants.STMT_BREAK);
+      _writeBreakStatement(stmt);
+    } else if (stmt is ContinueStmt) {
+      _writeByte(BinaryConstants.STMT_CONTINUE);
+      _writeContinueStatement(stmt);
+    } else if (stmt is ThrowStmt) {
+      _writeByte(BinaryConstants.STMT_THROW);
+      _writeThrowStatement(stmt);
+    } else if (stmt is AssertStatementIR) {
+      _writeByte(BinaryConstants.STMT_ASSERT);
+      _writeAssertStatement(stmt);
+    } else if (stmt is EmptyStatementIR) {
+      _writeByte(BinaryConstants.STMT_EMPTY);
+      _writeEmptyStatement(stmt);
+    } else if (stmt is BlockStmt) {
+      _writeByte(BinaryConstants.STMT_BLOCK);
+      _writeBlockStatement(stmt);
+    } else if (stmt is IfStmt) {
+      _writeByte(BinaryConstants.STMT_IF);
+      _writeIfStatement(stmt);
+    } else if (stmt is ForStmt) {
+      _writeByte(BinaryConstants.STMT_FOR);
+      _writeForStatement(stmt);
+    } else if (stmt is ForEachStmt) {
+      _writeByte(BinaryConstants.STMT_FOR_EACH);
+      _writeForEachStatement(stmt);
+    } else if (stmt is WhileStmt) {
+      _writeByte(BinaryConstants.STMT_WHILE);
+      _writeWhileStatement(stmt);
+    } else if (stmt is DoWhileStmt) {
+      _writeByte(BinaryConstants.STMT_DO_WHILE);
+      _writeDoWhileStatement(stmt);
+    } else if (stmt is SwitchStmt) {
+      _writeByte(BinaryConstants.STMT_SWITCH);
+      _writeSwitchStatement(stmt);
+    } else if (stmt is TryStmt) {
+      _writeByte(BinaryConstants.STMT_TRY);
+      _writeTryStatement(stmt);
+    } else if (stmt is LabeledStatementIR) {
+      _writeByte(BinaryConstants.STMT_LABELED);
+      _writeLabeledStatement(stmt);
+    } else if (stmt is YieldStatementIR) {
+      _writeByte(BinaryConstants.STMT_YIELD);
+      _writeYieldStatement(stmt);
+    } else if (stmt is FunctionDeclarationStatementIR) {
+      _writeByte(BinaryConstants.STMT_FUNCTION_DECL);
+      _writeFunctionDeclarationStatement(stmt);
+    } else {
+      _writeByte(BinaryConstants.STMT_UNKNOWN);
+    }
+  }
 }
 
 /// Exception thrown during serialization

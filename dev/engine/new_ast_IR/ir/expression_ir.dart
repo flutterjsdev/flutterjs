@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 import '../diagnostics/source_location.dart';
+import 'expression_types/operations/operations.dart';
 import 'ir_node.dart';
 import 'type_ir.dart';
 
@@ -176,11 +177,32 @@ abstract class ExpressionIR extends IRNode {
           isNullAware: json['isNullAware'] as bool? ?? false,
         );
       case 'UnaryExpressionIR':
+        UnaryOperator getUnaryOperator(String json) {
+          switch (json) {
+            case 'negate':
+              return UnaryOperator.negate;
+            case 'logicalNot':
+              return UnaryOperator.logicalNot;
+            case 'bitwiseNot':
+              return UnaryOperator.bitwiseNot;
+            case 'preIncrement':
+              return UnaryOperator.preIncrement;
+            case 'preDecrement':
+              return UnaryOperator.preDecrement;
+            case 'postIncrement':
+              return UnaryOperator.postIncrement;
+            case 'postDecrement':
+              return UnaryOperator.postDecrement;
+            default:
+              return UnaryOperator.negate;
+          }
+        }
+        UnaryOperator unary = getUnaryOperator(json['opetatir']);
         return UnaryExpressionIR(
           id: json['id'] as String,
           resultType: resultType,
           sourceLocation: sourceLocation,
-          operator: json['operator'] as String,
+          operator: unary,
           operand: ExpressionIR.fromJson(
             json['operand'] as Map<String, dynamic>,
           ),
@@ -534,8 +556,7 @@ class ListExpressionIR extends ExpressionIR {
     super.metadata,
   }) : super(isConstant: isConst);
 
-
-@override
+  @override
   bool get isConstant => isConst && elements.every((e) => e.isConstant);
   @override
   String toShortString() => '[${elements.length} items]';
@@ -568,7 +589,7 @@ class MapExpressionIR extends ExpressionIR {
     super.metadata,
   }) : super(isConstant: isConst);
 
-@override
+  @override
   bool get isConstant => isConst && entries.every((e) => e.isConstant);
   @override
   String toShortString() => '{${entries.length} entries}';
@@ -618,8 +639,7 @@ class SetExpressionIR extends ExpressionIR {
     required this.elements,
     this.isConst = false,
     super.metadata,
-  }) : 
-  super(isConstant: isConst); // ← Just false here!
+  }) : super(isConstant: isConst); // ← Just false here!
 
   // ← ADD THIS GETTER (1 line!)
   @override
@@ -687,7 +707,7 @@ class IndexAccessExpressionIR extends ExpressionIR {
 @immutable
 class UnaryExpressionIR extends ExpressionIR {
   /// The operator (!, -, ~, ++, --, etc.)
-  final String operator;
+  final UnaryOperator operator;
 
   /// The operand
   final ExpressionIR operand;
@@ -756,5 +776,3 @@ class CastExpressionIR extends ExpressionIR {
     };
   }
 }
-
-
