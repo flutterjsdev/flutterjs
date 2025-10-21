@@ -1,6 +1,7 @@
 /// Comprehensive category of analysis issues with full Flutter support
 enum IssueCategory {
-
+  flutterPatterns,
+controlFlow,
   unresolvedType,
   invalidImport,
   // ==========================================================================
@@ -360,6 +361,8 @@ extension IssueCategoryExtension on IssueCategory {
   /// Get human-readable name
   String get displayName {
     return switch (this) {
+      IssueCategory.flutterPatterns=> "Flutter Patterns",
+      IssueCategory.controlFlow=> "Controll Flow Error",
       IssueCategory.invalidImport=> "Invalid Import",
       IssueCategory.unresolvedType=>'Unresolved Type',
       IssueCategory.syntaxError => 'Syntax Error',
