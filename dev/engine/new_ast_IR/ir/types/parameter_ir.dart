@@ -1,7 +1,6 @@
 import '../expression_ir.dart';
 import '../ir_node.dart';
 import '../type_ir.dart';
-import 'package:flutter/foundation.dart';
 import '../../diagnostics/source_location.dart';
 
 /// Represents a parameter in a function, method, or constructor
@@ -14,15 +13,15 @@ class ParameterIR extends IRNode {
   final ExpressionIR? defaultValue;
 
   ParameterIR({
-     required super. id,
-     required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.name,
     required this.type,
     this.isOptional = false,
     this.isNamed = false,
     this.isRequired = false,
     this.defaultValue,
-    super. metadata,
+    super.metadata,
   });
 
   /// True if this parameter is positional (not named)
@@ -63,15 +62,13 @@ class ParameterIR extends IRNode {
       defaultValue: json['defaultValue'] != null
           ? ExpressionIR.fromJson(json['defaultValue'] as Map<String, dynamic>)
           : null,
-     id: json['id'] as String,
-     sourceLocation: SourceLocationIR.fromJson(
-       json['sourceLocation'] as Map<String, dynamic>,
-     ),
-     metadata: json['metadata'] != null
-         ? 
-             json['metadata'] as Map<String, dynamic>
-           
-         : null,     
+      id: json['id'] as String,
+      sourceLocation: SourceLocationIR.fromJson(
+        json['sourceLocation'] as Map<String, dynamic>,
+      ),
+      metadata: json['metadata'] != null
+          ? json['metadata'] as Map<String, dynamic>
+          : null,
     );
   }
 
@@ -91,23 +88,35 @@ class ParameterIR extends IRNode {
   String toString() => declaration;
 
   /// For testing: compare meaningful content
-@override
-bool contentEquals(IRNode other) {
-  if (other is! ParameterIR) return false;
+  @override
+  bool contentEquals(IRNode other) {
+    if (other is! ParameterIR) return false;
 
-  final defaultValueEqual = (defaultValue == null && other.defaultValue == null) ||
-      (defaultValue != null &&
-          other.defaultValue != null &&
-          defaultValue!.contentEquals(other.defaultValue!));
+    final defaultValueEqual =
+        (defaultValue == null && other.defaultValue == null) ||
+        (defaultValue != null &&
+            other.defaultValue != null &&
+            defaultValue!.contentEquals(other.defaultValue!));
 
-  return name == other.name &&
-      type.contentEquals(other.type) &&
-      isOptional == other.isOptional &&
-      isNamed == other.isNamed &&
-      isRequired == other.isRequired &&
-      defaultValueEqual &&
-      mapEquals(metadata, other.metadata);
-}
+    // Simple map equality check instead of Flutter's mapEquals
+    final metadataEqual = _mapsEqual(metadata, other.metadata);
+
+    return name == other.name &&
+        type.contentEquals(other.type) &&
+        isOptional == other.isOptional &&
+        isNamed == other.isNamed &&
+        isRequired == other.isRequired &&
+        defaultValueEqual &&
+        metadataEqual;
+  }
+
+  // Helper method instead of Flutter's mapEquals
+  bool _mapsEqual(Map<String, dynamic>? a, Map<String, dynamic>? b) {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    if (a.length != b.length) return false;
+    return a.entries.every((e) => e.value == b[e.key]);
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -122,12 +131,6 @@ bool contentEquals(IRNode other) {
           defaultValue == other.defaultValue;
 
   @override
-  int get hashCode => Object.hash(
-        name,
-        type,
-        isOptional,
-        isNamed,
-        isRequired,
-        defaultValue,
-      );
+  int get hashCode =>
+      Object.hash(name, type, isOptional, isNamed, isRequired, defaultValue);
 }
