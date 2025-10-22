@@ -375,47 +375,11 @@ class FunctionDecl extends IRNode {
   String toString() => signature;
 }
 
+
+
 /// Represents a type parameter in a generic function or class
 ///
 /// Examples: T, K extends Comparable<K>, U super Animal
-@immutable
-class TypeParameterDecl {
-  /// Type parameter name
-  final String name;
-
-  /// Upper bound constraint (if any)
-  ///
-  /// Example: T extends Comparable<T>
-  final TypeIR? bound;
-
-  /// Lower bound constraint (rare, Dart doesn't support in declarations)
-  final TypeIR? lowerBound;
-
-  /// Whether this has a bound constraint
-  bool get hasBound => bound != null || lowerBound != null;
-
-  /// Declaration string
-  ///
-  /// Examples: "T", "K extends Comparable<K>"
-  String get declaration {
-    if (bound != null) {
-      return '$name extends ${bound!.displayName}';
-    }
-    if (lowerBound != null) {
-      return '$name super ${lowerBound!.displayName}';
-    }
-    return name;
-  }
-
-  const TypeParameterDecl({required this.name, this.bound, this.lowerBound});
-
-  @override
-  String toString() => declaration;
-}
-
-/// Specialized FunctionDecl for methods (functions inside classes)
-///
-/// Adds class context and method-specific features
 @immutable
 class MethodDecl extends FunctionDecl {
   /// Name of the class containing this method
@@ -433,26 +397,33 @@ class MethodDecl extends FunctionDecl {
     required super.id,
     required super.name,
     required super.returnType,
-    super.parameters = const [],
+    super.parameters,
     super.body,
-    super.isAsync = false,
-    super.isGenerator = false,
-    super.typeParameters = const [],
+    super.isAsync,
+    super.isGenerator,
+    super.isSyncGenerator,
+    List<TypeParameterDecl> super.typeParameters = const [],
     required super.sourceLocation,
     super.documentation,
-    super.annotations = const [],
-    super.visibility = VisibilityModifier.public,
-    super.isStatic = false,
-    super.isAbstract = false,
-    super.isGetter = false,
-    super.isSetter = false,
+    super.annotations,
+    super.visibility,
+    super.isStatic,
+    super.isAbstract,
+    super.isGetter,
+    super.isSetter,
+    super.isOperator,
+    super.isFactory,
+    super.isConst,
+    super.isExternal,
+    super.isLate,
     this.className,
     this.markedOverride = false,
     this.overriddenSignature,
   });
 
   /// Full method name with class context
-  String get fullQualifiedName => className != null ? '$className.$name' : name;
+  String get fullQualifiedName => 
+      className != null ? '$className.$name' : name;
 }
 
 /// Specialized FunctionDecl for constructors
