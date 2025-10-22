@@ -8,11 +8,11 @@ import 'widget_node_ir.dart';
 // =============================================================================
 
 /// Represents the complete widget tree rendered by a build method
-/// 
+///
 /// This captures the hierarchical structure of all widgets that will be
 /// rendered during a single build() call. It includes metadata about the
 /// tree structure that enables optimization analysis and debugging.
-/// 
+///
 /// Examples of what this contains:
 /// - Scaffold > AppBar (const) > Column > [Container, Text]
 /// - ListView.builder with dynamic children (keyed)
@@ -20,30 +20,30 @@ import 'widget_node_ir.dart';
 @immutable
 class WidgetTreeIR extends IRNode {
   /// Root node of the tree
-  /// 
+  ///
   /// The widget that build() returns, everything else is a descendant
   final WidgetNodeIR root;
 
   /// Total number of nodes in this tree
-  /// 
+  ///
   /// Count of every widget, including root
   /// Useful for performance analysis (too many = rebuild is expensive)
   final int nodeCount;
 
   /// Maximum nesting depth
-  /// 
+  ///
   /// Measured from root to deepest leaf
   /// Deep trees (>20) can have layout performance issues
   final int depth;
 
   /// Conditional branches where tree structure differs
-  /// 
+  ///
   /// Locations in the tree where if/else or ternary creates different widgets
   /// Examples: "if (user.isAdmin)", "condition ? Widget1 : Widget2"
   final List<ConditionalBranchIR> conditionalBranches;
 
   /// Iteration patterns where dynamic children are generated
-  /// 
+  ///
   /// Locations where widgets are created in loops or map operations
   /// Examples: "list.map((item) => ItemWidget(item))", "for (var i = 0; ...)"
   final List<IterationPatternIR> iterationPatterns;
@@ -97,7 +97,7 @@ class WidgetTreeIR extends IRNode {
   List<String> validateTree() {
     final issues = <String>[];
 
-    if (root.treeDepth ==0) {
+    if (root.treeDepth == 0) {
       issues.add('Widget tree has no root widget');
     }
 
@@ -106,7 +106,9 @@ class WidgetTreeIR extends IRNode {
     }
 
     if (depth > 20) {
-      issues.add('Widget nesting depth ($depth) exceeds recommended maximum (20)');
+      issues.add(
+        'Widget nesting depth ($depth) exceeds recommended maximum (20)',
+      );
     }
 
     if (nodeCount > 100) {
@@ -114,7 +116,9 @@ class WidgetTreeIR extends IRNode {
     }
 
     if (constWidgetPercentage < 30) {
-      issues.add('Only ${constWidgetPercentage.toStringAsFixed(1)}% of widgets use const');
+      issues.add(
+        'Only ${constWidgetPercentage.toStringAsFixed(1)}% of widgets use const',
+      );
     }
 
     if (unkeyedDynamicWidgetCount > 0) {
@@ -134,8 +138,9 @@ class WidgetTreeIR extends IRNode {
       'root': root.toJson(),
       'nodeCount': nodeCount,
       'depth': depth,
-      'conditionalBranches':
-          conditionalBranches.map((c) => c.toJson()).toList(),
+      'conditionalBranches': conditionalBranches
+          .map((c) => c.toJson())
+          .toList(),
       'iterationPatterns': iterationPatterns.map((i) => i.toJson()).toList(),
       'constWidgetCount': constWidgetCount,
       'nonConstWidgetCount': nonConstWidgetCount,
@@ -159,16 +164,20 @@ class WidgetTreeIR extends IRNode {
       nodeCount: json['nodeCount'] as int? ?? 0,
       depth: json['depth'] as int? ?? 0,
       conditionalBranches: (json['conditionalBranches'] as List<dynamic>? ?? [])
-          .map((c) => ConditionalBranchIR.fromJson(
-            c as Map<String, dynamic>,
-            sourceLocation,
-          ))
+          .map(
+            (c) => ConditionalBranchIR.fromJson(
+              c as Map<String, dynamic>,
+              sourceLocation,
+            ),
+          )
           .toList(),
       iterationPatterns: (json['iterationPatterns'] as List<dynamic>? ?? [])
-          .map((i) => IterationPatternIR.fromJson(
-            i as Map<String, dynamic>,
-            sourceLocation,
-          ))
+          .map(
+            (i) => IterationPatternIR.fromJson(
+              i as Map<String, dynamic>,
+              sourceLocation,
+            ),
+          )
           .toList(),
       constWidgetCount: json['constWidgetCount'] as int? ?? 0,
       nonConstWidgetCount: json['nonConstWidgetCount'] as int? ?? 0,
@@ -321,13 +330,13 @@ class TreeMetricsIR extends IRNode {
   final int estimatedMemoryBytes;
 
   TreeMetricsIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     this.averageBranchingFactor = 0.0,
     this.leafNodeCount = 0,
     this.estimatedBuildTimeUs = 0,
     this.estimatedMemoryBytes = 0,
-  }) ;
+  });
 
   @override
   String toShortString() =>
@@ -351,7 +360,8 @@ class TreeMetricsIR extends IRNode {
     return TreeMetricsIR(
       id: json['id'] as String,
       sourceLocation: sourceLocation,
-      averageBranchingFactor: (json['averageBranchingFactor'] as num? ?? 0).toDouble(),
+      averageBranchingFactor: (json['averageBranchingFactor'] as num? ?? 0)
+          .toDouble(),
       leafNodeCount: json['leafNodeCount'] as int? ?? 0,
       estimatedBuildTimeUs: json['estimatedBuildTimeUs'] as int? ?? 0,
       estimatedMemoryBytes: json['estimatedMemoryBytes'] as int? ?? 0,
@@ -364,18 +374,18 @@ class TreeMetricsIR extends IRNode {
 // =============================================================================
 
 enum BranchTypeIR {
-  ternary,      // condition ? widget1 : widget2
-  ifStatement,  // if (condition) widget1 else widget2
-  switchCase,   // switch case
+  ternary, // condition ? widget1 : widget2
+  ifStatement, // if (condition) widget1 else widget2
+  switchCase, // switch case
   nullCoalesce, // value ?? default
 }
 
 enum LoopTypeIR {
-  forLoop,      // for (var i = 0; ...)
-  forEach,      // for (var item in items)
-  mapMethod,    // items.map()
+  forLoop, // for (var i = 0; ...)
+  forEach, // for (var item in items)
+  mapMethod, // items.map()
   expandMethod, // items.expand()
-  listMap,      // [...list.map()]
-  listExpand,   // [...list.expand()]
-  custom,       // other iteration
+  listMap, // [...list.map()]
+  listExpand, // [...list.expand()]
+  custom, // other iteration
 }

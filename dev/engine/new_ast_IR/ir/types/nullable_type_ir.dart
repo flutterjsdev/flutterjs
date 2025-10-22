@@ -52,10 +52,7 @@ class NullableTypeIR extends TypeIR {
 
   @override
   Map<String, dynamic> toJson() {
-    return {
-      ...super.toJson(),
-      'innerType': innerType.toJson(),
-    };
+    return {...super.toJson(), 'innerType': innerType.toJson()};
   }
 
   factory NullableTypeIR.fromJson(

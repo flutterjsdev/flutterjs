@@ -10,26 +10,26 @@ import '../ir/type_ir.dart';
 // =============================================================================
 
 /// Represents a state management provider class
-/// 
+///
 /// Extends ClassDecl to add provider-specific analysis for:
 /// - ChangeNotifier-based providers
 /// - BLoC pattern classes
 /// - Cubit pattern classes
 /// - InheritedWidget subclasses
 /// - Custom state management
-/// 
+///
 /// Examples:
 /// ```dart
 /// class CounterProvider extends ChangeNotifier {
 ///   int _count = 0;
 ///   int get count => _count;
-///   
+///
 ///   void increment() {
 ///     _count++;
 ///     notifyListeners();
 ///   }
 /// }
-/// 
+///
 /// class UserBloc extends Bloc<UserEvent, UserState> {
 ///   UserBloc() : super(UserInitial());
 /// }
@@ -40,7 +40,7 @@ class ProviderClassDecl extends ClassDecl {
   final ProviderTypeIR providerType;
 
   /// The data type this provider manages
-  /// 
+  ///
   /// Examples:
   /// - CounterProvider manages `int`
   /// - UserProvider manages `User`
@@ -48,23 +48,23 @@ class ProviderClassDecl extends ClassDecl {
   final TypeIR? stateType;
 
   /// All notifyListeners() calls in this provider
-  /// 
+  ///
   /// For ChangeNotifier: when state changes are broadcast
   /// For others: equivalent state change notifications
   final List<NotifyListenerCallIR> notifyListenerCalls;
 
   /// Which fields contain mutable state
-  /// 
+  ///
   /// These fields trigger provider updates when modified
   final List<String> stateFieldNames;
 
   /// All mutations to state fields
-  /// 
+  ///
   /// Tracks how state is modified (direct assignment, increment, etc.)
   final List<StateMutationIR> fieldMutations;
 
   /// Methods that modify state
-  /// 
+  ///
   /// Example: increment(), decrement(), reset()
   final List<String> stateModifyingMethods;
 
@@ -72,7 +72,7 @@ class ProviderClassDecl extends ClassDecl {
   final List<ProviderConsumerIR> consumedByWidgets;
 
   /// Which providers depend on this provider
-  /// 
+  ///
   /// For dependency analysis
   final List<String> dependsOnProviders;
 
@@ -83,7 +83,7 @@ class ProviderClassDecl extends ClassDecl {
   final ProviderConsumptionAnalysisIR consumptionAnalysis;
 
   /// Whether this provider exposes reactive streams
-  /// 
+  ///
   /// For RxDart, stream_builder patterns
   final bool exposesStreams;
 
@@ -91,7 +91,7 @@ class ProviderClassDecl extends ClassDecl {
   final List<StreamOperationIR> streamOperations;
 
   /// Whether this provider has event input (BLoC pattern)
-  /// 
+  ///
   /// BLoC/Cubit have event sinks
   final bool hasEventInput;
 
@@ -104,10 +104,10 @@ class ProviderClassDecl extends ClassDecl {
   /// All detected issues with this provider
   final List<ProviderIssueIR> issues;
 
-   ProviderClassDecl({
-    required super. id,
-    required super. sourceLocation,
-    required super. name,
+  ProviderClassDecl({
+    required super.id,
+    required super.sourceLocation,
+    required super.name,
     super.superclass,
     super.interfaces = const [],
     super.mixins = const [],
@@ -138,7 +138,7 @@ class ProviderClassDecl extends ClassDecl {
     this.eventTypes = const [],
     required this.performance,
     this.issues = const [],
-  }) ;
+  });
 
   /// Get the managed state type as human-readable string
   String get stateTypeString => stateType?.displayName() ?? 'dynamic';
@@ -208,17 +208,17 @@ class ProviderClassDecl extends ClassDecl {
 
 /// Represents different types of state management patterns
 enum ProviderTypeIR {
-  changeNotifier,        // extends ChangeNotifier
-  bloc,                  // extends Bloc
-  cubit,                 // extends Cubit
-  inheritedWidget,       // extends InheritedWidget
-  inheritedModel,        // extends InheritedModel
-  rxDart,                // Uses RxDart streams
-  riverpod,              // Riverpod provider
-  getMx,                 // GetX controller
-  mobx,                  // MobX store
-  stateNotifier,         // StateNotifier from StateNotifier package
-  custom,                // Custom state management
+  changeNotifier, // extends ChangeNotifier
+  bloc, // extends Bloc
+  cubit, // extends Cubit
+  inheritedWidget, // extends InheritedWidget
+  inheritedModel, // extends InheritedModel
+  rxDart, // Uses RxDart streams
+  riverpod, // Riverpod provider
+  getMx, // GetX controller
+  mobx, // MobX store
+  stateNotifier, // StateNotifier from StateNotifier package
+  custom, // Custom state management
 }
 
 // =============================================================================
@@ -247,15 +247,15 @@ class NotifyListenerCallIR extends IRNode {
   final int maxCallsPerExecution;
 
   NotifyListenerCallIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.methodName,
     required this.trigger,
     this.modifiedFields = const [],
     this.isConditional = false,
     this.isInLoop = false,
     this.maxCallsPerExecution = 1,
-  }) ;
+  });
 
   @override
   String toShortString() =>
@@ -285,7 +285,7 @@ class StateMutationIR extends IRNode {
   final bool triggersNotification;
 
   /// How many steps after mutation before notification
-  /// 
+  ///
   /// 0 = immediate, >0 = delayed, -1 = no notification
   final int stepsToNotification;
 
@@ -296,8 +296,8 @@ class StateMutationIR extends IRNode {
   final bool isInLoop;
 
   StateMutationIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.fieldName,
     required this.mutationType,
     required this.methodName,
@@ -306,7 +306,7 @@ class StateMutationIR extends IRNode {
     this.stepsToNotification = 0,
     this.isConditional = false,
     this.isInLoop = false,
-  }) ;
+  });
 
   /// Whether this mutation is properly notified
   bool get isProperlyNotified =>
@@ -318,14 +318,14 @@ class StateMutationIR extends IRNode {
 }
 
 enum MutationTypeIR {
-  assignment,          // x = value
-  increment,           // x++
-  decrement,           // x--
-  compoundAssignment,  // x += value
-  fieldAssignment,     // this.x = value
-  listMutation,        // list.add()
-  mapMutation,         // map.putIfAbsent()
-  propertyMutation,    // obj.prop = value
+  assignment, // x = value
+  increment, // x++
+  decrement, // x--
+  compoundAssignment, // x += value
+  fieldAssignment, // this.x = value
+  listMutation, // list.add()
+  mapMutation, // map.putIfAbsent()
+  propertyMutation, // obj.prop = value
 }
 
 // =============================================================================
@@ -357,8 +357,8 @@ class ProviderConsumerIR extends IRNode {
   final int accessesPerBuild;
 
   ProviderConsumerIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.consumerName,
     required this.consumptionType,
     required this.frequency,
@@ -366,7 +366,7 @@ class ProviderConsumerIR extends IRNode {
     this.isMemoized = false,
     this.hasSelector = false,
     this.accessesPerBuild = 1,
-  }) ;
+  });
 
   @override
   String toShortString() =>
@@ -374,20 +374,20 @@ class ProviderConsumerIR extends IRNode {
 }
 
 enum ConsumptionTypeIR {
-  watch,     // context.watch<T>() - reactive reads
-  read,      // context.read<T>() - one-time reads
-  select,    // context.select() - partial state reads
-  consumer,  // Consumer widget
-  listener,  // Listener widget
-  selector,  // Selector widget
+  watch, // context.watch<T>() - reactive reads
+  read, // context.read<T>() - one-time reads
+  select, // context.select() - partial state reads
+  consumer, // Consumer widget
+  listener, // Listener widget
+  selector, // Selector widget
 }
 
 enum ConsumptionFrequencyIR {
-  veryRare,      // < 1% of builds
-  rare,          // 1-10% of builds
-  occasional,    // 10-50% of builds
-  frequent,      // 50-90% of builds
-  veryFrequent,  // 90%+ of builds
+  veryRare, // < 1% of builds
+  rare, // 1-10% of builds
+  occasional, // 10-50% of builds
+  frequent, // 50-90% of builds
+  veryFrequent, // 90%+ of builds
 }
 
 // =============================================================================
@@ -413,14 +413,14 @@ class StreamOperationIR extends IRNode {
   final bool isProperlyDisposed;
 
   StreamOperationIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.operationType,
     required this.streamName,
     required this.methodName,
     this.elementType,
     this.isProperlyDisposed = true,
-  }) ;
+  });
 
   @override
   String toShortString() =>
@@ -471,8 +471,8 @@ class ProviderConsumptionAnalysisIR extends IRNode {
   final String? optimizationOpportunity;
 
   ProviderConsumptionAnalysisIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.totalConsumers,
     required this.watchConsumers,
     required this.readConsumers,
@@ -482,7 +482,7 @@ class ProviderConsumptionAnalysisIR extends IRNode {
     required this.pattern,
     required this.isOverConsumed,
     this.optimizationOpportunity,
-  }) ;
+  });
 
   @override
   String toShortString() =>
@@ -490,12 +490,12 @@ class ProviderConsumptionAnalysisIR extends IRNode {
 }
 
 enum ConsumptionPatternIR {
-  uniformRead,           // All consumers read the same way
-  mixedRead,            // Mix of watch and read
-  heavyWrite,           // Many writes, few readers
-  heavyRead,            // Few writes, many readers
-  cascading,            // Reads trigger other reads
-  sporadic,             // Unpredictable usage
+  uniformRead, // All consumers read the same way
+  mixedRead, // Mix of watch and read
+  heavyWrite, // Many writes, few readers
+  heavyRead, // Few writes, many readers
+  cascading, // Reads trigger other reads
+  sporadic, // Unpredictable usage
 }
 
 // =============================================================================
@@ -527,8 +527,8 @@ class ProviderPerformanceIR extends IRNode {
   final List<String> optimizationSuggestions;
 
   ProviderPerformanceIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.stateChangeProcessingTimeMs,
     required this.widgetsRebuiltPerChange,
     required this.frequencyDescription,
@@ -536,7 +536,7 @@ class ProviderPerformanceIR extends IRNode {
     required this.hasExcessiveNotifications,
     required this.hasUnnecessarySubscribers,
     required this.optimizationSuggestions,
-  }) ;
+  });
 
   @override
   String toShortString() =>
@@ -566,34 +566,33 @@ class ProviderIssueIR extends IRNode {
   final SourceLocationIR? issueLocation;
 
   ProviderIssueIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.severity,
     required this.issueType,
     required this.message,
     this.suggestion,
     this.issueLocation,
-  }) ;
+  });
 
   @override
-  String toShortString() =>
-      '[${severity.name}] ${issueType.name}: $message';
+  String toShortString() => '[${severity.name}] ${issueType.name}: $message';
 }
 
 enum ProviderIssueType {
-  missingNotification,    // State changed but no notifyListeners
-  overNotification,       // Too many notifyListeners calls
-  unsubscribedStream,     // Stream subscription not disposed
-  circularDependency,     // Provider depends on itself
-  deadCode,               // Provider never used
-  stateLeakage,           // Unintended state sharing
-  inefficientSelector,    // Selector could be more specific
-  missingDisposal,        // Resource not cleaned up
+  missingNotification, // State changed but no notifyListeners
+  overNotification, // Too many notifyListeners calls
+  unsubscribedStream, // Stream subscription not disposed
+  circularDependency, // Provider depends on itself
+  deadCode, // Provider never used
+  stateLeakage, // Unintended state sharing
+  inefficientSelector, // Selector could be more specific
+  missingDisposal, // Resource not cleaned up
 }
 
 enum IssueSeverityIR {
-  error,    // Critical bug
-  warning,  // Should fix
-  info,     // Code quality
-  hint,     // Suggestion
+  error, // Critical bug
+  warning, // Should fix
+  info, // Code quality
+  hint, // Suggestion
 }

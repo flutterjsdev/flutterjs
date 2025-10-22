@@ -1,7 +1,7 @@
 /// Comprehensive category of analysis issues with full Flutter support
 enum IssueCategory {
   flutterPatterns,
-controlFlow,
+  controlFlow,
   unresolvedType,
   invalidImport,
   // ==========================================================================
@@ -29,9 +29,7 @@ controlFlow,
   // ==========================================================================
   // FLUTTER WIDGET CATEGORIES
   // ==========================================================================
-
   flutterIssue,
-
 
   /// Widget construction or lifecycle issue
   flutterWidget,
@@ -361,10 +359,10 @@ extension IssueCategoryExtension on IssueCategory {
   /// Get human-readable name
   String get displayName {
     return switch (this) {
-      IssueCategory.flutterPatterns=> "Flutter Patterns",
-      IssueCategory.controlFlow=> "Controll Flow Error",
-      IssueCategory.invalidImport=> "Invalid Import",
-      IssueCategory.unresolvedType=>'Unresolved Type',
+      IssueCategory.flutterPatterns => "Flutter Patterns",
+      IssueCategory.controlFlow => "Controll Flow Error",
+      IssueCategory.invalidImport => "Invalid Import",
+      IssueCategory.unresolvedType => 'Unresolved Type',
       IssueCategory.syntaxError => 'Syntax Error',
       IssueCategory.typeError => 'Type Error',
       IssueCategory.unusedCode => 'Unused Code',
@@ -476,7 +474,7 @@ extension IssueCategoryExtension on IssueCategory {
       IssueCategory.codeSmell => '#FFCC00',
       IssueCategory.convention => '#00CCFF',
       // Flutter state & lifecycle
-      IssueCategory.flutterIssue||
+      IssueCategory.flutterIssue ||
       IssueCategory.flutterState ||
       IssueCategory.flutterSetState ||
       IssueCategory.flutterLifecycle ||
@@ -517,8 +515,7 @@ extension IssueCategoryExtension on IssueCategory {
       IssueCategory.flutterResourceLeak ||
       IssueCategory.flutterStreamLeak ||
       IssueCategory.flutterSecurity ||
-      IssueCategory.flutterHardcodedSecret =>
-        true,
+      IssueCategory.flutterHardcodedSecret => true,
       _ => false,
     };
   }
@@ -526,34 +523,30 @@ extension IssueCategoryExtension on IssueCategory {
   /// Group related categories
   Set<IssueCategory> get relatedCategories {
     return switch (this) {
-      IssueCategory.flutterSetState ||
-      IssueCategory.flutterState =>
-        {
-          IssueCategory.flutterSetState,
-          IssueCategory.flutterState,
-          IssueCategory.flutterProvider,
-          IssueCategory.flutterChangeNotifier,
-        },
+      IssueCategory.flutterSetState || IssueCategory.flutterState => {
+        IssueCategory.flutterSetState,
+        IssueCategory.flutterState,
+        IssueCategory.flutterProvider,
+        IssueCategory.flutterChangeNotifier,
+      },
       IssueCategory.flutterDispose ||
       IssueCategory.flutterResourceLeak ||
       IssueCategory.flutterStreamLeak ||
-      IssueCategory.flutterAnimationLeak =>
-        {
-          IssueCategory.flutterDispose,
-          IssueCategory.flutterResourceLeak,
-          IssueCategory.flutterStreamLeak,
-          IssueCategory.flutterAnimationLeak,
-          IssueCategory.flutterListenerLeak,
-        },
+      IssueCategory.flutterAnimationLeak => {
+        IssueCategory.flutterDispose,
+        IssueCategory.flutterResourceLeak,
+        IssueCategory.flutterStreamLeak,
+        IssueCategory.flutterAnimationLeak,
+        IssueCategory.flutterListenerLeak,
+      },
       IssueCategory.flutterWidget ||
       IssueCategory.flutterWidgetTree ||
-      IssueCategory.flutterCustomWidget =>
-        {
-          IssueCategory.flutterWidget,
-          IssueCategory.flutterWidgetTree,
-          IssueCategory.flutterCustomWidget,
-          IssueCategory.flutterWidgetKey,
-        },
+      IssueCategory.flutterCustomWidget => {
+        IssueCategory.flutterWidget,
+        IssueCategory.flutterWidgetTree,
+        IssueCategory.flutterCustomWidget,
+        IssueCategory.flutterWidgetKey,
+      },
       _ => {this},
     };
   }

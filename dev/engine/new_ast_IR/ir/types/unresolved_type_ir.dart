@@ -1,6 +1,6 @@
-
 import '../type_ir.dart';
 import '../../diagnostics/source_location.dart';
+
 /// Represents unresolved type references during multi-pass analysis
 /// Acts as a placeholder that can be resolved in a second pass
 class UnresolvedTypeIR extends TypeIR {
@@ -18,7 +18,6 @@ class UnresolvedTypeIR extends TypeIR {
     this.resolutionAttempts = const [],
     this.passNumber = 1,
     super.isNullable = false,
-    
   });
 
   @override
@@ -126,7 +125,8 @@ class UnresolvedTypeIR extends TypeIR {
     Map<String, dynamic> json,
     SourceLocationIR sourceLocation,
   ) {
-    final resolutionAttemptsJson = json['resolutionAttempts'] as List<dynamic>? ?? [];
+    final resolutionAttemptsJson =
+        json['resolutionAttempts'] as List<dynamic>? ?? [];
     final resolutionAttempts = resolutionAttemptsJson.cast<String>().toList();
 
     return UnresolvedTypeIR(

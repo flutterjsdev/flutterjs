@@ -6,7 +6,7 @@ import 'dart:io';
 import 'analying_project.dart';
 
 /// Registry for all types discovered during analysis
-/// 
+///
 /// This registry:
 /// - Stores information about classes, mixins, enums, typedefs
 /// - Tracks which file each type is defined in
@@ -15,7 +15,7 @@ import 'analying_project.dart';
 class TypeRegistry {
   final Map<String, TypeInfo> _types = {};
   final Map<String, Set<String>> _fileTypes = {};
-  
+
   // Cache for package name
   String? _packageName;
   String? _projectPath;
@@ -24,7 +24,7 @@ class TypeRegistry {
   void registerType(TypeInfo typeInfo) {
     _types[typeInfo.name] = typeInfo;
     _fileTypes.putIfAbsent(typeInfo.filePath, () => {}).add(typeInfo.name);
-    
+
     // Store project path from first registered type
     _projectPath ??= _extractProjectPath(typeInfo.filePath);
   }
@@ -147,14 +147,14 @@ class TypeRegistry {
   String? _extractProjectPath(String filePath) {
     // Find the directory containing 'lib'
     var current = path.dirname(filePath);
-    
+
     while (current != path.dirname(current)) {
       if (path.basename(current) == 'lib') {
         return path.dirname(current);
       }
       current = path.dirname(current);
     }
-    
+
     return null;
   }
 
@@ -167,8 +167,10 @@ class TypeRegistry {
       if (!pubspecFile.existsSync()) return null;
 
       final content = pubspecFile.readAsStringSync();
-      final nameMatch = RegExp(r'^name:\s*(\w+)', multiLine: true)
-          .firstMatch(content);
+      final nameMatch = RegExp(
+        r'^name:\s*(\w+)',
+        multiLine: true,
+      ).firstMatch(content);
 
       return nameMatch?.group(1);
     } catch (e) {
@@ -188,14 +190,20 @@ class TypeRegistry {
       'totalTypes': _types.length,
       'filesWithTypes': _fileTypes.length,
       'classes': _types.values.where((t) => t.kind == TypeKind.class_).length,
-      'abstractClasses': _types.values.where((t) => t.kind == TypeKind.abstractClass).length,
+      'abstractClasses': _types.values
+          .where((t) => t.kind == TypeKind.abstractClass)
+          .length,
       'mixins': _types.values.where((t) => t.kind == TypeKind.mixin).length,
       'enums': _types.values.where((t) => t.kind == TypeKind.enum_).length,
       'typedefs': _types.values.where((t) => t.kind == TypeKind.typedef).length,
-      'extensions': _types.values.where((t) => t.kind == TypeKind.extension).length,
+      'extensions': _types.values
+          .where((t) => t.kind == TypeKind.extension)
+          .length,
       'widgets': _types.values.where((t) => t.isWidget).length,
       'statefulWidgets': _types.values.where((t) => t.isStatefulWidget).length,
-      'statelessWidgets': _types.values.where((t) => t.isStatelessWidget).length,
+      'statelessWidgets': _types.values
+          .where((t) => t.isStatelessWidget)
+          .length,
       'stateClasses': _types.values.where((t) => t.isState).length,
     };
   }
@@ -258,24 +266,17 @@ class TypeInfo {
   @override
   String toString() {
     final buffer = StringBuffer('TypeInfo($name, kind: $kind');
-    
+
     if (isWidget) buffer.write(', widget');
     if (isStatefulWidget) buffer.write(', stateful');
     if (isStatelessWidget) buffer.write(', stateless');
     if (isState) buffer.write(', state');
     if (superType != null) buffer.write(', extends: $superType');
-    
+
     buffer.write(')');
     return buffer.toString();
   }
 }
 
 /// Type kind enumeration
-enum TypeKind {
-  class_,
-  abstractClass,
-  mixin,
-  enum_,
-  typedef,
-  extension,
-}
+enum TypeKind { class_, abstractClass, mixin, enum_, typedef, extension }

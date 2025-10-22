@@ -2,15 +2,14 @@ import 'package:meta/meta.dart';
 
 import 'issue_category.dart';
 import 'source_location.dart';
+
 /// Severity levels for analysis issues
 enum IssueSeverity {
-  error,    // Blocks execution or violates Dart rules
-  warning,  // Likely bug or poor practice
-  info,     // Suggestion for improvement
-  hint,     // Low-priority note
+  error, // Blocks execution or violates Dart rules
+  warning, // Likely bug or poor practice
+  info, // Suggestion for improvement
+  hint, // Low-priority note
 }
-
-
 
 /// Represents a problem found during analysis
 @immutable
@@ -21,7 +20,7 @@ class AnalysisIssue {
   /// Severity level of this issue
   final IssueSeverity severity;
 
-   /// Category of issue
+  /// Category of issue
   final IssueCategory category;
 
   /// What went wrong (human-readable message)
@@ -68,11 +67,10 @@ class AnalysisIssue {
     required String message,
     required String code,
     required SourceLocationIR sourceLocation,
-    required IssueCategory  category,
+    required IssueCategory category,
     String? suggestion,
     List<SourceLocationIR> relatedLocations = const [],
     String? documentationUrl,
-   
   }) {
     return AnalysisIssue(
       id: id,
@@ -93,7 +91,7 @@ class AnalysisIssue {
     required String message,
     required String code,
     required SourceLocationIR sourceLocation,
-    required IssueCategory  category,
+    required IssueCategory category,
     String? suggestion,
     List<SourceLocationIR> relatedLocations = const [],
     String? documentationUrl,
@@ -117,7 +115,7 @@ class AnalysisIssue {
     required String message,
     required String code,
     required SourceLocationIR sourceLocation,
-     required IssueCategory  category,
+    required IssueCategory category,
     String? suggestion,
   }) {
     return AnalysisIssue(
@@ -127,7 +125,7 @@ class AnalysisIssue {
       code: code,
       sourceLocation: sourceLocation,
       suggestion: suggestion,
-      category: category
+      category: category,
     );
   }
 
@@ -137,7 +135,7 @@ class AnalysisIssue {
     required String message,
     required String code,
     required SourceLocationIR sourceLocation,
-     required IssueCategory  category,
+    required IssueCategory category,
   }) {
     return AnalysisIssue(
       id: id,
@@ -145,7 +143,7 @@ class AnalysisIssue {
       message: message,
       code: code,
       sourceLocation: sourceLocation,
-      category: category
+      category: category,
     );
   }
 
@@ -186,8 +184,7 @@ class AnalysisIssue {
           severity == other.severity;
 
   @override
-  int get hashCode =>
-      Object.hash(id, code, sourceLocation, severity);
+  int get hashCode => Object.hash(id, code, sourceLocation, severity);
 
   factory AnalysisIssue.fromJson(Map<String, dynamic> json) {
     return AnalysisIssue(
@@ -202,14 +199,15 @@ class AnalysisIssue {
         json['sourceLocation'] as Map<String, dynamic>,
       ),
       suggestion: json['suggestion'] as String?,
-      relatedLocations: (json['relatedLocations'] as List<dynamic>?)
+      relatedLocations:
+          (json['relatedLocations'] as List<dynamic>?)
               ?.map((e) => SourceLocationIR.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
       isDuplicate: json['isDuplicate'] as bool? ?? false,
       documentationUrl: json['documentationUrl'] as String?,
       createdAtMillis: json['createdAtMillis'] as int?,
-      category: json['category'] 
+      category: json['category'],
     );
   }
 
@@ -221,8 +219,7 @@ class AnalysisIssue {
       'code': code,
       'sourceLocation': sourceLocation.toJson(),
       'suggestion': suggestion,
-      'relatedLocations':
-          relatedLocations.map((loc) => loc.toJson()).toList(),
+      'relatedLocations': relatedLocations.map((loc) => loc.toJson()).toList(),
       'isDuplicate': isDuplicate,
       'documentationUrl': documentationUrl,
       'createdAtMillis': createdAtMillis,

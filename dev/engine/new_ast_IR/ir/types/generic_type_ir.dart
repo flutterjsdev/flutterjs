@@ -39,7 +39,6 @@ class GenericTypeIR extends TypeIR {
     );
   }
 
-
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -53,12 +52,12 @@ class GenericTypeIR extends TypeIR {
 
   @override
   int get hashCode => Object.hash(
-        id,
-        name,
-        isNullable,
-        Object.hashAll(typeArguments),
-        Object.hashAll(typeParameters),
-      );
+    id,
+    name,
+    isNullable,
+    Object.hashAll(typeArguments),
+    Object.hashAll(typeParameters),
+  );
 
   @override
   Map<String, dynamic> toJson() {
@@ -67,7 +66,9 @@ class GenericTypeIR extends TypeIR {
       'typeArguments': typeArguments.map((t) => t.toJson()).toList(),
       'typeParameters': typeParameters.map((tp) => tp.toJson()).toList(),
     };
-  }/// Helper function to compare lists deeply.
+  }
+
+  /// Helper function to compare lists deeply.
   static bool _listEquals<T>(List<T> a, List<T> b) {
     if (a.length != b.length) return false;
     for (int i = 0; i < a.length; i++) {

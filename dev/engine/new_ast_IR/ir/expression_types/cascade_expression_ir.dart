@@ -8,7 +8,7 @@ import '../type_ir.dart';
 
 /// Represents a cascade expression in Dart
 /// Allows multiple method calls on the same object
-/// 
+///
 /// Example: `obj..method1()..method2()..property = value`
 @immutable
 class CascadeExpressionIR extends ExpressionIR {
@@ -47,7 +47,7 @@ class CascadeExpressionIR extends ExpressionIR {
 
 /// Represents null-aware access operations in Dart
 /// Handles ?., ?[, and other null-coalescing access patterns
-/// 
+///
 /// Example: `obj?.property`, `obj?[index]`, `obj?.method()`
 @immutable
 class NullAwareAccessExpressionIR extends ExpressionIR {
@@ -91,11 +91,7 @@ class NullAwareAccessExpressionIR extends ExpressionIR {
   }
 }
 
-enum NullAwareOperationType {
-  property,
-  methodCall,
-  indexAccess,
-}
+enum NullAwareOperationType { property, methodCall, indexAccess }
 
 // =============================================================================
 // NULL COALESCING EXPRESSION
@@ -103,7 +99,7 @@ enum NullAwareOperationType {
 
 /// Represents the null coalescing operator (??)
 /// Returns the left operand if not null, otherwise the right operand
-/// 
+///
 /// Example: `value ?? defaultValue`
 @immutable
 class NullCoalescingExpressionIR extends ExpressionIR {
@@ -128,11 +124,7 @@ class NullCoalescingExpressionIR extends ExpressionIR {
 
   @override
   Map<String, dynamic> toJson() {
-    return {
-      ...super.toJson(),
-      'left': left.toJson(),
-      'right': right.toJson(),
-    };
+    return {...super.toJson(), 'left': left.toJson(), 'right': right.toJson()};
   }
 }
 
@@ -141,7 +133,7 @@ class NullCoalescingExpressionIR extends ExpressionIR {
 // =============================================================================
 
 /// Represents object instantiation with the `new` keyword or constructor call
-/// 
+///
 /// Example: `new MyClass()`, `MyClass.named(args)`, `const MyClass()`
 @immutable
 class InstanceCreationExpressionIR extends ExpressionIR {
@@ -175,8 +167,9 @@ class InstanceCreationExpressionIR extends ExpressionIR {
   @override
   String toShortString() {
     final constStr = isConst ? 'const ' : '';
-    final constructorStr =
-        constructorName != null ? '.${constructorName!}' : '';
+    final constructorStr = constructorName != null
+        ? '.${constructorName!}'
+        : '';
     final argsCount = arguments.length + namedArguments.length;
     return '$constStr${type.displayName()}$constructorStr($argsCount args)';
   }
@@ -200,7 +193,7 @@ class InstanceCreationExpressionIR extends ExpressionIR {
 
 /// Represents compound assignment operations in Dart
 /// Combines an operation with assignment (+=, -=, *=, etc.)
-/// 
+///
 /// Example: `x += 5`, `str *= 2`, `value ??= defaultVal`
 @immutable
 class CompoundAssignmentExpressionIR extends ExpressionIR {
@@ -244,7 +237,7 @@ class CompoundAssignmentExpressionIR extends ExpressionIR {
 
 /// Represents string interpolation in Dart
 /// Combines literal string parts with expressions
-/// 
+///
 /// Example: `"Hello $name, you are $age years old"`
 @immutable
 class StringInterpolationExpressionIR extends ExpressionIR {
@@ -264,10 +257,7 @@ class StringInterpolationExpressionIR extends ExpressionIR {
 
   @override
   Map<String, dynamic> toJson() {
-    return {
-      ...super.toJson(),
-      'parts': parts.map((p) => p.toJson()).toList(),
-    };
+    return {...super.toJson(), 'parts': parts.map((p) => p.toJson()).toList()};
   }
 }
 
@@ -277,7 +267,7 @@ class StringInterpolationExpressionIR extends ExpressionIR {
 
 /// Represents the `this` keyword in Dart
 /// Refers to the current instance
-/// 
+///
 /// Example: `this.property`, `this.method()`
 @immutable
 class ThisExpressionIR extends ExpressionIR {
@@ -303,7 +293,7 @@ class ThisExpressionIR extends ExpressionIR {
 
 /// Represents the `super` keyword in Dart
 /// Refers to the parent class instance
-/// 
+///
 /// Example: `super.property`, `super.method()`
 @immutable
 class SuperExpressionIR extends ExpressionIR {
@@ -329,7 +319,7 @@ class SuperExpressionIR extends ExpressionIR {
 
 /// Represents an expression wrapped in parentheses
 /// Used to enforce precedence or for clarity
-/// 
+///
 /// Example: `(a + b) * c`, `(condition ? x : y)`
 @immutable
 class ParenthesizedExpressionIR extends ExpressionIR {
@@ -349,10 +339,7 @@ class ParenthesizedExpressionIR extends ExpressionIR {
 
   @override
   Map<String, dynamic> toJson() {
-    return {
-      ...super.toJson(),
-      'innerExpression': innerExpression.toJson(),
-    };
+    return {...super.toJson(), 'innerExpression': innerExpression.toJson()};
   }
 }
 
@@ -362,7 +349,7 @@ class ParenthesizedExpressionIR extends ExpressionIR {
 
 /// Represents simple assignment operations in Dart
 /// Assigns a value to a target
-/// 
+///
 /// Example: `x = 5`, `obj.property = value`, `list[0] = item`
 @immutable
 class AssignmentExpressionIR extends ExpressionIR {
@@ -395,7 +382,6 @@ class AssignmentExpressionIR extends ExpressionIR {
   }
 }
 
-
 /// Represents a single part of a string interpolation
 /// Can be either literal text or an expression to be evaluated
 @immutable
@@ -414,25 +400,19 @@ class StringInterpolationPart {
     this.expression,
     this.text,
   }) : assert(
-    (isExpression && expression != null && text == null) ||
-    (!isExpression && text != null && expression == null),
-    'Either expression or text must be provided, but not both',
-  );
+         (isExpression && expression != null && text == null) ||
+             (!isExpression && text != null && expression == null),
+         'Either expression or text must be provided, but not both',
+       );
 
   /// Factory constructor for text parts
   factory StringInterpolationPart.text(String textContent) {
-    return StringInterpolationPart(
-      isExpression: false,
-      text: textContent,
-    );
+    return StringInterpolationPart(isExpression: false, text: textContent);
   }
 
   /// Factory constructor for expression parts
   factory StringInterpolationPart.expression(ExpressionIR expr) {
-    return StringInterpolationPart(
-      isExpression: true,
-      expression: expr,
-    );
+    return StringInterpolationPart(isExpression: true, expression: expr);
   }
 
   Map<String, dynamic> toJson() {

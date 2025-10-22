@@ -19,6 +19,7 @@ import '../new_ast_IR/ir/types/parameter_ir.dart';
 import '../new_ast_IR/parameter_decl.dart';
 import '../new_ast_IR/variable_decl.dart';
 import 'binary_constain.dart';
+import 'binary_ir_writer.dart';
 
 /// Deserializes Flutter IR from binary format
 ///
@@ -31,7 +32,7 @@ class BinaryIRReader {
   late ByteData _data;
   late List<String> _stringTable;
   int _offset = 0;
- bool _hasChecksumFlag = false;
+  bool _hasChecksumFlag = false;
   // =========================================================================
   // PUBLIC API
   // =========================================================================
@@ -60,7 +61,7 @@ class BinaryIRReader {
       final fileIR = _readFileIRData();
 
       // Step 4: Validate checksum if present (handled in header)
-       if (_hasChecksumFlag) {
+      if (_hasChecksumFlag) {
         _validateChecksum(bytes);
       }
 
@@ -100,7 +101,7 @@ class BinaryIRReader {
 
     // Flags
     final flags = _readUint16();
-     _hasChecksumFlag  = (flags & BinaryConstants.FLAG_HAS_CHECKSUM) != 0;
+    _hasChecksumFlag = (flags & BinaryConstants.FLAG_HAS_CHECKSUM) != 0;
     final isCompressed = (flags & BinaryConstants.FLAG_COMPRESSED) != 0;
 
     if (isCompressed) {
@@ -110,7 +111,7 @@ class BinaryIRReader {
       );
     }
 
-     print('Header read - Checksum present: $_hasChecksumFlag');
+    print('Header read - Checksum present: $_hasChecksumFlag');
   }
 
   // =========================================================================
@@ -149,14 +150,72 @@ class BinaryIRReader {
   // IR DATA READING
   // =========================================================================
 
+  // DartFile _readFileIRData() {
+  //   final filePath = _readStringRef();
+  //   final builder = DartFileBuilder(filePath: filePath);
+
+  //   final contentHash = _readStringRef();
+  //   final libraryName = _readStringRef();
+
+  //   builder
+  //     ..withContentHash(contentHash)
+  //     ..withLibrary(libraryName);
+
+  //   // Analysis metadata
+  //   final analyzedAt = _readUint64();
+
+  //   // Imports
+  //   final importCount = _readUint32();
+  //   for (int i = 0; i < importCount; i++) {
+  //     builder.addImport(_readImportStmt());
+  //   }
+
+  //   // Exports
+  //   final exportCount = _readUint32();
+  //   for (int i = 0; i < exportCount; i++) {
+  //     builder.addExport(_readExportStmt());
+  //   }
+
+  //   // Variables
+  //   final varCount = _readUint32();
+  //   for (int i = 0; i < varCount; i++) {
+  //     builder.addVariable(_readVariableDecl());
+  //   }
+
+  //   // Functions
+  //   final funcCount = _readUint32();
+  //   for (int i = 0; i < funcCount; i++) {
+  //     builder.addFunction(_readFunctionDecl());
+  //   }
+
+  //   // Classes
+  //   final classCount = _readUint32();
+  //   for (int i = 0; i < classCount; i++) {
+  //     builder.addClass(_readClassDecl());
+  //   }
+
+  //   // Analysis issues
+  //   final issueCount = _readUint32();
+  //   for (int i = 0; i < issueCount; i++) {
+  //     builder.addIssue(_readAnalysisIssue());
+  //   }
+
+  //   return builder.build();
+  // }
+
   DartFile _readFileIRData() {
+    print('[READ FILE IR DATA] START - offset: $_offset');
+
     final filePath = _readStringRef();
+    print('[READ FILE IR] After filePath: $_offset');
+
     final builder = DartFileBuilder(filePath: filePath);
 
-    // File metadata
-
     final contentHash = _readStringRef();
+    print('[READ FILE IR] After contentHash: $_offset');
+
     final libraryName = _readStringRef();
+    print('[READ FILE IR] After library: $_offset');
 
     builder
       ..withContentHash(contentHash)
@@ -164,65 +223,166 @@ class BinaryIRReader {
 
     // Analysis metadata
     final analyzedAt = _readUint64();
+    print('[READ FILE IR] After analyzedAt: $_offset');
 
     // Imports
     final importCount = _readUint32();
+    print('[READ FILE IR] After importCount: $_offset, count: $importCount');
+
     for (int i = 0; i < importCount; i++) {
       builder.addImport(_readImportStmt());
     }
+    print('[READ FILE IR] After imports loop: $_offset');
 
     // Exports
     final exportCount = _readUint32();
+    print('[READ FILE IR] After exportCount: $_offset, count: $exportCount');
+
     for (int i = 0; i < exportCount; i++) {
       builder.addExport(_readExportStmt());
     }
+    print('[READ FILE IR] After exports loop: $_offset');
 
     // Variables
     final varCount = _readUint32();
+    print('[READ FILE IR] After varCount: $_offset');
+
     for (int i = 0; i < varCount; i++) {
       builder.addVariable(_readVariableDecl());
     }
+    print('[READ FILE IR] After variables: $_offset');
 
     // Functions
     final funcCount = _readUint32();
+    print('[READ FILE IR] After funcCount: $_offset');
+
     for (int i = 0; i < funcCount; i++) {
       builder.addFunction(_readFunctionDecl());
     }
+    print('[READ FILE IR] After functions: $_offset');
 
     // Classes
     final classCount = _readUint32();
+    print('[READ FILE IR] After classCount: $_offset');
+
     for (int i = 0; i < classCount; i++) {
       builder.addClass(_readClassDecl());
     }
+    print('[READ FILE IR] After classes: $_offset');
 
     // Analysis issues
     final issueCount = _readUint32();
+    print('[READ FILE IR] After issueCount: $_offset');
+
     for (int i = 0; i < issueCount; i++) {
       builder.addIssue(_readAnalysisIssue());
     }
+    print('[READ FILE IR] After issues: $_offset');
+    print('[READ FILE IR DATA] END');
 
     return builder.build();
   }
 
+  AnnotationIR _readAnnotation() {
+    final name = _readStringRef();
+
+    final argCount = _readUint32();
+    final arguments = <ExpressionIR>[];
+    for (int i = 0; i < argCount; i++) {
+      arguments.add(_readExpression());
+    }
+
+    final namedArgCount = _readUint32();
+    final namedArguments = <String, ExpressionIR>{};
+    for (int i = 0; i < namedArgCount; i++) {
+      final key = _readStringRef();
+      final value = _readExpression();
+      namedArguments[key] = value;
+    }
+
+    final sourceLocation = _readSourceLocation();
+
+    return AnnotationIR(
+      name: name,
+      arguments: arguments,
+      namedArguments: namedArguments,
+      sourceLocation: sourceLocation,
+    );
+  }
+  // ImportStmt _readImportStmt() {
+  //   final uri = _readStringRef();
+  //   final hasPrefix = _readByte() != 0;
+  //   final prefix = hasPrefix ? _readStringRef() : null;
+  //   final isDeferred = _readByte() != 0;
+
+  //   // ADD THIS - Read annotations
+  //   final annotCount = _readUint32();
+  //   final annotations = <AnnotationIR>[];
+  //   for (int i = 0; i < annotCount; i++) {
+  //     annotations.add(_readAnnotation());
+  //   }
+
+  //   final showCount = _readUint32();
+  //   final showList = <String>[];
+  //   for (int i = 0; i < showCount; i++) {
+  //     showList.add(_readStringRef());
+  //   }
+
+  //   final hideCount = _readUint32();
+  //   final hideList = <String>[];
+  //   for (int i = 0; i < hideCount; i++) {
+  //     hideList.add(_readStringRef());
+  //   }
+
+  //   final sourceLocation = _readSourceLocation();
+
+  //   return ImportStmt(
+  //     uri: uri,
+  //     prefix: prefix,
+  //     isDeferred: isDeferred,
+  //     showList: showList,
+  //     hideList: hideList,
+  //     sourceLocation: sourceLocation,
+  //     annotations: annotations,  // ADD THIS
+  //   );
+  // }
+
   ImportStmt _readImportStmt() {
+    print('[READ IMPORT] START - offset: $_offset');
+
     final uri = _readStringRef();
+    print('[READ IMPORT] After uri: $_offset');
+
     final hasPrefix = _readByte() != 0;
+    print('[READ IMPORT] After prefix flag: $_offset');
+
     final prefix = hasPrefix ? _readStringRef() : null;
+    print('[READ IMPORT] After prefix: $_offset');
+
     final isDeferred = _readByte() != 0;
+    print('[READ IMPORT] After deferred: $_offset');
 
     final showCount = _readUint32();
+    print('[READ IMPORT] After showCount: $_offset, count: $showCount');
+
     final showList = <String>[];
     for (int i = 0; i < showCount; i++) {
       showList.add(_readStringRef());
     }
+    print('[READ IMPORT] After showList: $_offset');
 
     final hideCount = _readUint32();
+    print('[READ IMPORT] After hideCount: $_offset, count: $hideCount');
+
     final hideList = <String>[];
     for (int i = 0; i < hideCount; i++) {
       hideList.add(_readStringRef());
     }
+    print('[READ IMPORT] After hideList: $_offset');
 
     final sourceLocation = _readSourceLocation();
+    print('[READ IMPORT] After sourceLocation: $_offset');
+    print('[READ IMPORT] END');
 
     return ImportStmt(
       uri: uri,
@@ -231,25 +391,37 @@ class BinaryIRReader {
       showList: showList,
       hideList: hideList,
       sourceLocation: sourceLocation,
+      annotations: const [],
     );
   }
 
   ExportStmt _readExportStmt() {
+    print('[READ EXPORT] START - offset: $_offset');
+
     final uri = _readStringRef();
+    print('[READ EXPORT] After uri: $_offset');
 
     final showCount = _readUint32();
+    print('[READ EXPORT] After showCount: $_offset, count: $showCount');
+
     final showList = <String>[];
     for (int i = 0; i < showCount; i++) {
       showList.add(_readStringRef());
     }
+    print('[READ EXPORT] After showList: $_offset');
 
     final hideCount = _readUint32();
+    print('[READ EXPORT] After hideCount: $_offset, count: $hideCount');
+
     final hideList = <String>[];
     for (int i = 0; i < hideCount; i++) {
       hideList.add(_readStringRef());
     }
+    print('[READ EXPORT] After hideList: $_offset');
 
     final sourceLocation = _readSourceLocation();
+    print('[READ EXPORT] After sourceLocation: $_offset');
+    print('[READ EXPORT] END');
 
     return ExportStmt(
       uri: uri,
@@ -296,20 +468,35 @@ class BinaryIRReader {
   }
 
   FunctionDecl _readFunctionDecl() {
+    print('[READ FUNC] START - offset: $_offset');
+
     final id = _readStringRef();
+    print('[READ FUNC] After id: $_offset');
+
     final name = _readStringRef();
+    print('[READ FUNC] After name: $_offset');
+
     final returnType = _readType();
+    print('[READ FUNC] After returnType: $_offset');
 
     final isAsync = _readByte() != 0;
+    print('[READ FUNC] After isAsync: $_offset');
+
     final isGenerator = _readByte() != 0;
+    print('[READ FUNC] After isGenerator: $_offset');
 
     final paramCount = _readUint32();
+    print('[READ FUNC] After paramCount: $_offset, count: $paramCount');
+
     final parameters = <ParameterDecl>[];
     for (int i = 0; i < paramCount; i++) {
       parameters.add(_readParameterDecl());
     }
+    print('[READ FUNC] After parameters: $_offset');
 
     final sourceLocation = _readSourceLocation();
+    print('[READ FUNC] After sourceLocation: $_offset');
+    print('[READ FUNC] END');
 
     return FunctionDecl(
       id: id,
@@ -352,49 +539,77 @@ class BinaryIRReader {
   }
 
   ClassDecl _readClassDecl() {
+    print('[READ CLASS] START - offset: $_offset');
+
     final id = _readStringRef();
+    print('[READ CLASS] After id: $_offset');
+
     final name = _readStringRef();
+    print('[READ CLASS] After name: $_offset');
 
     final isAbstract = _readByte() != 0;
+    print('[READ CLASS] After isAbstract: $_offset');
+
     final isFinal = _readByte() != 0;
+    print('[READ CLASS] After isFinal: $_offset');
 
     final hasSuperclass = _readByte() != 0;
+    print('[READ CLASS] After hasSuperclass: $_offset');
+
     TypeIR? superclass;
     if (hasSuperclass) {
       superclass = _readType();
     }
+    print('[READ CLASS] After superclass: $_offset');
 
     final interfaceCount = _readUint32();
+    print('[READ CLASS] After interfaceCount: $_offset');
+
     final interfaces = <TypeIR>[];
     for (int i = 0; i < interfaceCount; i++) {
       interfaces.add(_readType());
     }
+    print('[READ CLASS] After interfaces: $_offset');
 
     final mixinCount = _readUint32();
+    print('[READ CLASS] After mixinCount: $_offset');
+
     final mixins = <TypeIR>[];
     for (int i = 0; i < mixinCount; i++) {
       mixins.add(_readType());
     }
+    print('[READ CLASS] After mixins: $_offset');
 
     final fieldCount = _readUint32();
+    print('[READ CLASS] After fieldCount: $_offset');
+
     final fields = <FieldDecl>[];
     for (int i = 0; i < fieldCount; i++) {
       fields.add(_readFieldDecl());
     }
+    print('[READ CLASS] After fields: $_offset');
 
     final methodCount = _readUint32();
+    print('[READ CLASS] After methodCount: $_offset');
+
     final methods = <MethodDecl>[];
     for (int i = 0; i < methodCount; i++) {
       methods.add(_readMethodDecl());
     }
+    print('[READ CLASS] After methods: $_offset');
 
     final constructorCount = _readUint32();
+    print('[READ CLASS] After constructorCount: $_offset');
+
     final constructors = <ConstructorDecl>[];
     for (int i = 0; i < constructorCount; i++) {
       constructors.add(_readConstructorDecl());
     }
+    print('[READ CLASS] After constructors: $_offset');
 
     final sourceLocation = _readSourceLocation();
+    print('[READ CLASS] After sourceLocation: $_offset');
+    print('[READ CLASS] END');
 
     return ClassDecl(
       id: id,
@@ -512,18 +727,18 @@ class BinaryIRReader {
     );
   }
 
-  
   // =========================================================================
   // STEP 6: Add checksum validation method (NEW)
   // =========================================================================
   /// Validates the checksum at the end of the file
-    bool _bytesEqual(List<int> a, List<int> b) {
+  bool _bytesEqual(List<int> a, List<int> b) {
     if (a.length != b.length) return false;
     for (int i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;
     }
     return true;
   }
+
   void _validateChecksum(Uint8List allBytes) {
     // Checksum is the last 32 bytes
     if (allBytes.length < BinaryConstants.CHECKSUM_SIZE) {
@@ -546,16 +761,20 @@ class BinaryIRReader {
 
     // Compare
     if (!_bytesEqual(computedChecksum, checksumFromFile)) {
-      print('File checksum: ${checksumFromFile.map((b) => b.toRadixString(16).padLeft(2, '0')).join('')}');
+      print(
+        'File checksum: ${checksumFromFile.map((b) => b.toRadixString(16).padLeft(2, '0')).join('')}',
+      );
       print('Computed checksum: ${computedDigest.toString()}');
-      
+
       throw SerializationException(
         'Checksum mismatch: file may be corrupted or tampered with',
         offset: checksumStart,
       );
     }
 
-    print('Checksum verified: ${computedDigest.toString().substring(0, 16)}...');
+    print(
+      'Checksum verified: ${computedDigest.toString().substring(0, 16)}...',
+    );
   }
 
   AnalysisIssue _readAnalysisIssue() {
@@ -744,10 +963,10 @@ class BinaryIRReader {
         return _readSuperExpression();
       case BinaryConstants.EXPR_PARENTHESIZED:
         return _readParenthesizedExpression();
-      case BinaryConstants.EXPR_INSTANCE_CREATION :
-      return _readInstanceCreationExpression();
+      case BinaryConstants.EXPR_INSTANCE_CREATION:
+        return _readInstanceCreationExpression();
       case BinaryConstants.EXPR_LAMBDA:
-      return _readLambdaExpression();
+        return _readLambdaExpression();
       case BinaryConstants.EXPR_IDENTIFIER:
         return _readIdentifierExpression();
       case BinaryConstants.OP_NULL_COALESCE:
@@ -1851,15 +2070,106 @@ class BinaryIRReader {
         );
     }
   }
-}
 
-/// Exception thrown during deserialization
-class SerializationException implements Exception {
-  final String message;
-  final int offset;
+  /// Add this method to BinaryIRReader to get detailed error info
+  void debugDeserialize(Uint8List bytes) {
+    print('\n=== DEBUG DESERIALIZATION ===');
+    print('File size: ${bytes.length} bytes');
 
-  SerializationException(this.message, {required this.offset});
+    _data = ByteData.view(bytes.buffer);
+    _offset = 0;
+    _stringTable = [];
 
-  @override
-  String toString() => 'SerializationException at offset $offset: $message';
+    try {
+      // Read header
+      print('\n1. Reading header...');
+      _readHeader();
+      print('   ✓ Header valid');
+
+      // Read string table
+      print('\n2. Reading string table...');
+      final stringCountOffset = _offset;
+      final stringCount = _readUint32();
+      print('   String count: $stringCount');
+      print('   Offset after count: $_offset');
+
+      _stringTable = List<String>.filled(stringCount, '');
+      for (int i = 0; i < stringCount; i++) {
+        _stringTable[i] = _readString();
+        if (i < 5 || i >= stringCount - 2) {
+          print('   [$i] "${_stringTable[i]}" (offset: $_offset)');
+        } else if (i == 5) {
+          print('   ...');
+        }
+      }
+      print('   ✓ String table loaded');
+      print('   IR data starts at offset: $_offset');
+
+      // Read IR data with detailed tracking
+      print('\n3. Reading IR data...');
+      final filePathRef = _readUint32();
+      print('   File path ref: $filePathRef (max valid: ${stringCount - 1})');
+      if (filePathRef >= stringCount) {
+        print('   ✗ ERROR: File path reference out of bounds!');
+        return;
+      }
+
+      final contentHashRef = _readUint32();
+      print(
+        '   Content hash ref: $contentHashRef (max valid: ${stringCount - 1})',
+      );
+      if (contentHashRef >= stringCount) {
+        print('   ✗ ERROR: Content hash reference out of bounds!');
+        return;
+      }
+
+      final libraryRef = _readUint32();
+      print('   Library ref: $libraryRef (max valid: ${stringCount - 1})');
+      if (libraryRef >= stringCount) {
+        print('   ✗ ERROR: Library reference out of bounds!');
+        return;
+      }
+
+      print('   ✓ File metadata read successfully');
+
+      print('\n4. Reading imports, exports, variables, functions, classes...');
+      final analyzedAt = _readUint64();
+
+      // Imports
+      final importCount = _readUint32();
+      print('   Imports: $importCount');
+
+      // Exports
+      final exportCount = _readUint32();
+      print('   Exports: $exportCount');
+
+      // Variables
+      final varCount = _readUint32();
+      print('   Variables: $varCount');
+
+      // Functions
+      final funcCount = _readUint32();
+      print('   Functions: $funcCount');
+
+      // Classes
+      final classCount = _readUint32();
+      print('   Classes: $classCount');
+
+      // Issues
+      final issueCount = _readUint32();
+      print('   Issues: $issueCount');
+
+      print('   Current offset: $_offset / ${_data.lengthInBytes}');
+      print('   Remaining bytes: ${_data.lengthInBytes - _offset}');
+
+      print('\n✓ Debug deserialization completed successfully!');
+    } on SerializationException catch (e) {
+      print('\n✗ Deserialization failed: $e');
+      print('   Current offset: $_offset');
+      print('   String table size: ${_stringTable.length}');
+    } catch (e, stackTrace) {
+      print('\n✗ Unexpected error: $e');
+      print('   Stack: $stackTrace');
+    }
+  }
 }

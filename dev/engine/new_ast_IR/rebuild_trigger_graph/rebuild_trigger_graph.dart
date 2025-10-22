@@ -2,17 +2,16 @@ import 'package:meta/meta.dart';
 import '../diagnostics/analysis_issue.dart';
 import '../ir/ir_node.dart';
 
-
 // =============================================================================
 // REBUILD TRIGGER GRAPH
 // =============================================================================
 
 /// Models the dependency graph: State Field → Build Method Rebuild
-/// 
+///
 /// This graph captures when modifications to state fields trigger widget rebuilds.
 /// Each node is a (StateField, BuildMethod) pair, and edges represent the
 /// causal relationship with associated costs (how expensive is this rebuild?).
-/// 
+///
 /// Enables analysis like:
 /// - "What triggers rebuilds of this widget?"
 /// - "How many rebuilds does changing field X cause?"
@@ -27,7 +26,7 @@ class RebuildTriggerGraph extends IRNode {
   final List<RebuildEdge> edges;
 
   /// Transitive closure: if field X changes, which builds are affected
-  /// 
+  ///
   /// Key: field name, Value: set of build method names affected (directly or indirectly)
   final Map<String, Set<String>> transitiveAffects;
 
@@ -42,31 +41,31 @@ class RebuildTriggerGraph extends IRNode {
 
   RebuildTriggerGraph({
     required super.id,
-    required super. sourceLocation,
+    required super.sourceLocation,
     this.nodes = const [],
     this.edges = const [],
     this.transitiveAffects = const {},
     required this.analysis,
     this.performanceIssues = const [],
     this.optimizationSuggestions = const [],
-  }) ;
+  });
 
   /// Query: What state changes cause this widget to rebuild?
-  /// 
+  ///
   /// Returns all edges where the target build method is this widget
   List<RebuildEdge> getTriggersFor(String buildMethodName) {
     return edges.where((e) => e.targetBuildMethod == buildMethodName).toList();
   }
 
   /// Query: Which widgets rebuild when field X changes?
-  /// 
+  ///
   /// Returns all build methods affected by this field (direct + transitive)
   Set<String> getAffectedBuilds(String fieldName) {
     return transitiveAffects[fieldName] ?? {};
   }
 
   /// Query: What is the direct cost of changing field X?
-  /// 
+  ///
   /// Sum of all direct edge costs from this field
   double getDirectCost(String fieldName) {
     return edges
@@ -75,11 +74,11 @@ class RebuildTriggerGraph extends IRNode {
   }
 
   /// Query: What is the cascading cost of changing field X?
-  /// 
+  ///
   /// Includes indirect rebuilds that might be triggered
   double getCascadingCost(String fieldName) {
     double totalCost = getDirectCost(fieldName);
-    
+
     // Add transitive costs
     final affectedBuilds = getAffectedBuilds(fieldName);
     for (final build in affectedBuilds) {
@@ -90,12 +89,12 @@ class RebuildTriggerGraph extends IRNode {
         }
       }
     }
-    
+
     return totalCost;
   }
 
   /// Detect unnecessary rebuilds
-  /// 
+  ///
   /// Finds cases where:
   /// - Field accessed but not in build()
   /// - Build method runs but doesn't change UI
@@ -106,22 +105,26 @@ class RebuildTriggerGraph extends IRNode {
     for (final edge in edges) {
       // Build doesn't actually use the field value
       if (!edge.fieldActuallyUsed) {
-        unnecessary.add(UnnecessaryRebuildIR(
-          fieldName: edge.sourceField,
-          buildMethod: edge.targetBuildMethod,
-          reason: 'Field modified but not used in build()',
-          severity: IssueSeverity.warning,
-        ));
+        unnecessary.add(
+          UnnecessaryRebuildIR(
+            fieldName: edge.sourceField,
+            buildMethod: edge.targetBuildMethod,
+            reason: 'Field modified but not used in build()',
+            severity: IssueSeverity.warning,
+          ),
+        );
       }
 
       // Build runs but produces identical widget tree
       if (edge.cost.rebuildsButNoChange) {
-        unnecessary.add(UnnecessaryRebuildIR(
-          fieldName: edge.sourceField,
-          buildMethod: edge.targetBuildMethod,
-          reason: 'Build runs but widget tree unchanged',
-          severity: IssueSeverity.warning,
-        ));
+        unnecessary.add(
+          UnnecessaryRebuildIR(
+            fieldName: edge.sourceField,
+            buildMethod: edge.targetBuildMethod,
+            reason: 'Build runs but widget tree unchanged',
+            severity: IssueSeverity.warning,
+          ),
+        );
       }
     }
 
@@ -129,7 +132,7 @@ class RebuildTriggerGraph extends IRNode {
   }
 
   /// Find expensive rebuilds
-  /// 
+  ///
   /// Rebuilds that take significant time or affect many widgets
   List<ExpensiveRebuildIR> findExpensiveRebuilds({
     double costThresholdMs = 5.0,
@@ -150,28 +153,36 @@ class RebuildTriggerGraph extends IRNode {
       // Check if any single edge is expensive
       for (final edge in buildEdges) {
         if (edge.cost.estimatedCostMs > costThresholdMs) {
-          expensive.add(ExpensiveRebuildIR(
-            fieldName: edge.sourceField,
-            buildMethod: buildMethod,
-            costMs: edge.cost.estimatedCostMs,
-            reason: 'Single edge exceeds cost threshold',
-            affectedWidgetCount: edge.cost.estimatedWidgetsRebuilt,
-          ));
+          expensive.add(
+            ExpensiveRebuildIR(
+              fieldName: edge.sourceField,
+              buildMethod: buildMethod,
+              costMs: edge.cost.estimatedCostMs,
+              reason: 'Single edge exceeds cost threshold',
+              affectedWidgetCount: edge.cost.estimatedWidgetsRebuilt,
+            ),
+          );
         }
       }
 
       // Check if aggregate cost is high
-      final totalCost =
-          buildEdges.fold(0.0, (sum, e) => sum + e.cost.estimatedCostMs);
+      final totalCost = buildEdges.fold(
+        0.0,
+        (sum, e) => sum + e.cost.estimatedCostMs,
+      );
       if (totalCost > costThresholdMs * 2) {
-        expensive.add(ExpensiveRebuildIR(
-          fieldName: 'multiple',
-          buildMethod: buildMethod,
-          costMs: totalCost,
-          reason: 'Multiple field changes trigger expensive build',
-          affectedWidgetCount: buildEdges
-              .fold(0, (sum, e) => sum + e.cost.estimatedWidgetsRebuilt),
-        ));
+        expensive.add(
+          ExpensiveRebuildIR(
+            fieldName: 'multiple',
+            buildMethod: buildMethod,
+            costMs: totalCost,
+            reason: 'Multiple field changes trigger expensive build',
+            affectedWidgetCount: buildEdges.fold(
+              0,
+              (sum, e) => sum + e.cost.estimatedWidgetsRebuilt,
+            ),
+          ),
+        );
       }
     }
 
@@ -179,7 +190,7 @@ class RebuildTriggerGraph extends IRNode {
   }
 
   /// Detect cascade patterns
-  /// 
+  ///
   /// One field change triggers many rebuilds
   List<RebuildCascadeIR> findCascades({int cascadeThreshold = 5}) {
     final cascades = <RebuildCascadeIR>[];
@@ -189,14 +200,16 @@ class RebuildTriggerGraph extends IRNode {
       final affectedBuilds = entry.value;
 
       if (affectedBuilds.length >= cascadeThreshold) {
-        cascades.add(RebuildCascadeIR(
-          fieldName: fieldName,
-          cascadeLength: affectedBuilds.length,
-          affectedBuildMethods: affectedBuilds.toList(),
-          severity: affectedBuilds.length > cascadeThreshold * 2
-              ? IssueSeverity.error
-              : IssueSeverity.warning,
-        ));
+        cascades.add(
+          RebuildCascadeIR(
+            fieldName: fieldName,
+            cascadeLength: affectedBuilds.length,
+            affectedBuildMethods: affectedBuilds.toList(),
+            severity: affectedBuilds.length > cascadeThreshold * 2
+                ? IssueSeverity.error
+                : IssueSeverity.warning,
+          ),
+        );
       }
     }
 
@@ -224,7 +237,7 @@ class RebuildTriggerGraph extends IRNode {
 // =============================================================================
 
 /// A node in the rebuild trigger graph
-/// 
+///
 /// Represents a (StateField, BuildMethod) pair
 @immutable
 class RebuildNode {
@@ -267,7 +280,7 @@ class RebuildNode {
 // =============================================================================
 
 /// An edge in the rebuild trigger graph
-/// 
+///
 /// Represents: "when this state field changes, this build method is triggered"
 @immutable
 class RebuildEdge {
@@ -287,7 +300,7 @@ class RebuildEdge {
   final RebuildCostIR cost;
 
   /// Whether the field value is actually used in the build
-  /// 
+  ///
   /// If false: field modification triggers rebuild but isn't read
   final bool fieldActuallyUsed;
 
@@ -295,7 +308,7 @@ class RebuildEdge {
   final bool isDirect;
 
   /// How frequently this edge is traversed
-  /// 
+  ///
   /// Based on how often the field is modified relative to other fields
   final EdgeFrequency frequency;
 
@@ -358,7 +371,7 @@ class RebuildCostIR {
   final bool hasDynamicChildren;
 
   /// Whether build rebuilds but produces identical tree
-  /// 
+  ///
   /// Indicates memoization opportunity
   final bool rebuildsButNoChange;
 
@@ -378,7 +391,7 @@ class RebuildCostIR {
   });
 
   /// Whether this cost is acceptable
-  /// 
+  ///
   /// < 1ms: excellent
   /// < 5ms: good
   /// < 16ms (60fps): acceptable
@@ -479,8 +492,8 @@ class GraphAnalysisIR extends IRNode {
   final int deadCodePatternCount;
 
   GraphAnalysisIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.totalStateFields,
     required this.totalBuildMethods,
     required this.averageFieldsPerBuild,
@@ -493,7 +506,7 @@ class GraphAnalysisIR extends IRNode {
     required this.complexityScore,
     required this.unusedFieldCount,
     required this.deadCodePatternCount,
-  }) ;
+  });
 
   @override
   String toShortString() =>
@@ -541,15 +554,15 @@ class PerformanceIssueIR extends IRNode {
   final String? suggestion;
 
   PerformanceIssueIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.severity,
     required this.category,
     required this.message,
     required this.fieldName,
     required this.buildMethodName,
     this.suggestion,
-  }) ;
+  });
 
   @override
   String toShortString() =>
@@ -578,15 +591,15 @@ class OptimizationSuggestionIR extends IRNode {
   final List<String> affectedFields;
 
   OptimizationSuggestionIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.type,
     required this.estimatedImprovement,
     required this.implementationDifficulty,
     required this.description,
     required this.recommendation,
     required this.affectedFields,
-  }) ;
+  });
 
   /// Priority score (higher = should do first)
   double get priority =>
@@ -663,11 +676,11 @@ class RebuildCascadeIR {
 // =============================================================================
 
 enum EdgeFrequency {
-  veryRare,    // < 1% of interactions
-  rare,        // 1-5% of interactions
-  occasional,  // 5-25% of interactions
-  common,      // 25-75% of interactions
-  frequent,    // 75-99% of interactions
+  veryRare, // < 1% of interactions
+  rare, // 1-5% of interactions
+  occasional, // 5-25% of interactions
+  common, // 25-75% of interactions
+  frequent, // 75-99% of interactions
   veryFrequent, // 99%+ of interactions
 }
 
@@ -700,4 +713,3 @@ enum OptimizationTypeIR {
   cacheComputation,
   useInheritedWidget,
 }
-

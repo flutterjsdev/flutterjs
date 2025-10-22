@@ -18,7 +18,7 @@ class ClassDecl extends IRNode {
   final String name;
 
   /// Direct superclass (if any)
-   TypeIR? superclass;
+  TypeIR? superclass;
 
   /// Interfaces/abstract classes this class implements
   final List<TypeIR> interfaces;
@@ -30,7 +30,7 @@ class ClassDecl extends IRNode {
   final List<TypeParameterDecl> typeParameters;
 
   /// All field declarations
-   List<FieldDecl> fields;
+  List<FieldDecl> fields;
 
   /// All method declarations
   final List<MethodDecl> methods;
@@ -56,7 +56,7 @@ class ClassDecl extends IRNode {
   /// Class annotations (e.g., @immutable, @deprecated)
   final List<AnnotationIR> annotations;
 
-   ClassDecl({
+  ClassDecl({
     required super.id,
     required super.sourceLocation,
     required this.name,
@@ -202,7 +202,7 @@ class EnhancedClassDecl extends ClassDecl {
   /// Cyclic inheritance detected
   final bool hasCyclicInheritance;
 
-   EnhancedClassDecl({
+  EnhancedClassDecl({
     required super.id,
     required super.sourceLocation,
     required super.name,
@@ -228,7 +228,8 @@ class EnhancedClassDecl extends ClassDecl {
   });
 
   /// Whether class is dead code (not used anywhere)
-  bool get isDeadCode => !isUsed && !annotations.any((a) => a.name == 'deprecated');
+  bool get isDeadCode =>
+      !isUsed && !annotations.any((a) => a.name == 'deprecated');
 
   /// Inheritance depth (0 = no superclass, 1 = extends one class, etc.)
   int get inheritanceDepth {

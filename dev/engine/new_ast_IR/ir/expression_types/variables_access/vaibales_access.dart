@@ -4,7 +4,7 @@ import '../../expression_ir.dart';
 
 /// Represents an identifier expression in the abstract syntax tree (AST).
 /// This could refer to a variable, function, or type name.
-/// 
+///
 /// Example: `foo` or `int` (if [isTypeReference] is true).
 @immutable
 class IdentifierExpr extends ExpressionIR {
@@ -26,7 +26,7 @@ class IdentifierExpr extends ExpressionIR {
 
 /// Represents a property access expression in the AST.
 /// This is used for accessing members of an object or class.
-/// 
+///
 /// Example: `obj.property` or `obj?.property` (if [isNullAware] is true).
 @immutable
 class PropertyAccessExpr extends ExpressionIR {
@@ -51,7 +51,7 @@ class PropertyAccessExpr extends ExpressionIR {
 
 /// Represents an index access expression in the AST.
 /// This is used for accessing elements in a list, map, or similar collection.
-/// 
+///
 /// Example: `list[0]` or `map[key]`.
 @immutable
 class IndexAccessExpr extends ExpressionIR {

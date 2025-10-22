@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 import '../engine/analyzer/analying_project.dart';
 import '../engine/analyzer/dependency_graph.dart';
 import '../engine/analyzer/ir_linker.dart';
+import '../engine/binary_constrain/binary_ir_reader.dart';
 import '../engine/binary_constrain/binary_ir_writer.dart';
 import '../engine/declaration_pass.dart';
 import '../engine/flow_analysis_pass.dart';
@@ -89,7 +90,6 @@ class RunCommand extends Command<void> {
   String get description =>
       'Analyze Flutter project and generate IR for changed files. '
       'Phase 1: Analysis → Phase 2: IR Generation (5 passes)';
-
   @override
   Future<void> run() async {
     final projectPath = argResults!['project'] as String;
@@ -110,7 +110,7 @@ class RunCommand extends Command<void> {
       exit(1);
     }
 
-    final absoluteProjectPath = projectDir.absolute.path;
+    final absoluteProjectPath = path.normalize(projectDir.absolute.path);
     final absoluteSourcePath = path.join(absoluteProjectPath, sourcePath);
     final absoluteOutputPath = path.join(absoluteProjectPath, outputPath);
 
@@ -125,6 +125,15 @@ class RunCommand extends Command<void> {
 
     try {
       await Directory(absoluteOutputPath).create(recursive: true);
+
+      // ===== INITIALIZE PARSER =====
+      try {
+        if (!jsonOutput) print('Initializing Dart parser...\n');
+        DartFileParser.initialize(projectRoot: absoluteProjectPath);
+      } catch (e) {
+        print('Error: Failed to initialize Dart parser: $e');
+        exit(1);
+      }
 
       // PHASE 1: ANALYSIS
       List<String> filesToConvert = [];
@@ -182,8 +191,9 @@ class RunCommand extends Command<void> {
       }
 
       // PHASE 2: IR GENERATION
-      if (!jsonOutput) print('PHASE 2: Generating IR for ${filesToConvert.length} files...\n');
-      
+      if (!jsonOutput)
+        print('PHASE 2: Generating IR for ${filesToConvert.length} files...\n');
+
       final irResults = await _runAllPasses(
         dartFiles: filesToConvert,
         projectRoot: absoluteProjectPath,
@@ -195,13 +205,29 @@ class RunCommand extends Command<void> {
 
       // PHASE 3: SERIALIZATION
       if (!jsonOutput) print('PHASE 3: Serializing IR...\n');
-      
+
       final irFileCount = await _serializeIR(
         irResults: irResults,
         outputPath: absoluteOutputPath,
         verbose: verbose,
       );
 
+      // NEW: Validate generated files
+      // await _validateIRFiles(
+      //   outputPath: absoluteOutputPath,
+      //   expectedFiles: filesToConvert,
+      //   verbose: verbose,
+      // );
+      await _validateIRFiles(outputPath: absoluteOutputPath, verbose: verbose);
+      if (verbose) {
+        print('\nDEBUGGING deserialization:');
+        final mainIrFile = File(path.join(outputPath, 'main_ir.ir'));
+        if (await mainIrFile.exists()) {
+          final bytes = await mainIrFile.readAsBytes();
+          final reader = BinaryIRReader();
+          reader.debugDeserialize(bytes);
+        }
+      }
       // RESULTS
       if (!jsonOutput) {
         _printResults(irResults, filesToConvert.length, irFileCount);
@@ -224,6 +250,140 @@ class RunCommand extends Command<void> {
       exit(1);
     }
   }
+  //@override
+  // Future<void> run() async {
+  //   final projectPath = argResults!['project'] as String;
+  //   final sourcePath = argResults!['source'] as String;
+  //   final outputPath = argResults!['output'] as String;
+  //   final jsonOutput = argResults!['json'] as bool;
+  //   final enableParallel = argResults!['parallel'] as bool;
+  //   final maxParallelism = int.parse(argResults!['max-parallelism'] as String);
+  //   final enableIncremental = argResults!['incremental'] as bool;
+  //   final skipAnalysis = argResults!['skip-analysis'] as bool;
+  //   final showAnalysis = argResults!['show-analysis'] as bool;
+  //   final strictMode = argResults!['strict'] as bool;
+
+  //   // Validate paths
+  //   final projectDir = Directory(projectPath);
+  //   if (!await projectDir.exists()) {
+  //     print('Error: Project directory not found at $projectPath');
+  //     exit(1);
+  //   }
+
+  //   final absoluteProjectPath = projectDir.absolute.path;
+  //   final absoluteSourcePath = path.join(absoluteProjectPath, sourcePath);
+  //   final absoluteOutputPath = path.join(absoluteProjectPath, outputPath);
+
+  //   if (!jsonOutput) {
+  //     print('');
+  //     print('========== FLUTTER IR GENERATION ==========');
+  //     print('Project: $absoluteProjectPath');
+  //     print('Source:  $absoluteSourcePath');
+  //     print('Output:  $absoluteOutputPath');
+  //     print('==========================================\n');
+  //   }
+
+  //   try {
+  //     await Directory(absoluteOutputPath).create(recursive: true);
+
+  //     // PHASE 1: ANALYSIS
+  //     List<String> filesToConvert = [];
+
+  //     if (skipAnalysis) {
+  //       if (!jsonOutput) print('Skipping analysis phase...\n');
+  //       filesToConvert = await _discoverAllDartFiles(absoluteSourcePath);
+  //     } else {
+  //       if (!jsonOutput) print('PHASE 1: Analyzing project...\n');
+  //       final analyzer = ProjectAnalyzer(
+  //         absoluteProjectPath,
+  //         maxParallelism: maxParallelism,
+  //         enableVerboseLogging: verbose,
+  //         enableCache: enableIncremental,
+  //         enableParallelProcessing: enableParallel,
+  //       );
+
+  //       try {
+  //         await analyzer.initialize();
+
+  //         final orchestrator = ProjectAnalysisOrchestrator(analyzer);
+  //         final analysisReport = await orchestrator.analyze();
+
+  //         filesToConvert = analysisReport.changedFiles.toList();
+
+  //         if (!jsonOutput) {
+  //           _printAnalysisSummary(analysisReport, showAnalysis);
+  //           print(
+  //             '\nFiles identified for IR conversion: ${filesToConvert.length}\n',
+  //           );
+  //         }
+
+  //         analyzer.dispose();
+
+  //         if (analysisReport.filesWithErrors.isNotEmpty && strictMode) {
+  //           print(
+  //             'Error: ${analysisReport.filesWithErrors.length} files with errors. '
+  //             'Fix errors before proceeding.',
+  //           );
+  //           exit(1);
+  //         }
+  //       } catch (e) {
+  //         analyzer.dispose();
+  //         rethrow;
+  //       }
+  //     }
+
+  //     if (filesToConvert.isEmpty) {
+  //       if (!jsonOutput) {
+  //         print('No files to convert.');
+  //       } else {
+  //         print('{"status":"success","filesConverted":0}');
+  //       }
+  //       exit(0);
+  //     }
+
+  //     // PHASE 2: IR GENERATION
+  //     if (!jsonOutput) print('PHASE 2: Generating IR for ${filesToConvert.length} files...\n');
+
+  //     final irResults = await _runAllPasses(
+  //       dartFiles: filesToConvert,
+  //       projectRoot: absoluteProjectPath,
+  //       parallel: enableParallel,
+  //       maxParallelism: maxParallelism,
+  //       verbose: verbose,
+  //       jsonOutput: jsonOutput,
+  //     );
+
+  //     // PHASE 3: SERIALIZATION
+  //     if (!jsonOutput) print('PHASE 3: Serializing IR...\n');
+
+  //     final irFileCount = await _serializeIR(
+  //       irResults: irResults,
+  //       outputPath: absoluteOutputPath,
+  //       verbose: verbose,
+  //     );
+
+  //     // RESULTS
+  //     if (!jsonOutput) {
+  //       _printResults(irResults, filesToConvert.length, irFileCount);
+  //     } else {
+  //       _printJsonResults(irResults, filesToConvert.length, irFileCount);
+  //     }
+
+  //     final hasErrors =
+  //         irResults.validationSummary != null &&
+  //         irResults.validationSummary!.errorCount > 0;
+
+  //     if (hasErrors && strictMode) {
+  //       exit(1);
+  //     }
+  //   } catch (e, stackTrace) {
+  //     print('\nError: $e');
+  //     if (verbose) {
+  //       print('Stack trace:\n$stackTrace');
+  //     }
+  //     exit(1);
+  //   }
+  // }
 
   // =========================================================================
   // PHASE 1: ANALYSIS HELPERS
@@ -236,7 +396,9 @@ class RunCommand extends Command<void> {
     print('  Total files scanned: ${stats.totalFiles}');
     print('  Files with changes: ${report.changedFiles.length}');
     print('  Files with errors: ${report.filesWithErrors.length}');
-    print('  Cache hit rate: ${(stats.cacheHitRate * 100).toStringAsFixed(1)}%');
+    print(
+      '  Cache hit rate: ${(stats.cacheHitRate * 100).toStringAsFixed(1)}%',
+    );
     print('  Analysis time: ${_formatDuration(stats.durationMs)}');
 
     if (detailed && report.fileSummaries.isNotEmpty) {
@@ -247,7 +409,8 @@ class RunCommand extends Command<void> {
       print('    Total classes: ${typeStats['classes']}');
     }
 
-    if (report.filesWithErrors.isNotEmpty && report.filesWithErrors.length <= 5) {
+    if (report.filesWithErrors.isNotEmpty &&
+        report.filesWithErrors.length <= 5) {
       print('\n  Files with errors:');
       for (final file in report.filesWithErrors) {
         print('    - ${path.basename(file)}');
@@ -325,14 +488,42 @@ class RunCommand extends Command<void> {
 
     for (final filePath in dartFiles) {
       try {
-        final content = await File(filePath).readAsString();
+        final file = File(filePath);
+
+        // Check if file exists
+        if (!await file.exists()) {
+          if (verbose) print('      File not found: $filePath');
+          continue;
+        }
+
+        final content = await file.readAsString();
         final builder = DartFileBuilder(
           filePath: filePath,
           projectRoot: projectRoot,
         );
 
-        final unit = _parseFile(filePath);
-        if (unit == null) continue;
+        // Parse the file
+        CompilationUnit? unit;
+        try {
+          unit = _parseFile(filePath);
+        } catch (parseError) {
+          if (verbose) {
+            print(
+              '      Parse error in ${path.basename(filePath)}: $parseError',
+            );
+          }
+          continue;
+        }
+
+        // Check if parsing succeeded
+        if (unit == null) {
+          if (verbose) {
+            print(
+              '      Failed to parse ${path.basename(filePath)}: returned null',
+            );
+          }
+          continue;
+        }
 
         final pass = DeclarationPass(
           filePath: filePath,
@@ -346,15 +537,22 @@ class RunCommand extends Command<void> {
         filesProcessed++;
 
         if (verbose) {
-          print('      ${path.basename(filePath)} (${dartFile.declarationCount} declarations)');
+          print(
+            '      ${path.basename(filePath)} (${dartFile.declarationCount} declarations)',
+          );
         }
-      } catch (e) {
-        if (verbose) print('      Skipped ${path.basename(filePath)}: $e');
+      } catch (e, stackTrace) {
+        if (verbose) {
+          print('      Error processing ${path.basename(filePath)}: $e');
+          print('      Stack: $stackTrace');
+        }
       }
     }
 
     if (!verbose) {
       print('      Processed: $filesProcessed files');
+    } else if (filesProcessed == 0) {
+      print('      ⚠️  WARNING: No files were successfully processed!');
     }
   }
 
@@ -416,8 +614,10 @@ class RunCommand extends Command<void> {
     results.lifecycleAnalysis.addAll(pass.lifecycleAnalysis);
 
     if (!verbose) {
-      print('      Built: ${pass.controlFlowGraphs.length} CFGs, '
-            '${pass.rebuildTriggers.length} triggers');
+      print(
+        '      Built: ${pass.controlFlowGraphs.length} CFGs, '
+        '${pass.rebuildTriggers.length} triggers',
+      );
     }
   }
 
@@ -437,16 +637,17 @@ class RunCommand extends Command<void> {
 
     if (!verbose) {
       final total = pass.validationIssues.length;
-      print('      Found: $total issues '
-            '(${pass.summary.errorCount} errors, '
-            '${pass.summary.warningCount} warnings)');
+      print(
+        '      Found: $total issues '
+        '(${pass.summary.errorCount} errors, '
+        '${pass.summary.warningCount} warnings)',
+      );
     }
   }
 
   // =========================================================================
   // PHASE 3: SERIALIZATION
   // =========================================================================
-
   Future<int> _serializeIR({
     required IRGenerationResults irResults,
     required String outputPath,
@@ -459,23 +660,34 @@ class RunCommand extends Command<void> {
       final dartFile = entry.value;
 
       try {
-        final relativePath = filePath.replaceAll(r'\', '/');
-        final outputName = relativePath
-            .replaceAll('.dart', '_ir')
-            .replaceAll('/', '_');
+        // Normalize path separators to forward slashes
+        final normalizedPath = filePath.replaceAll('\\', '/');
+
+        // Get just the filename without the full path
+        final fileName = path.basenameWithoutExtension(filePath);
+
+        // Create output filename: convert .dart to .ir
+        final outputName = '${fileName}_ir.ir';
 
         final binaryWriter = BinaryIRWriter();
         final binaryBytes = binaryWriter.writeFileIR(dartFile);
-        final binaryFile = File(path.join(outputPath, '$outputName.ir'));
-        await binaryFile.writeAsBytes(binaryBytes);
+
+        // Use path.join to properly construct the full output path
+        final outputFile = File(path.join(outputPath, outputName));
+
+        // Ensure output directory exists
+        await outputFile.parent.create(recursive: true);
+
+        await outputFile.writeAsBytes(binaryBytes);
         fileCount++;
 
         if (verbose) {
           final sizeKb = (binaryBytes.length / 1024).toStringAsFixed(1);
-          print('    ${path.basename(filePath)} -> ${outputName}.ir ($sizeKb KB)');
+          print('    ${path.basename(filePath)} -> $outputName ($sizeKb KB)');
         }
       } catch (e) {
-        if (verbose) print('    Error serializing ${path.basename(filePath)}: $e');
+        if (verbose)
+          print('    Error serializing ${path.basename(filePath)}: $e');
       }
     }
 
@@ -605,6 +817,110 @@ class RunCommand extends Command<void> {
       return 'null';
     }
   }
+
+  /// Validates IR files by deserializing and checking content
+  Future<void> _validateIRFiles({
+    required String outputPath,
+    required bool verbose,
+  }) async {
+    if (verbose) print('\n  Validating IR files...');
+
+    final outputDir = Directory(outputPath);
+    if (!outputDir.existsSync()) {
+      print('    ⚠️  Output directory does not exist!');
+      return;
+    }
+
+    final irFiles = await outputDir
+        .list()
+        .where((entity) => entity.path.endsWith('.ir'))
+        .toList();
+
+    if (irFiles.isEmpty) {
+      print('    ⚠️  No IR files found!');
+      return;
+    }
+
+    if (verbose) {
+      print('    Found ${irFiles.length} IR files');
+    }
+
+    int validFiles = 0;
+    int invalidFiles = 0;
+    int totalDeclarations = 0;
+
+    for (final entity in irFiles) {
+      if (entity is File) {
+        try {
+          // Read file
+          final bytes = await entity.readAsBytes();
+          final fileName = path.basename(entity.path);
+
+          if (bytes.isEmpty) {
+            if (verbose) {
+              print('    ✗ $fileName - File is empty');
+            }
+            invalidFiles++;
+            continue;
+          }
+
+          // Try to deserialize
+          final reader = BinaryIRReader();
+          final dartFile = reader.readFileIR(bytes);
+
+          // Validate content
+          if (dartFile.filePath.isEmpty) {
+            if (verbose) {
+              print('    ✗ $fileName - Invalid: No filePath');
+            }
+            invalidFiles++;
+            continue;
+          }
+
+          // Count declarations
+          final declCount = dartFile.declarationCount;
+          totalDeclarations += declCount;
+
+          validFiles++;
+          if (verbose) {
+            final sizeKb = (bytes.length / 1024).toStringAsFixed(2);
+            final details =
+                '${dartFile.classDeclarations.length} classes, '
+                '${dartFile.functionDeclarations.length} functions, '
+                '${dartFile.variableDeclarations.length} variables';
+            print('    ✓ $fileName ($sizeKb KB) - $details');
+          }
+        } on SerializationException catch (e) {
+          if (verbose) {
+            print(
+              '    ✗ ${path.basename(entity.path)} - Deserialization error: $e',
+            );
+          }
+          invalidFiles++;
+        } catch (e) {
+          if (verbose) {
+            print('    ✗ ${path.basename(entity.path)} - Error: $e');
+          }
+          invalidFiles++;
+        }
+      }
+    }
+
+    // Print summary
+    print('\n  Validation Summary:');
+    print('    ✓ Valid files: $validFiles');
+    if (invalidFiles > 0) {
+      print('    ✗ Invalid files: $invalidFiles');
+    }
+    print('    Total declarations: $totalDeclarations');
+    print('    Total IR files: ${irFiles.length}');
+
+    if (validFiles == irFiles.length) {
+      print('\n  ✓ All IR files are valid!\n');
+    } else {
+      print('\n  ⚠️  Some IR files failed validation\n');
+    }
+  }
 }
 
 // =========================================================================
@@ -629,6 +945,11 @@ class IRGenerationResults {
   int totalDurationMs = 0;
 
   List<AnalysisIssue> getAllIssues() {
-    return [...resolutionIssues, ...inferenceIssues, ...flowIssues, ...validationIssues];
+    return [
+      ...resolutionIssues,
+      ...inferenceIssues,
+      ...flowIssues,
+      ...validationIssues,
+    ];
   }
 }

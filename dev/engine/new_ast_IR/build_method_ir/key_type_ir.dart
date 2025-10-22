@@ -3,15 +3,14 @@ import '../diagnostics/source_location.dart';
 import '../ir/ir_node.dart';
 import '../ir/type_ir.dart';
 
-
 // =============================================================================
 // KEY TYPE REPRESENTATION
 // =============================================================================
 
 /// Represents the type of Key used in a widget
-/// 
+///
 /// Keys are used to preserve widget state across rebuilds
-/// 
+///
 /// Examples:
 /// - ValueKey<String>('myKey')
 /// - ObjectKey(myObject)
@@ -96,12 +95,12 @@ class KeyTypeIR extends IRNode {
 
 /// Enum for different key types available in Flutter
 enum KeyKindIR {
-  valueKey,      // ValueKey<T>(value)
-  objectKey,     // ObjectKey(object)
-  uniqueKey,     // UniqueKey()
-  globalKey,     // GlobalKey<T>()
+  valueKey, // ValueKey<T>(value)
+  objectKey, // ObjectKey(object)
+  uniqueKey, // UniqueKey()
+  globalKey, // GlobalKey<T>()
   pageStorageKey, // PageStorageKey(value)
-  localKey,      // LocalKey subclasses
+  localKey, // LocalKey subclasses
 }
 
 // =============================================================================
@@ -109,9 +108,9 @@ enum KeyKindIR {
 // =============================================================================
 
 /// Represents a FutureBuilder or StreamBuilder widget
-/// 
+///
 /// These are async widgets that rebuild based on data from Futures/Streams
-/// 
+///
 /// Examples:
 /// - FutureBuilder<String>(future: fetchData(), builder: (context, snapshot) { ... })
 /// - StreamBuilder<int>(stream: counter(), builder: (context, snapshot) { ... })
@@ -155,8 +154,9 @@ class AsyncBuilderIR extends IRNode {
   }) : super(id: id, sourceLocation: sourceLocation);
 
   /// Display name based on kind
-  String get builderTypeName =>
-      kind == AsyncBuilderKindIR.futureBuilder ? 'FutureBuilder' : 'StreamBuilder';
+  String get builderTypeName => kind == AsyncBuilderKindIR.futureBuilder
+      ? 'FutureBuilder'
+      : 'StreamBuilder';
 
   @override
   String toShortString() =>
@@ -204,8 +204,6 @@ enum AsyncBuilderKindIR {
   streamBuilder, // StreamBuilder<T>
 }
 
-
-
 // // =============================================================================
 // // SIMPLE TYPE REPRESENTATION
 // // =============================================================================
@@ -219,15 +217,23 @@ class SimpleTypeIR extends TypeIR {
     required String name,
     bool isNullable = false,
   }) : super(
-    id: id,
-    sourceLocation: sourceLocation,
-    name: name,
-    isNullable: isNullable,
-  );
+         id: id,
+         sourceLocation: sourceLocation,
+         name: name,
+         isNullable: isNullable,
+       );
 
   @override
   bool get isBuiltIn {
-    const builtins = {'int', 'double', 'bool', 'String', 'dynamic', 'void', 'Null'};
+    const builtins = {
+      'int',
+      'double',
+      'bool',
+      'String',
+      'dynamic',
+      'void',
+      'Null',
+    };
     return builtins.contains(name);
   }
 
@@ -255,11 +261,11 @@ class DynamicTypeIR extends TypeIR {
     required String id,
     required SourceLocationIR sourceLocation,
   }) : super(
-    id: id,
-    sourceLocation: sourceLocation,
-    name: 'dynamic',
-    isNullable: true,
-  );
+         id: id,
+         sourceLocation: sourceLocation,
+         name: 'dynamic',
+         isNullable: true,
+       );
 
   @override
   bool get isBuiltIn => true;
@@ -279,11 +285,11 @@ class VoidTypeIR extends TypeIR {
     required String id,
     required SourceLocationIR sourceLocation,
   }) : super(
-    id: id,
-    sourceLocation: sourceLocation,
-    name: 'void',
-    isNullable: false,
-  );
+         id: id,
+         sourceLocation: sourceLocation,
+         name: 'void',
+         isNullable: false,
+       );
 
   @override
   bool get isBuiltIn => true;
@@ -300,11 +306,11 @@ class NeverTypeIR extends TypeIR {
     required String id,
     required SourceLocationIR sourceLocation,
   }) : super(
-    id: id,
-    sourceLocation: sourceLocation,
-    name: 'Never',
-    isNullable: false,
-  );
+         id: id,
+         sourceLocation: sourceLocation,
+         name: 'Never',
+         isNullable: false,
+       );
 
   @override
   bool get isBuiltIn => true;

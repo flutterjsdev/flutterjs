@@ -267,22 +267,17 @@ class DartFileBuilder {
   late DateTime createdAt;
   DateTime? lastAnalyzedAt;
 
-
-  DartFileBuilder({required String filePath, String? projectRoot})
-    : idGenerator = IRIdGenerator(
-        filePath: filePath,
-        projectRoot: projectRoot,
-      ),
+  DartFileBuilder({required this.filePath, String? projectRoot})
+    : idGenerator = IRIdGenerator(filePath: filePath, projectRoot: projectRoot),
       createdAt = DateTime.now(),
       metadata = LibraryMetadata(),
       contentHash = '';
 
-
-      // Main method - use this in declaration_pass.dart
+  // Main method - use this in declaration_pass.dart
   String generateId(String type, [String? name]) {
     return idGenerator.generateId(type, name);
   }
-  
+
   // For nested contexts
   String generateContextualId(String type, String name, String parent) {
     return idGenerator.generateContextualId(type, name, parentContext: parent);

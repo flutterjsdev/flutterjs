@@ -1,8 +1,6 @@
 // lib/src/ir/phase2_example.dart
 // Example: How Phase 2 IR is used in practice
 
-
-
 import '../statement/statement_ir.dart';
 import '../types/class_type_ir.dart';
 import '../types/function_type_ir.dart';
@@ -17,12 +15,9 @@ import '../../diagnostics/source_location.dart';
 
 /// Example 1: Converting a simple binary operation
 /// Dart code: int result = a + b * 2;
-/// 
+///
 /// This shows how nested expressions are represented in the IR
-BinaryOpExpr buildMultiplyExpression(
-  String id,
-  SourceLocationIR sourceLoc,
-) {
+BinaryOpExpr buildMultiplyExpression(String id, SourceLocationIR sourceLoc) {
   // b * 2
   return BinaryOpExpr(
     id: '${id}_mult',
@@ -46,12 +41,12 @@ BinaryOpExpr buildMultiplyExpression(
       resultType: PrimitiveTypeIR(
         id: '${id}_int_type2',
         sourceLocation: sourceLoc,
-        name: 'int', 
+        name: 'int',
         kind: PrimitiveKind.double,
       ),
     ),
     resultType: PrimitiveTypeIR(
-      kind:  PrimitiveKind.double,
+      kind: PrimitiveKind.double,
       id: '${id}_result_type',
       sourceLocation: sourceLoc,
       name: 'int',
@@ -71,13 +66,13 @@ VariableDeclarationStmt buildFinalStringDeclaration(
     sourceLocation: sourceLoc,
     name: 'name',
     resultType: PrimitiveTypeIR(
-      kind:  PrimitiveKind.string,
+      kind: PrimitiveKind.string,
       id: '${id}_string_type',
       sourceLocation: sourceLoc,
       name: 'String',
     ),
     type: PrimitiveTypeIR(
-       kind:  PrimitiveKind.string,
+      kind: PrimitiveKind.string,
       id: '${id}_string_type_explicit',
       sourceLocation: sourceLoc,
       name: 'String',
@@ -87,7 +82,7 @@ VariableDeclarationStmt buildFinalStringDeclaration(
       sourceLocation: sourceLoc,
       value: 'Flutter',
       resultType: PrimitiveTypeIR(
-         kind:  PrimitiveKind.string,
+        kind: PrimitiveKind.string,
         id: '${id}_string_result_type',
         sourceLocation: sourceLoc,
         name: 'String',
@@ -99,10 +94,7 @@ VariableDeclarationStmt buildFinalStringDeclaration(
 
 /// Example 3: Method call with named arguments
 /// Dart code: widget.setStateCallback(isLoading: true, message: "Done");
-MethodCallExpr buildSetStateMethodCall(
-  String id,
-  SourceLocationIR sourceLoc,
-) {
+MethodCallExpr buildSetStateMethodCall(String id, SourceLocationIR sourceLoc) {
   return MethodCallExpr(
     id: '${id}_method_call',
     sourceLocation: sourceLoc,
@@ -119,7 +111,7 @@ MethodCallExpr buildSetStateMethodCall(
     ),
     methodName: 'setStateCallback',
     resultType: PrimitiveTypeIR(
-       kind:  PrimitiveKind.void_,
+      kind: PrimitiveKind.void_,
       id: '${id}_void_type',
       sourceLocation: sourceLoc,
       name: 'void',
@@ -131,7 +123,7 @@ MethodCallExpr buildSetStateMethodCall(
         sourceLocation: sourceLoc,
         value: true,
         resultType: PrimitiveTypeIR(
-           kind:  PrimitiveKind.bool,
+          kind: PrimitiveKind.bool,
           id: '${id}_bool_type',
           sourceLocation: sourceLoc,
           name: 'bool',
@@ -142,7 +134,7 @@ MethodCallExpr buildSetStateMethodCall(
         sourceLocation: sourceLoc,
         value: 'Done',
         resultType: PrimitiveTypeIR(
-           kind:  PrimitiveKind.string,
+          kind: PrimitiveKind.string,
           id: '${id}_string_type2',
           sourceLocation: sourceLoc,
           name: 'String',
@@ -154,10 +146,7 @@ MethodCallExpr buildSetStateMethodCall(
 
 /// Example 4: Conditional (ternary) expression
 /// Dart code: isLoading ? LoadingWidget() : ContentWidget()
-ConditionalExpr buildConditionalWidget(
-  String id,
-  SourceLocationIR sourceLoc,
-) {
+ConditionalExpr buildConditionalWidget(String id, SourceLocationIR sourceLoc) {
   return ConditionalExpr(
     id: '${id}_conditional',
     sourceLocation: sourceLoc,
@@ -166,7 +155,7 @@ ConditionalExpr buildConditionalWidget(
       sourceLocation: sourceLoc,
       name: 'isLoading',
       resultType: PrimitiveTypeIR(
-         kind:  PrimitiveKind.bool,
+        kind: PrimitiveKind.bool,
         id: '${id}_bool_type',
         sourceLocation: sourceLoc,
         name: 'bool',
@@ -210,10 +199,7 @@ ConditionalExpr buildConditionalWidget(
 /// } else {
 ///   showUserPanel();
 /// }
-IfStmt buildIfAdminStatement(
-  String id,
-  SourceLocationIR sourceLoc,
-) {
+IfStmt buildIfAdminStatement(String id, SourceLocationIR sourceLoc) {
   return IfStmt(
     id: '${id}_if_stmt',
     sourceLocation: sourceLoc,
@@ -233,7 +219,7 @@ IfStmt buildIfAdminStatement(
       ),
       propertyName: 'isAdmin',
       resultType: PrimitiveTypeIR(
-          kind:  PrimitiveKind.bool,
+        kind: PrimitiveKind.bool,
         id: '${id}_bool_type',
         sourceLocation: sourceLoc,
         name: 'bool',
@@ -251,7 +237,7 @@ IfStmt buildIfAdminStatement(
             sourceLocation: sourceLoc,
             functionName: 'showAdminPanel',
             resultType: PrimitiveTypeIR(
-               kind:  PrimitiveKind.void_,
+              kind: PrimitiveKind.void_,
               id: '${id}_void_type',
               sourceLocation: sourceLoc,
               name: 'void',
@@ -272,7 +258,7 @@ IfStmt buildIfAdminStatement(
             sourceLocation: sourceLoc,
             functionName: 'showUserPanel',
             resultType: PrimitiveTypeIR(
-                kind:  PrimitiveKind.void_,
+              kind: PrimitiveKind.void_,
               id: '${id}_void_type2',
               sourceLocation: sourceLoc,
               name: 'void',
@@ -289,10 +275,7 @@ IfStmt buildIfAdminStatement(
 /// for (int i = 0; i < items.length; i++) {
 ///   print(items[i]);
 /// }
-ForStmt buildForLoopStatement(
-  String id,
-  SourceLocationIR sourceLoc,
-) {
+ForStmt buildForLoopStatement(String id, SourceLocationIR sourceLoc) {
   return ForStmt(
     id: '${id}_for_stmt',
     sourceLocation: sourceLoc,
@@ -304,7 +287,7 @@ ForStmt buildForLoopStatement(
         sourceLocation: sourceLoc,
         name: 'i',
         resultType: PrimitiveTypeIR(
-           kind:  PrimitiveKind.int,
+          kind: PrimitiveKind.int,
           id: '${id}_int_type',
           sourceLocation: sourceLoc,
           name: 'int',
@@ -315,7 +298,7 @@ ForStmt buildForLoopStatement(
         sourceLocation: sourceLoc,
         value: 0,
         resultType: PrimitiveTypeIR(
-           kind:  PrimitiveKind.int,
+          kind: PrimitiveKind.int,
           id: '${id}_int_type2',
           sourceLocation: sourceLoc,
           name: 'int',
@@ -325,7 +308,7 @@ ForStmt buildForLoopStatement(
         id: '${id}_int_type3',
         sourceLocation: sourceLoc,
         name: 'int',
-        kind:  PrimitiveKind.int,
+        kind: PrimitiveKind.int,
       ),
     ),
     condition: BinaryOpExpr(
@@ -339,7 +322,7 @@ ForStmt buildForLoopStatement(
           id: '${id}_int_check_type',
           sourceLocation: sourceLoc,
           name: 'int',
-          kind:  PrimitiveKind.int,
+          kind: PrimitiveKind.int,
         ),
       ),
       operator: BinaryOperator.lessThan,
@@ -370,14 +353,14 @@ ForStmt buildForLoopStatement(
           id: '${id}_int_length_type',
           sourceLocation: sourceLoc,
           name: 'int',
-          kind:  PrimitiveKind.int,
+          kind: PrimitiveKind.int,
         ),
       ),
       resultType: PrimitiveTypeIR(
         id: '${id}_bool_compare_type',
         sourceLocation: sourceLoc,
         name: 'bool',
-        kind:  PrimitiveKind.bool,
+        kind: PrimitiveKind.bool,
       ),
     ),
     updaters: [
@@ -393,14 +376,14 @@ ForStmt buildForLoopStatement(
             id: '${id}_int_inc_type',
             sourceLocation: sourceLoc,
             name: 'int',
-            kind:  PrimitiveKind.int,
+            kind: PrimitiveKind.int,
           ),
         ),
         resultType: PrimitiveTypeIR(
           id: '${id}_int_post_inc_result',
           sourceLocation: sourceLoc,
           name: 'int',
-          kind:  PrimitiveKind.int,
+          kind: PrimitiveKind.int,
         ),
       ),
     ],
@@ -419,7 +402,7 @@ ForStmt buildForLoopStatement(
               id: '${id}_void_print',
               sourceLocation: sourceLoc,
               name: 'void',
-              kind:  PrimitiveKind.void_,
+              kind: PrimitiveKind.void_,
             ),
             arguments: [
               IndexAccessExpr(
@@ -433,7 +416,7 @@ ForStmt buildForLoopStatement(
                     id: '${id}_list_in_loop',
                     sourceLocation: sourceLoc,
                     name: 'List',
-                      className: 'List',
+                    className: 'List',
                   ),
                 ),
                 index: IdentifierExpr(
@@ -444,7 +427,7 @@ ForStmt buildForLoopStatement(
                     id: '${id}_int_index',
                     sourceLocation: sourceLoc,
                     name: 'int',
-                    kind:  PrimitiveKind.int,
+                    kind: PrimitiveKind.int,
                   ),
                 ),
                 resultType: PrimitiveTypeIR(
@@ -464,10 +447,7 @@ ForStmt buildForLoopStatement(
 
 /// Example 7: Lambda/Anonymous function passed as callback
 /// Dart code: items.map((item) => item.toUpperCase()).toList()
-MethodCallExpr buildMapTransformation(
-  String id,
-  SourceLocationIR sourceLoc,
-) {
+MethodCallExpr buildMapTransformation(String id, SourceLocationIR sourceLoc) {
   return MethodCallExpr(
     id: '${id}_map_call',
     sourceLocation: sourceLoc,
@@ -502,7 +482,7 @@ MethodCallExpr buildMapTransformation(
               id: '${id}_string_param_type',
               sourceLocation: sourceLoc,
               name: 'String',
-              kind:  PrimitiveKind.string,
+              kind: PrimitiveKind.string,
             ),
           ),
         ],
@@ -519,7 +499,7 @@ MethodCallExpr buildMapTransformation(
                 id: '${id}_string_lambda_type',
                 sourceLocation: sourceLoc,
                 name: 'String',
-                kind:  PrimitiveKind.string,
+                kind: PrimitiveKind.string,
               ),
             ),
           ],
@@ -527,7 +507,7 @@ MethodCallExpr buildMapTransformation(
             id: '${id}_string_return_type',
             sourceLocation: sourceLoc,
             name: 'String',
-            kind:  PrimitiveKind.string,
+            kind: PrimitiveKind.string,
           ),
         ),
         body: MethodCallExpr(
@@ -541,7 +521,7 @@ MethodCallExpr buildMapTransformation(
               id: '${id}_string_in_lambda',
               sourceLocation: sourceLoc,
               name: 'String',
-              kind:  PrimitiveKind.string,
+              kind: PrimitiveKind.string,
             ),
           ),
           methodName: 'toUpperCase',
@@ -549,7 +529,7 @@ MethodCallExpr buildMapTransformation(
             id: '${id}_string_upper_result',
             sourceLocation: sourceLoc,
             name: 'String',
-            kind:  PrimitiveKind.string,
+            kind: PrimitiveKind.string,
           ),
         ),
       ),
@@ -564,10 +544,7 @@ MethodCallExpr buildMapTransformation(
 /// } catch (e) {
 ///   handleError(e);
 /// }
-TryStmt buildTryCatchStatement(
-  String id,
-  SourceLocationIR sourceLoc,
-) {
+TryStmt buildTryCatchStatement(String id, SourceLocationIR sourceLoc) {
   return TryStmt(
     id: '${id}_try_stmt',
     sourceLocation: sourceLoc,
@@ -628,7 +605,7 @@ TryStmt buildTryCatchStatement(
                   id: '${id}_void_handle',
                   sourceLocation: sourceLoc,
                   name: 'void',
-                  kind:  PrimitiveKind.void_,
+                  kind: PrimitiveKind.void_,
                 ),
                 arguments: [
                   IdentifierExpr(

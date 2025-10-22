@@ -22,7 +22,7 @@ abstract class TypeIR extends IRNode {
     return isNullable ? '$name?' : name;
   }
 
- bool get isBuiltIn => false;
+  bool get isBuiltIn => false;
   bool get isGeneric => false;
 
   /// Get the base type without nullability wrapper
@@ -35,13 +35,13 @@ abstract class TypeIR extends IRNode {
   bool isAssignableTo(TypeIR other) {
     // Default: same type is always assignable
     if (name == other.name && isNullable == other.isNullable) return true;
-    
+
     // Null safety: non-nullable can't be assigned to nullable in strict mode
     if (isNullable && !other.isNullable) return false;
-    
+
     // dynamic accepts anything
     if (other.name == 'dynamic') return true;
-    
+
     // Override in subclasses for proper type hierarchy checking
     return false;
   }
@@ -91,7 +91,7 @@ abstract class TypeIR extends IRNode {
     }
   }
 
-   /// Create a Widget type (commonly used in build methods)
+  /// Create a Widget type (commonly used in build methods)
   factory TypeIR.widget() {
     return SimpleTypeIR(
       id: 'widget_type',
@@ -100,7 +100,7 @@ abstract class TypeIR extends IRNode {
         line: 0,
         column: 0,
         offset: 0,
-        length: 0, 
+        length: 0,
         id: '',
       ),
       name: 'Widget',
@@ -176,9 +176,17 @@ class SimpleTypeIR extends TypeIR {
   // @override
   // bool get isBuiltIn => false;
 
-   @override
+  @override
   bool get isBuiltIn {
-    const builtins = {'int', 'double', 'bool', 'String', 'dynamic', 'void', 'null'};
+    const builtins = {
+      'int',
+      'double',
+      'bool',
+      'String',
+      'dynamic',
+      'void',
+      'null',
+    };
     return builtins.contains(name.toLowerCase());
   }
 
@@ -193,7 +201,8 @@ class SimpleTypeIR extends TypeIR {
       id: json['id'] as String,
       name: json['name'] as String,
       isNullable: json['isNullable'] as bool? ?? false,
-      typeArguments: (json['typeArguments'] as List<dynamic>?)
+      typeArguments:
+          (json['typeArguments'] as List<dynamic>?)
               ?.map((e) => TypeIR.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
@@ -210,8 +219,6 @@ class SimpleTypeIR extends TypeIR {
   }
 }
 
-
-
 class TypeParameterIR {
   final String name;
   final TypeIR? bound;
@@ -227,8 +234,8 @@ class TypeParameterIR {
     );
   }
 
-    @override
-  bool operator == (Object other) =>
+  @override
+  bool operator ==(Object other) =>
       identical(this, other) ||
       other is TypeParameterIR &&
           runtimeType == other.runtimeType &&
@@ -243,7 +250,7 @@ class TypeParameterIR {
 class DynamicTypeIR extends TypeIR {
   DynamicTypeIR({required super.id, required super.sourceLocation})
     : super(name: 'dynamic', isNullable: true);
-    
+
   @override
   bool get isBuiltIn => true;
 
@@ -258,7 +265,7 @@ class VoidTypeIR extends TypeIR {
   VoidTypeIR({required super.id, required super.sourceLocation})
     : super(name: 'void', isNullable: false);
 
-     @override
+  @override
   bool get isBuiltIn => true;
 
   @override
@@ -271,7 +278,7 @@ class VoidTypeIR extends TypeIR {
 class NeverTypeIR extends TypeIR {
   NeverTypeIR({required super.id, required super.sourceLocation})
     : super(name: 'Never', isNullable: false);
-     @override
+  @override
   bool get isBuiltIn => true;
 
   @override
@@ -280,5 +287,3 @@ class NeverTypeIR extends TypeIR {
   @override
   String displayName() => name;
 }
-
-

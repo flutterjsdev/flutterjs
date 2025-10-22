@@ -2,7 +2,6 @@
 import 'ir_linker.dart' as ir_linker;
 import 'model/analyzer_model.dart';
 
-
 class FlutterAppDeclaration {
   final int version;
   final List<WidgetDeclaration> widgets;
@@ -28,20 +27,16 @@ class FlutterAppDeclaration {
     this.themes = const [],
     DependencyGraphModel? dependencyGraph,
     this.fileStructure = const {},
-  }) : dependencyGraph = dependencyGraph ?? DependencyGraphModel(nodes: [], edges: []);
+  }) : dependencyGraph =
+           dependencyGraph ?? DependencyGraphModel(nodes: [], edges: []);
 }
-
-
 
 // Dependency graph for optimization
 class DependencyGraphModel {
   final List<DependencyNode> nodes;
   final List<ir_linker.DependencyEdge> edges;
 
-  DependencyGraphModel({
-    required this.nodes,
-    required this.edges,
-  });
+  DependencyGraphModel({required this.nodes, required this.edges});
 }
 
 class DependencyNode {
@@ -49,27 +44,9 @@ class DependencyNode {
   final DependencyType type;
   final String name;
 
-  DependencyNode({
-    required this.id,
-    required this.type,
-    required this.name,
-  });
+  DependencyNode({required this.id, required this.type, required this.name});
 }
 
-enum DependencyType {
-  widget,
-  state,
-  provider,
-  service,
-  utility,
-}
+enum DependencyType { widget, state, provider, service, utility }
 
-
-
-enum DependencyRelation {
-  uses,
-  extendsJS,
-  implements,
-  mixesWith,
-  dependsOn,
-}
+enum DependencyRelation { uses, extendsJS, implements, mixesWith, dependsOn }
