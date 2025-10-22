@@ -3,7 +3,6 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 
 import '../engine/analyzer/analying_project.dart';
-import '../engine/analyzer/dependency_graph.dart';
 import '../engine/analyzer/ir_linker.dart';
 import '../engine/binary_constrain/binary_ir_reader.dart';
 import '../engine/binary_constrain/binary_ir_writer.dart';
@@ -250,140 +249,6 @@ class RunCommand extends Command<void> {
       exit(1);
     }
   }
-  //@override
-  // Future<void> run() async {
-  //   final projectPath = argResults!['project'] as String;
-  //   final sourcePath = argResults!['source'] as String;
-  //   final outputPath = argResults!['output'] as String;
-  //   final jsonOutput = argResults!['json'] as bool;
-  //   final enableParallel = argResults!['parallel'] as bool;
-  //   final maxParallelism = int.parse(argResults!['max-parallelism'] as String);
-  //   final enableIncremental = argResults!['incremental'] as bool;
-  //   final skipAnalysis = argResults!['skip-analysis'] as bool;
-  //   final showAnalysis = argResults!['show-analysis'] as bool;
-  //   final strictMode = argResults!['strict'] as bool;
-
-  //   // Validate paths
-  //   final projectDir = Directory(projectPath);
-  //   if (!await projectDir.exists()) {
-  //     print('Error: Project directory not found at $projectPath');
-  //     exit(1);
-  //   }
-
-  //   final absoluteProjectPath = projectDir.absolute.path;
-  //   final absoluteSourcePath = path.join(absoluteProjectPath, sourcePath);
-  //   final absoluteOutputPath = path.join(absoluteProjectPath, outputPath);
-
-  //   if (!jsonOutput) {
-  //     print('');
-  //     print('========== FLUTTER IR GENERATION ==========');
-  //     print('Project: $absoluteProjectPath');
-  //     print('Source:  $absoluteSourcePath');
-  //     print('Output:  $absoluteOutputPath');
-  //     print('==========================================\n');
-  //   }
-
-  //   try {
-  //     await Directory(absoluteOutputPath).create(recursive: true);
-
-  //     // PHASE 1: ANALYSIS
-  //     List<String> filesToConvert = [];
-
-  //     if (skipAnalysis) {
-  //       if (!jsonOutput) print('Skipping analysis phase...\n');
-  //       filesToConvert = await _discoverAllDartFiles(absoluteSourcePath);
-  //     } else {
-  //       if (!jsonOutput) print('PHASE 1: Analyzing project...\n');
-  //       final analyzer = ProjectAnalyzer(
-  //         absoluteProjectPath,
-  //         maxParallelism: maxParallelism,
-  //         enableVerboseLogging: verbose,
-  //         enableCache: enableIncremental,
-  //         enableParallelProcessing: enableParallel,
-  //       );
-
-  //       try {
-  //         await analyzer.initialize();
-
-  //         final orchestrator = ProjectAnalysisOrchestrator(analyzer);
-  //         final analysisReport = await orchestrator.analyze();
-
-  //         filesToConvert = analysisReport.changedFiles.toList();
-
-  //         if (!jsonOutput) {
-  //           _printAnalysisSummary(analysisReport, showAnalysis);
-  //           print(
-  //             '\nFiles identified for IR conversion: ${filesToConvert.length}\n',
-  //           );
-  //         }
-
-  //         analyzer.dispose();
-
-  //         if (analysisReport.filesWithErrors.isNotEmpty && strictMode) {
-  //           print(
-  //             'Error: ${analysisReport.filesWithErrors.length} files with errors. '
-  //             'Fix errors before proceeding.',
-  //           );
-  //           exit(1);
-  //         }
-  //       } catch (e) {
-  //         analyzer.dispose();
-  //         rethrow;
-  //       }
-  //     }
-
-  //     if (filesToConvert.isEmpty) {
-  //       if (!jsonOutput) {
-  //         print('No files to convert.');
-  //       } else {
-  //         print('{"status":"success","filesConverted":0}');
-  //       }
-  //       exit(0);
-  //     }
-
-  //     // PHASE 2: IR GENERATION
-  //     if (!jsonOutput) print('PHASE 2: Generating IR for ${filesToConvert.length} files...\n');
-
-  //     final irResults = await _runAllPasses(
-  //       dartFiles: filesToConvert,
-  //       projectRoot: absoluteProjectPath,
-  //       parallel: enableParallel,
-  //       maxParallelism: maxParallelism,
-  //       verbose: verbose,
-  //       jsonOutput: jsonOutput,
-  //     );
-
-  //     // PHASE 3: SERIALIZATION
-  //     if (!jsonOutput) print('PHASE 3: Serializing IR...\n');
-
-  //     final irFileCount = await _serializeIR(
-  //       irResults: irResults,
-  //       outputPath: absoluteOutputPath,
-  //       verbose: verbose,
-  //     );
-
-  //     // RESULTS
-  //     if (!jsonOutput) {
-  //       _printResults(irResults, filesToConvert.length, irFileCount);
-  //     } else {
-  //       _printJsonResults(irResults, filesToConvert.length, irFileCount);
-  //     }
-
-  //     final hasErrors =
-  //         irResults.validationSummary != null &&
-  //         irResults.validationSummary!.errorCount > 0;
-
-  //     if (hasErrors && strictMode) {
-  //       exit(1);
-  //     }
-  //   } catch (e, stackTrace) {
-  //     print('\nError: $e');
-  //     if (verbose) {
-  //       print('Stack trace:\n$stackTrace');
-  //     }
-  //     exit(1);
-  //   }
-  // }
 
   // =========================================================================
   // PHASE 1: ANALYSIS HELPERS
@@ -661,7 +526,7 @@ class RunCommand extends Command<void> {
 
       try {
         // Normalize path separators to forward slashes
-        final normalizedPath = filePath.replaceAll('\\', '/');
+        // final normalizedPath = filePath.replaceAll('\\', '/');
 
         // Get just the filename without the full path
         final fileName = path.basenameWithoutExtension(filePath);
@@ -670,7 +535,10 @@ class RunCommand extends Command<void> {
         final outputName = '${fileName}_ir.ir';
 
         final binaryWriter = BinaryIRWriter();
-        final binaryBytes = binaryWriter.writeFileIR(dartFile);
+        final binaryBytes = binaryWriter.writeFileIR(
+          dartFile,
+          verbose: verbose,
+        );
 
         // Use path.join to properly construct the full output path
         final outputFile = File(path.join(outputPath, outputName));
@@ -866,7 +734,7 @@ class RunCommand extends Command<void> {
 
           // Try to deserialize
           final reader = BinaryIRReader();
-          final dartFile = reader.readFileIR(bytes);
+          final dartFile = reader.readFileIR(bytes, verbose: verbose);
 
           // Validate content
           if (dartFile.filePath.isEmpty) {
