@@ -7,15 +7,14 @@ import '../expression_ir.dart';
 import '../ir_node.dart';
 import '../type_ir.dart';
 
-
 /// Base class for all statement IR nodes
 @immutable
 abstract class StatementIR extends IRNode {
   const StatementIR({
-   required super.id,
-    required super. sourceLocation,
-   super. metadata,
-  }) ;
+    required super.id,
+    required super.sourceLocation,
+    super.metadata,
+  });
 }
 
 // =============================================================================
@@ -27,11 +26,11 @@ class ExpressionStmt extends StatementIR {
   final ExpressionIR expression;
 
   const ExpressionStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.expression,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() => expression.toShortString();
@@ -48,8 +47,8 @@ class VariableDeclarationStmt extends StatementIR {
   final bool isMutable;
 
   const VariableDeclarationStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.name,
     required TypeIR resultType,
     this.type,
@@ -57,13 +56,16 @@ class VariableDeclarationStmt extends StatementIR {
     this.isFinal = false,
     this.isConst = false,
     this.isLate = false,
-   super. metadata,
-  })  : isMutable = !isFinal && !isConst
-       ;
+    super.metadata,
+  }) : isMutable = !isFinal && !isConst;
 
   @override
   String toShortString() {
-    final modifier = isConst ? 'const' : isFinal ? 'final' : 'var';
+    final modifier = isConst
+        ? 'const'
+        : isFinal
+        ? 'final'
+        : 'var';
     final typeStr = type != null ? '${type!.displayName} ' : '';
     return '$modifier $typeStr$name${initializer != null ? ' = ${initializer!.toShortString()}' : ''}';
   }
@@ -74,11 +76,11 @@ class ReturnStmt extends StatementIR {
   final ExpressionIR? expression;
 
   const ReturnStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     this.expression,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() =>
@@ -90,11 +92,11 @@ class BreakStmt extends StatementIR {
   final String? label;
 
   const BreakStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     this.label,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() => 'break${label != null ? ' $label' : ''}';
@@ -105,11 +107,11 @@ class ContinueStmt extends StatementIR {
   final String? label;
 
   const ContinueStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     this.label,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() => 'continue${label != null ? ' $label' : ''}';
@@ -120,11 +122,11 @@ class ThrowStmt extends StatementIR {
   final ExpressionIR exceptionExpression;
 
   const ThrowStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.exceptionExpression,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() => 'throw ${exceptionExpression.toShortString()}';
@@ -139,11 +141,11 @@ class BlockStmt extends StatementIR {
   final List<StatementIR> statements;
 
   const BlockStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.statements,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() => '{ ${statements.length} statements }';
@@ -157,11 +159,11 @@ class IfStmt extends StatementIR {
 
   const IfStmt({
     required super.id,
-    required super. sourceLocation,
+    required super.sourceLocation,
     required this.condition,
     required this.thenBranch,
     this.elseBranch,
-   super. metadata,
+    super.metadata,
   });
 
   @override
@@ -177,14 +179,14 @@ class ForStmt extends StatementIR {
   final StatementIR body;
 
   const ForStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     this.initialization,
     this.condition,
     this.updaters = const [],
     required this.body,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() => 'for (...) { ... }';
@@ -199,15 +201,15 @@ class ForEachStmt extends StatementIR {
   final bool isAsync;
 
   const ForEachStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.loopVariable,
     required this.iterable,
     required this.body,
     this.loopVariableType,
     this.isAsync = false,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() =>
@@ -220,12 +222,12 @@ class WhileStmt extends StatementIR {
   final StatementIR body;
 
   const WhileStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.condition,
     required this.body,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() => 'while (${condition.toShortString()}) { ... }';
@@ -237,12 +239,12 @@ class DoWhileStmt extends StatementIR {
   final ExpressionIR condition;
 
   const DoWhileStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.body,
     required this.condition,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() => 'do { ... } while (${condition.toShortString()})';
@@ -255,13 +257,13 @@ class SwitchStmt extends StatementIR {
   final SwitchCaseStmt? defaultCase;
 
   const SwitchStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.expression,
     required this.cases,
     this.defaultCase,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() =>
@@ -275,13 +277,13 @@ class SwitchCaseStmt extends IRNode {
   final bool isDefault;
 
   const SwitchCaseStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     this.patterns,
     required this.statements,
     this.isDefault = false,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() {
@@ -297,13 +299,13 @@ class TryStmt extends StatementIR {
   final StatementIR? finallyBlock;
 
   const TryStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.tryBlock,
     required this.catchClauses,
     this.finallyBlock,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() =>
@@ -318,14 +320,14 @@ class CatchClauseStmt extends IRNode {
   final StatementIR body;
 
   const CatchClauseStmt({
-   required super.id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     this.exceptionType,
     this.exceptionParameter,
     this.stackTraceParameter,
     required this.body,
-   super. metadata,
-  }) ;
+    super.metadata,
+  });
 
   @override
   String toShortString() {
@@ -334,14 +336,13 @@ class CatchClauseStmt extends IRNode {
   }
 }
 
-
 // =============================================================================
 // ASSERT STATEMENT
 // =============================================================================
 
 /// Represents an assert statement in Dart
 /// Used for debugging and enforcing runtime conditions
-/// 
+///
 /// Example: `assert(value > 0);`, `assert(value != null, 'Value cannot be null');`
 @immutable
 class AssertStatementIR extends StatementIR {
@@ -371,7 +372,7 @@ class AssertStatementIR extends StatementIR {
 
 /// Represents an empty statement in Dart
 /// A statement that does nothing
-/// 
+///
 /// Example: `;` (just a semicolon)
 @immutable
 class EmptyStatementIR extends StatementIR {
@@ -391,7 +392,7 @@ class EmptyStatementIR extends StatementIR {
 
 /// Represents a yield statement in Dart
 /// Used in generator functions to produce values
-/// 
+///
 /// Example: `yield value;`, `yield* iterable;`
 @immutable
 class YieldStatementIR extends StatementIR {
@@ -434,15 +435,14 @@ class LabeledStatementIR extends StatementIR {
   String toShortString() => '$label: ${statement.toShortString()}';
 }
 
-
 // =============================================================================
 // FUNCTION DECLARATION STATEMENT
 // =============================================================================
 
 /// Represents a function declaration as a statement
 /// Used for nested functions declared inside other functions or blocks
-/// 
-/// Example: 
+///
+/// Example:
 /// ```dart
 /// void outer() {
 ///   void inner() {  // <-- This is a FunctionDeclarationStmt

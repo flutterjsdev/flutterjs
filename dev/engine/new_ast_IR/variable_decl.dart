@@ -9,13 +9,13 @@ import 'ir/type_ir.dart';
 // =============================================================================
 
 /// Represents a variable declaration in Dart code
-/// 
+///
 /// Covers:
 /// - Top-level variables (in files)
 /// - Local variables (in functions/methods)
 /// - Field declarations (in classes)
 /// - Parameters (in functions/methods/constructors)
-/// 
+///
 /// Examples:
 /// - `int x = 42;`
 /// - `final String name;`
@@ -23,17 +23,15 @@ import 'ir/type_ir.dart';
 /// - `late StreamController<int> controller;`
 /// - `required String title` (parameter)
 @immutable
-class VariableDecl  extends IRNode{
-
-
+class VariableDecl extends IRNode {
   /// Variable name
   final String name;
 
   /// The type of this variable
-   TypeIR type;
+  TypeIR type;
 
   /// Optional initializer expression
-  /// 
+  ///
   /// null means:
   /// - For final/const without initializer: type annotation required
   /// - For late fields: initialized elsewhere
@@ -44,20 +42,20 @@ class VariableDecl  extends IRNode{
   final bool isFinal;
 
   /// Whether this is declared with `const` keyword
-  /// 
+  ///
   /// Note: const implies final (const variables are always final)
   final bool isConst;
 
   final bool isPrivate;
 
   /// Whether this is declared with `late` keyword
-  /// 
+  ///
   /// Defers initialization. Only valid for:
   /// - Top-level variables
   /// - Static variables
   /// - Instance fields
   /// - Local variables
-  /// 
+  ///
   /// NOT valid for: parameters, const variables
   final bool isLate;
 
@@ -71,27 +69,27 @@ class VariableDecl  extends IRNode{
   final List<AnnotationIR> annotations;
 
   /// Visibility modifier context
-  /// 
+  ///
   /// Determined by naming convention (starts with _) or explicit visibility
   /// in parameter declarations
   final VisibilityModifier visibility;
 
   /// For parameters: whether this is a required parameter
-  /// 
+  ///
   /// Applies to named parameters with @required or required keyword
   final bool isRequired;
 
   /// For parameters: whether this is a named parameter
-  /// 
+  ///
   /// vs positional parameter
   final bool isNamed;
 
   /// For parameters: whether this is a positional parameter
-  /// 
+  ///
   /// vs named parameter
   final bool isPositional;
 
-   VariableDecl({
+  VariableDecl({
     required super.id,
     required this.name,
     required this.type,
@@ -107,20 +105,19 @@ class VariableDecl  extends IRNode{
     this.isRequired = false,
     this.isNamed = false,
     this.isPositional = true,
-    this.isPrivate=false,
-  }) : assert(
-    !isConst || !isLate,
-    'Variable cannot be both const and late',
-  ), assert(
-    !isConst || initializer != null,
-    'Const variables must have an initializer',
-  ), assert(
-    !(isNamed && isPositional),
-    'Variable cannot be both named and positional',
-  );
+    this.isPrivate = false,
+  }) : assert(!isConst || !isLate, 'Variable cannot be both const and late'),
+       assert(
+         !isConst || initializer != null,
+         'Const variables must have an initializer',
+       ),
+       assert(
+         !(isNamed && isPositional),
+         'Variable cannot be both named and positional',
+       );
 
   /// Whether this variable is mutable
-  /// 
+  ///
   /// Returns false for final and const variables
   bool get isMutable => !isFinal && !isConst;
 
@@ -128,12 +125,13 @@ class VariableDecl  extends IRNode{
   bool get hasInitializer => initializer != null;
 
   /// Whether this variable can be evaluated at compile-time
-  /// 
+  ///
   /// Const variables and those with const initializers
-  bool get isCompileTimeConstant => isConst || (initializer?.isConstant ?? false);
+  bool get isCompileTimeConstant =>
+      isConst || (initializer?.isConstant ?? false);
 
   /// Human-readable declaration string
-  /// 
+  ///
   /// Examples:
   /// - "late final String? name"
   /// - "const int DEBUG = 42"
@@ -158,7 +156,7 @@ class VariableDecl  extends IRNode{
   }
 
   /// Whether this variable needs explicit initialization
-  /// 
+  ///
   /// True for:
   /// - Non-null final variables without initializer
   /// - Parameters without defaults
@@ -172,7 +170,7 @@ class VariableDecl  extends IRNode{
   }
 
   /// Validates this variable declaration for consistency
-  /// 
+  ///
   /// Returns list of validation errors, empty if valid
   List<String> validate() {
     final errors = <String>[];
@@ -220,7 +218,7 @@ class VariableDecl  extends IRNode{
 }
 
 /// Represents a variable reference or usage
-/// 
+///
 /// Used in expressions where a variable is accessed
 @immutable
 class VariableRef {
@@ -248,7 +246,7 @@ class VariableRef {
 }
 
 /// Represents a field declaration in a class
-/// 
+///
 /// Extends VariableDecl with class-specific semantics
 @immutable
 class FieldDecl extends VariableDecl {
@@ -265,47 +263,47 @@ class FieldDecl extends VariableDecl {
   /// For setters: the parameter type (same as type)
   final TypeIR? propertyType;
 
-   FieldDecl({
-    required super. id,
-    required super. name,
-    required super. type,
-    super. initializer,
-    super. isFinal = false,
-    super. isConst = false,
-    super. isLate = false,
-    super. isStatic = false,
-    required super. sourceLocation,
+  FieldDecl({
+    required super.id,
+    required super.name,
+    required super.type,
+    super.initializer,
+    super.isFinal = false,
+    super.isConst = false,
+    super.isLate = false,
+    super.isStatic = false,
+    required super.sourceLocation,
     super.documentation,
-    super. annotations = const [],
-    super. visibility = VisibilityModifier.public,
+    super.annotations = const [],
+    super.visibility = VisibilityModifier.public,
     this.isAbstract = false,
     this.isGetter = false,
     this.isSetter = false,
     this.propertyType,
     super.isPrivate,
     super.isNamed,
-    super.isRequired
-  }) ;
+    super.isRequired,
+  });
 
   /// Whether this is a computed property (getter/setter, not a backing field)
   bool get isComputedProperty => isGetter || isSetter;
 }
 
 /// Represents a parameter in a function/method/constructor signature
-/// 
+///
 /// Extends VariableDecl with parameter-specific semantics
 
 /// Enumeration of variable visibility
 enum VisibilityModifier {
   /// Public (default), accessible from anywhere
   public,
-  
+
   /// Private (starts with _), accessible only within same library
   private,
-  
+
   /// Protected (convention in some frameworks), documentation only
   protected,
-  
+
   /// Internal/package-private (convention in some frameworks)
   internal,
 }
@@ -314,22 +312,22 @@ enum VisibilityModifier {
 enum ParameterKind {
   /// Required positional parameter: `func(int x)`
   requiredPositional,
-  
+
   /// Optional positional parameter: `func([int x])`
   positional,
-  
+
   /// Required named parameter: `func({required String name})`
   requiredNamed,
-  
+
   /// Optional named parameter: `func({String name = 'default'})`
   named,
-  
+
   /// Mixed positional/named (rare): `func(int x, {String name})`
   namedPositional,
 }
 
 /// Represents an annotation/metadata on a variable
-/// 
+///
 /// Examples: @override, @deprecated, @JsonKey('field_name')
 @immutable
 class AnnotationIR {

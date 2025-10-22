@@ -99,7 +99,10 @@ class BinaryIRWriter {
       // Flags (2 bytes)
       int flags = 0;
       if (_shouldWriteChecksum) {
-        flags = BinaryConstants.setFlag(flags, BinaryConstants.FLAG_HAS_CHECKSUM);
+        flags = BinaryConstants.setFlag(
+          flags,
+          BinaryConstants.FLAG_HAS_CHECKSUM,
+        );
       }
       _writeUint16(flags);
 
@@ -156,12 +159,27 @@ class BinaryIRWriter {
     _addString(fileIR.contentHash);
     _addString(fileIR.library ?? "<unknown>");
 
+    print('[COLLECT] File: ${fileIR.filePath}');
+    print('[COLLECT] Imports: ${fileIR.imports.length}');
+    print('[COLLECT] Exports: ${fileIR.exports.length}'); // ← Add this
+    print('[COLLECT] Classes: ${fileIR.classDeclarations.length}');
+    print('[COLLECT] Function: ${fileIR.functionDeclarations.length}');
+
     // Collect from imports
     for (final import in fileIR.imports) {
       _addString(import.uri);
+      _addString(import.sourceLocation.file);
       if (import.prefix != null) _addString(import.prefix!);
       for (final show in import.showList) _addString(show);
       for (final hide in import.hideList) _addString(hide);
+      _collectStringsFromImport(import); // ← ADD THIS
+    }
+
+    for (final export in fileIR.exports) {
+      _addString(export.uri);
+      _addString(export.sourceLocation.file); // ← ADD THIS
+      for (final show in export.showList) _addString(show);
+      for (final hide in export.hideList) _addString(hide);
     }
 
     // Collect from classes
@@ -180,10 +198,32 @@ class BinaryIRWriter {
     }
   }
 
+  void _collectStringsFromImport(ImportStmt import) {
+    for (final ann in import.annotations) {
+      _addString(ann.name);
+      // Collect from annotation arguments recursively if needed
+    }
+  }
+
   void _collectStringsFromClass(ClassDecl classDecl) {
     _addString(classDecl.id);
     _addString(classDecl.name);
+    _addString(classDecl.sourceLocation.file); // ← ADD THIS
     if (classDecl.documentation != null) _addString(classDecl.documentation!);
+    // ADD THIS - collect superclass type name
+    if (classDecl.superclass != null) {
+      _addString(classDecl.superclass!.displayName());
+    }
+
+    // ADD THIS - collect interface type names
+    for (final iface in classDecl.interfaces) {
+      _addString(iface.displayName());
+    }
+
+    // ADD THIS - collect mixin type names
+    for (final mixin in classDecl.mixins) {
+      _addString(mixin.displayName());
+    }
 
     for (final field in classDecl.fields) {
       _addString(field.name);
@@ -204,10 +244,11 @@ class BinaryIRWriter {
     _addString(func.id);
     _addString(func.name);
     _addString(func.returnType.displayName());
-
+    _addString(func.sourceLocation.file);
     for (final param in func.parameters) {
       _addString(param.name);
       _addString(param.type.displayName());
+      _addString(param.sourceLocation.file); // ← ADD THIS
     }
   }
 
@@ -215,59 +256,146 @@ class BinaryIRWriter {
     _addString(variable.id);
     _addString(variable.name);
     _addString(variable.type.displayName());
+    _addString(variable.sourceLocation.file); // ← ADD THIS
   }
 
   // =========================================================================
   // IR DATA WRITING
   // =========================================================================
 
+  // void _writeFileIRData(DartFile fileIR) {
+  //   try {
+  //     _irDataStartOffset = _buffer.length;
+
+  //     // File metadata
+  //     _writeUint32(_getStringRef(fileIR.filePath));
+  //     _writeUint32(_getStringRef(fileIR.contentHash));
+  //     _writeUint32(_getStringRef(fileIR.library ?? "<unknown>"));
+
+  //     // Analysis metadata
+  //     _writeUint64(DateTime.now().millisecondsSinceEpoch);
+
+  //     // Imports
+  //     _writeUint32(fileIR.imports.length);
+  //     for (final import in fileIR.imports) {
+  //       _writeImportStmt(import);
+  //     }
+
+  //     // Exports
+  //     _writeUint32(fileIR.exports.length);
+  //     for (final export in fileIR.exports) {
+  //       _writeExportStmt(export);
+  //     }
+
+  //     // Top-level variables
+  //     _writeUint32(fileIR.variableDeclarations.length);
+  //     for (final variable in fileIR.variableDeclarations) {
+  //       _writeVariableDecl(variable);
+  //     }
+
+  //     // Functions
+  //     _writeUint32(fileIR.functionDeclarations.length);
+  //     for (final func in fileIR.functionDeclarations) {
+  //       _writeFunctionDecl(func);
+  //     }
+
+  //     // Classes
+  //     _writeUint32(fileIR.classDeclarations.length);
+  //     for (final classDecl in fileIR.classDeclarations) {
+  //       _writeClassDecl(classDecl);
+  //     }
+
+  //     // Analysis issues
+  //     _writeUint32(fileIR.analysisIssues.length);
+  //     for (final issue in fileIR.analysisIssues) {
+  //       _writeAnalysisIssue(issue);
+  //     }
+  //   } catch (e) {
+  //     throw SerializationException(
+  //       'Failed to write file IR data: $e',
+  //       offset: _buffer.length,
+  //       context: 'file_ir_data',
+  //     );
+  //   }
+  // }
+
   void _writeFileIRData(DartFile fileIR) {
     try {
       _irDataStartOffset = _buffer.length;
+      print('[WRITE FILE IR DATA] START');
 
       // File metadata
       _writeUint32(_getStringRef(fileIR.filePath));
+      print('[WRITE FILE IR] After filePath: ${_buffer.length}');
+
       _writeUint32(_getStringRef(fileIR.contentHash));
+      print('[WRITE FILE IR] After contentHash: ${_buffer.length}');
+
       _writeUint32(_getStringRef(fileIR.library ?? "<unknown>"));
+      print('[WRITE FILE IR] After library: ${_buffer.length}');
 
       // Analysis metadata
       _writeUint64(DateTime.now().millisecondsSinceEpoch);
+      print('[WRITE FILE IR] After analyzedAt: ${_buffer.length}');
 
       // Imports
       _writeUint32(fileIR.imports.length);
+      print(
+        '[WRITE FILE IR] After importCount: ${_buffer.length}, count: ${fileIR.imports.length}',
+      );
+
       for (final import in fileIR.imports) {
         _writeImportStmt(import);
       }
+      print('[WRITE FILE IR] After imports loop: ${_buffer.length}');
 
       // Exports
       _writeUint32(fileIR.exports.length);
+      print(
+        '[WRITE FILE IR] After exportCount: ${_buffer.length}, count: ${fileIR.exports.length}',
+      );
+
       for (final export in fileIR.exports) {
         _writeExportStmt(export);
       }
+      print('[WRITE FILE IR] After exports loop: ${_buffer.length}');
 
       // Top-level variables
       _writeUint32(fileIR.variableDeclarations.length);
+      print('[WRITE FILE IR] After varCount: ${_buffer.length}');
+
       for (final variable in fileIR.variableDeclarations) {
         _writeVariableDecl(variable);
       }
+      print('[WRITE FILE IR] After variables: ${_buffer.length}');
 
       // Functions
       _writeUint32(fileIR.functionDeclarations.length);
+      print('[WRITE FILE IR] After funcCount: ${_buffer.length}');
+
       for (final func in fileIR.functionDeclarations) {
         _writeFunctionDecl(func);
       }
+      print('[WRITE FILE IR] After functions: ${_buffer.length}');
 
       // Classes
       _writeUint32(fileIR.classDeclarations.length);
+      print('[WRITE FILE IR] After classCount: ${_buffer.length}');
+
       for (final classDecl in fileIR.classDeclarations) {
         _writeClassDecl(classDecl);
       }
+      print('[WRITE FILE IR] After classes: ${_buffer.length}');
 
       // Analysis issues
       _writeUint32(fileIR.analysisIssues.length);
+      print('[WRITE FILE IR] After issueCount: ${_buffer.length}');
+
       for (final issue in fileIR.analysisIssues) {
         _writeAnalysisIssue(issue);
       }
+      print('[WRITE FILE IR] After issues: ${_buffer.length}');
+      print('[WRITE FILE IR DATA] END');
     } catch (e) {
       throw SerializationException(
         'Failed to write file IR data: $e',
@@ -277,42 +405,112 @@ class BinaryIRWriter {
     }
   }
 
+  void _writeAnnotation(AnnotationIR ann) {
+    _writeUint32(_getStringRef(ann.name));
+
+    _writeUint32(ann.arguments.length);
+    for (final arg in ann.arguments) {
+      _writeExpression(arg);
+    }
+
+    _writeUint32(ann.namedArguments.length);
+    for (final entry in ann.namedArguments.entries) {
+      _writeUint32(_getStringRef(entry.key));
+      _writeExpression(entry.value);
+    }
+
+    _writeSourceLocation(ann.sourceLocation);
+  }
+  //   void _writeImportStmt(ImportStmt import) {
+  //   _writeUint32(_getStringRef(import.uri));
+  //   _writeByte(import.prefix != null ? 1 : 0);
+  //   if (import.prefix != null) {
+  //     _writeUint32(_getStringRef(import.prefix!));
+  //   }
+  //   _writeByte(import.isDeferred ? 1 : 0);
+
+  //   // ADD THIS - Write annotations
+  //   _writeUint32(import.annotations.length);
+  //   for (final ann in import.annotations) {
+  //     _writeAnnotation(ann);
+  //   }
+
+  //   _writeUint32(import.showList.length);
+  //   for (final show in import.showList) {
+  //     _writeUint32(_getStringRef(show));
+  //   }
+
+  //   _writeUint32(import.hideList.length);
+  //   for (final hide in import.hideList) {
+  //     _writeUint32(_getStringRef(hide));
+  //   }
+
+  //   _writeSourceLocation(import.sourceLocation);
+  // }
+
   void _writeImportStmt(ImportStmt import) {
+    print('[WRITE IMPORT] START - buffer offset: ${_buffer.length}');
+
     _writeUint32(_getStringRef(import.uri));
+    print('[WRITE IMPORT] After uri: ${_buffer.length}');
+
     _writeByte(import.prefix != null ? 1 : 0);
+    print('[WRITE IMPORT] After prefix flag: ${_buffer.length}');
+
     if (import.prefix != null) {
       _writeUint32(_getStringRef(import.prefix!));
+      print('[WRITE IMPORT] After prefix value: ${_buffer.length}');
     }
 
     _writeByte(import.isDeferred ? 1 : 0);
+    print('[WRITE IMPORT] After deferred: ${_buffer.length}');
 
     _writeUint32(import.showList.length);
+    print('[WRITE IMPORT] After showCount: ${_buffer.length}');
+
     for (final show in import.showList) {
       _writeUint32(_getStringRef(show));
     }
+    print('[WRITE IMPORT] After showList: ${_buffer.length}');
 
     _writeUint32(import.hideList.length);
+    print('[WRITE IMPORT] After hideCount: ${_buffer.length}');
+
     for (final hide in import.hideList) {
       _writeUint32(_getStringRef(hide));
     }
+    print('[WRITE IMPORT] After hideList: ${_buffer.length}');
 
     _writeSourceLocation(import.sourceLocation);
+    print('[WRITE IMPORT] After sourceLocation: ${_buffer.length}');
+    print('[WRITE IMPORT] END - total bytes written: ${_buffer.length}');
   }
 
   void _writeExportStmt(ExportStmt export) {
+    print('[WRITE EXPORT] START - buffer offset: ${_buffer.length}');
+
     _writeUint32(_getStringRef(export.uri));
+    print('[WRITE EXPORT] After uri: ${_buffer.length}');
 
     _writeUint32(export.showList.length);
+    print('[WRITE EXPORT] After showCount: ${_buffer.length}');
+
     for (final show in export.showList) {
       _writeUint32(_getStringRef(show));
     }
+    print('[WRITE EXPORT] After showList: ${_buffer.length}');
 
     _writeUint32(export.hideList.length);
+    print('[WRITE EXPORT] After hideCount: ${_buffer.length}');
+
     for (final hide in export.hideList) {
       _writeUint32(_getStringRef(hide));
     }
+    print('[WRITE EXPORT] After hideList: ${_buffer.length}');
 
     _writeSourceLocation(export.sourceLocation);
+    print('[WRITE EXPORT] After sourceLocation: ${_buffer.length}');
+    print('[WRITE EXPORT] END');
   }
 
   void _writeVariableDecl(VariableDecl variable) {
@@ -335,19 +533,34 @@ class BinaryIRWriter {
   }
 
   void _writeFunctionDecl(FunctionDecl func) {
+    print('[WRITE FUNC] START - buffer: ${_buffer.length}');
+
     _writeUint32(_getStringRef(func.id));
+    print('[WRITE FUNC] After id: ${_buffer.length}');
+
     _writeUint32(_getStringRef(func.name));
+    print('[WRITE FUNC] After name: ${_buffer.length}');
+
     _writeType(func.returnType);
+    print('[WRITE FUNC] After returnType: ${_buffer.length}');
 
     _writeByte(func.isAsync ? 1 : 0);
+    print('[WRITE FUNC] After isAsync: ${_buffer.length}');
+
     _writeByte(func.isGenerator ? 1 : 0);
+    print('[WRITE FUNC] After isGenerator: ${_buffer.length}');
 
     _writeUint32(func.parameters.length);
+    print('[WRITE FUNC] After paramCount: ${_buffer.length}');
+
     for (final param in func.parameters) {
       _writeParameterDecl(param);
     }
+    print('[WRITE FUNC] After parameters: ${_buffer.length}');
 
     _writeSourceLocation(func.sourceLocation);
+    print('[WRITE FUNC] After sourceLocation: ${_buffer.length}');
+    print('[WRITE FUNC] END');
   }
 
   void _writeParameterDecl(ParameterDecl param) {
@@ -368,49 +581,77 @@ class BinaryIRWriter {
   }
 
   void _writeClassDecl(ClassDecl classDecl) {
+    print('[WRITE CLASS] START - buffer: ${_buffer.length}');
+
     _writeUint32(_getStringRef(classDecl.id));
+    print('[WRITE CLASS] After id: ${_buffer.length}');
+
     _writeUint32(_getStringRef(classDecl.name));
+    print('[WRITE CLASS] After name: ${_buffer.length}');
 
     _writeByte(classDecl.isAbstract ? 1 : 0);
+    print('[WRITE CLASS] After isAbstract: ${_buffer.length}');
+
     _writeByte(classDecl.isFinal ? 1 : 0);
+    print('[WRITE CLASS] After isFinal: ${_buffer.length}');
 
     // Superclass
     _writeByte(classDecl.superclass != null ? 1 : 0);
+    print('[WRITE CLASS] After hasSuperclass: ${_buffer.length}');
+
     if (classDecl.superclass != null) {
       _writeType(classDecl.superclass!);
     }
+    print('[WRITE CLASS] After superclass: ${_buffer.length}');
 
     // Interfaces
     _writeUint32(classDecl.interfaces.length);
+    print('[WRITE CLASS] After interfaceCount: ${_buffer.length}');
+
     for (final iface in classDecl.interfaces) {
       _writeType(iface);
     }
+    print('[WRITE CLASS] After interfaces: ${_buffer.length}');
 
     // Mixins
     _writeUint32(classDecl.mixins.length);
+    print('[WRITE CLASS] After mixinCount: ${_buffer.length}');
+
     for (final mixin in classDecl.mixins) {
       _writeType(mixin);
     }
+    print('[WRITE CLASS] After mixins: ${_buffer.length}');
 
     // Fields
     _writeUint32(classDecl.fields.length);
+    print('[WRITE CLASS] After fieldCount: ${_buffer.length}');
+
     for (final field in classDecl.fields) {
       _writeFieldDecl(field);
     }
+    print('[WRITE CLASS] After fields: ${_buffer.length}');
 
     // Methods
     _writeUint32(classDecl.methods.length);
+    print('[WRITE CLASS] After methodCount: ${_buffer.length}');
+
     for (final method in classDecl.methods) {
       _writeMethodDecl(method);
     }
+    print('[WRITE CLASS] After methods: ${_buffer.length}');
 
     // Constructors
     _writeUint32(classDecl.constructors.length);
+    print('[WRITE CLASS] After constructorCount: ${_buffer.length}');
+
     for (final constructor in classDecl.constructors) {
       _writeConstructorDecl(constructor);
     }
+    print('[WRITE CLASS] After constructors: ${_buffer.length}');
 
     _writeSourceLocation(classDecl.sourceLocation);
+    print('[WRITE CLASS] After sourceLocation: ${_buffer.length}');
+    print('[WRITE CLASS] END');
   }
 
   void _writeFieldDecl(FieldDecl field) {
@@ -801,7 +1042,9 @@ class BinaryIRWriter {
     _writeSourceLocation(expr.sourceLocation);
   }
 
-  void _writeStringInterpolationExpression(StringInterpolationExpressionIR expr) {
+  void _writeStringInterpolationExpression(
+    StringInterpolationExpressionIR expr,
+  ) {
     _writeUint32(expr.parts.length);
     for (final part in expr.parts) {
       _writeByte(part.isExpression ? 1 : 0);
@@ -1030,7 +1273,9 @@ class BinaryIRWriter {
     if (stmt.initialization != null) {
       if (stmt.initialization is VariableDeclarationStmt) {
         _writeByte(0);
-        _writeVariableDeclarationStatement(stmt.initialization as VariableDeclarationStmt);
+        _writeVariableDeclarationStatement(
+          stmt.initialization as VariableDeclarationStmt,
+        );
       } else {
         _writeByte(1);
         _writeExpression(stmt.initialization as ExpressionIR);
@@ -1236,7 +1481,9 @@ class BinaryIRWriter {
           errors.add('Method in class ${classDecl.name} has empty name');
         }
         if (method.parameters.length > BinaryConstants.MAX_ARRAY_COUNT) {
-          errors.add('Method ${classDecl.name}.${method.name} has too many parameters');
+          errors.add(
+            'Method ${classDecl.name}.${method.name} has too many parameters',
+          );
         }
       }
     }
@@ -1313,6 +1560,61 @@ class BinaryIRWriter {
     _writeUint16(bytes.length);
     _buffer.add(bytes);
   }
+
+  /// Add this method to BinaryIRWriter to validate before writing
+  void debugSerialize(DartFile fileIR) {
+    print('\n=== DEBUG SERIALIZATION ===');
+
+    print('\n1. Input validation:');
+    print('   File path: "${fileIR.filePath}"');
+    print('   Content hash: "${fileIR.contentHash}"');
+    print('   Library: "${fileIR.library ?? '<unknown>'}"');
+    print('   Imports: ${fileIR.imports.length}');
+    print('   Exports: ${fileIR.exports.length}');
+    print('   Variables: ${fileIR.variableDeclarations.length}');
+    print('   Functions: ${fileIR.functionDeclarations.length}');
+    print('   Classes: ${fileIR.classDeclarations.length}');
+
+    // Check string collection
+    print('\n2. Collecting strings...');
+    final preCollectStrings = _stringTable.length;
+    _collectStrings(fileIR);
+    print('   String table size: ${_stringTable.length}');
+    print('   Strings added: ${_stringTable.length - preCollectStrings}');
+
+    // Show first and last few strings
+    print('\n3. String table contents:');
+    for (
+      int i = 0;
+      i < (_stringTable.length < 5 ? _stringTable.length : 5);
+      i++
+    ) {
+      print('   [$i] "${_stringTable[i]}"');
+    }
+    if (_stringTable.length > 10) {
+      print('   ...');
+    }
+    for (
+      int i = (_stringTable.length > 5 ? _stringTable.length - 3 : 0);
+      i < _stringTable.length;
+      i++
+    ) {
+      if (i >= 5) {
+        print('   [$i] "${_stringTable[i]}"');
+      }
+    }
+
+    print('\n4. String deduplication stats:');
+    print('   Unique strings: ${_stringTable.length}');
+    print('   Max string index: ${_stringTable.length - 1}');
+
+    print('\n5. Potential issues to check:');
+    print('   ✓ Are string references within 0-${_stringTable.length - 1}?');
+    print('   ✓ Check BinaryIRWriter._getStringRef() returns valid indices');
+    print('   ✓ Verify string table size matches actual strings');
+
+    print('\n=== END DEBUG ===\n');
+  }
 }
 
 /// Enhanced exception with context information
@@ -1328,5 +1630,6 @@ class SerializationException implements Exception {
   });
 
   @override
-  String toString() => 'SerializationException [$context] at offset $offset: $message';
+  String toString() =>
+      'SerializationException [$context] at offset $offset: $message';
 }

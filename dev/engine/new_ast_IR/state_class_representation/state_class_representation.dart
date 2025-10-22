@@ -33,7 +33,7 @@ class LifecycleMethodDecl extends MethodDecl {
   /// Async operations (Future/Stream) started in this method
   final List<String> asyncOperations;
 
-   LifecycleMethodDecl({
+  LifecycleMethodDecl({
     required super.id,
     required super.name,
     required super.returnType,
@@ -355,12 +355,7 @@ class BuildMethodDecl extends MethodDecl {
       'build() [${estimatedNodeCount} nodes, depth: $maxTreeDepth, complexity: ${complexity.name}]';
 }
 
-enum BuildMethodComplexity {
-  low,
-  medium,
-  high,
-  veryHigh,
-}
+enum BuildMethodComplexity { low, medium, high, veryHigh }
 
 /// Represents a widget instantiation in build()
 @immutable
@@ -403,7 +398,8 @@ class WidgetInstantiation {
   int get lineNumber => sourceLocation.line;
 
   @override
-  String toString() => '${isConst ? "const " : ""}$name${hasKey ? " (keyed)" : ""}';
+  String toString() =>
+      '${isConst ? "const " : ""}$name${hasKey ? " (keyed)" : ""}';
 }
 
 // =============================================================================
@@ -537,8 +533,11 @@ class StateDecl extends ClassDecl {
 
   /// Controllers not properly disposed
   List<StateFieldDecl> get controllersMissingDisposal {
-    final disposed = dispose?.disposedControllers.map((f) => f.name).toSet() ?? <String>{};
-    return controllers.where((c) => !disposed.contains(c.name) && !c.isDisposedProperly).toList();
+    final disposed =
+        dispose?.disposedControllers.map((f) => f.name).toSet() ?? <String>{};
+    return controllers
+        .where((c) => !disposed.contains(c.name) && !c.isDisposedProperly)
+        .toList();
   }
 
   /// Whether this State has all required lifecycle methods
@@ -556,15 +555,17 @@ class StateDecl extends ClassDecl {
       lifecycleIssues.where((i) => i.severity == IssueSeverity.error).toList();
 
   /// Warning issues
-  List<LifecycleIssue> get warningIssues =>
-      lifecycleIssues.where((i) => i.severity == IssueSeverity.warning).toList();
+  List<LifecycleIssue> get warningIssues => lifecycleIssues
+      .where((i) => i.severity == IssueSeverity.warning)
+      .toList();
 
   /// Health score (0-100) based on lifecycle management
   int get healthScore {
     int score = 100;
 
     // Deduct for missing lifecycle methods
-    if (initState == null && (stateFields.isNotEmpty || controllers.isNotEmpty)) {
+    if (initState == null &&
+        (stateFields.isNotEmpty || controllers.isNotEmpty)) {
       score -= 20;
     }
     if (dispose == null && controllers.isNotEmpty) {
@@ -585,7 +586,9 @@ class StateDecl extends ClassDecl {
     score -= (criticalIssues.length * 10);
 
     // Deduct for problematic setState calls
-    final criticalSetState = setStateCalls.where((s) => s.severity == SetStateCallSeverity.critical).length;
+    final criticalSetState = setStateCalls
+        .where((s) => s.severity == SetStateCallSeverity.critical)
+        .length;
     score -= (criticalSetState * 5);
 
     return score.clamp(0, 100);
@@ -720,126 +723,154 @@ class StateAnalyzer {
       if (state.stateFields.isNotEmpty ||
           state.controllers.isNotEmpty ||
           state.providerReads.isNotEmpty) {
-        issues.add(LifecycleIssue(
-          type: LifecycleIssueType.missingInitState,
-          severity: IssueSeverity.warning,
-          message:
-              'State has ${state.stateFields.length} state fields but no initState',
-          sourceLocation: state.sourceLocation,
-          suggestion: 'Implement initState() to initialize controllers/listeners',
-        ));
+        issues.add(
+          LifecycleIssue(
+            type: LifecycleIssueType.missingInitState,
+            severity: IssueSeverity.warning,
+            message:
+                'State has ${state.stateFields.length} state fields but no initState',
+            sourceLocation: state.sourceLocation,
+            suggestion:
+                'Implement initState() to initialize controllers/listeners',
+          ),
+        );
       }
     } else if (!state.initStateCallsSuper) {
-      issues.add(LifecycleIssue(
-        type: LifecycleIssueType.initStateNoSuper,
-        severity: IssueSeverity.error,
-        message: 'initState() does not call super.initState()',
-        sourceLocation: state.initState!.sourceLocation,
-        suggestion: 'Add super.initState() as first statement in initState()',
-      ));
+      issues.add(
+        LifecycleIssue(
+          type: LifecycleIssueType.initStateNoSuper,
+          severity: IssueSeverity.error,
+          message: 'initState() does not call super.initState()',
+          sourceLocation: state.initState!.sourceLocation,
+          suggestion: 'Add super.initState() as first statement in initState()',
+        ),
+      );
     }
 
     // Check dispose
     if (state.dispose == null) {
       if (state.controllers.isNotEmpty || state.providerReads.isNotEmpty) {
-        issues.add(LifecycleIssue(
-          type: LifecycleIssueType.missingDispose,
-          severity: IssueSeverity.error,
-          message:
-              'State uses ${state.controllers.length} controllers but has no dispose()',
-          sourceLocation: state.sourceLocation,
-          suggestion: 'Implement dispose() to clean up resources',
-        ));
+        issues.add(
+          LifecycleIssue(
+            type: LifecycleIssueType.missingDispose,
+            severity: IssueSeverity.error,
+            message:
+                'State uses ${state.controllers.length} controllers but has no dispose()',
+            sourceLocation: state.sourceLocation,
+            suggestion: 'Implement dispose() to clean up resources',
+          ),
+        );
       }
     } else if (!state.disposeCallsSuper) {
-      issues.add(LifecycleIssue(
-        type: LifecycleIssueType.disposeNoSuper,
-        severity: IssueSeverity.error,
-        message: 'dispose() does not call super.dispose()',
-        sourceLocation: state.dispose!.sourceLocation,
-        suggestion: 'Add super.dispose() as last statement in dispose()',
-      ));
+      issues.add(
+        LifecycleIssue(
+          type: LifecycleIssueType.disposeNoSuper,
+          severity: IssueSeverity.error,
+          message: 'dispose() does not call super.dispose()',
+          sourceLocation: state.dispose!.sourceLocation,
+          suggestion: 'Add super.dispose() as last statement in dispose()',
+        ),
+      );
     }
 
     // Check didUpdateWidget
     if (state.didUpdateWidget != null && !state.didUpdateWidget!.callsSuper) {
-      issues.add(LifecycleIssue(
-        type: LifecycleIssueType.didUpdateWidgetNoSuper,
-        severity: IssueSeverity.warning,
-        message: 'didUpdateWidget() does not call super.didUpdateWidget()',
-        sourceLocation: state.didUpdateWidget!.sourceLocation,
-        suggestion: 'Call super.didUpdateWidget(oldWidget) in didUpdateWidget()',
-      ));
+      issues.add(
+        LifecycleIssue(
+          type: LifecycleIssueType.didUpdateWidgetNoSuper,
+          severity: IssueSeverity.warning,
+          message: 'didUpdateWidget() does not call super.didUpdateWidget()',
+          sourceLocation: state.didUpdateWidget!.sourceLocation,
+          suggestion:
+              'Call super.didUpdateWidget(oldWidget) in didUpdateWidget()',
+        ),
+      );
     }
 
     // Check for undisposed controllers
     for (final controller in state.controllersMissingDisposal) {
-      issues.add(LifecycleIssue(
-        type: LifecycleIssueType.controllerNotDisposed,
-        severity: IssueSeverity.error,
-        message: 'Controller "${controller.name}" created but never disposed',
-        sourceLocation: controller.sourceLocation,
-        suggestion: 'Add ${controller.name}.dispose() in dispose() method',
-        relatedItems: [controller.name],
-      ));
+      issues.add(
+        LifecycleIssue(
+          type: LifecycleIssueType.controllerNotDisposed,
+          severity: IssueSeverity.error,
+          message: 'Controller "${controller.name}" created but never disposed',
+          sourceLocation: controller.sourceLocation,
+          suggestion: 'Add ${controller.name}.dispose() in dispose() method',
+          relatedItems: [controller.name],
+        ),
+      );
     }
 
     // Check for unused state fields
     for (final field in state.unusedStateFields) {
-      issues.add(LifecycleIssue(
-        type: LifecycleIssueType.unusedStateField,
-        severity: IssueSeverity.info,
-        message: 'State field "${field.name}" is never accessed in build()',
-        sourceLocation: field.sourceLocation,
-        suggestion: 'Consider removing unused field or using it in build()',
-        relatedItems: [field.name],
-      ));
+      issues.add(
+        LifecycleIssue(
+          type: LifecycleIssueType.unusedStateField,
+          severity: IssueSeverity.info,
+          message: 'State field "${field.name}" is never accessed in build()',
+          sourceLocation: field.sourceLocation,
+          suggestion: 'Consider removing unused field or using it in build()',
+          relatedItems: [field.name],
+        ),
+      );
     }
 
     // Check build method
     if (state.buildMethod != null) {
       if (state.buildMethod!.isAsync) {
-        issues.add(LifecycleIssue(
-          type: LifecycleIssueType.buildIsAsync,
-          severity: IssueSeverity.error,
-          message: 'build() is async - this is not allowed',
-          sourceLocation: state.buildMethod!.sourceLocation,
-          suggestion: 'Move async logic to initState or use FutureBuilder',
-        ));
+        issues.add(
+          LifecycleIssue(
+            type: LifecycleIssueType.buildIsAsync,
+            severity: IssueSeverity.error,
+            message: 'build() is async - this is not allowed',
+            sourceLocation: state.buildMethod!.sourceLocation,
+            suggestion: 'Move async logic to initState or use FutureBuilder',
+          ),
+        );
       }
 
       if (state.buildMethod!.createsWidgetsInLoops) {
-        issues.add(LifecycleIssue(
-          type: LifecycleIssueType.widgetsInLoops,
-          severity: IssueSeverity.warning,
-          message: 'Widgets are created inside loops in build()',
-          sourceLocation: state.buildMethod!.sourceLocation,
-          suggestion:
-              'Consider using ListView.builder or similar for dynamic lists',
-        ));
+        issues.add(
+          LifecycleIssue(
+            type: LifecycleIssueType.widgetsInLoops,
+            severity: IssueSeverity.warning,
+            message: 'Widgets are created inside loops in build()',
+            sourceLocation: state.buildMethod!.sourceLocation,
+            suggestion:
+                'Consider using ListView.builder or similar for dynamic lists',
+          ),
+        );
       }
     }
 
     // Check for setState in loops
     for (final setStateCall in state.setStateCalls) {
       if (setStateCall.isInLoop) {
-        issues.add(LifecycleIssue(
-          type: LifecycleIssueType.other,
-          severity: IssueSeverity.error,
-          message: 'setState() called inside a loop in ${setStateCall.inMethod}',
-          sourceLocation: setStateCall.sourceLocation,
-          suggestion: 'Batch state updates and call setState() once after the loop',
-        ));
+        issues.add(
+          LifecycleIssue(
+            type: LifecycleIssueType.other,
+            severity: IssueSeverity.error,
+            message:
+                'setState() called inside a loop in ${setStateCall.inMethod}',
+            sourceLocation: setStateCall.sourceLocation,
+            suggestion:
+                'Batch state updates and call setState() once after the loop',
+          ),
+        );
       }
 
       if (setStateCall.isAsync) {
-        issues.add(LifecycleIssue(
-          type: LifecycleIssueType.setStateWithAsync,
-          severity: IssueSeverity.warning,
-          message: 'setState() has async callback in ${setStateCall.inMethod}',
-          sourceLocation: setStateCall.sourceLocation,
-          suggestion: 'Avoid async callbacks in setState(). Use Future.microtask() instead',
-        ));
+        issues.add(
+          LifecycleIssue(
+            type: LifecycleIssueType.setStateWithAsync,
+            severity: IssueSeverity.warning,
+            message:
+                'setState() has async callback in ${setStateCall.inMethod}',
+            sourceLocation: setStateCall.sourceLocation,
+            suggestion:
+                'Avoid async callbacks in setState(). Use Future.microtask() instead',
+          ),
+        );
       }
     }
 
@@ -849,43 +880,51 @@ class StateAnalyzer {
   /// Generate a health report for a State class
   static String generateHealthReport(StateDecl state) {
     final buffer = StringBuffer();
-    
+
     buffer.writeln('State Health Report: ${state.name}');
     buffer.writeln('=' * 60);
     buffer.writeln('Health Score: ${state.healthScore}/100');
     buffer.writeln();
-    
+
     buffer.writeln('State Fields: ${state.stateFieldCount}');
-    buffer.writeln('  - Accessed in build(): ${state.fieldsAccessedInBuild.length}');
+    buffer.writeln(
+      '  - Accessed in build(): ${state.fieldsAccessedInBuild.length}',
+    );
     buffer.writeln('  - Unused: ${state.unusedStateFields.length}');
     buffer.writeln();
-    
+
     buffer.writeln('Controllers: ${state.controllers.length}');
-    buffer.writeln('  - Missing disposal: ${state.controllersMissingDisposal.length}');
+    buffer.writeln(
+      '  - Missing disposal: ${state.controllersMissingDisposal.length}',
+    );
     buffer.writeln();
-    
+
     buffer.writeln('setState() Calls: ${state.setStateCalls.length}');
-    final criticalCalls = state.setStateCalls.where((s) => s.severity == SetStateCallSeverity.critical).length;
+    final criticalCalls = state.setStateCalls
+        .where((s) => s.severity == SetStateCallSeverity.critical)
+        .length;
     if (criticalCalls > 0) {
       buffer.writeln('  - CRITICAL: $criticalCalls');
     }
     buffer.writeln();
-    
+
     if (state.lifecycleIssues.isNotEmpty) {
       buffer.writeln('Issues Found: ${state.lifecycleIssues.length}');
       buffer.writeln('  - Errors: ${state.criticalIssues.length}');
       buffer.writeln('  - Warnings: ${state.warningIssues.length}');
       buffer.writeln();
-      
+
       for (final issue in state.lifecycleIssues) {
-        final severity = issue.severity == IssueSeverity.error ? 'ERROR' : 'WARNING';
+        final severity = issue.severity == IssueSeverity.error
+            ? 'ERROR'
+            : 'WARNING';
         buffer.writeln('[$severity] ${issue.message}');
         if (issue.suggestion != null) {
           buffer.writeln('  → ${issue.suggestion}');
         }
       }
     }
-    
+
     return buffer.toString();
   }
 }

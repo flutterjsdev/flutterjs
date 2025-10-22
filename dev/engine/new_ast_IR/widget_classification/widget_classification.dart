@@ -1,5 +1,5 @@
 import 'package:meta/meta.dart';
-import '../class_decl.dart' ;
+import '../class_decl.dart';
 import 'dart:core';
 
 import '../function_decl.dart';
@@ -123,7 +123,7 @@ class WidgetDecl extends ClassDecl {
   /// Known issues or anti-patterns with this widget
   final List<String> knownIssues;
 
-   WidgetDecl({
+  WidgetDecl({
     required super.id,
     required super.name,
     required this.widgetType,
@@ -171,12 +171,12 @@ class WidgetDecl extends ClassDecl {
   bool get doesNotAcceptChildren => childHandling == ChildHandling.none;
 
   /// Count of mutable state fields (excluding const/final)
-  int get mutableStateFieldCount => 
+  int get mutableStateFieldCount =>
       fields.where((f) => f.isMutable && !f.isStatic).length;
 
   /// Check if widget has complex state management
-  bool get hasComplexState => 
-      mutableStateFieldCount > 3 || 
+  bool get hasComplexState =>
+      mutableStateFieldCount > 3 ||
       methods.any((m) => m.name.contains('setState'));
 
   /// Summary of widget characteristics
@@ -467,7 +467,7 @@ class WidgetClassifier {
   }) {
     // Determine widget type from superclass
     final superclassName = classDecl.superclass?.displayName ?? '';
-    
+
     late WidgetType widgetType;
     late bool isStateless;
     late bool isStateful;
@@ -560,7 +560,9 @@ class WidgetClassifier {
   /// Extract BuildMethodDecl from ClassDecl's build method
   static BuildMethodDecl? _extractBuildMethod(ClassDecl classDecl) {
     try {
-      final buildMethod = classDecl.methods.firstWhere((m) => m.name == 'build');
+      final buildMethod = classDecl.methods.firstWhere(
+        (m) => m.name == 'build',
+      );
       return BuildMethodDecl(
         id: buildMethod.id,
         returnType: buildMethod.returnType.displayName(),
@@ -575,10 +577,12 @@ class WidgetClassifier {
   static bool _isConstConstructible(ClassDecl classDecl) {
     // Check if any constructor is const
     final hasConstConstructor = classDecl.constructors.any((c) => c.isConst);
-    
+
     // Check if all fields are final or const (requirement for const)
-    final allFieldsFinalOrConst = classDecl.fields.every((f) => f.isFinal || f.isConst);
-    
+    final allFieldsFinalOrConst = classDecl.fields.every(
+      (f) => f.isFinal || f.isConst,
+    );
+
     return hasConstConstructor && allFieldsFinalOrConst;
   }
 
@@ -598,7 +602,9 @@ class WidgetClassifier {
     }
 
     // Check for missing build method in widget classes
-    if ((classDecl.superclass?.displayName ?? '').toString().contains('Widget')) {
+    if ((classDecl.superclass?.displayName ?? '').toString().contains(
+      'Widget',
+    )) {
       if (!classDecl.methods.any((m) => m.name == 'build')) {
         issues.add('Missing build() method');
       }
@@ -612,11 +618,13 @@ class WidgetClassifier {
     }
 
     // Detect potential memory leaks (fields not disposed)
-    if (classDecl.fields.any((f) =>
-        (f.type.displayName.toString().contains('Controller') ||
-         f.type.displayName.toString().contains('Stream') ||
-         f.type.displayName.toString().contains('Listener')) &&
-        !classDecl.methods.any((m) => m.name == 'dispose'))) {
+    if (classDecl.fields.any(
+      (f) =>
+          (f.type.displayName.toString().contains('Controller') ||
+              f.type.displayName.toString().contains('Stream') ||
+              f.type.displayName.toString().contains('Listener')) &&
+          !classDecl.methods.any((m) => m.name == 'dispose'),
+    )) {
       issues.add('Potential memory leak: resource not disposed');
     }
 
@@ -689,7 +697,8 @@ class WidgetClassifier {
     final methodCount = classDecl.methods.length;
     final fieldCount = classDecl.fields.length;
 
-    if (classDecl.name.contains('Future') || classDecl.name.contains('Stream')) {
+    if (classDecl.name.contains('Future') ||
+        classDecl.name.contains('Stream')) {
       return PerformanceProfile.expensive;
     }
     if (classDecl.name == 'ListView' ||

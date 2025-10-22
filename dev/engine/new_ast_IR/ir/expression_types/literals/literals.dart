@@ -29,7 +29,7 @@ class DoubleLiteralExpr extends ExpressionIR {
     required super.sourceLocation,
     required this.value,
     required super.resultType,
-    super. metadata,
+    super.metadata,
   }) : super(isConstant: true);
 
   @override
@@ -47,7 +47,7 @@ class StringLiteralExpr extends ExpressionIR {
     required this.value,
     required super.resultType,
     this.interpolations,
-    super. metadata,
+    super.metadata,
   }) : super(isConstant: interpolations == null || interpolations.isEmpty);
 
   @override
@@ -64,7 +64,7 @@ class BoolLiteralExpr extends ExpressionIR {
     required super.sourceLocation,
     required this.value,
     required super.resultType,
-    super. metadata,
+    super.metadata,
   }) : super(isConstant: true);
 
   @override
@@ -77,7 +77,7 @@ class NullLiteralExpr extends ExpressionIR {
     required super.id,
     required super.sourceLocation,
     required super.resultType,
-    super. metadata,
+    super.metadata,
   }) : super(isConstant: true);
 
   @override
@@ -96,7 +96,7 @@ class ListLiteralExpr extends ExpressionIR {
     required this.elementType,
     required super.resultType,
     super.isConstant = false,
-    super. metadata,
+    super.metadata,
   });
 
   @override
@@ -118,7 +118,7 @@ class MapLiteralExpr extends ExpressionIR {
     required this.valueType,
     required super.resultType,
     super.isConstant = false,
-    super. metadata,
+    super.metadata,
   });
 
   @override
@@ -155,7 +155,7 @@ class SetLiteralExpr extends ExpressionIR {
     required this.elementType,
     required super.resultType,
     super.isConstant = false,
-    super. metadata,
+    super.metadata,
   });
 
   @override

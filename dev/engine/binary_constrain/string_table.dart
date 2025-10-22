@@ -3,20 +3,20 @@ import 'dart:convert';
 import 'binary_constain.dart';
 
 /// Manages string deduplication and serialization for binary IR format
-/// 
+///
 /// Purpose:
 /// - Deduplicates repeated strings (e.g., "Widget", "build", type names)
 /// - Maintains a mapping from string -> index for efficient lookup
 /// - Serializes/deserializes the string table in binary format
 /// - Reduces file size by 60-70% for typical Flutter projects
-/// 
+///
 /// Usage in Writer:
 /// ```dart
 /// stringTable.addString('Container');
 /// final index = stringTable.getStringRef('Container');
 /// stringTable.write(buffer);
 /// ```
-/// 
+///
 /// Usage in Reader:
 /// ```dart
 /// stringTable.read(buffer);
@@ -25,10 +25,10 @@ import 'binary_constain.dart';
 class StringTable {
   /// Maps string -> index for O(1) lookup
   final Map<String, int> _indices = {};
-  
+
   /// Ordered list of unique strings
   final List<String> _strings = [];
-  
+
   /// Statistics for analysis
   int _totalStringsSeen = 0;
   int _totalBytesSeen = 0;
@@ -72,8 +72,7 @@ class StringTable {
 
   /// Get string reference, throwing if not found
   int getStringRef(String str) {
-    return _indices[str] ??
-        (throw StateError('String not in table: $str'));
+    return _indices[str] ?? (throw StateError('String not in table: $str'));
   }
 
   /// Serialize the string table to binary format
@@ -190,18 +189,19 @@ class StringTable {
       averageStringLength: _strings.isEmpty
           ? 0
           : _strings
-                  .map((s) => utf8.encode(s).length)
-                  .reduce((a, b) => a + b) ~/
-              _strings.length,
+                    .map((s) => utf8.encode(s).length)
+                    .reduce((a, b) => a + b) ~/
+                _strings.length,
       longestString: _strings.isEmpty
           ? ''
-          : _strings.reduce((a, b) =>
-              utf8.encode(a).length > utf8.encode(b).length ? a : b),
+          : _strings.reduce(
+              (a, b) => utf8.encode(a).length > utf8.encode(b).length ? a : b,
+            ),
       longestStringLength: _strings.isEmpty
           ? 0
           : _strings
-              .map((s) => utf8.encode(s).length)
-              .reduce((a, b) => a > b ? a : b),
+                .map((s) => utf8.encode(s).length)
+                .reduce((a, b) => a > b ? a : b),
     );
   }
 
@@ -247,24 +247,35 @@ class StringTable {
     buffer.writeln('Strings in table: ${stats.totalStringsInTable}');
     buffer.writeln('Total strings seen: ${stats.totalStringsSeen}');
     buffer.writeln('Total duplicates: ${stats.totalDuplicates}');
-    buffer.writeln('Deduplication ratio: ${(stats.deduplicationRatio * 100).toStringAsFixed(2)}%');
-    buffer.writeln('Compression ratio: ${(stats.compressionRatio * 100).toStringAsFixed(2)}%');
+    buffer.writeln(
+      'Deduplication ratio: ${(stats.deduplicationRatio * 100).toStringAsFixed(2)}%',
+    );
+    buffer.writeln(
+      'Compression ratio: ${(stats.compressionRatio * 100).toStringAsFixed(2)}%',
+    );
     buffer.writeln();
     buffer.writeln('STATISTICS:');
-    buffer.writeln('  Average string length: ${stats.averageStringLength} bytes');
-    buffer.writeln('  Longest string: "${stats.longestString}" (${stats.longestStringLength} bytes)');
+    buffer.writeln(
+      '  Average string length: ${stats.averageStringLength} bytes',
+    );
+    buffer.writeln(
+      '  Longest string: "${stats.longestString}" (${stats.longestStringLength} bytes)',
+    );
     buffer.writeln('  Table size: ${stats.tableSize} bytes');
     buffer.writeln('  Original size: ${stats.originalSize} bytes');
-    buffer.writeln('  Savings: ${(stats.originalSize - stats.tableSize)} bytes');
+    buffer.writeln(
+      '  Savings: ${(stats.originalSize - stats.tableSize)} bytes',
+    );
     buffer.writeln();
     buffer.writeln('MOST COMMON STRINGS:');
 
-    final sorted = _strings
-        .asMap()
-        .entries
-        .map((e) => MapEntry(e.value, _countOccurrences(e.value)))
-        .toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final sorted =
+        _strings
+            .asMap()
+            .entries
+            .map((e) => MapEntry(e.value, _countOccurrences(e.value)))
+            .toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
 
     for (int i = 0; i < (sorted.length < 10 ? sorted.length : 10); i++) {
       final entry = sorted[i];
@@ -347,7 +358,8 @@ class StringTableStats {
   int get savedBytes => originalSize - tableSize;
 
   @override
-  String toString() => '''
+  String toString() =>
+      '''
 StringTableStats(
   strings: $totalStringsInTable,
   dedup: ${(deduplicationRatio * 100).toStringAsFixed(2)}%,
@@ -363,11 +375,7 @@ class StringTableException implements Exception {
   final int? index;
   final String? string;
 
-  StringTableException(
-    this.message, {
-    this.index,
-    this.string,
-  });
+  StringTableException(this.message, {this.index, this.string});
 
   @override
   String toString() {

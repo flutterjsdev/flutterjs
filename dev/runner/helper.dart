@@ -20,12 +20,12 @@ class DartFileParser {
 
     try {
       final rootPath = projectRoot ?? Directory.current.path;
-      
+
       _contextCollection = AnalysisContextCollection(
         includedPaths: [rootPath],
         resourceProvider: PhysicalResourceProvider.INSTANCE,
       );
-      
+
       _initialized = true;
       print('✓ Analyzer initialized');
     } catch (e) {
@@ -53,14 +53,13 @@ class DartFileParser {
 
       // getParsedUnit - synchronous parsing
       final result = session.getParsedUnit(filePath);
-      
+
       if (result is ParsedUnitResult) {
         return result.unit;
       } else {
         print('Could not parse: $filePath');
         return null;
       }
-      
     } catch (e) {
       print('Parse error in $filePath: $e');
       return null;
@@ -86,14 +85,13 @@ class DartFileParser {
 
       // getResolvedUnit - async, returns semantic info
       final result = await session.getResolvedUnit(filePath);
-      
+
       if (result is ResolvedUnitResult) {
         return result.unit;
       } else {
         print('Could not resolve: $filePath');
         return null;
       }
-      
     } catch (e) {
       print('Resolution error in $filePath: $e');
       return null;

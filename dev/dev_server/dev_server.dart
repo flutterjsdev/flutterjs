@@ -13,30 +13,30 @@ class DevServer {
   final String _host;
   final bool _hotReload;
   final bool _verbose;
-  
+
   // WebSocket clients for hot reload
   final Set<WebSocket> _wsClients = {};
-  
+
   // File watchers
   final List<StreamSubscription> _watchers = [];
-  
+
   // CLI input subscription (only created once)
   StreamSubscription? _stdinSubscription;
-  
+
   // Flag to track if CLI listener is already setup
   static bool _cliListenerSetup = false;
-  
+
   DevServer({
     required String buildDir,
     required int port,
     required String host,
     required bool hotReload,
     required bool verbose,
-  })  : _buildDir = buildDir,
-        _port = port,
-        _host = host,
-        _hotReload = hotReload,
-        _verbose = verbose;
+  }) : _buildDir = buildDir,
+       _port = port,
+       _host = host,
+       _hotReload = hotReload,
+       _verbose = verbose;
 
   /// Initialize and start the server
   Future<void> initialize() async {
@@ -44,12 +44,12 @@ class DevServer {
       _server = await HttpServer.bind(_host, _port);
       _log('🚀 Dev Server started at http://$_host:$_port');
       _log('📁 Serving files from: $_buildDir');
-      
+
       if (_hotReload) {
         _setupFileWatchers();
         _log('🔥 Hot reload enabled');
       }
-      
+
       _log('');
       _log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       _log('💡 Commands:');
@@ -58,10 +58,10 @@ class DevServer {
       _log('   q  - Quit server');
       _log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       _log('');
-      
+
       // Start CLI input listener
       _setupCliListener();
-      
+
       await _handleRequests();
     } catch (e) {
       _log('❌ Failed to start server: $e', isError: true);
@@ -76,13 +76,13 @@ class DevServer {
       _log('⚠️  CLI listener already active');
       return;
     }
-    
+
     stdin.echoMode = false;
     stdin.lineMode = false;
-    
+
     _stdinSubscription = stdin.listen((List<int> data) {
       final input = String.fromCharCodes(data).trim().toLowerCase();
-      
+
       switch (input) {
         case 'h':
           _handleManualReload();
@@ -98,7 +98,7 @@ class DevServer {
           break;
       }
     });
-    
+
     _cliListenerSetup = true;
   }
 
@@ -106,12 +106,12 @@ class DevServer {
   void _handleManualReload() {
     _log('');
     _log('🔄 Manual reload triggered...');
-    
+
     if (_wsClients.isEmpty) {
       _log('⚠️  No clients connected', isError: true);
       return;
     }
-    
+
     // Send reload command to all connected clients
     _notifyClients({
       'type': 'reload',
@@ -120,7 +120,7 @@ class DevServer {
       'reason': 'manual_trigger',
       'timestamp': DateTime.now().toIso8601String(),
     });
-    
+
     _log('✅ Reload command sent to ${_wsClients.length} client(s)');
     _log('');
   }
@@ -129,50 +129,50 @@ class DevServer {
   Future<void> _handleServerRestart() async {
     _log('');
     _log('🔄 Server restart initiated...');
-    
+
     // Notify clients about restart
     _notifyClients({
       'type': 'restart',
       'message': 'Server is restarting...',
       'timestamp': DateTime.now().toIso8601String(),
     });
-    
+
     _log('📡 Notified clients about restart');
-    
+
     // Small delay to ensure message is sent
     await Future.delayed(Duration(milliseconds: 100));
-    
+
     // Close all connections
     for (final client in _wsClients) {
       await client.close(1012, 'Server restarting');
     }
     _wsClients.clear();
-    
+
     // Cancel file watchers
     for (final watcher in _watchers) {
       await watcher.cancel();
     }
     _watchers.clear();
-    
+
     // Close the server (but DON'T cancel stdin listener)
     await _server.close();
-    
+
     _log('✅ Server stopped');
     _log('🚀 Restarting server...');
     _log('');
-    
+
     // Restart the server (CLI listener stays active)
     _server = await HttpServer.bind(_host, _port);
     _log('🚀 Dev Server restarted at http://$_host:$_port');
     _log('📁 Serving files from: $_buildDir');
-    
+
     if (_hotReload) {
       _setupFileWatchers();
       _log('🔥 Hot reload re-enabled');
     }
-    
+
     _log('');
-    
+
     // Continue handling requests (don't call initialize() again)
     _handleRequests();
   }
@@ -221,23 +221,23 @@ class DevServer {
   /// Handles both SPA and MPA architectures
   Future<void> _handleStaticFile(HttpRequest request) async {
     var requestPath = request.uri.path;
-    
+
     // Default to index.html for root
     if (requestPath == '/') {
       requestPath = '/index.html';
     }
-    
+
     // Remove leading slash for file path construction
     final relativePath = requestPath.substring(1);
     final filePath = path.join(_buildDir, relativePath);
     final file = File(filePath);
-    
+
     // Direct file exists - serve it
     if (await file.exists()) {
       await _serveFile(request, file);
       return;
     }
-    
+
     // Check if it's a directory with index.html
     final dir = Directory(filePath);
     if (await dir.exists()) {
@@ -247,7 +247,7 @@ class DevServer {
         return;
       }
     }
-    
+
     // MPA Support: Check for page-specific HTML files
     // Pattern: /route-name -> /pages/route-name.html or /route-name.html
     if (!requestPath.contains('.')) {
@@ -259,17 +259,19 @@ class DevServer {
         // Try /pages/{route}/index.html (nested structure)
         path.join(_buildDir, 'pages', relativePath, 'index.html'),
       ];
-      
+
       for (final routePath in mpaRoutes) {
         final routeFile = File(routePath);
         if (await routeFile.exists()) {
-          _log('📄 MPA Route: $requestPath -> ${path.relative(routePath, from: _buildDir)}');
+          _log(
+            '📄 MPA Route: $requestPath -> ${path.relative(routePath, from: _buildDir)}',
+          );
           await _serveFile(request, routeFile);
           return;
         }
       }
     }
-    
+
     // SPA fallback - serve index.html for client-side routing
     // Only if file doesn't have an extension (not requesting a resource)
     if (!requestPath.contains('.')) {
@@ -281,7 +283,7 @@ class DevServer {
         return;
       }
     }
-    
+
     _sendError(request, 404, 'File not found: $requestPath');
   }
 
@@ -289,14 +291,15 @@ class DevServer {
   Future<void> _serveFile(HttpRequest request, File file) async {
     try {
       final content = await file.readAsBytes();
-      final mimeType = mime.lookupMimeType(file.path) ?? 'application/octet-stream';
-      
+      final mimeType =
+          mime.lookupMimeType(file.path) ?? 'application/octet-stream';
+
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.parse(mimeType)
         ..headers.add('Cache-Control', 'no-cache')
         ..headers.add('Access-Control-Allow-Origin', '*');
-      
+
       // Inject hot reload script if it's an HTML file
       if (_hotReload && mimeType == 'text/html') {
         final html = utf8.decode(content);
@@ -305,7 +308,7 @@ class DevServer {
       } else {
         request.response.add(content);
       }
-      
+
       await request.response.close();
       _log('✅ Served: ${file.path} ($mimeType)');
     } catch (e) {
@@ -317,13 +320,16 @@ class DevServer {
   /// Handle API requests (extensible for future features)
   Future<void> _handleApiRequest(HttpRequest request) async {
     final path = request.uri.path;
-    
+
     // Example API endpoints
     if (path == '/api/health') {
-      _sendJson(request, {'status': 'ok', 'timestamp': DateTime.now().toIso8601String()});
+      _sendJson(request, {
+        'status': 'ok',
+        'timestamp': DateTime.now().toIso8601String(),
+      });
       return;
     }
-    
+
     if (path == '/api/build-info') {
       _sendJson(request, {
         'buildDir': _buildDir,
@@ -332,7 +338,7 @@ class DevServer {
       });
       return;
     }
-    
+
     _sendError(request, 404, 'API endpoint not found');
   }
 
@@ -342,23 +348,27 @@ class DevServer {
       final socket = await WebSocketTransformer.upgrade(request);
       _wsClients.add(socket);
       _log('🔌 WebSocket client connected (${_wsClients.length} total)');
-      
+
       socket.listen(
         (data) {
           _log('📨 WebSocket message: $data');
         },
         onDone: () {
           _wsClients.remove(socket);
-          _log('🔌 WebSocket client disconnected (${_wsClients.length} remaining)');
+          _log(
+            '🔌 WebSocket client disconnected (${_wsClients.length} remaining)',
+          );
         },
         onError: (e) {
           _wsClients.remove(socket);
           _log('❌ WebSocket error: $e', isError: true);
         },
       );
-      
+
       // Send initial connection message
-      socket.add(json.encode({'type': 'connected', 'message': 'Hot reload ready'}));
+      socket.add(
+        json.encode({'type': 'connected', 'message': 'Hot reload ready'}),
+      );
     } catch (e) {
       _log('❌ WebSocket upgrade failed: $e', isError: true);
     }
@@ -368,39 +378,39 @@ class DevServer {
   /// Supports both SPA and MPA architectures
   void _setupFileWatchers() {
     final dir = Directory(_buildDir);
-    
+
     if (!dir.existsSync()) {
       _log('⚠️ Build directory does not exist: $_buildDir', isError: true);
       return;
     }
-    
+
     // Watch root HTML files (SPA: index.html, MPA: multiple pages)
     _watchFiles('*.html');
-    
+
     // Watch CSS files
     _watchFiles('*.css');
-    
+
     // Watch JS files
     _watchFiles('*.js');
-    
+
     // Watch MPA-specific directories (Phase 1.5 structure)
-    _watchDirectory('pages');        // MPA pages
-    _watchDirectory('components');   // Shared components
-    _watchDirectory('models');       // Non-UI classes
-    _watchDirectory('services');     // Business logic
-    
+    _watchDirectory('pages'); // MPA pages
+    _watchDirectory('components'); // Shared components
+    _watchDirectory('models'); // Non-UI classes
+    _watchDirectory('services'); // Business logic
+
     // Watch asset directories
     _watchDirectory('assets');
     _watchDirectory('images');
     _watchDirectory('styles');
     _watchDirectory('scripts');
-    _watchDirectory('runtime');      // Flutter.js runtime
+    _watchDirectory('runtime'); // Flutter.js runtime
   }
 
   /// Watch specific file patterns
   void _watchFiles(String pattern) {
     final dir = Directory(_buildDir);
-    
+
     dir.list(recursive: true).listen((entity) {
       if (entity is File && _matchesPattern(entity.path, pattern)) {
         final watcher = FileWatcher(entity.path);
@@ -415,9 +425,9 @@ class DevServer {
   /// Watch entire directory
   void _watchDirectory(String dirName) {
     final dir = Directory(path.join(_buildDir, dirName));
-    
+
     if (!dir.existsSync()) return;
-    
+
     final watcher = DirectoryWatcher(dir.path);
     final subscription = watcher.events.listen((event) {
       _onFileChanged(event);
@@ -430,20 +440,22 @@ class DevServer {
   void _onFileChanged(WatchEvent event) {
     final relativePath = path.relative(event.path, from: _buildDir);
     _log('🔄 File changed: $relativePath (${event.type})');
-    
+
     // Determine reload strategy based on file location and type
     String reloadStrategy = 'full';
-    
+
     if (relativePath.endsWith('.css')) {
       reloadStrategy = 'css';
-    } else if (relativePath.startsWith('components${Platform.pathSeparator}stateless')) {
+    } else if (relativePath.startsWith(
+      'components${Platform.pathSeparator}stateless',
+    )) {
       // Pure stateless components - can be hot-swapped
       reloadStrategy = 'component';
     } else if (relativePath.startsWith('pages${Platform.pathSeparator}')) {
       // MPA page changed - reload that specific page
       reloadStrategy = 'page';
     }
-    
+
     // Notify all connected clients
     _notifyClients({
       'type': 'reload',
@@ -458,7 +470,7 @@ class DevServer {
   void _notifyClients(Map<String, dynamic> message) {
     final payload = json.encode(message);
     final deadClients = <WebSocket>[];
-    
+
     for (final client in _wsClients) {
       try {
         client.add(payload);
@@ -467,14 +479,15 @@ class DevServer {
         deadClients.add(client);
       }
     }
-    
+
     // Remove dead clients
     _wsClients.removeAll(deadClients);
   }
 
   /// Inject hot reload script into HTML
   String _injectHotReloadScript(String html) {
-    final script = '''
+    final script =
+        '''
 <script>
 (function() {
   const ws = new WebSocket('ws://${_host}:${_port}/__hot_reload');
@@ -513,12 +526,12 @@ class DevServer {
 })();
 </script>
 ''';
-    
+
     // Inject before closing body tag
     if (html.contains('</body>')) {
       return html.replaceFirst('</body>', '$script</body>');
     }
-    
+
     // Fallback: append to end
     return html + script;
   }
@@ -596,22 +609,22 @@ class DevServer {
   /// Stop the server and cleanup
   Future<void> stop() async {
     _log('🛑 Stopping dev server...');
-    
+
     // Close all WebSocket connections
     for (final client in _wsClients) {
       await client.close();
     }
     _wsClients.clear();
-    
+
     // Cancel file watchers
     for (final watcher in _watchers) {
       await watcher.cancel();
     }
     _watchers.clear();
-    
+
     // Cancel stdin subscription
     await _stdinSubscription?.cancel();
-    
+
     // Close the server
     await _server.close();
     _log('✅ Dev server stopped');
@@ -627,10 +640,10 @@ Future<void> main(List<String> args) async {
     hotReload: true,
     verbose: true,
   );
-  
+
   try {
     await server.initialize();
-    
+
     // Handle graceful shutdown
     ProcessSignal.sigint.watch().listen((_) async {
       await server.stop();

@@ -12,7 +12,7 @@ import 'variable_decl.dart';
 // =============================================================================
 
 /// Represents a function or method declaration in Dart code
-/// 
+///
 /// Covers:
 /// - Top-level functions
 /// - Methods (instance, static, abstract)
@@ -20,7 +20,7 @@ import 'variable_decl.dart';
 /// - Factory constructors
 /// - Async functions and generators
 /// - Generic functions
-/// 
+///
 /// Examples:
 /// - `int add(int a, int b) => a + b;`
 /// - `Future<String> fetchData() async { ... }`
@@ -30,43 +30,42 @@ import 'variable_decl.dart';
 class FunctionDecl extends IRNode {
   /// Unique identifier for this function
 
-
   /// Function name
-  /// 
+  ///
   /// For constructors: class name
   /// For getters/setters: property name
   /// For operators: operator symbol
   final String name;
 
   /// Return type of this function
-  /// 
+  ///
   /// For constructors: return type is implicit (the class itself)
   /// For generators (async*): wraps type in Stream<T>
   /// For async functions: wraps type in Future<T>
-   TypeIR returnType;
+  TypeIR returnType;
 
   /// Parameters of this function
   final List<ParameterDecl> parameters;
 
   /// Function body
-  /// 
+  ///
   /// For regular functions: BlockStmt or ExpressionStmt (arrow functions)
   /// For abstract methods: null
   /// For native functions: null
   final StatementIR? body;
 
   /// Whether this is declared with `async` keyword
-  /// 
+  ///
   /// Indicates function returns a Future and may use await
   final bool isAsync;
 
   /// Whether this is a generator function (async* or sync*)
-  /// 
+  ///
   /// Indicates function yields values (returns Stream or Iterable)
   final bool isGenerator;
 
   /// Whether this is a generator (`*` after return type or before body)
-  /// 
+  ///
   /// Combined with isAsync:
   /// - isAsync=false, isGenerator=false: regular function
   /// - isAsync=true, isGenerator=false: async function returning Future
@@ -75,11 +74,9 @@ class FunctionDecl extends IRNode {
   final bool isSyncGenerator;
 
   /// Type parameters for generic functions
-  /// 
+  ///
   /// Examples: <T>, <K, V>, <T extends Comparable<T>>
   final List<TypeParameterDecl> typeParameters;
-
-
 
   /// Documentation/comments above this function
   final String? documentation;
@@ -121,17 +118,16 @@ class FunctionDecl extends IRNode {
   final String? constructorClass;
 
   /// For named constructors: the constructor name suffix
-  /// 
+  ///
   /// Examples: Point.fromJson, Duration.zeroArgs, etc.
   final String? constructorName;
 
   /// Redirected constructor target (if this constructor redirects)
-  /// 
+  ///
   /// Example: `Point(int x, int y) : this.fromJson({'x': x, 'y': y})`
   final String? redirectsTo;
 
-   FunctionDecl({
-    
+  FunctionDecl({
     required super.id,
     required this.name,
     required this.returnType,
@@ -159,24 +155,28 @@ class FunctionDecl extends IRNode {
     this.constructorName,
     this.redirectsTo,
   }) : assert(
-    !(isAsync && isSyncGenerator),
-    'Function cannot be both async and sync generator',
-  ), assert(
-    !(isFactory && (isAbstract || isStatic)),
-    'Factory constructor cannot be abstract or static',
-  ), assert(
-    !(isConst && (isAsync || isGenerator)),
-    'Const constructor cannot be async or generator',
-  ), assert(
-    !(isGetter && (isSetter || isOperator)),
-    'Getter cannot also be setter or operator',
-  ), assert(
-    !(isAbstract && body != null),
-    'Abstract method cannot have body',
-  );
+         !(isAsync && isSyncGenerator),
+         'Function cannot be both async and sync generator',
+       ),
+       assert(
+         !(isFactory && (isAbstract || isStatic)),
+         'Factory constructor cannot be abstract or static',
+       ),
+       assert(
+         !(isConst && (isAsync || isGenerator)),
+         'Const constructor cannot be async or generator',
+       ),
+       assert(
+         !(isGetter && (isSetter || isOperator)),
+         'Getter cannot also be setter or operator',
+       ),
+       assert(
+         !(isAbstract && body != null),
+         'Abstract method cannot have body',
+       );
 
   /// Human-readable function signature
-  /// 
+  ///
   /// Examples:
   /// - `int add(int a, int b) -> int`
   /// - `Future<String> fetchData() async -> Future<String>`
@@ -208,7 +208,7 @@ class FunctionDecl extends IRNode {
   }
 
   /// Qualified name including class context (for methods)
-  /// 
+  ///
   /// Examples:
   /// - ClassName.methodName
   /// - ClassName.operator+
@@ -229,18 +229,19 @@ class FunctionDecl extends IRNode {
   bool get isConstructor => constructorClass != null;
 
   /// Whether this function is a named constructor
-  bool get isNamedConstructor => constructorClass != null && constructorName != null;
+  bool get isNamedConstructor =>
+      constructorClass != null && constructorName != null;
 
   /// Whether this function is a default constructor
-  bool get isDefaultConstructor => constructorClass != null && constructorName == null;
+  bool get isDefaultConstructor =>
+      constructorClass != null && constructorName == null;
 
   /// Expected number of positional parameters
   int get positionalParameterCount =>
       parameters.where((p) => p.isPositional).length;
 
   /// Expected number of named parameters
-  int get namedParameterCount =>
-      parameters.where((p) => p.isNamed).length;
+  int get namedParameterCount => parameters.where((p) => p.isNamed).length;
 
   /// Expected number of required parameters
   int get requiredParameterCount =>
@@ -267,7 +268,7 @@ class FunctionDecl extends IRNode {
       parameters.where((p) => !p.isRequired).toList();
 
   /// Returns to analyze function behavior
-  /// 
+  ///
   /// For async generators: returns Stream<T>
   /// For sync generators: returns Iterable<T>
   /// For async: returns Future<T>
@@ -293,7 +294,7 @@ class FunctionDecl extends IRNode {
   bool get isSynchronous => !isAsync && !isGenerator;
 
   /// Validates this function declaration for consistency
-  /// 
+  ///
   /// Returns list of validation errors, empty if valid
   List<String> validate() {
     final errors = <String>[];
@@ -352,7 +353,9 @@ class FunctionDecl extends IRNode {
     // constructor validation
     if (isConstructor) {
       if (returnType.name != 'void' && returnType.name != constructorClass) {
-        errors.add('Constructor return type must match class name or be implicit');
+        errors.add(
+          'Constructor return type must match class name or be implicit',
+        );
       }
     }
 
@@ -373,7 +376,7 @@ class FunctionDecl extends IRNode {
 }
 
 /// Represents a type parameter in a generic function or class
-/// 
+///
 /// Examples: T, K extends Comparable<K>, U super Animal
 @immutable
 class TypeParameterDecl {
@@ -381,7 +384,7 @@ class TypeParameterDecl {
   final String name;
 
   /// Upper bound constraint (if any)
-  /// 
+  ///
   /// Example: T extends Comparable<T>
   final TypeIR? bound;
 
@@ -392,7 +395,7 @@ class TypeParameterDecl {
   bool get hasBound => bound != null || lowerBound != null;
 
   /// Declaration string
-  /// 
+  ///
   /// Examples: "T", "K extends Comparable<K>"
   String get declaration {
     if (bound != null) {
@@ -404,18 +407,14 @@ class TypeParameterDecl {
     return name;
   }
 
-  const TypeParameterDecl({
-    required this.name,
-    this.bound,
-    this.lowerBound,
-  });
+  const TypeParameterDecl({required this.name, this.bound, this.lowerBound});
 
   @override
   String toString() => declaration;
 }
 
 /// Specialized FunctionDecl for methods (functions inside classes)
-/// 
+///
 /// Adds class context and method-specific features
 @immutable
 class MethodDecl extends FunctionDecl {
@@ -423,47 +422,46 @@ class MethodDecl extends FunctionDecl {
   final String? className;
 
   /// Whether this method overrides a parent class method
-  /// 
+  ///
   /// Not definitive - just indicates @override annotation
   final bool markedOverride;
 
   /// For intercepted methods: the method signature being overridden
   final String? overriddenSignature;
 
-   MethodDecl({
-    required super. id,
-    required super. name,
-    required super. returnType,
-    super. parameters = const [],
-    super. body,
-    super. isAsync = false,
-    super. isGenerator = false,
-    super. typeParameters = const [],
-    required super. sourceLocation,
-   super.documentation,
-    super. annotations = const [],
-    super. visibility = VisibilityModifier.public,
-    super. isStatic = false,
-    super. isAbstract = false,
-    super. isGetter = false,
-    super. isSetter = false,
+  MethodDecl({
+    required super.id,
+    required super.name,
+    required super.returnType,
+    super.parameters = const [],
+    super.body,
+    super.isAsync = false,
+    super.isGenerator = false,
+    super.typeParameters = const [],
+    required super.sourceLocation,
+    super.documentation,
+    super.annotations = const [],
+    super.visibility = VisibilityModifier.public,
+    super.isStatic = false,
+    super.isAbstract = false,
+    super.isGetter = false,
+    super.isSetter = false,
     this.className,
     this.markedOverride = false,
     this.overriddenSignature,
   });
 
   /// Full method name with class context
-  String get fullQualifiedName =>
-      className != null ? '$className.$name' : name;
+  String get fullQualifiedName => className != null ? '$className.$name' : name;
 }
 
 /// Specialized FunctionDecl for constructors
-/// 
+///
 /// Captures constructor-specific semantics
 @immutable
 class ConstructorDecl extends FunctionDecl {
   /// Initializer list (field assignments before body)
-  /// 
+  ///
   /// Example: Point(int x, int y) : this.x = x, this.y = y { ... }
   final List<ConstructorInitializer> initializers;
 
@@ -473,7 +471,7 @@ class ConstructorDecl extends FunctionDecl {
   /// Redirected constructor call (if redirecting constructor)
   final RedirectedConstructorCall? redirectedCall;
 
-   ConstructorDecl({
+  ConstructorDecl({
     required String id,
     required String name,
     required String constructorClass,
@@ -491,24 +489,24 @@ class ConstructorDecl extends FunctionDecl {
     this.superCall,
     this.redirectedCall,
   }) : super(
-    id: id,
-    name: name,
-    returnType: VoidTypeIR(
-      id: '${id}_returnType',
-      sourceLocation: sourceLocation,
-    ),
-    parameters: parameters,
-    body: body,
-    typeParameters: typeParameters,
-    sourceLocation: sourceLocation,
-    documentation: documentation,
-    annotations: annotations,
-    isFactory: isFactory,
-    isConst: isConst,
-    isExternal: isExternal,
-    constructorClass: constructorClass,
-    constructorName: constructorName,
-  );
+         id: id,
+         name: name,
+         returnType: VoidTypeIR(
+           id: '${id}_returnType',
+           sourceLocation: sourceLocation,
+         ),
+         parameters: parameters,
+         body: body,
+         typeParameters: typeParameters,
+         sourceLocation: sourceLocation,
+         documentation: documentation,
+         annotations: annotations,
+         isFactory: isFactory,
+         isConst: isConst,
+         isExternal: isExternal,
+         constructorClass: constructorClass,
+         constructorName: constructorName,
+       );
 
   /// Whether this is a default (unnamed) constructor
   bool get isDefaultConstructor => constructorName == null;
@@ -539,7 +537,7 @@ class ConstructorDecl extends FunctionDecl {
 }
 
 /// Represents an initializer in a constructor's initializer list
-/// 
+///
 /// Example: `this.x = x` in `Point(int x) : this.x = x { ... }`
 @immutable
 class ConstructorInitializer {
@@ -568,7 +566,7 @@ class ConstructorInitializer {
 }
 
 /// Represents a super() call in initializer list
-/// 
+///
 /// Example: `super.named(args)` in constructor initializer
 @immutable
 class SuperConstructorCall {
@@ -604,7 +602,7 @@ class SuperConstructorCall {
 }
 
 /// Represents a redirected constructor call
-/// 
+///
 /// Example: `this.other(args)` in redirecting constructor
 @immutable
 class RedirectedConstructorCall {

@@ -179,11 +179,11 @@ class TypeHierarchy {
     return TypeIR.fromJson({
       'id': 'type_$name',
       'name': name,
-      'type': name == 'dynamic' 
-          ? 'DynamicTypeIR' 
+      'type': name == 'dynamic'
+          ? 'DynamicTypeIR'
           : name == 'Never'
-              ? 'NeverTypeIR'
-              : 'SimpleTypeIR',
+          ? 'NeverTypeIR'
+          : 'SimpleTypeIR',
     });
   }
 }

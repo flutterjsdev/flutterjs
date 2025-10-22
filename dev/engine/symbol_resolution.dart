@@ -13,10 +13,10 @@ import 'new_ast_IR/diagnostics/source_location.dart';
 import 'type_inference_pass.dart';
 
 /// Pass 2: Symbol Resolution
-/// 
+///
 /// Input: DartFile objects from Pass 1 (DeclarationPass)
 /// Output: All references resolved to their declarations, with UnresolvedTypeIR replaced by actual types
-/// 
+///
 /// Responsibilities:
 /// 1. Resolve imports to actual files/symbols
 /// 2. Link widget types to StatefulWidget and State associations
@@ -27,50 +27,47 @@ import 'type_inference_pass.dart';
 class SymbolResolutionPass {
   /// All DartFiles in project (from Pass 1)
   final Map<String, DartFile> dartFiles;
-  
+
   /// Project root path for resolving relative imports
   final String projectRoot;
-  
+
   /// Symbol registry: fully_qualified_name -> Declaration
   final Map<String, Declaration> globalSymbolRegistry = {};
-  
+
   /// File exports: file_path -> Set<exported_symbol_names>
   final Map<String, Set<String>> fileExports = {};
-  
+
   /// Widget to State mapping: widget_class_name -> state_class_name
   final Map<String, String> widgetStateBindings = {};
-  
+
   /// Provider classes: provider_class_name -> ProviderInfo
   final Map<String, ProviderInfo> providerRegistry = {};
-  
+
   /// Import mappings: (from_file, import_uri, prefix) -> (to_file, imported_symbols)
   final Map<String, ImportResolution> importResolutions = {};
-  
+
   /// Issues found during resolution
   final List<AnalysisIssue> resolutionIssues = [];
-  
-  SymbolResolutionPass({
-    required this.dartFiles,
-    required this.projectRoot,
-  });
+
+  SymbolResolutionPass({required this.dartFiles, required this.projectRoot});
 
   /// Execute the complete symbol resolution pass
   void resolveAllSymbols() {
     // Step 1: Build global symbol registry
     _buildGlobalSymbolRegistry();
-    
+
     // Step 2: Resolve imports and exports
     _resolveImportsAndExports();
-    
+
     // Step 3: Link widget-state associations
     _linkWidgetStateAssociations();
-    
+
     // Step 4: Identify and index providers
     _identifyProviders();
-    
+
     // Step 5: Resolve type references in all declarations
     _resolveTypeReferences();
-    
+
     // Step 6: Update DartFiles with resolved information
     _updateDartFilesWithResolutions();
   }
@@ -82,19 +79,19 @@ class SymbolResolutionPass {
   void _buildGlobalSymbolRegistry() {
     for (final dartFile in dartFiles.values) {
       final filePackage = _extractPackageFromPath(dartFile.filePath);
-      
+
       // Register all classes
       for (final classDecl in dartFile.classDeclarations) {
         final qualifiedName = _buildQualifiedName(filePackage, classDecl.name);
         globalSymbolRegistry[qualifiedName] = classDecl;
       }
-      
+
       // Register all functions
       for (final funcDecl in dartFile.functionDeclarations) {
         final qualifiedName = _buildQualifiedName(filePackage, funcDecl.name);
         globalSymbolRegistry[qualifiedName] = funcDecl;
       }
-      
+
       // Register all top-level variables
       for (final varDecl in dartFile.variableDeclarations) {
         final qualifiedName = _buildQualifiedName(filePackage, varDecl.name);
@@ -113,7 +110,7 @@ class SymbolResolutionPass {
       for (final import in dartFile.imports) {
         _resolveImport(dartFile, import);
       }
-      
+
       // Resolve exports
       for (final export in dartFile.exports) {
         _resolveExport(dartFile, export);
@@ -124,7 +121,7 @@ class SymbolResolutionPass {
   void _resolveImport(DartFile importer, ImportStmt import) {
     // Convert URI to file path
     final importedFilePath = _resolveImportUri(import.uri, importer.filePath);
-    
+
     if (importedFilePath == null) {
       _addIssue(
         severity: IssueSeverity.error,
@@ -134,7 +131,7 @@ class SymbolResolutionPass {
       );
       return;
     }
-    
+
     final importedFile = dartFiles[importedFilePath];
     if (importedFile == null) {
       _addIssue(
@@ -145,10 +142,10 @@ class SymbolResolutionPass {
       );
       return;
     }
-    
+
     // Collect imported symbols
     final importedSymbols = <String>{};
-    
+
     if (import.showList.isNotEmpty) {
       // Explicit show list
       importedSymbols.addAll(import.showList);
@@ -160,14 +157,14 @@ class SymbolResolutionPass {
       // All symbols
       _collectAllSymbols(importedFile, importedSymbols);
     }
-    
+
     // Store resolution
     final resolutionKey = _importResolutionKey(
       importer.filePath,
       import.uri,
       import.prefix,
     );
-    
+
     importResolutions[resolutionKey] = ImportResolution(
       importedFilePath: importedFilePath,
       importedSymbols: importedSymbols,
@@ -177,7 +174,7 @@ class SymbolResolutionPass {
 
   void _resolveExport(DartFile exporter, ExportStmt export) {
     final exportedFilePath = _resolveImportUri(export.uri, exporter.filePath);
-    
+
     if (exportedFilePath == null) {
       _addIssue(
         severity: IssueSeverity.error,
@@ -187,7 +184,7 @@ class SymbolResolutionPass {
       );
       return;
     }
-    
+
     final exportedFile = dartFiles[exportedFilePath];
     if (exportedFile == null) {
       _addIssue(
@@ -198,10 +195,10 @@ class SymbolResolutionPass {
       );
       return;
     }
-    
+
     // Collect exported symbols
     final symbols = <String>{};
-    
+
     if (export.showList.isNotEmpty) {
       symbols.addAll(export.showList);
     } else if (export.hideList.isNotEmpty) {
@@ -210,7 +207,7 @@ class SymbolResolutionPass {
     } else {
       _collectAllSymbols(exportedFile, symbols);
     }
-    
+
     if (fileExports[exporter.filePath] == null) {
       fileExports[exporter.filePath] = symbols;
     } else {
@@ -238,10 +235,10 @@ class SymbolResolutionPass {
 
   bool _isStatefulWidget(ClassDecl classDecl) {
     if (classDecl.superclass == null) return false;
-    
+
     final superclassName = _extractTypeName(classDecl.superclass!);
     return superclassName == 'StatefulWidget' ||
-           _isSubclassOf(superclassName, 'StatefulWidget');
+        _isSubclassOf(superclassName, 'StatefulWidget');
   }
 
   String? _findStateName(ClassDecl widget) {
@@ -259,7 +256,7 @@ class SymbolResolutionPass {
         }
       }
     }
-    
+
     return null;
   }
 
@@ -292,23 +289,23 @@ class SymbolResolutionPass {
 
   bool _isChangeNotifier(ClassDecl classDecl) {
     if (classDecl.superclass == null) return false;
-    
+
     final superclassName = _extractTypeName(classDecl.superclass!);
     return superclassName == 'ChangeNotifier' ||
-           _isSubclassOf(superclassName, 'ChangeNotifier');
+        _isSubclassOf(superclassName, 'ChangeNotifier');
   }
 
   bool _isProvider(ClassDecl classDecl) {
     if (classDecl.mixins.isEmpty) return false;
-    
+
     for (final mixin in classDecl.mixins) {
       final mixinName = _extractTypeName(mixin);
-      if (mixinName.contains('ChangeNotifier') || 
+      if (mixinName.contains('ChangeNotifier') ||
           mixinName.contains('StateNotifier')) {
         return true;
       }
     }
-    
+
     return false;
   }
 
@@ -326,35 +323,38 @@ class SymbolResolutionPass {
             dartFile,
           );
         }
-        
+
         for (int i = 0; i < classDecl.interfaces.length; i++) {
           classDecl.interfaces[i] = _resolveTypeReference(
             classDecl.interfaces[i],
             dartFile,
           );
         }
-        
+
         for (int i = 0; i < classDecl.mixins.length; i++) {
           classDecl.mixins[i] = _resolveTypeReference(
             classDecl.mixins[i],
             dartFile,
           );
         }
-        
+
         // Resolve field types
         for (final field in classDecl.fields) {
           field.type = _resolveTypeReference(field.type, dartFile);
         }
-        
+
         // Resolve method types and parameters
         for (final method in classDecl.methods) {
-          method.returnType = _resolveTypeReference(method.returnType, dartFile);
+          method.returnType = _resolveTypeReference(
+            method.returnType,
+            dartFile,
+          );
           for (final param in method.parameters) {
             param.type = _resolveTypeReference(param.type, dartFile);
           }
         }
       }
-      
+
       // Resolve types in functions
       for (final func in dartFile.functionDeclarations) {
         func.returnType = _resolveTypeReference(func.returnType, dartFile);
@@ -362,7 +362,7 @@ class SymbolResolutionPass {
           param.type = _resolveTypeReference(param.type, dartFile);
         }
       }
-      
+
       // Resolve types in variables
       for (final variable in dartFile.variableDeclarations) {
         variable.type = _resolveTypeReference(variable.type, dartFile);
@@ -372,30 +372,32 @@ class SymbolResolutionPass {
 
   TypeIR _resolveTypeReference(TypeIR type, DartFile context) {
     // If already resolved, return as-is
-    if (type is! SimpleTypeIR || type.name == 'dynamic' || type.name == 'void') {
+    if (type is! SimpleTypeIR ||
+        type.name == 'dynamic' ||
+        type.name == 'void') {
       return type;
     }
-    
+
     // Try to resolve the type name
     final typeName = type.name;
-    
+
     // Check if it's a built-in type
     if (_isBuiltInType(typeName)) {
       return type;
     }
-    
+
     // Try to find in context file
     final localDeclaration = _findSymbolInFile(typeName, context);
     if (localDeclaration != null) {
       return type; // Type name is already correct
     }
-    
+
     // Try to find through imports
     final importedDeclaration = _findSymbolThroughImports(typeName, context);
     if (importedDeclaration != null) {
       return type; // Type is resolvable
     }
-    
+
     // Report unresolved type
     _addIssue(
       severity: IssueSeverity.warning,
@@ -403,7 +405,7 @@ class SymbolResolutionPass {
       message: 'Unresolved type reference: $typeName',
       sourceLocation: type.sourceLocation,
     );
-    
+
     return type;
   }
 
@@ -435,20 +437,20 @@ class SymbolResolutionPass {
       final relativePath = uri.split('/').skip(1).join('/');
       return '$projectRoot/packages/$packageName/lib/$relativePath';
     }
-    
+
     // Handle relative imports
     if (uri.startsWith('./') || uri.startsWith('../')) {
       final baseDir = _getDirectory(fromFilePath);
       final normalizedPath = _normalizePath(baseDir, uri);
       return normalizedPath;
     }
-    
+
     // Handle absolute imports (dart:, flutter:, etc.)
     if (uri.startsWith('dart:') || uri.startsWith('flutter:')) {
       // These are built-in libraries, not in project
       return null;
     }
-    
+
     return null;
   }
 
@@ -459,21 +461,21 @@ class SymbolResolutionPass {
         return classDecl;
       }
     }
-    
+
     // Check functions
     for (final func in file.functionDeclarations) {
       if (func.name == symbolName) {
         return func;
       }
     }
-    
+
     // Check variables
     for (final variable in file.variableDeclarations) {
       if (variable.name == symbolName) {
         return variable;
       }
     }
-    
+
     return null;
   }
 
@@ -484,28 +486,30 @@ class SymbolResolutionPass {
         import.uri,
         import.prefix,
       );
-      
+
       final resolution = importResolutions[resolutionKey];
-      if (resolution != null && resolution.importedSymbols.contains(symbolName)) {
+      if (resolution != null &&
+          resolution.importedSymbols.contains(symbolName)) {
         final importedFile = dartFiles[resolution.importedFilePath];
         if (importedFile != null) {
           return _findSymbolInFile(symbolName, importedFile);
         }
       }
     }
-    
+
     return null;
   }
 
   bool _isSubclassOf(String? className, String targetClass) {
     if (className == null) return false;
     if (className == targetClass) return true;
-    
+
     // Find class declaration
     for (final file in dartFiles.values) {
-      final classDecl = file.classDeclarations
-          .firstWhereOrNull((c) => c.name == className);
-      
+      final classDecl = file.classDeclarations.firstWhereOrNull(
+        (c) => c.name == className,
+      );
+
       if (classDecl?.superclass != null) {
         final superName = _extractTypeName(classDecl!.superclass!);
         if (_isSubclassOf(superName, targetClass)) {
@@ -513,7 +517,7 @@ class SymbolResolutionPass {
         }
       }
     }
-    
+
     return false;
   }
 
@@ -560,10 +564,28 @@ class SymbolResolutionPass {
 
   bool _isBuiltInType(String typeName) {
     const builtIns = {
-      'int', 'double', 'bool', 'String', 'List', 'Map', 'Set',
-      'dynamic', 'void', 'Future', 'Stream', 'Widget', 'State',
-      'StatefulWidget', 'StatelessWidget', 'BuildContext', 'Null',
-      'Never', 'num', 'Object', 'Iterable', 'Comparable',
+      'int',
+      'double',
+      'bool',
+      'String',
+      'List',
+      'Map',
+      'Set',
+      'dynamic',
+      'void',
+      'Future',
+      'Stream',
+      'Widget',
+      'State',
+      'StatefulWidget',
+      'StatelessWidget',
+      'BuildContext',
+      'Null',
+      'Never',
+      'num',
+      'Object',
+      'Iterable',
+      'Comparable',
     };
     return builtIns.contains(typeName);
   }
@@ -576,7 +598,7 @@ class SymbolResolutionPass {
   String _normalizePath(String baseDir, String relativePath) {
     final parts = [...baseDir.split('/'), ...relativePath.split('/')];
     final normalized = <String>[];
-    
+
     for (final part in parts) {
       if (part == '..') {
         if (normalized.isNotEmpty) {
@@ -586,32 +608,33 @@ class SymbolResolutionPass {
         normalized.add(part);
       }
     }
-    
+
     return normalized.join('/');
   }
 
-
-
-   void _addIssue({
+  void _addIssue({
     required IssueSeverity severity,
     required IssueCategory category,
     required String message,
     required SourceLocationIR sourceLocation,
   }) {
     // Generate unique issue ID
-    final issueId = 'issue_${resolutionIssues.length}_${DateTime.now().millisecondsSinceEpoch}';
-    
+    final issueId =
+        'issue_${resolutionIssues.length}_${DateTime.now().millisecondsSinceEpoch}';
+
     // Generate issue code from category
     final issueCode = _generateIssueCode(category, severity);
-    
-    resolutionIssues.add(AnalysisIssue(
-      id: issueId,
-      code: issueCode,
-      severity: severity,
-      category: category,
-      message: message,
-      sourceLocation: sourceLocation,
-    ));
+
+    resolutionIssues.add(
+      AnalysisIssue(
+        id: issueId,
+        code: issueCode,
+        severity: severity,
+        category: category,
+        message: message,
+        sourceLocation: sourceLocation,
+      ),
+    );
   }
 
   String _generateIssueCode(IssueCategory category, IssueSeverity severity) {
@@ -619,7 +642,6 @@ class SymbolResolutionPass {
     final severityPrefix = severity.name.toUpperCase().substring(0, 1);
     return '$categoryPrefix$severityPrefix${resolutionIssues.length.toString().padLeft(4, '0')}';
   }
-
 }
 
 // =========================================================================
@@ -632,7 +654,7 @@ class ImportResolution {
   final String importedFilePath;
   final Set<String> importedSymbols;
   final String? prefix;
-  
+
   ImportResolution({
     required this.importedFilePath,
     required this.importedSymbols,
@@ -640,15 +662,7 @@ class ImportResolution {
   });
 }
 
-
-
-enum ProviderTypeState {
-  changeNotifier,
-  stateNotifier,
-  riverpod,
-  bloc,
-  custom,
-}
+enum ProviderTypeState { changeNotifier, stateNotifier, riverpod, bloc, custom }
 
 class ResolutionInfo {
   final Map<String, ImportResolution> importResolutions;
@@ -656,7 +670,7 @@ class ResolutionInfo {
   final Map<String, ProviderInfo> providerRegistry;
   final Map<String, Declaration> resolvedSymbols;
   final List<AnalysisIssue> issues;
-  
+
   ResolutionInfo({
     required this.importResolutions,
     required this.widgetStateBindings,
@@ -669,7 +683,7 @@ class ResolutionInfo {
 // Extension to DartFile to hold resolution info
 extension DartFileResolution on DartFile {
   static final _resolutionData = <String, ResolutionInfo>{};
-  
+
   ResolutionInfo? get resolutionInfo => _resolutionData[filePath];
   set resolutionInfo(ResolutionInfo? value) {
     if (value != null) {

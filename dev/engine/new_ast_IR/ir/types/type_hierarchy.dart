@@ -2,7 +2,6 @@ import '../type_ir.dart';
 import 'class_type_ir.dart';
 import 'unresolved_type_ir.dart';
 
-
 /// Type relationship utilities for Dart type hierarchy
 class TypeHierarchy {
   // Dart standard type hierarchy
@@ -180,11 +179,11 @@ class TypeHierarchy {
     return TypeIR.fromJson({
       'id': 'type_$name',
       'name': name,
-      'type': name == 'dynamic' 
-          ? 'DynamicTypeIR' 
+      'type': name == 'dynamic'
+          ? 'DynamicTypeIR'
           : name == 'Never'
-              ? 'NeverTypeIR'
-              : 'SimpleTypeIR',
+          ? 'NeverTypeIR'
+          : 'SimpleTypeIR',
     });
   }
 }

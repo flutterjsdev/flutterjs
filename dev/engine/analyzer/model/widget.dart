@@ -174,10 +174,7 @@ abstract class StatementDeclaration {
   final StatementType type;
   final SourceLocation location;
 
-  StatementDeclaration({
-    required this.type,
-    required this.location,
-  });
+  StatementDeclaration({required this.type, required this.location});
 
   Map<String, dynamic> toJson();
 
@@ -219,8 +216,6 @@ abstract class StatementDeclaration {
     }
   }
 }
-
-
 
 class WidgetPropertyDeclaration {
   final String name;
@@ -415,18 +410,17 @@ class ClassDeclaration {
   }
 }
 
-
-class AnimationDeclaration  {
+class AnimationDeclaration {
   final String id;
   final String name;
   final String filePath;
   final AnimationType type;
   final int durationMs;
   final String curve;
-  final List<AnimationKeyframeDeclaration > keyframes;
+  final List<AnimationKeyframeDeclaration> keyframes;
   final SourceLocation location;
 
-  AnimationDeclaration ({
+  AnimationDeclaration({
     required this.id,
     required this.name,
     required this.filePath,
@@ -449,24 +443,13 @@ class AnimationDeclaration  {
   };
 }
 
-enum AnimationType {
-  tween,
-  physics,
-  controller,
-  implicit,
-}
+enum AnimationType { tween, physics, controller, implicit }
 
-class AnimationKeyframeDeclaration  {
+class AnimationKeyframeDeclaration {
   final double time;
   final Map<String, dynamic> values;
 
-  AnimationKeyframeDeclaration ({
-    required this.time,
-    required this.values,
-  });
+  AnimationKeyframeDeclaration({required this.time, required this.values});
 
-  Map<String, dynamic> toJson() => {
-    'time': time,
-    'values': values,
-  };
+  Map<String, dynamic> toJson() => {'time': time, 'values': values};
 }

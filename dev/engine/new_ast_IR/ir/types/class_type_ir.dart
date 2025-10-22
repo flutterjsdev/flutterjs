@@ -4,8 +4,8 @@ import '../type_ir.dart';
 /// Represents class references: Widget, MyCustomClass, etc.
 class ClassTypeIR extends TypeIR {
   final String className;
-  final String? libraryUri;  // "package:flutter/material.dart"
-  final List<TypeIR> typeArguments;  // For generics
+  final String? libraryUri; // "package:flutter/material.dart"
+  final List<TypeIR> typeArguments; // For generics
   final bool isAbstract;
 
   ClassTypeIR({
@@ -19,13 +19,12 @@ class ClassTypeIR extends TypeIR {
     super.isNullable = false,
   });
 
-
   bool get isBuiltIn => false;
 
   bool get isGeneric => typeArguments.isNotEmpty;
 
-  String get fullyQualifiedName => 
-    libraryUri != null ? '$libraryUri#$className' : className;
+  String get fullyQualifiedName =>
+      libraryUri != null ? '$libraryUri#$className' : className;
 
   @override
   String displayName() {
@@ -112,7 +111,6 @@ class ClassTypeIR extends TypeIR {
       isNullable: false,
     );
   }
-
 
   @override
   bool operator ==(Object other) =>

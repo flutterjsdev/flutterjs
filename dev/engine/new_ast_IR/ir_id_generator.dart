@@ -4,7 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'dart_file_builder.dart';
 
 /// ID Generation Strategy for IR Nodes
-/// 
+///
 /// Requirements:
 /// 1. **Uniqueness**: No two nodes should have the same ID
 /// 2. **Determinism**: Same input → same ID (for caching/comparison)
@@ -15,19 +15,19 @@ import 'dart_file_builder.dart';
 class IRIdGenerator {
   // Counter for ensuring uniqueness within a single file analysis session
   int counter = 0;
-  
+
   // File path context (for cross-file uniqueness)
   final String? filePath;
-  
+
   // Optional: project root for relative paths
   final String? projectRoot;
-  
+
   IRIdGenerator({this.filePath, this.projectRoot});
 
   /// Generate a unique, deterministic ID
-  /// 
+  ///
   /// Format: `{type}_{contextHash}_{name}_{counter}`
-  /// 
+  ///
   /// Examples:
   /// - "class_a3f2_MyWidget_1"
   /// - "method_a3f2_MyWidget.build_2"
@@ -35,13 +35,13 @@ class IRIdGenerator {
   /// - "param_a3f2_callback_4"
   String generateId(String type, [String? name]) {
     counter++;
-    
+
     // Get short file hash for context
     final contextHash = _getFileContextHash();
-    
+
     // Sanitize name (remove special characters)
     final safeName = name != null ? _sanitizeName(name) : '';
-    
+
     // Build ID
     final parts = <String>[
       type,
@@ -49,41 +49,43 @@ class IRIdGenerator {
       if (safeName.isNotEmpty) safeName,
       counter.toString(),
     ];
-    
+
     return parts.join('_');
   }
 
   /// Generate ID with full context (for nested declarations)
-  /// 
+  ///
   /// Example: class MyWidget { int counter; }
   /// - Class: "class_a3f2_MyWidget_1"
   /// - Field: "field_a3f2_MyWidget.counter_2"
-  String generateContextualId(String type, String name, {String? parentContext}) {
+  String generateContextualId(
+    String type,
+    String name, {
+    String? parentContext,
+  }) {
     counter++;
-    
+
     final contextHash = _getFileContextHash();
-    final fullName = parentContext != null 
-        ? '$parentContext.$name' 
-        : name;
+    final fullName = parentContext != null ? '$parentContext.$name' : name;
     final safeName = _sanitizeName(fullName);
-    
+
     return '${type}_${contextHash}_${safeName}_$counter';
   }
 
   /// Generate deterministic ID (same input always produces same ID)
-  /// 
+  ///
   /// Use this when you need stable IDs across multiple analysis runs
   /// for caching or incremental compilation.
   String generateDeterministicId(String type, String fullyQualifiedName) {
     // Use hash of type + FQN + file path
     final input = '$type:$fullyQualifiedName:${filePath ?? ""}';
     final hash = _shortHash(input);
-    
+
     return '${type}_${hash}';
   }
 
   /// Generate simple incremental ID
-  /// 
+  ///
   /// Simplest form - just type and counter.
   /// Use for temporary nodes or when context doesn't matter.
   String generateSimpleId(String type) {
@@ -103,13 +105,13 @@ class IRIdGenerator {
   /// Get short hash of file path for context
   String _getFileContextHash() {
     if (filePath == null) return 'global';
-    
+
     // Use relative path if project root is available
     String pathToHash = filePath!;
     if (projectRoot != null && filePath!.startsWith(projectRoot!)) {
       pathToHash = filePath!.substring(projectRoot!.length);
     }
-    
+
     return _shortHash(pathToHash);
   }
 
@@ -139,19 +141,19 @@ extension BuilderIdGeneration on DartFileBuilder {
   /// Recommended: Use this method in your builder
   String generateId(String type, [String? name]) {
     // If builder has an ID generator instance, use it
-    if (idGenerator.filePath?.isNotEmpty ?? false ) {
+    if (idGenerator.filePath?.isNotEmpty ?? false) {
       return idGenerator.generateId(type, name);
     }
-    
+
     // Fallback: simple counter-based
     return '${type}_${name ?? ""}_${_nextCounter()}';
   }
-  
+
   int _nextCounter() {
-      idGenerator. counter++;
-    return idGenerator. counter;
+    idGenerator.counter++;
+    return idGenerator.counter;
   }
-  
+
   // Add these fields to DartFileBuilder:
   // IRIdGenerator? _idGenerator;
   // int _counter = 0;
@@ -167,29 +169,34 @@ void examples() {
     filePath: '/Users/dev/my_app/lib/main.dart',
     projectRoot: '/Users/dev/my_app',
   );
-  
+
   print(generator.generateId('class', 'MyWidget'));
   // Output: class_a3f2_MyWidget_1
-  
+
   print(generator.generateId('method', 'build'));
   // Output: method_a3f2_build_2
-  
-  print(generator.generateContextualId('field', 'counter', 
-      parentContext: 'MyWidget'));
+
+  print(
+    generator.generateContextualId(
+      'field',
+      'counter',
+      parentContext: 'MyWidget',
+    ),
+  );
   // Output: field_a3f2_MyWidget.counter_3
-  
+
   // Example 2: Deterministic IDs for caching
   final deterministicId = generator.generateDeterministicId(
-    'class', 
-    'com.example.MyWidget'
+    'class',
+    'com.example.MyWidget',
   );
   print(deterministicId);
   // Output: class_7a8b (always same for same input)
-  
+
   // Example 3: Simple IDs for temporary nodes
   print(generator.generateSimpleId('temp'));
   // Output: temp_4
-  
+
   // Example 4: Reset between files
   generator.reset();
   print(generator.generateId('class', 'AnotherWidget'));
@@ -202,7 +209,7 @@ void examples() {
 
 class SimpleIdGenerator {
   int _counter = 0;
-  
+
   String generate(String type, [String? name]) {
     _counter++;
     if (name != null && name.isNotEmpty) {
@@ -210,7 +217,7 @@ class SimpleIdGenerator {
     }
     return '${type}_$_counter';
   }
-  
+
   void reset() => _counter = 0;
 }
 
@@ -221,25 +228,23 @@ class SimpleIdGenerator {
 /// Add this to your DartFileBuilder class:
 class DartFileBuilderWithIdGen {
   final IRIdGenerator _idGenerator;
-  
-  DartFileBuilderWithIdGen({
-    required String filePath,
-    String? projectRoot,
-  }) : _idGenerator = IRIdGenerator(
-    filePath: filePath,
-    projectRoot: projectRoot,
-  );
-  
+
+  DartFileBuilderWithIdGen({required String filePath, String? projectRoot})
+    : _idGenerator = IRIdGenerator(
+        filePath: filePath,
+        projectRoot: projectRoot,
+      );
+
   /// Main method to call from visitors
   String generateId(String type, [String? name]) {
     return _idGenerator.generateId(type, name);
   }
-  
+
   /// For nested declarations (methods in classes, etc.)
   String generateContextualId(String type, String name, {String? parent}) {
     return _idGenerator.generateContextualId(type, name, parentContext: parent);
   }
-  
+
   /// For deterministic IDs (caching)
   String generateDeterministicId(String type, String fqn) {
     return _idGenerator.generateDeterministicId(type, fqn);

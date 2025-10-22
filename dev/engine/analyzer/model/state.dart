@@ -2,21 +2,19 @@ import 'core.dart';
 import 'other.dart';
 import 'widget.dart';
 
-
-
-class StateClassDeclaration  {
+class StateClassDeclaration {
   final String id;
   final String name;
   final String widgetName;
   final String filePath;
-  final List<StatePropertyDeclaration > stateVariables;
-  final List<WidgetMethodDeclaration > methods;
-  final InitStateDeclaration ? initState;
-  final DisposeDeclaration ? dispose;
-  final List<LifecycleMethodDeclaration > lifecycleMethods;
+  final List<StatePropertyDeclaration> stateVariables;
+  final List<WidgetMethodDeclaration> methods;
+  final InitStateDeclaration? initState;
+  final DisposeDeclaration? dispose;
+  final List<LifecycleMethodDeclaration> lifecycleMethods;
   final SourceLocation location;
 
-  StateClassDeclaration ({
+  StateClassDeclaration({
     required this.id,
     required this.name,
     required this.widgetName,
@@ -47,34 +45,37 @@ class StateClassDeclaration  {
       name: json['name'],
       widgetName: json['widgetName'],
       filePath: json['filePath'],
-      stateVariables: (json['stateVariables'] as List?)
-          ?.map((s) => StatePropertyDeclaration.fromJson(s))
-          .toList() ?? [],
-      methods: (json['methods'] as List?)
-          ?.map((m) => WidgetMethodDeclaration.fromJson(m))
-          .toList() ?? [],
-      initState: json['initState'] != null 
-          ? InitStateDeclaration.fromJson(json['initState']) 
+      stateVariables:
+          (json['stateVariables'] as List?)
+              ?.map((s) => StatePropertyDeclaration.fromJson(s))
+              .toList() ??
+          [],
+      methods:
+          (json['methods'] as List?)
+              ?.map((m) => WidgetMethodDeclaration.fromJson(m))
+              .toList() ??
+          [],
+      initState: json['initState'] != null
+          ? InitStateDeclaration.fromJson(json['initState'])
           : null,
-      dispose: json['dispose'] != null 
-          ? DisposeDeclaration.fromJson(json['dispose']) 
+      dispose: json['dispose'] != null
+          ? DisposeDeclaration.fromJson(json['dispose'])
           : null,
-      lifecycleMethods: (json['lifecycleMethods'] as List?)
-          ?.map((l) => LifecycleMethodDeclaration.fromJson(l))
-          .toList() ?? [],
+      lifecycleMethods:
+          (json['lifecycleMethods'] as List?)
+              ?.map((l) => LifecycleMethodDeclaration.fromJson(l))
+              .toList() ??
+          [],
       location: SourceLocation.fromJson(json['location']),
     );
   }
 }
 
-class InitStateDeclaration  {
-  final List<StatementDeclaration > body;
+class InitStateDeclaration {
+  final List<StatementDeclaration> body;
   final SourceLocation location;
 
-  InitStateDeclaration ({
-    required this.body,
-    required this.location,
-  });
+  InitStateDeclaration({required this.body, required this.location});
 
   Map<String, dynamic> toJson() => {
     'body': body.map((s) => s.toJson()).toList(),
@@ -82,22 +83,21 @@ class InitStateDeclaration  {
   };
   factory InitStateDeclaration.fromJson(Map<String, dynamic> json) {
     return InitStateDeclaration(
-      body: (json['body'] as List?)
-          ?.map((s) => StatementDeclaration.fromJson(s))
-          .toList() ?? [],
+      body:
+          (json['body'] as List?)
+              ?.map((s) => StatementDeclaration.fromJson(s))
+              .toList() ??
+          [],
       location: SourceLocation.fromJson(json['location']),
     );
   }
 }
 
-class DisposeDeclaration  {
-  final List<StatementDeclaration > body;
+class DisposeDeclaration {
+  final List<StatementDeclaration> body;
   final SourceLocation location;
 
-  DisposeDeclaration ({
-    required this.body,
-    required this.location,
-  });
+  DisposeDeclaration({required this.body, required this.location});
 
   Map<String, dynamic> toJson() => {
     'body': body.map((s) => s.toJson()).toList(),
@@ -105,9 +105,11 @@ class DisposeDeclaration  {
   };
   factory DisposeDeclaration.fromJson(Map<String, dynamic> json) {
     return DisposeDeclaration(
-      body: (json['body'] as List?)
-          ?.map((s) => StatementDeclaration.fromJson(s))
-          .toList() ?? [],
+      body:
+          (json['body'] as List?)
+              ?.map((s) => StatementDeclaration.fromJson(s))
+              .toList() ??
+          [],
       location: SourceLocation.fromJson(json['location']),
     );
   }
@@ -120,33 +122,38 @@ extension StateClassDeclarationFromJson on StateClassDeclaration {
       name: json['name'],
       widgetName: json['widgetName'],
       filePath: json['filePath'],
-      stateVariables: (json['stateVariables'] as List?)
-          ?.map((s) => StatePropertyDeclaration.fromJson(s))
-          .toList() ?? [],
-      methods: (json['methods'] as List?)
-          ?.map((m) => WidgetMethodDeclaration.fromJson(m))
-          .toList() ?? [],
-      initState: json['initState'] != null 
-          ? InitStateDeclaration.fromJson(json['initState']) 
+      stateVariables:
+          (json['stateVariables'] as List?)
+              ?.map((s) => StatePropertyDeclaration.fromJson(s))
+              .toList() ??
+          [],
+      methods:
+          (json['methods'] as List?)
+              ?.map((m) => WidgetMethodDeclaration.fromJson(m))
+              .toList() ??
+          [],
+      initState: json['initState'] != null
+          ? InitStateDeclaration.fromJson(json['initState'])
           : null,
-      dispose: json['dispose'] != null 
-          ? DisposeDeclaration.fromJson(json['dispose']) 
+      dispose: json['dispose'] != null
+          ? DisposeDeclaration.fromJson(json['dispose'])
           : null,
-      lifecycleMethods: (json['lifecycleMethods'] as List?)
-          ?.map((l) => LifecycleMethodDeclaration.fromJson(l))
-          .toList() ?? [],
+      lifecycleMethods:
+          (json['lifecycleMethods'] as List?)
+              ?.map((l) => LifecycleMethodDeclaration.fromJson(l))
+              .toList() ??
+          [],
       location: SourceLocation.fromJson(json['location']),
     );
   }
 }
 
-
-class LifecycleMethodDeclaration  {
+class LifecycleMethodDeclaration {
   final String name;
-  final List<StatementDeclaration > body;
+  final List<StatementDeclaration> body;
   final SourceLocation location;
 
-  LifecycleMethodDeclaration ({
+  LifecycleMethodDeclaration({
     required this.name,
     required this.body,
     required this.location,
@@ -160,23 +167,24 @@ class LifecycleMethodDeclaration  {
   factory LifecycleMethodDeclaration.fromJson(Map<String, dynamic> json) {
     return LifecycleMethodDeclaration(
       name: json['name'],
-      body: (json['body'] as List?)
-          ?.map((s) => StatementDeclaration.fromJson(s))
-          .toList() ?? [],
+      body:
+          (json['body'] as List?)
+              ?.map((s) => StatementDeclaration.fromJson(s))
+              .toList() ??
+          [],
       location: SourceLocation.fromJson(json['location']),
     );
   }
-  
 }
 
-class StatePropertyDeclaration  {
+class StatePropertyDeclaration {
   final String name;
   final String type;
   final bool isMutable;
   final String? initialValue;
   final SourceLocation location;
 
-  StatePropertyDeclaration ({
+  StatePropertyDeclaration({
     required this.name,
     required this.type,
     this.isMutable = true,
@@ -202,12 +210,10 @@ class StatePropertyDeclaration  {
   }
 }
 
-
 // import 'class_model.dart';
 // import 'widget.dart';
 
 // /// Base class for all statement Declaration nodes
-
 
 enum StatementType {
   variableDeclaration,
@@ -252,15 +258,15 @@ class VariableDeclarationDeclaration extends StatementDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'name': name,
-        'variableType': variableType,
-        'initializer': initializer?.toJson(),
-        'isFinal': isFinal,
-        'isConst': isConst,
-        'isLate': isLate,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'name': name,
+    'variableType': variableType,
+    'initializer': initializer?.toJson(),
+    'isFinal': isFinal,
+    'isConst': isConst,
+    'isLate': isLate,
+    'location': location.toJson(),
+  };
 
   factory VariableDeclarationDeclaration.fromJson(Map<String, dynamic> json) {
     return VariableDeclarationDeclaration(
@@ -291,10 +297,10 @@ class ExpressionStatementDeclaration extends StatementDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'expression': expression.toJson(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'expression': expression.toJson(),
+    'location': location.toJson(),
+  };
 
   factory ExpressionStatementDeclaration.fromJson(Map<String, dynamic> json) {
     return ExpressionStatementDeclaration(
@@ -318,10 +324,10 @@ class ReturnStatementDeclaration extends StatementDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'expression': expression?.toJson(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'expression': expression?.toJson(),
+    'location': location.toJson(),
+  };
 
   factory ReturnStatementDeclaration.fromJson(Map<String, dynamic> json) {
     return ReturnStatementDeclaration(
@@ -351,12 +357,12 @@ class IfStatementDeclaration extends StatementDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'condition': condition.toJson(),
-        'thenStatement': thenStatement.toJson(),
-        'elseStatement': elseStatement?.toJson(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'condition': condition.toJson(),
+    'thenStatement': thenStatement.toJson(),
+    'elseStatement': elseStatement?.toJson(),
+    'location': location.toJson(),
+  };
 
   factory IfStatementDeclaration.fromJson(Map<String, dynamic> json) {
     return IfStatementDeclaration(
@@ -394,15 +400,15 @@ class ForStatementDeclaration extends StatementDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'initialization': initialization?.toJson(),
-        'condition': condition?.toJson(),
-        'updaters': updaters.map((u) => u.toJson()).toList(),
-        'body': body.toJson(),
-        'isForEach': isForEach,
-        'loopVariable': loopVariable,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'initialization': initialization?.toJson(),
+    'condition': condition?.toJson(),
+    'updaters': updaters.map((u) => u.toJson()).toList(),
+    'body': body.toJson(),
+    'isForEach': isForEach,
+    'loopVariable': loopVariable,
+    'location': location.toJson(),
+  };
 
   factory ForStatementDeclaration.fromJson(Map<String, dynamic> json) {
     return ForStatementDeclaration(
@@ -412,7 +418,8 @@ class ForStatementDeclaration extends StatementDeclaration {
       condition: json['condition'] != null
           ? ExpressionDeclaration.fromJson(json['condition'])
           : null,
-      updaters: (json['updaters'] as List?)
+      updaters:
+          (json['updaters'] as List?)
               ?.map((u) => ExpressionDeclaration.fromJson(u))
               .toList() ??
           [],
@@ -440,11 +447,11 @@ class WhileStatementDeclaration extends StatementDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'condition': condition.toJson(),
-        'body': body.toJson(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'condition': condition.toJson(),
+    'body': body.toJson(),
+    'location': location.toJson(),
+  };
 
   factory WhileStatementDeclaration.fromJson(Map<String, dynamic> json) {
     return WhileStatementDeclaration(
@@ -471,11 +478,11 @@ class SwitchStatementDeclaration extends StatementDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'expression': expression.toJson(),
-        'cases': cases.map((c) => c.toJson()).toList(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'expression': expression.toJson(),
+    'cases': cases.map((c) => c.toJson()).toList(),
+    'location': location.toJson(),
+  };
 
   factory SwitchStatementDeclaration.fromJson(Map<String, dynamic> json) {
     return SwitchStatementDeclaration(
@@ -500,10 +507,10 @@ class SwitchCaseDeclaration {
   });
 
   Map<String, dynamic> toJson() => {
-        'expressions': expressions.map((e) => e.toJson()).toList(),
-        'statements': statements.map((s) => s.toJson()).toList(),
-        'isDefault': isDefault,
-      };
+    'expressions': expressions.map((e) => e.toJson()).toList(),
+    'statements': statements.map((s) => s.toJson()).toList(),
+    'isDefault': isDefault,
+  };
 
   factory SwitchCaseDeclaration.fromJson(Map<String, dynamic> json) {
     return SwitchCaseDeclaration(
@@ -536,12 +543,12 @@ class TryStatementDeclaration extends StatementDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'body': body.toJson(),
-        'catchClauses': catchClauses.map((c) => c.toJson()).toList(),
-        'finallyBlock': finallyBlock?.toJson(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'body': body.toJson(),
+    'catchClauses': catchClauses.map((c) => c.toJson()).toList(),
+    'finallyBlock': finallyBlock?.toJson(),
+    'location': location.toJson(),
+  };
 
   factory TryStatementDeclaration.fromJson(Map<String, dynamic> json) {
     return TryStatementDeclaration(
@@ -571,11 +578,11 @@ class CatchClauseDeclaration {
   });
 
   Map<String, dynamic> toJson() => {
-        'exceptionType': exceptionType,
-        'exceptionParameter': exceptionParameter,
-        'stackTraceParameter': stackTraceParameter,
-        'body': body.toJson(),
-      };
+    'exceptionType': exceptionType,
+    'exceptionParameter': exceptionParameter,
+    'stackTraceParameter': stackTraceParameter,
+    'body': body.toJson(),
+  };
 
   factory CatchClauseDeclaration.fromJson(Map<String, dynamic> json) {
     return CatchClauseDeclaration(
@@ -601,10 +608,10 @@ class BlockStatementDeclaration extends StatementDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'statements': statements.map((s) => s.toJson()).toList(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'statements': statements.map((s) => s.toJson()).toList(),
+    'location': location.toJson(),
+  };
 
   factory BlockStatementDeclaration.fromJson(Map<String, dynamic> json) {
     return BlockStatementDeclaration(
@@ -623,17 +630,15 @@ class BlockStatementDeclaration extends StatementDeclaration {
 class BreakStatementDeclaration extends StatementDeclaration {
   final String? label;
 
-  BreakStatementDeclaration({
-    this.label,
-    required SourceLocation location,
-  }) : super(type: StatementType.breakStatement, location: location);
+  BreakStatementDeclaration({this.label, required SourceLocation location})
+    : super(type: StatementType.breakStatement, location: location);
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'label': label,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'label': label,
+    'location': location.toJson(),
+  };
 
   factory BreakStatementDeclaration.fromJson(Map<String, dynamic> json) {
     return BreakStatementDeclaration(
@@ -650,17 +655,15 @@ class BreakStatementDeclaration extends StatementDeclaration {
 class ContinueStatementDeclaration extends StatementDeclaration {
   final String? label;
 
-  ContinueStatementDeclaration({
-    this.label,
-    required SourceLocation location,
-  }) : super(type: StatementType.continueStatement, location: location);
+  ContinueStatementDeclaration({this.label, required SourceLocation location})
+    : super(type: StatementType.continueStatement, location: location);
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'label': label,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'label': label,
+    'location': location.toJson(),
+  };
 
   factory ContinueStatementDeclaration.fromJson(Map<String, dynamic> json) {
     return ContinueStatementDeclaration(
@@ -684,10 +687,10 @@ class ThrowStatementDeclaration extends StatementDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'expression': expression.toJson(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'expression': expression.toJson(),
+    'location': location.toJson(),
+  };
 
   factory ThrowStatementDeclaration.fromJson(Map<String, dynamic> json) {
     return ThrowStatementDeclaration(
@@ -713,11 +716,11 @@ class AssertStatementDeclaration extends StatementDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'condition': condition.toJson(),
-        'message': message?.toJson(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'condition': condition.toJson(),
+    'message': message?.toJson(),
+    'location': location.toJson(),
+  };
 
   factory AssertStatementDeclaration.fromJson(Map<String, dynamic> json) {
     return AssertStatementDeclaration(
@@ -739,10 +742,7 @@ abstract class ExpressionDeclaration {
   final ExpressionType type;
   final SourceLocation location;
 
-  ExpressionDeclaration({
-    required this.type,
-    required this.location,
-  });
+  ExpressionDeclaration({required this.type, required this.location});
 
   Map<String, dynamic> toJson();
 
@@ -839,11 +839,11 @@ class LiteralExpressionDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'value': value,
-        'literalType': literalType.toString(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'value': value,
+    'literalType': literalType.toString(),
+    'location': location.toJson(),
+  };
 
   factory LiteralExpressionDeclaration.fromJson(Map<String, dynamic> json) {
     return LiteralExpressionDeclaration(
@@ -857,14 +857,7 @@ class LiteralExpressionDeclaration extends ExpressionDeclaration {
   }
 }
 
-enum LiteralType {
-  string,
-  integer,
-  double,
-  boolean,
-  nullLiteral,
-  unknown,
-}
+enum LiteralType { string, integer, double, boolean, nullLiteral, unknown }
 
 // =============================================================================
 // IDENTIFIER EXPRESSION
@@ -880,10 +873,10 @@ class IdentifierExpressionDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'name': name,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'name': name,
+    'location': location.toJson(),
+  };
 
   factory IdentifierExpressionDeclaration.fromJson(Map<String, dynamic> json) {
     return IdentifierExpressionDeclaration(
@@ -911,12 +904,12 @@ class BinaryOperationDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'left': left.toJson(),
-        'operator': operator,
-        'right': right.toJson(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'left': left.toJson(),
+    'operator': operator,
+    'right': right.toJson(),
+    'location': location.toJson(),
+  };
 
   factory BinaryOperationDeclaration.fromJson(Map<String, dynamic> json) {
     return BinaryOperationDeclaration(
@@ -946,12 +939,12 @@ class UnaryOperationDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'operator': operator,
-        'operand': operand.toJson(),
-        'isPrefix': isPrefix,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'operator': operator,
+    'operand': operand.toJson(),
+    'isPrefix': isPrefix,
+    'location': location.toJson(),
+  };
 
   factory UnaryOperationDeclaration.fromJson(Map<String, dynamic> json) {
     return UnaryOperationDeclaration(
@@ -985,15 +978,14 @@ class MethodCallDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'target': target?.toJson(),
-        'methodName': methodName,
-        'arguments': arguments.map((a) => a.toJson()).toList(),
-        'namedArguments':
-            namedArguments.map((k, v) => MapEntry(k, v.toJson())),
-        'typeArguments': typeArguments,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'target': target?.toJson(),
+    'methodName': methodName,
+    'arguments': arguments.map((a) => a.toJson()).toList(),
+    'namedArguments': namedArguments.map((k, v) => MapEntry(k, v.toJson())),
+    'typeArguments': typeArguments,
+    'location': location.toJson(),
+  };
 
   factory MethodCallDeclaration.fromJson(Map<String, dynamic> json) {
     return MethodCallDeclaration(
@@ -1001,12 +993,15 @@ class MethodCallDeclaration extends ExpressionDeclaration {
           ? ExpressionDeclaration.fromJson(json['target'])
           : null,
       methodName: json['methodName'],
-      arguments: (json['arguments'] as List?)
+      arguments:
+          (json['arguments'] as List?)
               ?.map((a) => ExpressionDeclaration.fromJson(a))
               .toList() ??
           [],
-      namedArguments: (json['namedArguments'] as Map<String, dynamic>?)
-              ?.map((k, v) => MapEntry(k, ExpressionDeclaration.fromJson(v))) ??
+      namedArguments:
+          (json['namedArguments'] as Map<String, dynamic>?)?.map(
+            (k, v) => MapEntry(k, ExpressionDeclaration.fromJson(v)),
+          ) ??
           {},
       typeArguments: (json['typeArguments'] as List?)?.cast<String>(),
       location: SourceLocation.fromJson(json['location']),
@@ -1032,12 +1027,12 @@ class PropertyAccessDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'target': target.toJson(),
-        'propertyName': propertyName,
-        'isNullAware': isNullAware,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'target': target.toJson(),
+    'propertyName': propertyName,
+    'isNullAware': isNullAware,
+    'location': location.toJson(),
+  };
 
   factory PropertyAccessDeclaration.fromJson(Map<String, dynamic> json) {
     return PropertyAccessDeclaration(
@@ -1073,27 +1068,29 @@ class InstanceCreationDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'className': className,
-        'constructorName': constructorName,
-        'arguments': arguments.map((a) => a.toJson()).toList(),
-        'namedArguments':
-            namedArguments.map((k, v) => MapEntry(k, v.toJson())),
-        'typeArguments': typeArguments,
-        'isConst': isConst,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'className': className,
+    'constructorName': constructorName,
+    'arguments': arguments.map((a) => a.toJson()).toList(),
+    'namedArguments': namedArguments.map((k, v) => MapEntry(k, v.toJson())),
+    'typeArguments': typeArguments,
+    'isConst': isConst,
+    'location': location.toJson(),
+  };
 
   factory InstanceCreationDeclaration.fromJson(Map<String, dynamic> json) {
     return InstanceCreationDeclaration(
       className: json['className'],
       constructorName: json['constructorName'],
-      arguments: (json['arguments'] as List?)
+      arguments:
+          (json['arguments'] as List?)
               ?.map((a) => ExpressionDeclaration.fromJson(a))
               .toList() ??
           [],
-      namedArguments: (json['namedArguments'] as Map<String, dynamic>?)
-              ?.map((k, v) => MapEntry(k, ExpressionDeclaration.fromJson(v))) ??
+      namedArguments:
+          (json['namedArguments'] as Map<String, dynamic>?)?.map(
+            (k, v) => MapEntry(k, ExpressionDeclaration.fromJson(v)),
+          ) ??
           {},
       typeArguments: (json['typeArguments'] as List?)?.cast<String>(),
       isConst: json['isConst'] ?? false,
@@ -1120,12 +1117,12 @@ class ListLiteralDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'elements': elements.map((e) => e.toJson()).toList(),
-        'typeArgument': typeArgument,
-        'isConst': isConst,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'elements': elements.map((e) => e.toJson()).toList(),
+    'typeArgument': typeArgument,
+    'isConst': isConst,
+    'location': location.toJson(),
+  };
 
   factory ListLiteralDeclaration.fromJson(Map<String, dynamic> json) {
     return ListLiteralDeclaration(
@@ -1159,13 +1156,13 @@ class MapLiteralDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'entries': entries.map((e) => e.toJson()).toList(),
-        'keyType': keyType,
-        'valueType': valueType,
-        'isConst': isConst,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'entries': entries.map((e) => e.toJson()).toList(),
+    'keyType': keyType,
+    'valueType': valueType,
+    'isConst': isConst,
+    'location': location.toJson(),
+  };
 
   factory MapLiteralDeclaration.fromJson(Map<String, dynamic> json) {
     return MapLiteralDeclaration(
@@ -1184,15 +1181,12 @@ class MapEntryDeclaration {
   final ExpressionDeclaration key;
   final ExpressionDeclaration value;
 
-  MapEntryDeclaration({
-    required this.key,
-    required this.value,
-  });
+  MapEntryDeclaration({required this.key, required this.value});
 
   Map<String, dynamic> toJson() => {
-        'key': key.toJson(),
-        'value': value.toJson(),
-      };
+    'key': key.toJson(),
+    'value': value.toJson(),
+  };
 
   factory MapEntryDeclaration.fromJson(Map<String, dynamic> json) {
     return MapEntryDeclaration(
@@ -1220,12 +1214,12 @@ class ConditionalExpressionDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'condition': condition.toJson(),
-        'thenExpression': thenExpression.toJson(),
-        'elseExpression': elseExpression.toJson(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'condition': condition.toJson(),
+    'thenExpression': thenExpression.toJson(),
+    'elseExpression': elseExpression.toJson(),
+    'location': location.toJson(),
+  };
 
   factory ConditionalExpressionDeclaration.fromJson(Map<String, dynamic> json) {
     return ConditionalExpressionDeclaration(
@@ -1259,22 +1253,25 @@ class FunctionExpressionDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'parameters': parameters.map((p) => p.toJson()).toList(),
-        'body': body?.toJson(),
-        'expressionBody': expressionBody?.toJson(),
-        'isAsync': isAsync,
-        'isGenerator': isGenerator,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'parameters': parameters.map((p) => p.toJson()).toList(),
+    'body': body?.toJson(),
+    'expressionBody': expressionBody?.toJson(),
+    'isAsync': isAsync,
+    'isGenerator': isGenerator,
+    'location': location.toJson(),
+  };
 
   factory FunctionExpressionDeclaration.fromJson(Map<String, dynamic> json) {
     return FunctionExpressionDeclaration(
-      parameters: (json['parameters'] as List?)
+      parameters:
+          (json['parameters'] as List?)
               ?.map((p) => ParameterDeclaration.fromJson(p))
               .toList() ??
           [],
-      body: json['body'] != null ? StatementDeclaration.fromJson(json['body']) : null,
+      body: json['body'] != null
+          ? StatementDeclaration.fromJson(json['body'])
+          : null,
       expressionBody: json['expressionBody'] != null
           ? ExpressionDeclaration.fromJson(json['expressionBody'])
           : null,
@@ -1284,8 +1281,6 @@ class FunctionExpressionDeclaration extends ExpressionDeclaration {
     );
   }
 }
-
-
 
 // =============================================================================
 // ASSIGNMENT EXPRESSION
@@ -1305,12 +1300,12 @@ class AssignmentExpressionDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'target': target.toJson(),
-        'operator': operator,
-        'value': value.toJson(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'target': target.toJson(),
+    'operator': operator,
+    'value': value.toJson(),
+    'location': location.toJson(),
+  };
 
   factory AssignmentExpressionDeclaration.fromJson(Map<String, dynamic> json) {
     return AssignmentExpressionDeclaration(
@@ -1336,10 +1331,10 @@ class AwaitExpressionDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'expression': expression.toJson(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'expression': expression.toJson(),
+    'location': location.toJson(),
+  };
 
   factory AwaitExpressionDeclaration.fromJson(Map<String, dynamic> json) {
     return AwaitExpressionDeclaration(
@@ -1365,11 +1360,11 @@ class IndexAccessDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'target': target.toJson(),
-        'index': index.toJson(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'target': target.toJson(),
+    'index': index.toJson(),
+    'location': location.toJson(),
+  };
 
   factory IndexAccessDeclaration.fromJson(Map<String, dynamic> json) {
     return IndexAccessDeclaration(
@@ -1385,15 +1380,14 @@ class IndexAccessDeclaration extends ExpressionDeclaration {
 // =============================================================================
 
 class ThisExpressionDeclaration extends ExpressionDeclaration {
-  ThisExpressionDeclaration({
-    required SourceLocation location,
-  }) : super(type: ExpressionType.thisExpression, location: location);
+  ThisExpressionDeclaration({required SourceLocation location})
+    : super(type: ExpressionType.thisExpression, location: location);
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'location': location.toJson(),
+  };
 
   factory ThisExpressionDeclaration.fromJson(Map<String, dynamic> json) {
     return ThisExpressionDeclaration(
@@ -1407,15 +1401,14 @@ class ThisExpressionDeclaration extends ExpressionDeclaration {
 // =============================================================================
 
 class SuperExpressionDeclaration extends ExpressionDeclaration {
-  SuperExpressionDeclaration({
-    required SourceLocation location,
-  }) : super(type: ExpressionType.superExpression, location: location);
+  SuperExpressionDeclaration({required SourceLocation location})
+    : super(type: ExpressionType.superExpression, location: location);
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'location': location.toJson(),
+  };
 
   factory SuperExpressionDeclaration.fromJson(Map<String, dynamic> json) {
     return SuperExpressionDeclaration(
@@ -1440,11 +1433,11 @@ class CascadeExpressionDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'target': target.toJson(),
-        'cascadeSections': cascadeSections.map((c) => c.toJson()).toList(),
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'target': target.toJson(),
+    'cascadeSections': cascadeSections.map((c) => c.toJson()).toList(),
+    'location': location.toJson(),
+  };
 
   factory CascadeExpressionDeclaration.fromJson(Map<String, dynamic> json) {
     return CascadeExpressionDeclaration(
@@ -1475,12 +1468,12 @@ class IsExpressionDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'expression': expression.toJson(),
-        'checkedType': checkedType,
-        'isNegated': isNegated,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'expression': expression.toJson(),
+    'checkedType': checkedType,
+    'isNegated': isNegated,
+    'location': location.toJson(),
+  };
 
   factory IsExpressionDeclaration.fromJson(Map<String, dynamic> json) {
     return IsExpressionDeclaration(
@@ -1508,11 +1501,11 @@ class AsExpressionDeclaration extends ExpressionDeclaration {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': type.toString(),
-        'expression': expression.toJson(),
-        'targetType': targetType,
-        'location': location.toJson(),
-      };
+    'type': type.toString(),
+    'expression': expression.toJson(),
+    'targetType': targetType,
+    'location': location.toJson(),
+  };
 
   factory AsExpressionDeclaration.fromJson(Map<String, dynamic> json) {
     return AsExpressionDeclaration(
@@ -1522,4 +1515,3 @@ class AsExpressionDeclaration extends ExpressionDeclaration {
     );
   }
 }
-

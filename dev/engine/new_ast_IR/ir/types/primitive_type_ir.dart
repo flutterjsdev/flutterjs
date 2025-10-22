@@ -1,4 +1,3 @@
-
 import '../type_ir.dart';
 import '../../diagnostics/source_location.dart';
 
@@ -30,7 +29,8 @@ class PrimitiveTypeIR extends TypeIR {
 
   bool get isNever => kind == PrimitiveKind.never;
 
-  bool get isNumeric => kind == PrimitiveKind.int || kind == PrimitiveKind.double;
+  bool get isNumeric =>
+      kind == PrimitiveKind.int || kind == PrimitiveKind.double;
 
   bool get isBoolean => kind == PrimitiveKind.bool;
 
@@ -38,10 +38,7 @@ class PrimitiveTypeIR extends TypeIR {
 
   @override
   Map<String, dynamic> toJson() {
-    return {
-      ...super.toJson(),
-      'kind': kind.toString(),
-    };
+    return {...super.toJson(), 'kind': kind.toString()};
   }
 
   factory PrimitiveTypeIR.fromJson(
@@ -68,90 +65,82 @@ class PrimitiveTypeIR extends TypeIR {
     required String id,
     required SourceLocationIR sourceLocation,
     bool isNullable = false,
-  }) =>
-      PrimitiveTypeIR(
-        id: id,
-        name: 'int',
-        sourceLocation: sourceLocation,
-        kind: PrimitiveKind.int,
-        isNullable: isNullable,
-      );
+  }) => PrimitiveTypeIR(
+    id: id,
+    name: 'int',
+    sourceLocation: sourceLocation,
+    kind: PrimitiveKind.int,
+    isNullable: isNullable,
+  );
 
   factory PrimitiveTypeIR.double({
     required String id,
     required SourceLocationIR sourceLocation,
     bool isNullable = false,
-  }) =>
-      PrimitiveTypeIR(
-        id: id,
-        name: 'double',
-        sourceLocation: sourceLocation,
-        kind: PrimitiveKind.double,
-        isNullable: isNullable,
-      );
+  }) => PrimitiveTypeIR(
+    id: id,
+    name: 'double',
+    sourceLocation: sourceLocation,
+    kind: PrimitiveKind.double,
+    isNullable: isNullable,
+  );
 
   factory PrimitiveTypeIR.bool({
     required String id,
     required SourceLocationIR sourceLocation,
     bool isNullable = false,
-  }) =>
-      PrimitiveTypeIR(
-        id: id,
-        name: 'bool',
-        sourceLocation: sourceLocation,
-        kind: PrimitiveKind.bool,
-        isNullable: isNullable,
-      );
+  }) => PrimitiveTypeIR(
+    id: id,
+    name: 'bool',
+    sourceLocation: sourceLocation,
+    kind: PrimitiveKind.bool,
+    isNullable: isNullable,
+  );
 
   factory PrimitiveTypeIR.string({
     required String id,
     required SourceLocationIR sourceLocation,
     bool isNullable = false,
-  }) =>
-      PrimitiveTypeIR(
-        id: id,
-        name: 'String',
-        sourceLocation: sourceLocation,
-        kind: PrimitiveKind.string,
-        isNullable: isNullable,
-      );
+  }) => PrimitiveTypeIR(
+    id: id,
+    name: 'String',
+    sourceLocation: sourceLocation,
+    kind: PrimitiveKind.string,
+    isNullable: isNullable,
+  );
 
   factory PrimitiveTypeIR.void_({
     required String id,
     required SourceLocationIR sourceLocation,
-  }) =>
-      PrimitiveTypeIR(
-        id: id,
-        name: 'void',
-        sourceLocation: sourceLocation,
-        kind: PrimitiveKind.void_,
-        isNullable: false,
-      );
+  }) => PrimitiveTypeIR(
+    id: id,
+    name: 'void',
+    sourceLocation: sourceLocation,
+    kind: PrimitiveKind.void_,
+    isNullable: false,
+  );
 
   factory PrimitiveTypeIR.dynamic_({
     required String id,
     required SourceLocationIR sourceLocation,
-  }) =>
-      PrimitiveTypeIR(
-        id: id,
-        name: 'dynamic',
-        sourceLocation: sourceLocation,
-        kind: PrimitiveKind.dynamic_,
-        isNullable: false,
-      );
+  }) => PrimitiveTypeIR(
+    id: id,
+    name: 'dynamic',
+    sourceLocation: sourceLocation,
+    kind: PrimitiveKind.dynamic_,
+    isNullable: false,
+  );
 
   factory PrimitiveTypeIR.never({
     required String id,
     required SourceLocationIR sourceLocation,
-  }) =>
-      PrimitiveTypeIR(
-        id: id,
-        name: 'Never',
-        sourceLocation: sourceLocation,
-        kind: PrimitiveKind.never,
-        isNullable: false,
-      );
-
+  }) => PrimitiveTypeIR(
+    id: id,
+    name: 'Never',
+    sourceLocation: sourceLocation,
+    kind: PrimitiveKind.never,
+    isNullable: false,
+  );
 
   @override
   bool operator ==(Object other) =>

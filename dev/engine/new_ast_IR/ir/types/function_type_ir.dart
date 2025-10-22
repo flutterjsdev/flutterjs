@@ -1,4 +1,3 @@
-
 import '../type_ir.dart';
 import 'parameter_ir.dart';
 import '../../diagnostics/source_location.dart';
@@ -18,7 +17,6 @@ class FunctionTypeIR extends TypeIR {
     required super.sourceLocation,
   });
 
-  
   bool get isBuiltIn => false;
 
   bool get isGeneric => typeParameters.isNotEmpty;
@@ -28,11 +26,9 @@ class FunctionTypeIR extends TypeIR {
   bool get hasOptionalParameters =>
       parameters.any((p) => p.isOptional || p.isNamed);
 
-  bool get hasPositionalParameters =>
-      parameters.any((p) => !p.isNamed);
+  bool get hasPositionalParameters => parameters.any((p) => !p.isNamed);
 
-  bool get hasNamedParameters =>
-      parameters.any((p) => p.isNamed);
+  bool get hasNamedParameters => parameters.any((p) => p.isNamed);
 
   List<ParameterIR> get requiredPositionalParameters =>
       parameters.where((p) => !p.isOptional && !p.isNamed).toList();
@@ -44,14 +40,14 @@ class FunctionTypeIR extends TypeIR {
       parameters.where((p) => p.isNamed).toList();
 
   @override
-  String  displayName() {
+  String displayName() {
     final typeParams = isGeneric
         ? '<${typeParameters.map((tp) => tp.name).join(', ')}>'
         : '';
-    
+
     final params = _formatParameters();
     final sig = '$typeParams($params) → ${returnType.name}';
-    
+
     return isNullable ? '$sig?' : sig;
   }
 
@@ -180,7 +176,6 @@ class FunctionTypeIR extends TypeIR {
       sourceLocation: sourceLocation,
     );
   }
-
 
   @override
   bool operator ==(Object other) =>

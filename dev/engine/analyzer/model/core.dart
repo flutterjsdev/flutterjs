@@ -1,5 +1,3 @@
-
-
 class SourceLocation {
   final int line;
   final int column;
@@ -30,16 +28,13 @@ class SourceLocation {
   }
 }
 
-
-
-
-
 enum WidgetType {
   statelessWidget,
   statefulWidget,
   inheritedWidget,
   customWidget,
 }
+
 enum ProviderType {
   changeNotifier,
   valueNotifier,
@@ -47,10 +42,5 @@ enum ProviderType {
   futureProvider,
   stateNotifier,
 }
-enum FunctionType {
-  topLevel,
-  method,
-  closure,
-  callback,
-}
 
+enum FunctionType { topLevel, method, closure, callback }

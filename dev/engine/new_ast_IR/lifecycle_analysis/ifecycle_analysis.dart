@@ -440,14 +440,14 @@ class LifecycleIssueIR extends IRNode {
   final SourceLocationIR? issueLocation;
 
   LifecycleIssueIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.severity,
     required this.issueType,
     required this.message,
     this.suggestion,
     this.issueLocation,
-  }) ;
+  });
 
   @override
   String toShortString() => '[${severity.name}] ${issueType.name}: $message';
@@ -456,7 +456,6 @@ class LifecycleIssueIR extends IRNode {
 // =============================================================================
 // ENUMS
 // =============================================================================
-
 
 enum OperationTypeIR {
   createController,

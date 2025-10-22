@@ -6,7 +6,7 @@ import '../diagnostics/analysis_issue.dart';
 import '../diagnostics/source_location.dart';
 
 /// Base class for all IR (Intermediate Representation) nodes
-/// 
+///
 /// Every piece of information extracted from Dart code is an IRNode.
 /// This ensures consistent identity, traceability, and debugging across the system.
 @immutable
@@ -30,8 +30,8 @@ abstract class IRNode {
     required this.sourceLocation,
     int? createdAtMillis,
     Map<String, dynamic>? metadata,
-  })  : createdAtMillis = createdAtMillis ?? 0,
-        metadata = metadata ?? const {};
+  }) : createdAtMillis = createdAtMillis ?? 0,
+       metadata = metadata ?? const {};
 
   /// Human-readable representation for debugging
   String get debugName => runtimeType.toString();
@@ -216,7 +216,6 @@ class AnalysisIssueIR extends IRNode {
         sourceLocation.contentEquals(other.sourceLocation);
   }
 }
-
 
 // =============================================================================
 // EXTENSION GUIDE: How to use IRNode in your AST Visitor

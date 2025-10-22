@@ -71,29 +71,52 @@ class DepthCalculator implements ExpressionVisitor<int> {
   }
 
   int _visit(ExpressionIR expr) {
-    if (expr is IntLiteralExpr) return visitIntLiteral(expr);
-    else if (expr is DoubleLiteralExpr) return visitDoubleLiteral(expr);
-    else if (expr is StringLiteralExpr) return visitStringLiteral(expr);
-    else if (expr is BoolLiteralExpr) return visitBoolLiteral(expr);
-    else if (expr is NullLiteralExpr) return visitNullLiteral(expr);
-    else if (expr is ListLiteralExpr) return visitListLiteral(expr);
-    else if (expr is MapLiteralExpr) return visitMapLiteral(expr);
-    else if (expr is SetLiteralExpr) return visitSetLiteral(expr);
-    else if (expr is IdentifierExpr) return visitIdentifier(expr);
-    else if (expr is PropertyAccessExpr) return visitPropertyAccess(expr);
-    else if (expr is IndexAccessExpr) return visitIndexAccess(expr);
-    else if (expr is BinaryOpExpr) return visitBinaryOp(expr);
-    else if (expr is UnaryOpExpr) return visitUnaryOp(expr);
-    else if (expr is AssignmentExpr) return visitAssignment(expr);
-    else if (expr is ConditionalExpr) return visitConditional(expr);
-    else if (expr is FunctionCallExpr) return visitFunctionCall(expr);
-    else if (expr is MethodCallExpr) return visitMethodCall(expr);
-    else if (expr is ConstructorCallExpr) return visitConstructorCall(expr);
-    else if (expr is LambdaExpr) return visitLambda(expr);
-    else if (expr is AwaitExpr) return visitAwait(expr);
-    else if (expr is ThrowExpr) return visitThrow(expr);
-    else if (expr is CastExpr) return visitCast(expr);
-    else if (expr is TypeCheckExpr) return visitTypeCheck(expr);
+    if (expr is IntLiteralExpr)
+      return visitIntLiteral(expr);
+    else if (expr is DoubleLiteralExpr)
+      return visitDoubleLiteral(expr);
+    else if (expr is StringLiteralExpr)
+      return visitStringLiteral(expr);
+    else if (expr is BoolLiteralExpr)
+      return visitBoolLiteral(expr);
+    else if (expr is NullLiteralExpr)
+      return visitNullLiteral(expr);
+    else if (expr is ListLiteralExpr)
+      return visitListLiteral(expr);
+    else if (expr is MapLiteralExpr)
+      return visitMapLiteral(expr);
+    else if (expr is SetLiteralExpr)
+      return visitSetLiteral(expr);
+    else if (expr is IdentifierExpr)
+      return visitIdentifier(expr);
+    else if (expr is PropertyAccessExpr)
+      return visitPropertyAccess(expr);
+    else if (expr is IndexAccessExpr)
+      return visitIndexAccess(expr);
+    else if (expr is BinaryOpExpr)
+      return visitBinaryOp(expr);
+    else if (expr is UnaryOpExpr)
+      return visitUnaryOp(expr);
+    else if (expr is AssignmentExpr)
+      return visitAssignment(expr);
+    else if (expr is ConditionalExpr)
+      return visitConditional(expr);
+    else if (expr is FunctionCallExpr)
+      return visitFunctionCall(expr);
+    else if (expr is MethodCallExpr)
+      return visitMethodCall(expr);
+    else if (expr is ConstructorCallExpr)
+      return visitConstructorCall(expr);
+    else if (expr is LambdaExpr)
+      return visitLambda(expr);
+    else if (expr is AwaitExpr)
+      return visitAwait(expr);
+    else if (expr is ThrowExpr)
+      return visitThrow(expr);
+    else if (expr is CastExpr)
+      return visitCast(expr);
+    else if (expr is TypeCheckExpr)
+      return visitTypeCheck(expr);
     return 1;
   }
 
@@ -104,10 +127,12 @@ class DepthCalculator implements ExpressionVisitor<int> {
   @override
   int visitStringLiteral(StringLiteralExpr expr) {
     if (expr.interpolations == null) return 1;
-    final maxInterp =
-        expr.interpolations!.map(_visit).fold(0, (a, b) => a > b ? a : b);
+    final maxInterp = expr.interpolations!
+        .map(_visit)
+        .fold(0, (a, b) => a > b ? a : b);
     return maxInterp + 1;
   }
+
   @override
   int visitBoolLiteral(BoolLiteralExpr expr) => 1;
   @override
@@ -117,6 +142,7 @@ class DepthCalculator implements ExpressionVisitor<int> {
     final maxElem = expr.elements.map(_visit).fold(0, (a, b) => a > b ? a : b);
     return maxElem + 1;
   }
+
   @override
   int visitMapLiteral(MapLiteralExpr expr) {
     int maxDepth = 1;
@@ -125,11 +151,13 @@ class DepthCalculator implements ExpressionVisitor<int> {
     }
     return maxDepth + 1;
   }
+
   @override
   int visitSetLiteral(SetLiteralExpr expr) {
     final maxElem = expr.elements.map(_visit).fold(0, (a, b) => a > b ? a : b);
     return maxElem + 1;
   }
+
   @override
   int visitIdentifier(IdentifierExpr expr) => 1;
   @override
@@ -147,8 +175,11 @@ class DepthCalculator implements ExpressionVisitor<int> {
       _max(1, _visit(expr.target), _visit(expr.value)) + 1;
   @override
   int visitConditional(ConditionalExpr expr) =>
-      _max(_visit(expr.condition), _visit(expr.thenExpr),
-          _visit(expr.elseExpr)) +
+      _max(
+        _visit(expr.condition),
+        _visit(expr.thenExpr),
+        _visit(expr.elseExpr),
+      ) +
       1;
   @override
   int visitFunctionCall(FunctionCallExpr expr) {
@@ -161,6 +192,7 @@ class DepthCalculator implements ExpressionVisitor<int> {
     }
     return maxArgDepth + 1;
   }
+
   @override
   int visitMethodCall(MethodCallExpr expr) {
     int maxDepth = expr.receiver != null ? _visit(expr.receiver!) : 0;
@@ -172,6 +204,7 @@ class DepthCalculator implements ExpressionVisitor<int> {
     }
     return maxDepth + 1;
   }
+
   @override
   int visitConstructorCall(ConstructorCallExpr expr) {
     int maxDepth = 0;
@@ -183,6 +216,7 @@ class DepthCalculator implements ExpressionVisitor<int> {
     }
     return maxDepth + 1;
   }
+
   @override
   int visitLambda(LambdaExpr expr) =>
       expr.body != null ? _visit(expr.body!) + 1 : 1;
@@ -207,79 +241,56 @@ class DepthCalculator implements ExpressionVisitor<int> {
 class TypeInferencer implements ExpressionVisitor<TypeIR?> {
   final Map<String, TypeIR> typeContext;
 
-  TypeInferencer({Map<String, TypeIR>? context})
-      : typeContext = context ?? {};
+  TypeInferencer({Map<String, TypeIR>? context}) : typeContext = context ?? {};
 
   TypeIR? infer(ExpressionIR expr) => _visit(expr);
 
   TypeIR? _visit(ExpressionIR expr) {
     if (expr is IntLiteralExpr) {
       return visitIntLiteral(expr);
-    }
-    else if (expr is DoubleLiteralExpr) {
+    } else if (expr is DoubleLiteralExpr) {
       return visitDoubleLiteral(expr);
-    }
-    else if (expr is StringLiteralExpr){
-       return visitStringLiteral(expr);
-    }
-    else if (expr is BoolLiteralExpr) {
+    } else if (expr is StringLiteralExpr) {
+      return visitStringLiteral(expr);
+    } else if (expr is BoolLiteralExpr) {
       return visitBoolLiteral(expr);
-    }
-    else if (expr is NullLiteralExpr){
-       return visitNullLiteral(expr);
-    }
-    else if (expr is ListLiteralExpr){
-       return visitListLiteral(expr);
-    }
-    else if (expr is MapLiteralExpr) {
+    } else if (expr is NullLiteralExpr) {
+      return visitNullLiteral(expr);
+    } else if (expr is ListLiteralExpr) {
+      return visitListLiteral(expr);
+    } else if (expr is MapLiteralExpr) {
       return visitMapLiteral(expr);
-    }
-    else if (expr is SetLiteralExpr){
-       return visitSetLiteral(expr);
-    }
-    else if (expr is IdentifierExpr){
-       return visitIdentifier(expr);
-    }
-    else if (expr is PropertyAccessExpr) {
+    } else if (expr is SetLiteralExpr) {
+      return visitSetLiteral(expr);
+    } else if (expr is IdentifierExpr) {
+      return visitIdentifier(expr);
+    } else if (expr is PropertyAccessExpr) {
       return visitPropertyAccess(expr);
-    }
-    else if (expr is IndexAccessExpr) {
+    } else if (expr is IndexAccessExpr) {
       return visitIndexAccess(expr);
-    }
-    else if (expr is BinaryOpExpr) {
+    } else if (expr is BinaryOpExpr) {
       return visitBinaryOp(expr);
-    }
-    else if (expr is UnaryOpExpr) {
+    } else if (expr is UnaryOpExpr) {
       return visitUnaryOp(expr);
-    }
-    else if (expr is AssignmentExpr) {
+    } else if (expr is AssignmentExpr) {
       return visitAssignment(expr);
-    }
-    else if (expr is ConditionalExpr){
-       return visitConditional(expr);
-    }
-    else if (expr is FunctionCallExpr){
-       return visitFunctionCall(expr);
-    }
-    else if (expr is MethodCallExpr) {
+    } else if (expr is ConditionalExpr) {
+      return visitConditional(expr);
+    } else if (expr is FunctionCallExpr) {
+      return visitFunctionCall(expr);
+    } else if (expr is MethodCallExpr) {
       return visitMethodCall(expr);
-    }
-    else if (expr is ConstructorCallExpr) {
+    } else if (expr is ConstructorCallExpr) {
       return visitConstructorCall(expr);
-    }
-    else if (expr is LambdaExpr){
-       return visitLambda(expr);
-    }
-    else if (expr is AwaitExpr) {
+    } else if (expr is LambdaExpr) {
+      return visitLambda(expr);
+    } else if (expr is AwaitExpr) {
       return visitAwait(expr);
-    }
-    else if (expr is ThrowExpr) {
+    } else if (expr is ThrowExpr) {
       return visitThrow(expr);
-    }
-    else if (expr is CastExpr) {
+    } else if (expr is CastExpr) {
       return visitCast(expr);
-    }
-    else if (expr is TypeCheckExpr) {
+    } else if (expr is TypeCheckExpr) {
       return visitTypeCheck(expr);
     }
     return null;
@@ -342,38 +353,27 @@ class ConstantFolder implements ExpressionVisitor<dynamic> {
   dynamic _visit(ExpressionIR expr) {
     if (expr is IntLiteralExpr) {
       return visitIntLiteral(expr);
-    } else if (expr is DoubleLiteralExpr)
-    {
-       return visitDoubleLiteral(expr);
-    }
-    else if (expr is StringLiteralExpr) {
+    } else if (expr is DoubleLiteralExpr) {
+      return visitDoubleLiteral(expr);
+    } else if (expr is StringLiteralExpr) {
       return visitStringLiteral(expr);
-    }
-    else if (expr is BoolLiteralExpr) {
+    } else if (expr is BoolLiteralExpr) {
       return visitBoolLiteral(expr);
-    }
-    else if (expr is NullLiteralExpr) {
+    } else if (expr is NullLiteralExpr) {
       return visitNullLiteral(expr);
-    }
-    else if (expr is ListLiteralExpr) {
+    } else if (expr is ListLiteralExpr) {
       return visitListLiteral(expr);
-    }
-    else if (expr is MapLiteralExpr) {
+    } else if (expr is MapLiteralExpr) {
       return visitMapLiteral(expr);
-    }
-    else if (expr is SetLiteralExpr){
-       return visitSetLiteral(expr);
-    }
-    else if (expr is BinaryOpExpr) {
+    } else if (expr is SetLiteralExpr) {
+      return visitSetLiteral(expr);
+    } else if (expr is BinaryOpExpr) {
       return visitBinaryOp(expr);
-    }
-    else if (expr is UnaryOpExpr) {
+    } else if (expr is UnaryOpExpr) {
       return visitUnaryOp(expr);
-    }
-    else if (expr is ConditionalExpr){
-       return visitConditional(expr);
-    }
-    else if (expr is CastExpr) {
+    } else if (expr is ConditionalExpr) {
+      return visitConditional(expr);
+    } else if (expr is CastExpr) {
       return visitCast(expr);
     }
     return null; // Non-constant
@@ -399,6 +399,7 @@ class ConstantFolder implements ExpressionVisitor<dynamic> {
     }
     return folded;
   }
+
   @override
   dynamic visitMapLiteral(MapLiteralExpr expr) {
     final folded = <dynamic, dynamic>{};
@@ -413,6 +414,7 @@ class ConstantFolder implements ExpressionVisitor<dynamic> {
     }
     return folded;
   }
+
   @override
   dynamic visitSetLiteral(SetLiteralExpr expr) {
     final folded = <dynamic>{};
@@ -423,83 +425,111 @@ class ConstantFolder implements ExpressionVisitor<dynamic> {
     }
     return folded;
   }
+
   @override
   dynamic visitIdentifier(IdentifierExpr expr) => null; // Not constant
   @override
   dynamic visitPropertyAccess(PropertyAccessExpr expr) => null; // Not constant
   @override
   dynamic visitIndexAccess(IndexAccessExpr expr) => null; // Not constant
-@override
-dynamic visitBinaryOp(BinaryOpExpr expr) {
-  final left = _visit(expr.left);
-  final right = _visit(expr.right);
-  if (left == null || right == null) return null;
-  
-  try {
-    switch (expr.operator) {
-      // Arithmetic operators
-      case BinaryOperator.add: return left + right;
-      case BinaryOperator.subtract: return left - right;
-      case BinaryOperator.multiply: return left * right;
-      case BinaryOperator.divide: return left / right;
-      case BinaryOperator.truncatingDivide: return left ~/ right;
-      case BinaryOperator.modulo: return left % right;
-      case BinaryOperator.power: return pow(left, right); // Requires: import 'dart:math';
-      
-      // Equality operators
-      case BinaryOperator.equals: return left == right;
-      case BinaryOperator.notEquals: return left != right;
-      
-      // Relational operators
-      case BinaryOperator.lessThan: return left < right;
-      case BinaryOperator.lessOrEqual: return left <= right;
-      case BinaryOperator.greaterThan: return left > right;
-      case BinaryOperator.greaterOrEqual: return left >= right;
-      
-      // Logical operators
-      case BinaryOperator.logicalAnd: return left && right;
-      case BinaryOperator.logicalOr: return left || right;
-      
-      // Bitwise operators
-      case BinaryOperator.bitwiseAnd: return left & right;
-      case BinaryOperator.bitwiseOr: return left | right;
-      case BinaryOperator.bitwiseXor: return left ^ right;
-      case BinaryOperator.leftShift: return left << right;
-      case BinaryOperator.rightShift: return left >> right;
-      
-      // Null-aware operator
-      case BinaryOperator.nullCoalesce: return left ?? right;
-      
-      // default: return null;
+  @override
+  dynamic visitBinaryOp(BinaryOpExpr expr) {
+    final left = _visit(expr.left);
+    final right = _visit(expr.right);
+    if (left == null || right == null) return null;
+
+    try {
+      switch (expr.operator) {
+        // Arithmetic operators
+        case BinaryOperator.add:
+          return left + right;
+        case BinaryOperator.subtract:
+          return left - right;
+        case BinaryOperator.multiply:
+          return left * right;
+        case BinaryOperator.divide:
+          return left / right;
+        case BinaryOperator.truncatingDivide:
+          return left ~/ right;
+        case BinaryOperator.modulo:
+          return left % right;
+        case BinaryOperator.power:
+          return pow(left, right); // Requires: import 'dart:math';
+
+        // Equality operators
+        case BinaryOperator.equals:
+          return left == right;
+        case BinaryOperator.notEquals:
+          return left != right;
+
+        // Relational operators
+        case BinaryOperator.lessThan:
+          return left < right;
+        case BinaryOperator.lessOrEqual:
+          return left <= right;
+        case BinaryOperator.greaterThan:
+          return left > right;
+        case BinaryOperator.greaterOrEqual:
+          return left >= right;
+
+        // Logical operators
+        case BinaryOperator.logicalAnd:
+          return left && right;
+        case BinaryOperator.logicalOr:
+          return left || right;
+
+        // Bitwise operators
+        case BinaryOperator.bitwiseAnd:
+          return left & right;
+        case BinaryOperator.bitwiseOr:
+          return left | right;
+        case BinaryOperator.bitwiseXor:
+          return left ^ right;
+        case BinaryOperator.leftShift:
+          return left << right;
+        case BinaryOperator.rightShift:
+          return left >> right;
+
+        // Null-aware operator
+        case BinaryOperator.nullCoalesce:
+          return left ?? right;
+
+        // default: return null;
+      }
+    } catch (_) {
+      return null;
     }
-  } catch (_) {
-    return null;
   }
-}
+
   @override
   dynamic visitUnaryOp(UnaryOpExpr expr) {
     final operand = _visit(expr.operand);
     if (operand == null) return null;
     try {
-      switch (expr.operator) {  // ✅ UnaryOperator enum
-      case UnaryOperator.negate: return -operand;
-      case UnaryOperator.logicalNot: return !operand;
-      case UnaryOperator.bitwiseNot: return ~operand;
-      case UnaryOperator.preIncrement:
-        return (operand is num ? operand + 1 : null);
-      case UnaryOperator.preDecrement:
-        return (operand is num ? operand - 1 : null);
-      case UnaryOperator.postIncrement:
-        return (operand is num ? operand + 1 : null);
-      case UnaryOperator.postDecrement:
-        return (operand is num ? operand - 1 : null);
+      switch (expr.operator) {
+        // ✅ UnaryOperator enum
+        case UnaryOperator.negate:
+          return -operand;
+        case UnaryOperator.logicalNot:
+          return !operand;
+        case UnaryOperator.bitwiseNot:
+          return ~operand;
+        case UnaryOperator.preIncrement:
+          return (operand is num ? operand + 1 : null);
+        case UnaryOperator.preDecrement:
+          return (operand is num ? operand - 1 : null);
+        case UnaryOperator.postIncrement:
+          return (operand is num ? operand + 1 : null);
+        case UnaryOperator.postDecrement:
+          return (operand is num ? operand - 1 : null);
 
-      // default: return null;
-    }
+        // default: return null;
+      }
     } catch (_) {
       return null;
     }
   }
+
   @override
   dynamic visitAssignment(AssignmentExpr expr) => null; // Not constant
   @override
@@ -508,6 +538,7 @@ dynamic visitBinaryOp(BinaryOpExpr expr) {
     if (cond is! bool) return null;
     return cond ? _visit(expr.thenExpr) : _visit(expr.elseExpr);
   }
+
   @override
   dynamic visitFunctionCall(FunctionCallExpr expr) => null; // Not constant
   @override
@@ -539,72 +570,50 @@ class DependencyExtractor implements ExpressionVisitor<Set<String>> {
   void _visit(ExpressionIR expr) {
     if (expr is IntLiteralExpr) {
       visitIntLiteral(expr);
-    }
-    else if (expr is DoubleLiteralExpr) {
+    } else if (expr is DoubleLiteralExpr) {
       visitDoubleLiteral(expr);
-    }
-    else if (expr is StringLiteralExpr) {
+    } else if (expr is StringLiteralExpr) {
       visitStringLiteral(expr);
-    }
-    else if (expr is BoolLiteralExpr) {
+    } else if (expr is BoolLiteralExpr) {
       visitBoolLiteral(expr);
-    }
-    else if (expr is NullLiteralExpr) {
+    } else if (expr is NullLiteralExpr) {
       visitNullLiteral(expr);
-    }
-    else if (expr is ListLiteralExpr){
-       visitListLiteral(expr);
-    }
-    else if (expr is MapLiteralExpr){
-       visitMapLiteral(expr);
-    }
-    else if (expr is SetLiteralExpr) {
+    } else if (expr is ListLiteralExpr) {
+      visitListLiteral(expr);
+    } else if (expr is MapLiteralExpr) {
+      visitMapLiteral(expr);
+    } else if (expr is SetLiteralExpr) {
       visitSetLiteral(expr);
-    }
-    else if (expr is IdentifierExpr) {
+    } else if (expr is IdentifierExpr) {
       visitIdentifier(expr);
-    }
-    else if (expr is PropertyAccessExpr){
-       visitPropertyAccess(expr);
-    }
-    else if (expr is IndexAccessExpr) {
+    } else if (expr is PropertyAccessExpr) {
+      visitPropertyAccess(expr);
+    } else if (expr is IndexAccessExpr) {
       visitIndexAccess(expr);
-    }
-    else if (expr is BinaryOpExpr){
-       visitBinaryOp(expr);
-    }
-    else if (expr is UnaryOpExpr) {
+    } else if (expr is BinaryOpExpr) {
+      visitBinaryOp(expr);
+    } else if (expr is UnaryOpExpr) {
       visitUnaryOp(expr);
-    }
-    else if (expr is AssignmentExpr){
-       visitAssignment(expr);
-    }
-    else if (expr is ConditionalExpr) {
+    } else if (expr is AssignmentExpr) {
+      visitAssignment(expr);
+    } else if (expr is ConditionalExpr) {
       visitConditional(expr);
-    }
-    else if (expr is FunctionCallExpr){
-       visitFunctionCall(expr);
-    }
-    else if (expr is MethodCallExpr) {
+    } else if (expr is FunctionCallExpr) {
+      visitFunctionCall(expr);
+    } else if (expr is MethodCallExpr) {
       visitMethodCall(expr);
-    }
-    else if (expr is ConstructorCallExpr) {
+    } else if (expr is ConstructorCallExpr) {
       visitConstructorCall(expr);
-    }
-    else if (expr is LambdaExpr) {
+    } else if (expr is LambdaExpr) {
       visitLambda(expr);
-    }
-    else if (expr is AwaitExpr) {
+    } else if (expr is AwaitExpr) {
       visitAwait(expr);
-    }
-    else if (expr is ThrowExpr) {
+    } else if (expr is ThrowExpr) {
       visitThrow(expr);
-    }
-    else if (expr is CastExpr){
-       visitCast(expr);
-    }
-    else if (expr is TypeCheckExpr){
-       visitTypeCheck(expr);
+    } else if (expr is CastExpr) {
+      visitCast(expr);
+    } else if (expr is TypeCheckExpr) {
+      visitTypeCheck(expr);
     }
   }
 
@@ -625,6 +634,7 @@ class DependencyExtractor implements ExpressionVisitor<Set<String>> {
     }
     return dependencies;
   }
+
   @override
   Set<String> visitMapLiteral(MapLiteralExpr expr) {
     for (final entry in expr.entries) {
@@ -633,6 +643,7 @@ class DependencyExtractor implements ExpressionVisitor<Set<String>> {
     }
     return dependencies;
   }
+
   @override
   Set<String> visitSetLiteral(SetLiteralExpr expr) {
     for (final elem in expr.elements) {
@@ -640,40 +651,47 @@ class DependencyExtractor implements ExpressionVisitor<Set<String>> {
     }
     return dependencies;
   }
+
   @override
   Set<String> visitIdentifier(IdentifierExpr expr) {
     dependencies.add(expr.name);
     return dependencies;
   }
+
   @override
   Set<String> visitPropertyAccess(PropertyAccessExpr expr) {
     _visit(expr.target);
     dependencies.add(expr.propertyName);
     return dependencies;
   }
+
   @override
   Set<String> visitIndexAccess(IndexAccessExpr expr) {
     _visit(expr.target);
     _visit(expr.index);
     return dependencies;
   }
+
   @override
   Set<String> visitBinaryOp(BinaryOpExpr expr) {
     _visit(expr.left);
     _visit(expr.right);
     return dependencies;
   }
+
   @override
   Set<String> visitUnaryOp(UnaryOpExpr expr) {
     _visit(expr.operand);
     return dependencies;
   }
+
   @override
   Set<String> visitAssignment(AssignmentExpr expr) {
     _visit(expr.target);
     _visit(expr.value);
     return dependencies;
   }
+
   @override
   Set<String> visitConditional(ConditionalExpr expr) {
     _visit(expr.condition);
@@ -681,6 +699,7 @@ class DependencyExtractor implements ExpressionVisitor<Set<String>> {
     _visit(expr.elseExpr);
     return dependencies;
   }
+
   @override
   Set<String> visitFunctionCall(FunctionCallExpr expr) {
     dependencies.add(expr.functionName);
@@ -692,6 +711,7 @@ class DependencyExtractor implements ExpressionVisitor<Set<String>> {
     }
     return dependencies;
   }
+
   @override
   Set<String> visitMethodCall(MethodCallExpr expr) {
     if (expr.receiver != null) {
@@ -706,6 +726,7 @@ class DependencyExtractor implements ExpressionVisitor<Set<String>> {
     }
     return dependencies;
   }
+
   @override
   Set<String> visitConstructorCall(ConstructorCallExpr expr) {
     dependencies.add(expr.className);
@@ -717,6 +738,7 @@ class DependencyExtractor implements ExpressionVisitor<Set<String>> {
     }
     return dependencies;
   }
+
   @override
   Set<String> visitLambda(LambdaExpr expr) {
     if (expr.body != null) {
@@ -724,21 +746,25 @@ class DependencyExtractor implements ExpressionVisitor<Set<String>> {
     }
     return dependencies;
   }
+
   @override
   Set<String> visitAwait(AwaitExpr expr) {
     _visit(expr.futureExpression);
     return dependencies;
   }
+
   @override
   Set<String> visitThrow(ThrowExpr expr) {
     _visit(expr.exceptionExpression);
     return dependencies;
   }
+
   @override
   Set<String> visitCast(CastExpr expr) {
     _visit(expr.expression);
     return dependencies;
   }
+
   @override
   Set<String> visitTypeCheck(TypeCheckExpr expr) {
     _visit(expr.expression);
@@ -806,31 +832,37 @@ class StatementCounter implements StatementVisitor<int> {
     _incrementCount('ExpressionStmt');
     return 1;
   }
+
   @override
   int visitVariableDeclaration(VariableDeclarationStmt stmt) {
     _incrementCount('VariableDeclarationStmt');
     return 1;
   }
+
   @override
   int visitReturn(ReturnStmt stmt) {
     _incrementCount('ReturnStmt');
     return 1;
   }
+
   @override
   int visitBreak(BreakStmt stmt) {
     _incrementCount('BreakStmt');
     return 1;
   }
+
   @override
   int visitContinue(ContinueStmt stmt) {
     _incrementCount('ContinueStmt');
     return 1;
   }
+
   @override
   int visitThrow(ThrowStmt stmt) {
     _incrementCount('ThrowStmt');
     return 1;
   }
+
   @override
   int visitBlock(BlockStmt stmt) {
     _incrementCount('BlockStmt');
@@ -839,6 +871,7 @@ class StatementCounter implements StatementVisitor<int> {
     }
     return stmt.statements.length;
   }
+
   @override
   int visitIf(IfStmt stmt) {
     _incrementCount('IfStmt');
@@ -848,30 +881,35 @@ class StatementCounter implements StatementVisitor<int> {
     }
     return 1;
   }
+
   @override
   int visitFor(ForStmt stmt) {
     _incrementCount('ForStmt');
     _visit(stmt.body);
     return 1;
   }
+
   @override
   int visitForEach(ForEachStmt stmt) {
     _incrementCount('ForEachStmt');
     _visit(stmt.body);
     return 1;
   }
+
   @override
   int visitWhile(WhileStmt stmt) {
     _incrementCount('WhileStmt');
     _visit(stmt.body);
     return 1;
   }
+
   @override
   int visitDoWhile(DoWhileStmt stmt) {
     _incrementCount('DoWhileStmt');
     _visit(stmt.body);
     return 1;
   }
+
   @override
   int visitSwitch(SwitchStmt stmt) {
     _incrementCount('SwitchStmt');
@@ -882,6 +920,7 @@ class StatementCounter implements StatementVisitor<int> {
     }
     return 1;
   }
+
   @override
   int visitTry(TryStmt stmt) {
     _incrementCount('TryStmt');
@@ -899,7 +938,7 @@ class StatementCounter implements StatementVisitor<int> {
 /// Extracts all variable declarations from statements
 class VariableDeclarationExtractor implements StatementVisitor<Set<String>> {
   final Set<String> variables = {};
-   final Map<String, int> counts = {};
+  final Map<String, int> counts = {};
   final DependencyExtractor _exprExtractor = DependencyExtractor();
 
   Set<String> extract(StatementIR stmt) {
@@ -950,6 +989,7 @@ class VariableDeclarationExtractor implements StatementVisitor<Set<String>> {
     }
     return variables;
   }
+
   @override
   Set<String> visitReturn(ReturnStmt stmt) {
     if (stmt.expression != null) {
@@ -957,6 +997,7 @@ class VariableDeclarationExtractor implements StatementVisitor<Set<String>> {
     }
     return variables;
   }
+
   @override
   Set<String> visitBreak(BreakStmt stmt) => variables;
   @override
@@ -970,6 +1011,7 @@ class VariableDeclarationExtractor implements StatementVisitor<Set<String>> {
     }
     return variables;
   }
+
   @override
   Set<String> visitIf(IfStmt stmt) {
     _visit(stmt.thenBranch);
@@ -978,27 +1020,32 @@ class VariableDeclarationExtractor implements StatementVisitor<Set<String>> {
     }
     return variables;
   }
+
   @override
   Set<String> visitFor(ForStmt stmt) {
     _visit(stmt.body);
     return variables;
   }
+
   @override
   Set<String> visitForEach(ForEachStmt stmt) {
     variables.add(stmt.loopVariable);
     _visit(stmt.body);
     return variables;
   }
+
   @override
   Set<String> visitWhile(WhileStmt stmt) {
     _visit(stmt.body);
     return variables;
   }
+
   @override
   Set<String> visitDoWhile(DoWhileStmt stmt) {
     _visit(stmt.body);
     return variables;
   }
+
   @override
   Set<String> visitSwitch(SwitchStmt stmt) {
     for (final caseStmt in stmt.cases) {
@@ -1008,7 +1055,8 @@ class VariableDeclarationExtractor implements StatementVisitor<Set<String>> {
     }
     return variables;
   }
- @override
+
+  @override
   Set<String> visitTry(TryStmt stmt) {
     _visit(stmt.tryBlock);
     for (final catchClause in stmt.catchClauses) {
@@ -1084,21 +1132,25 @@ class ReachabilityAnalyzer implements StatementVisitor<bool> {
     _isReachable = false;
     return false;
   }
+
   @override
   bool visitBreak(BreakStmt stmt) {
     _isReachable = false;
     return false;
   }
+
   @override
   bool visitContinue(ContinueStmt stmt) {
     _isReachable = false;
     return false;
   }
+
   @override
   bool visitThrow(ThrowStmt stmt) {
     _isReachable = false;
     return false;
   }
+
   @override
   bool visitBlock(BlockStmt stmt) {
     for (final s in stmt.statements) {
@@ -1107,13 +1159,14 @@ class ReachabilityAnalyzer implements StatementVisitor<bool> {
     }
     return _isReachable;
   }
+
   @override
   bool visitIf(IfStmt stmt) {
     final beforeIf = _isReachable;
     _visit(stmt.thenBranch);
     final afterThen = _isReachable;
     _isReachable = beforeIf;
-    
+
     if (stmt.elseBranch != null) {
       _visit(stmt.elseBranch!);
       _isReachable = _isReachable && afterThen;
@@ -1122,30 +1175,35 @@ class ReachabilityAnalyzer implements StatementVisitor<bool> {
     }
     return _isReachable;
   }
+
   @override
   bool visitFor(ForStmt stmt) {
     _visit(stmt.body);
     _isReachable = true; // Loop might not execute
     return _isReachable;
   }
+
   @override
   bool visitForEach(ForEachStmt stmt) {
     _visit(stmt.body);
     _isReachable = true; // Loop might not execute
     return _isReachable;
   }
+
   @override
   bool visitWhile(WhileStmt stmt) {
     _visit(stmt.body);
     _isReachable = true; // Loop might not execute
     return _isReachable;
   }
+
   @override
   bool visitDoWhile(DoWhileStmt stmt) {
     _visit(stmt.body);
     _isReachable = true; // Do-while might exit normally
     return _isReachable;
   }
+
   @override
   bool visitSwitch(SwitchStmt stmt) {
     bool allPathsReturn = true;
@@ -1160,17 +1218,18 @@ class ReachabilityAnalyzer implements StatementVisitor<bool> {
     _isReachable = !allPathsReturn;
     return _isReachable;
   }
+
   @override
   bool visitTry(TryStmt stmt) {
     _visit(stmt.tryBlock);
     final afterTry = _isReachable;
-    
+
     for (final catchClause in stmt.catchClauses) {
       _isReachable = true;
       _visit(catchClause.body);
       if (!_isReachable && stmt.finallyBlock == null) break;
     }
-    
+
     if (stmt.finallyBlock != null) {
       _isReachable = true;
       _visit(stmt.finallyBlock!);

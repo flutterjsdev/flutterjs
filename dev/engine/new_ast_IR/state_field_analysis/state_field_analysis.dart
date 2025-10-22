@@ -6,20 +6,19 @@ import '../ir/expression_ir.dart';
 import '../ir/ir_node.dart';
 import '../variable_decl.dart';
 
-
 // =============================================================================
 // STATE FIELD ANALYSIS
 // =============================================================================
 
 /// Detailed analysis of a single state field's role in UI reactivity
-/// 
+///
 /// Tracks how a field affects rendering, when it's accessed, modified,
 /// and whether those modifications actually impact the UI.
-/// 
+///
 /// Example analysis for a state field:
 /// ```dart
 /// int _counter = 0;  // field
-/// 
+///
 /// // Analysis shows:
 /// // - accessed in build() at line 45
 /// // - modified by 3 setState() calls
@@ -35,7 +34,7 @@ class StateFieldAnalysis extends IRNode {
   final bool isAccessedInBuild;
 
   /// All locations where this field is read in build()
-  /// 
+  ///
   /// Multiple accesses to same field tracked separately
   /// Useful for identifying redundant reads
   final List<SourceLocationIR> buildAccessLocations;
@@ -44,49 +43,49 @@ class StateFieldAnalysis extends IRNode {
   int get buildAccessCount => buildAccessLocations.length;
 
   /// Whether this field is written in the build() method
-  /// 
+  ///
   /// This is often a bug - modifying state in build() causes problems
   final bool isModifiedInBuild;
 
   /// Location where field is modified in build (if it happens)
-  /// 
+  ///
   /// Usually indicates a bug that should be fixed
   final SourceLocationIR? buildModificationLocation;
 
   /// All setState() calls that modify this field
-  /// 
+  ///
   /// Tracks which state mutations affect this field
   final List<SetStateModificationIR> setStateCallsModifying;
 
   /// Whether changes to this field trigger a rebuild
-  /// 
+  ///
   /// Usually true, but can be false for:
   /// - Fields only used in non-rendering context
   /// - Fields modified in callbacks but never read
   final bool triggersRebuild;
 
   /// How this field is initialized
-  /// 
+  ///
   /// Tracks the initialization path (inline, initState, etc.)
   final FieldInitializationIR? initializationPath;
 
   /// How this field is disposed (if it's a resource)
-  /// 
+  ///
   /// For controllers, streams, etc. that need cleanup
   final FieldDisposalIR? disposalPath;
 
   /// Whether this field is a resource that needs disposal
-  /// 
+  ///
   /// Examples: AnimationController, TextEditingController, StreamController
   final bool isResourceField;
 
   /// Widgets that directly depend on this field
-  /// 
+  ///
   /// Widgets that read this field in their properties
   final List<WidgetDependencyIR> dependentWidgets;
 
   /// Other fields this field depends on (for ordering)
-  /// 
+  ///
   /// If field X depends on field Y, must initialize Y first
   final List<String> dependsOnFields;
 
@@ -100,8 +99,8 @@ class StateFieldAnalysis extends IRNode {
   final StateFieldPerformanceIR performance;
 
   StateFieldAnalysis({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.field,
     this.isAccessedInBuild = false,
     this.buildAccessLocations = const [],
@@ -117,24 +116,28 @@ class StateFieldAnalysis extends IRNode {
     this.affectsFields = const [],
     this.issues = const [],
     required this.performance,
-  }) ;
+  });
 
   /// Whether this field is actually used in rendering
   bool get isUsedInRendering => isAccessedInBuild && triggersRebuild;
 
   /// Whether this field is dead code (not used anywhere)
   bool get isDeadCode =>
-      !isAccessedInBuild && setStateCallsModifying.isEmpty && dependentWidgets.isEmpty;
+      !isAccessedInBuild &&
+      setStateCallsModifying.isEmpty &&
+      dependentWidgets.isEmpty;
 
   /// Whether this field properly handles resources
   bool get properlyManagesResources =>
       !isResourceField || (initializationPath != null && disposalPath != null);
 
   /// Whether there are critical issues with this field
-  bool get hasCriticalIssues => issues.any((i) => i.severity == IssueSeverity.error);
+  bool get hasCriticalIssues =>
+      issues.any((i) => i.severity == IssueSeverity.error);
 
   /// Whether there are warnings about this field
-  bool get hasWarnings => issues.any((i) => i.severity == IssueSeverity.warning);
+  bool get hasWarnings =>
+      issues.any((i) => i.severity == IssueSeverity.warning);
 
   /// Get human-readable summary
   String get summary {
@@ -209,8 +212,8 @@ class SetStateModificationIR extends IRNode {
   final List<String> affectsOtherFields;
 
   SetStateModificationIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.setStateLocation,
     required this.methodName,
     this.callbackExpression,
@@ -218,7 +221,7 @@ class SetStateModificationIR extends IRNode {
     this.isConditional = false,
     this.isInLoop = false,
     this.affectsOtherFields = const [],
-  }) ;
+  });
 
   @override
   String toShortString() =>
@@ -250,8 +253,8 @@ class FieldInitializationIR extends IRNode {
   final bool canFail;
 
   FieldInitializationIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.location,
     this.expression,
     this.initializationOrder = 0,
@@ -259,7 +262,7 @@ class FieldInitializationIR extends IRNode {
     this.dependsOnFields = const [],
     this.isAsync = false,
     this.canFail = false,
-  }) ;
+  });
 
   @override
   String toShortString() =>
@@ -291,8 +294,8 @@ class FieldDisposalIR extends IRNode {
   final String? missingReason;
 
   FieldDisposalIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.location,
     required this.disposalCode,
     this.isGuaranteed = true,
@@ -326,15 +329,14 @@ class WidgetDependencyIR extends IRNode {
   final bool isInChildWidget;
 
   WidgetDependencyIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.widgetType,
     required this.propertyName,
     required this.accessLocation,
     this.isReactive = true,
     this.isInChildWidget = false,
-  }
-  );
+  });
 
   @override
   String toShortString() =>
@@ -349,7 +351,7 @@ class StateFieldPerformanceIR extends IRNode {
   final int _accessCount;
 
   /// Estimated cost of re-evaluating uses of this field
-  /// 
+  ///
   /// Based on complexity of widgets using it
   final double estimatedCostPerRebuild;
 
@@ -357,30 +359,30 @@ class StateFieldPerformanceIR extends IRNode {
   final int dependentWidgetCount;
 
   /// Whether changes to this field affect many widgets
-  /// 
+  ///
   /// Affects > 10 widgets = potential performance issue
   final bool isHighImpact;
 
   /// Whether this field is frequently modified
-  /// 
+  ///
   /// > 5 setState calls per operation = potential issue
   final bool isFrequentlyModified;
 
   /// Estimated number of rebuilds per user interaction
-  /// 
+  ///
   /// If field modified, how many rebuilds happen?
   final int rebuildsPerModification;
 
   StateFieldPerformanceIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     int accessCount = 0,
     this.estimatedCostPerRebuild = 0.0,
     this.dependentWidgetCount = 0,
     this.isHighImpact = false,
     this.isFrequentlyModified = false,
     this.rebuildsPerModification = 1,
-  })  : _accessCount = accessCount;
+  }) : _accessCount = accessCount;
 
   @override
   String toShortString() =>
@@ -406,14 +408,14 @@ class StateFieldIssueIR extends IRNode {
   final SourceLocationIR? issueLocation;
 
   StateFieldIssueIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.severity,
     required this.issueType,
     required this.message,
     this.suggestion,
     this.issueLocation,
-  }) ;
+  });
 
   @override
   String toShortString() =>
@@ -425,7 +427,7 @@ class StateFieldIssueIR extends IRNode {
 // =============================================================================
 
 /// Models dependencies between state changes and UI rebuilds
-/// 
+///
 /// Nodes: StateField, Edges: "change in X triggers rebuild of Y"
 @immutable
 class RebuildTriggerGraph extends IRNode {
@@ -442,13 +444,13 @@ class RebuildTriggerGraph extends IRNode {
   final RebuildGraphAnalysisIR analysis;
 
   RebuildTriggerGraph({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     this.stateFields = const [],
     this.edges = const [],
     this.transitiveAffects = const {},
     required this.analysis,
-  }) ;
+  });
 
   /// Find all fields that affect a given widget
   Set<String> getFieldsAffecting(String widgetName) {
@@ -470,13 +472,15 @@ class RebuildTriggerGraph extends IRNode {
     final result = <RedundantModificationIR>[];
     for (final field in stateFields) {
       if (field.setStateCallsModifying.length > 1) {
-        result.add(RedundantModificationIR(
-          fieldName: field.field.name,
-          modificationCount: field.setStateCallsModifying.length,
-          locations: field.setStateCallsModifying
-              .map((m) => m.setStateLocation)
-              .toList(),
-        ));
+        result.add(
+          RedundantModificationIR(
+            fieldName: field.field.name,
+            modificationCount: field.setStateCallsModifying.length,
+            locations: field.setStateCallsModifying
+                .map((m) => m.setStateLocation)
+                .toList(),
+          ),
+        );
       }
     }
     return result;
@@ -537,8 +541,8 @@ class RebuildGraphAnalysisIR extends IRNode {
   final int complexityScore;
 
   RebuildGraphAnalysisIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     this.deadCodeFields = const [],
     this.highImpactFields = const [],
     this.circularDependencies = const [],
@@ -595,30 +599,29 @@ class RedundantModificationIR {
 // =============================================================================
 
 enum InitializationLocationIR {
-  fieldDeclaration,      // int x = 0;
-  constructorField,      // this.x = x in constructor
-  constructorBody,       // x = 0; in constructor body
-  initState,             // in initState()
-  lazyInitialization,    // late field, initialized elsewhere
-  factoryConstructor,    // in factory constructor
+  fieldDeclaration, // int x = 0;
+  constructorField, // this.x = x in constructor
+  constructorBody, // x = 0; in constructor body
+  initState, // in initState()
+  lazyInitialization, // late field, initialized elsewhere
+  factoryConstructor, // in factory constructor
 }
 
 enum DisposalLocationIR {
-  dispose,               // in dispose() method
-  destructor,            // implicit cleanup
-  finally_,               // in finally block
-  notDisposed,           // no disposal found
+  dispose, // in dispose() method
+  destructor, // implicit cleanup
+  finally_, // in finally block
+  notDisposed, // no disposal found
 }
 
 enum StateFieldIssueType {
-  deadCode,              // Field never used
-  notAccessedInBuild,    // Not read in build()
-  modifiedInBuild,       // Modified in build (bug)
-  resourceNotDisposed,   // Resource not cleaned up
-  nullableMissing,       // Should be nullable but isn't
-  frequentModification,  // Too many setState calls
-  highImpact,            // Affects too many widgets
-  circularDependency,    // Depends on itself indirectly
-  synchronizationIssue,  // Not properly synchronized
+  deadCode, // Field never used
+  notAccessedInBuild, // Not read in build()
+  modifiedInBuild, // Modified in build (bug)
+  resourceNotDisposed, // Resource not cleaned up
+  nullableMissing, // Should be nullable but isn't
+  frequentModification, // Too many setState calls
+  highImpact, // Affects too many widgets
+  circularDependency, // Depends on itself indirectly
+  synchronizationIssue, // Not properly synchronized
 }
-

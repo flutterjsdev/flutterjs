@@ -10,7 +10,7 @@ class ParameterDecl extends IRNode {
   final String name;
 
   /// Parameter type
-   TypeIR type;
+  TypeIR type;
 
   /// Optional default value expression
   final ExpressionIR? defaultValue;
@@ -27,7 +27,7 @@ class ParameterDecl extends IRNode {
   /// Annotations on parameter (e.g., @required, @deprecated)
   final List<AnnotationIR> annotations;
 
-   ParameterDecl({
+  ParameterDecl({
     required super.id,
     required super.sourceLocation,
     required this.name,
@@ -45,12 +45,18 @@ class ParameterDecl extends IRNode {
 
   @override
   String toString() {
-    final modifiers = [
-      if (isRequired) 'required',
-    ].join(' ');
+    final modifiers = [if (isRequired) 'required'].join(' ');
 
-    final bracket = isNamed ? '{' : isPositional ? '' : '[';
-    final closeBracket = isNamed ? '}' : isPositional ? '' : ']';
+    final bracket = isNamed
+        ? '{'
+        : isPositional
+        ? ''
+        : '[';
+    final closeBracket = isNamed
+        ? '}'
+        : isPositional
+        ? ''
+        : ']';
 
     return '${modifiers.isNotEmpty ? '$modifiers ' : ''}$bracket${type.displayName()} $name${defaultValue != null ? ' = ${defaultValue!.toShortString()}' : ''}$closeBracket';
   }

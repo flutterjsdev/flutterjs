@@ -1,4 +1,3 @@
-
 import 'analysis_issue.dart';
 import 'issue_category.dart';
 import 'source_location.dart';
@@ -189,10 +188,7 @@ class IssueCategorizer {
   }
 
   /// Map multiple categorization strategies
-  static IssueCategory categorize(
-    AnalysisIssue issue, {
-    String? fileContent,
-  }) {
+  static IssueCategory categorize(AnalysisIssue issue, {String? fileContent}) {
     // Primary: by code
     var category = categorizeByCode(issue.code, issue.message);
     if (category != IssueCategory.other) {

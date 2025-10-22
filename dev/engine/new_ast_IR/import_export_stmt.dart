@@ -45,7 +45,7 @@ class ImportStmt {
   });
 
   /// Whether this import shows a specific name
-  /// 
+  ///
   /// Returns true if:
   /// - showList is empty (imports everything) AND name is not hidden
   /// - OR name is explicitly shown AND not hidden
@@ -61,7 +61,7 @@ class ImportStmt {
   bool get hasRestrictions => showList.isNotEmpty || hideList.isNotEmpty;
 
   /// Get the effective list of exposed names
-  /// 
+  ///
   /// Returns:
   /// - null if showsAll (all names exposed)
   /// - Otherwise, list of names that would pass shows()
@@ -115,7 +115,7 @@ class ExportStmt {
   });
 
   /// Whether this export exposes a specific name
-  /// 
+  ///
   /// Returns true if:
   /// - showList is empty (exports everything) AND name is not hidden
   /// - OR name is explicitly shown AND not hidden
@@ -131,7 +131,7 @@ class ExportStmt {
   bool get hasRestrictions => showList.isNotEmpty || hideList.isNotEmpty;
 
   /// Get the effective list of exposed names
-  /// 
+  ///
   /// Returns:
   /// - null if exportsAll (all names exposed)
   /// - Otherwise, effective restrictions
