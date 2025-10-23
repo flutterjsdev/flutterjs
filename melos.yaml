@@ -1,0 +1,13 @@
+# melos.yaml
+name: flutterjs
+packages:
+  - packages/**
+
+scripts:
+  test:all:
+    run: melos exec -- dart test
+    description: Run tests for all packages
+  
+  analyze:all:
+    run: melos exec -- dart analyze
+    description: Analyze all packages
