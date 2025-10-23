@@ -1,9 +1,8 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
 
-import '../../../dev/engine/binary_constrain/binary_ir_reader.dart';
-import '../../../dev/engine/new_ast_IR/dart_file_builder.dart';
-import '../run_command_test.dart';
+import '../binary_ir_reader.dart';
+import '../../new_ast_IR/dart_file_builder.dart';
 import 'binary_format_validator.dart';
 
 // ============================================================================
@@ -29,17 +28,28 @@ class ComprehensiveIRValidator {
       print('No IR files found in $outputPath');
       return report;
     }
+    // Normalize output path for consistent relative path calculation
+    final normalizedOutputPath = path.normalize(outputPath);
 
-    print('\n╔═══════════════════════════════════════════════════════════════╗');
+    print(
+      '\n╔═══════════════════════════════════════════════════════════════╗',
+    );
     print('║         COMPREHENSIVE IR VALIDATION - 4 LAYER APPROACH        ║');
     print('╚═══════════════════════════════════════════════════════════════╝');
 
     for (final irFile in irFiles) {
-      print('\n\nValidating: ${path.basename(irFile.path)}');
+      // Calculate relative path from output directory
+      final relativePath = path.relative(
+        irFile.path,
+        from: normalizedOutputPath,
+      );
+
+      print('\n\nValidating: $relativePath');
       print('─' * 60);
 
       final fileReport = await _validateSingleFile(
         irFile,
+        relativePath: relativePath, // NEW: Pass relative path
         verbose: verbose,
       );
       report.addFileReport(fileReport);
@@ -54,9 +64,13 @@ class ComprehensiveIRValidator {
   Future<IRFileValidationReport> _validateSingleFile(
     File irFile, {
     required bool verbose,
+    required String relativePath, // NEW: Add this parameter
   }) async {
     final fileName = path.basename(irFile.path);
-    final fileReport = IRFileValidationReport(fileName: fileName);
+    final fileReport = IRFileValidationReport(
+      fileName: fileName,
+      relativePath: relativePath, // NEW: Store relative path in report
+    );
 
     // Read binary data
     final bytes = await irFile.readAsBytes();
@@ -67,7 +81,7 @@ class ComprehensiveIRValidator {
     print('\n[LAYER 1/4] Binary Format & Integrity...');
     final binaryResult = await binaryValidator.validateBinaryIntegrity(
       bytes,
-      fileName,
+      relativePath,
     );
     binaryResult.printReport(verbose: verbose);
     fileReport.addResult(binaryResult);
@@ -110,8 +124,8 @@ class ComprehensiveIRValidator {
     // LAYER 4: DIFFERENTIAL TESTING
     // ===================================================================
     print('\n[LAYER 4/4] Differential Testing Against Known Structures...');
-    final differentialResult =
-        await differentialValidator.validateAgainstKnownStructures(dartFile);
+    final differentialResult = await differentialValidator
+        .validateAgainstKnownStructures(dartFile);
     differentialResult.printReport(verbose: verbose);
     fileReport.addResult(differentialResult);
 
@@ -135,9 +149,13 @@ class ComprehensiveIRValidator {
   }
 
   void _printSummary(ComprehensiveValidationReport report, bool verbose) {
-    print('\n\n╔═══════════════════════════════════════════════════════════════╗');
-    print('║                    VALIDATION SUMMARY REPORT                    ║');
-    print('╚═══════════════════════════════════════════════════════════════╝');
+    print(
+      '\n\n╔═════════════════════════════════════════════════════════════╗',
+    );
+    print(
+      '║                    VALIDATION SUMMARY REPORT                    ║',
+    );
+    print('╚═════════════════════════════════════════════════════════════╝');
 
     final allValid = report.fileReports.every((r) => r.isValid);
 
@@ -159,6 +177,17 @@ class ComprehensiveIRValidator {
       final warningsByLayer = report.warningsByLayer;
       for (final entry in warningsByLayer.entries) {
         print('    ${entry.key}: ${entry.value}');
+      }
+    }
+
+    // NEW: Show files with issues
+    if (report.fileReports.any((r) => !r.isValid)) {
+      print('\n  Files with validation issues:');
+      for (final fileReport in report.fileReports.where((r) => !r.isValid)) {
+        print('    ✗ ${fileReport.relativePath}');
+        for (final result in fileReport.results.where((r) => !r.isValid)) {
+          print('      • ${result.stage}: ${result.errors.length} errors');
+        }
       }
     }
 
@@ -187,8 +216,7 @@ class ComprehensiveValidationReport {
   int get validFileCount => fileReports.where((r) => r.isValid).length;
   int get invalidFileCount => fileReports.where((r) => !r.isValid).length;
 
-  int get totalErrors =>
-      fileReports.fold(0, (sum, r) => sum + r.totalErrors);
+  int get totalErrors => fileReports.fold(0, (sum, r) => sum + r.totalErrors);
   int get totalWarnings =>
       fileReports.fold(0, (sum, r) => sum + r.totalWarnings);
 
@@ -242,22 +270,24 @@ class ComprehensiveValidationReport {
 
 class IRFileValidationReport {
   final String fileName;
+  final String relativePath; // NEW: Add this field
   final List<ValidationResult> results = [];
 
-  IRFileValidationReport({required this.fileName});
+  IRFileValidationReport({
+    required this.fileName,
+    required this.relativePath, // NEW: Add to constructor
+  });
 
   void addResult(ValidationResult result) {
     results.add(result);
   }
 
   bool get isValid => results.every((r) => r.isValid);
-  int get totalErrors =>
-      results.fold(0, (sum, r) => sum + r.errors.length);
-  int get totalWarnings =>
-      results.fold(0, (sum, r) => sum + r.warnings.length);
+  int get totalErrors => results.fold(0, (sum, r) => sum + r.errors.length);
+  int get totalWarnings => results.fold(0, (sum, r) => sum + r.warnings.length);
 
   void printReport({bool verbose = false}) {
-    print('\n  File: $fileName');
+    print('\n  File: $relativePath'); // CHANGED: Use relative path
     print('    Status: ${isValid ? '✓ VALID' : '✗ INVALID'}');
     print('    Layers tested: ${results.length}/4');
 
@@ -279,69 +309,3 @@ class IRFileValidationReport {
     }
   }
 }
-
-// ============================================================================
-// INTEGRATION WITH EXISTING RUN_COMMAND_TEST
-// ============================================================================
-
-extension ValidateIRExtension on RunCommandTest {
-  /// Add this method to your RunCommandTest class to integrate validation
-
-}
-
-// ============================================================================
-// USAGE IN RUN_COMMAND_TEST
-// ============================================================================
-
-/*
-  Update your _validateIRFiles method in run_command_test.dart:
-
-  @override
-  Future<void> run() async {
-    // ... existing code ...
-
-    // Replace the old _validateIRFiles call with:
-    await _validateIRFilesComprehensive(
-      outputPath: absoluteOutputPath,
-      verbose: verbose,
-    );
-
-    // ... rest of code ...
-  }
-*/
-
-// ============================================================================
-// EXAMPLE: HOW TO USE STANDALONE
-// ============================================================================
-
-/*
-  void main() async {
-    final validator = ComprehensiveIRValidator();
-
-    final report = await validator.validateAllLayers(
-      outputPath: '.flutterjs/ir',
-      verbose: true,
-    );
-
-    // Access results
-    print('Total errors: ${report.totalErrors}');
-    print('Total warnings: ${report.totalWarnings}');
-    print('Valid files: ${report.validFileCount}/${report.fileReports.length}');
-
-    // Layer-specific metrics
-    final rates = report.layerSuccessRates;
-    print('Binary format success: ${(rates['binary_format']! * 100).toStringAsFixed(1)}%');
-    print('Semantic validation success: ${(rates['semantic']! * 100).toStringAsFixed(1)}%');
-    print('Round-trip success: ${(rates['roundtrip']! * 100).toStringAsFixed(1)}%');
-    print('Differential test success: ${(rates['differential_test']! * 100).toStringAsFixed(1)}%');
-
-    // Overall decision
-    if (report.fileReports.every((r) => r.isValid)) {
-      print('\n✓ All validations PASSED');
-      exit(0);
-    } else {
-      print('\n✗ Some validations FAILED');
-      exit(1);
-    }
-  }
-*/
