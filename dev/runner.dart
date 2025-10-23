@@ -1,6 +1,4 @@
 import 'package:args/command_runner.dart';
-
-import '../test/run_cmd/run_command_test.dart';
 import 'analyzer/analyze_command.dart';
 import 'builder/build_command.dart';
 import 'cleaner/clean_command.dart';
@@ -43,7 +41,6 @@ class FlutterJSCommandRunner extends CommandRunner<void> {
     addCommand(InitProject(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(BuildCommand(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(RunCommand(verbose: verbose, verboseHelp: verboseHelp));
-    addCommand(RunCommandTest(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(AnalyzeCommand(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(DocsCommand(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(CleanCommand(verbose: verbose));

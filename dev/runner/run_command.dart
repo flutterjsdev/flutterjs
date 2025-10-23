@@ -2,20 +2,21 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 
-import '../engine/analyzer/analying_project.dart';
-import '../engine/analyzer/ir_linker.dart';
-import '../engine/binary_constrain/binary_ir_reader.dart';
-import '../engine/binary_constrain/binary_ir_writer.dart';
-import '../engine/declaration_pass.dart';
-import '../engine/flow_analysis_pass.dart';
-import '../engine/new_ast_IR/dart_file_builder.dart';
-import '../engine/new_ast_IR/diagnostics/analysis_issue.dart';
-import '../engine/symbol_resolution.dart';
-import '../engine/type_inference_pass.dart';
-import '../engine/validation_pass.dart';
+import '../../dev/engine/analyzer/analying_project.dart';
+import '../../dev/engine/analyzer/ir_linker.dart';
+import '../../dev/engine/binary_constrain/binary_ir_reader.dart';
+import '../../dev/engine/binary_constrain/binary_ir_writer.dart';
+import '../../dev/engine/declaration_pass.dart';
+import '../../dev/engine/flow_analysis_pass.dart';
+import '../../dev/engine/new_ast_IR/dart_file_builder.dart';
+import '../../dev/engine/new_ast_IR/diagnostics/analysis_issue.dart';
+import '../../dev/engine/symbol_resolution.dart';
+import '../../dev/engine/type_inference_pass.dart';
+import '../../dev/engine/validation_pass.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 
-import 'helper.dart';
+import '../../dev/runner/helper.dart';
+import '../../dev/engine/binary_constrain/validating/comprehensive_ir_validator.dart';
 
 // ============================================================================
 // UNIFIED COMMAND - Analysis → IR Generation Pipeline
@@ -83,7 +84,7 @@ class RunCommand extends Command<void> {
   final bool verboseHelp;
 
   @override
-  String get name => 'run';
+  String get name => 'runtest';
 
   @override
   String get description =>
@@ -208,16 +209,15 @@ class RunCommand extends Command<void> {
       final irFileCount = await _serializeIR(
         irResults: irResults,
         outputPath: absoluteOutputPath,
+        sourceBasePath: absoluteSourcePath, // NEW: Pass source base path
         verbose: verbose,
       );
 
-      // NEW: Validate generated files
-      // await _validateIRFiles(
-      //   outputPath: absoluteOutputPath,
-      //   expectedFiles: filesToConvert,
-      //   verbose: verbose,
-      // );
-      await _validateIRFiles(outputPath: absoluteOutputPath, verbose: verbose);
+
+      await validateIRFilesComprehensive(
+        outputPath: absoluteOutputPath,
+        verbose: verbose,
+      );
       if (verbose) {
         print('\nDEBUGGING deserialization:');
         final mainIrFile = File(path.join(outputPath, 'main_ir.ir'));
@@ -513,55 +513,104 @@ class RunCommand extends Command<void> {
   // =========================================================================
   // PHASE 3: SERIALIZATION
   // =========================================================================
-  Future<int> _serializeIR({
-    required IRGenerationResults irResults,
-    required String outputPath,
-    required bool verbose,
-  }) async {
-    int fileCount = 0;
+Future<int> _serializeIR({
+  required IRGenerationResults irResults,
+  required String outputPath,
+  required bool verbose,
+  required String sourceBasePath,
+}) async {
+  int fileCount = 0;
+  final failedFiles = <String, String>{}; // Track failures
 
-    for (final entry in irResults.dartFiles.entries) {
-      final filePath = entry.key;
-      final dartFile = entry.value;
+  // Normalize paths to handle Windows/Linux differences
+  final normalizedOutputPath = path.normalize(outputPath);
+  final normalizedSourceBasePath = path.normalize(sourceBasePath);
 
+  for (final entry in irResults.dartFiles.entries) {
+    final filePath = entry.key;
+    final dartFile = entry.value;
+
+    try {
+      // Normalize file path
+      final normalizedFilePath = path.normalize(filePath);
+
+      // SAFETY CHECK: Verify file is actually under sourceBasePath
+      if (!normalizedFilePath.startsWith(normalizedSourceBasePath)) {
+        final error = 'File not under source path: $filePath';
+        failedFiles[filePath] = error;
+        if (verbose) print('    ✗ ${path.basename(filePath)}: $error');
+        continue;
+      }
+
+      // Calculate relative path safely
       try {
-        // Normalize path separators to forward slashes
-        // final normalizedPath = filePath.replaceAll('\\', '/');
+        final relativePath = path.relative(
+          normalizedFilePath,
+          from: normalizedSourceBasePath,
+        );
 
-        // Get just the filename without the full path
-        final fileName = path.basenameWithoutExtension(filePath);
+        // Get directory structure, handling edge cases
+        var relativeDir = path.dirname(relativePath);
+        
+        // Handle case where file is in root (dirname returns '.')
+        if (relativeDir == '.') {
+          relativeDir = '';
+        }
 
-        // Create output filename: convert .dart to .ir
-        final outputName = '${fileName}_ir.ir';
+        // Get filename without extension
+        final fileNameWithoutExt = path.basenameWithoutExtension(normalizedFilePath);
+        final outputFileName = '${fileNameWithoutExt}_ir.ir';
 
+        // Build output path
+        final outputFile = relativeDir.isEmpty
+            ? File(path.join(normalizedOutputPath, outputFileName))
+            : File(path.join(normalizedOutputPath, relativeDir, outputFileName));
+
+        // Serialize
         final binaryWriter = BinaryIRWriter();
         final binaryBytes = binaryWriter.writeFileIR(
           dartFile,
-          verbose: verbose,
+          verbose: false, // Use false here to avoid noise
         );
 
-        // Use path.join to properly construct the full output path
-        final outputFile = File(path.join(outputPath, outputName));
-
-        // Ensure output directory exists
+        // Create directories
         await outputFile.parent.create(recursive: true);
 
+        // Write file
         await outputFile.writeAsBytes(binaryBytes);
         fileCount++;
 
         if (verbose) {
-          final sizeKb = (binaryBytes.length / 1024).toStringAsFixed(1);
-          print('    ${path.basename(filePath)} -> $outputName ($sizeKb KB)');
+          final sizeKb = (binaryBytes.length / 1024).toStringAsFixed(2);
+          final displayPath = relativeDir.isEmpty
+              ? outputFileName
+              : path.join(relativeDir, outputFileName);
+          print('    ✓ ${path.basename(filePath)} → $displayPath ($sizeKb KB)');
         }
-      } catch (e) {
-        if (verbose)
-          print('    Error serializing ${path.basename(filePath)}: $e');
+      } catch (pathError) {
+        final error = 'Path calculation failed: $pathError';
+        failedFiles[filePath] = error;
+        if (verbose) print('    ✗ ${path.basename(filePath)}: $error');
       }
+    } catch (e) {
+      final error = 'Serialization failed: $e';
+      failedFiles[filePath] = error;
+      if (verbose) print('    ✗ ${path.basename(filePath)}: $error');
     }
-
-    return fileCount;
   }
 
+  // Report summary
+  if (verbose && failedFiles.isNotEmpty) {
+    print('\n    Failed to serialize ${failedFiles.length} files:');
+    for (final entry in failedFiles.entries) {
+      print('      • ${path.basename(entry.key)}: ${entry.value}');
+    }
+  }
+
+  return fileCount;
+}
+
+  
   // =========================================================================
   // OUTPUT FORMATTING
   // =========================================================================
@@ -686,108 +735,105 @@ class RunCommand extends Command<void> {
     }
   }
 
-  /// Validates IR files by deserializing and checking content
-  Future<void> _validateIRFiles({
+  Future<void> validateIRFilesComprehensive({
     required String outputPath,
     required bool verbose,
   }) async {
-    if (verbose) print('\n  Validating IR files...');
+    print('\n');
+    print('╔═════════════════════════════════════════════════════════════╗');
+    print('║      Starting Comprehensive IR Validation (4 Layers)        ║');
+    print('╚═════════════════════════════════════════════════════════════╝');
 
-    final outputDir = Directory(outputPath);
-    if (!outputDir.existsSync()) {
-      print('    ⚠️  Output directory does not exist!');
-      return;
-    }
+    final validator = ComprehensiveIRValidator();
+    final report = await validator.validateAllLayers(
+      outputPath: outputPath,
+      verbose: verbose,
+    );
 
-    final irFiles = await outputDir
-        .list()
-        .where((entity) => entity.path.endsWith('.ir'))
-        .toList();
-
-    if (irFiles.isEmpty) {
-      print('    ⚠️  No IR files found!');
-      return;
-    }
-
+    // Export validation report as JSON if requested
     if (verbose) {
-      print('    Found ${irFiles.length} IR files');
+      await _exportValidationReport(report, outputPath);
+    }
+  }
+
+  Future<void> _exportValidationReport(
+    ComprehensiveValidationReport report,
+    String outputPath,
+  ) async {
+    final reportFile = File(path.join(outputPath, 'validation_report.json'));
+    final json = _generateValidationJSON(report);
+
+    await reportFile.writeAsString(json);
+    print('\n✓ Validation report exported to: ${reportFile.path}');
+  }
+
+  String _generateValidationJSON(ComprehensiveValidationReport report) {
+    final buffer = StringBuffer();
+    buffer.writeln('{');
+    buffer.writeln('  "timestamp": "${DateTime.now()}",');
+    buffer.writeln(
+      '  "overall_status": "${report.fileReports.every((r) => r.isValid) ? 'PASS' : 'FAIL'}",',
+    );
+    buffer.writeln('  "summary": {');
+    buffer.writeln('    "total_files": ${report.fileReports.length},');
+    buffer.writeln('    "valid_files": ${report.validFileCount},');
+    buffer.writeln('    "invalid_files": ${report.invalidFileCount},');
+    buffer.writeln('    "total_errors": ${report.totalErrors},');
+    buffer.writeln('    "total_warnings": ${report.totalWarnings}');
+    buffer.writeln('  },');
+    buffer.writeln('  "layer_success_rates": {');
+
+    final rates = report.layerSuccessRates;
+    final rateEntries = rates.entries.toList();
+    for (int i = 0; i < rateEntries.length; i++) {
+      final entry = rateEntries[i];
+      final percentage = entry.value * 100;
+      buffer.write('    "${entry.key}": $percentage');
+      if (i < rateEntries.length - 1) buffer.write(',');
+      buffer.writeln();
     }
 
-    int validFiles = 0;
-    int invalidFiles = 0;
-    int totalDeclarations = 0;
+    buffer.writeln('  },');
+    buffer.writeln('  "files": [');
 
-    for (final entity in irFiles) {
-      if (entity is File) {
-        try {
-          // Read file
-          final bytes = await entity.readAsBytes();
-          final fileName = path.basename(entity.path);
+    for (int i = 0; i < report.fileReports.length; i++) {
+      final fileReport = report.fileReports[i];
+      buffer.writeln('    {');
+      buffer.writeln('      "name": "${fileReport.fileName}",');
+      buffer.writeln('      "valid": ${fileReport.isValid},');
+      buffer.writeln('      "errors": ${fileReport.totalErrors},');
+      buffer.writeln('      "warnings": ${fileReport.totalWarnings},');
+      buffer.writeln('      "layers": [');
 
-          if (bytes.isEmpty) {
-            if (verbose) {
-              print('    ✗ $fileName - File is empty');
-            }
-            invalidFiles++;
-            continue;
-          }
+      for (int j = 0; j < fileReport.results.length; j++) {
+        final result = fileReport.results[j];
+        buffer.writeln('        {');
+        buffer.writeln('          "stage": "${result.stage}",');
+        buffer.writeln('          "valid": ${result.isValid},');
+        buffer.writeln('          "errors": [');
 
-          // Try to deserialize
-          final reader = BinaryIRReader();
-          final dartFile = reader.readFileIR(bytes, verbose: verbose);
-
-          // Validate content
-          if (dartFile.filePath.isEmpty) {
-            if (verbose) {
-              print('    ✗ $fileName - Invalid: No filePath');
-            }
-            invalidFiles++;
-            continue;
-          }
-
-          // Count declarations
-          final declCount = dartFile.declarationCount;
-          totalDeclarations += declCount;
-
-          validFiles++;
-          if (verbose) {
-            final sizeKb = (bytes.length / 1024).toStringAsFixed(2);
-            final details =
-                '${dartFile.classDeclarations.length} classes, '
-                '${dartFile.functionDeclarations.length} functions, '
-                '${dartFile.variableDeclarations.length} variables';
-            print('    ✓ $fileName ($sizeKb KB) - $details');
-          }
-        } on SerializationException catch (e) {
-          if (verbose) {
-            print(
-              '    ✗ ${path.basename(entity.path)} - Deserialization error: $e',
-            );
-          }
-          invalidFiles++;
-        } catch (e) {
-          if (verbose) {
-            print('    ✗ ${path.basename(entity.path)} - Error: $e');
-          }
-          invalidFiles++;
+        for (int k = 0; k < result.errors.length; k++) {
+          buffer.write('            "${result.errors[k]}"');
+          if (k < result.errors.length - 1) buffer.write(',');
+          buffer.writeln();
         }
+
+        buffer.writeln('          ]');
+        buffer.write('        }');
+        if (j < fileReport.results.length - 1) buffer.write(',');
+        buffer.writeln();
       }
+
+      buffer.writeln('      ]');
+      buffer.write('    }');
+      if (i < report.fileReports.length - 1) buffer.write(',');
+      buffer.writeln();
     }
 
-    // Print summary
-    print('\n  Validation Summary:');
-    print('    ✓ Valid files: $validFiles');
-    if (invalidFiles > 0) {
-      print('    ✗ Invalid files: $invalidFiles');
-    }
-    print('    Total declarations: $totalDeclarations');
-    print('    Total IR files: ${irFiles.length}');
+    buffer.writeln('  ]');
+    buffer.writeln('}');
 
-    if (validFiles == irFiles.length) {
-      print('\n  ✓ All IR files are valid!\n');
-    } else {
-      print('\n  ⚠️  Some IR files failed validation\n');
-    }
+    return buffer.toString();
   }
 }
 
