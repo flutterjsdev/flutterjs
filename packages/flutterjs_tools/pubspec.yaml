@@ -11,8 +11,8 @@ environment:
 # Add regular dependencies here.
 dependencies:
   path: ^1.9.0
-  engine:
-    path: ../engine
+  flutterjs_core:
+    path: ../flutterjs_core
   flutterjs_analyzer:
     path: ../flutterjs_analyzer  
   dev_utils:

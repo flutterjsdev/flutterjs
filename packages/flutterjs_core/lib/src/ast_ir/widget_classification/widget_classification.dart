@@ -1,4 +1,4 @@
-import 'package:engine/src/ast_ir/ast_it.dart';
+import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:meta/meta.dart';
 import '../class_decl.dart';
 import 'dart:core';

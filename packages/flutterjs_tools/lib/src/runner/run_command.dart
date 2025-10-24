@@ -3,10 +3,10 @@ import 'package:args/command_runner.dart';
 import 'package:flutterjs_tools/src/runner/helper.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
-import 'package:engine/src/binary_constrain/binary_ir_reader.dart';
+import 'package:flutterjs_core/flutterjs_core.dart';
 
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:engine/engine.dart';
+
 
 // import '../../dev/runner/helper.dart';
 // import '../../dev/engine/binary_constrain/validating/comprehensive_ir_validator.dart';

@@ -10,7 +10,7 @@ workspace:
   - packages/flutterjs_tools/
   - packages/flutterjs_gen/
   - packages/flutterjs_analyzer/
-  - packages/engine/
+  - packages/flutterjs_core/
 
 environment:
   sdk: ^3.10.0-227.0.dev
@@ -21,8 +21,8 @@ dependencies:
   args:
   flutterjs_analyzer:
     path: packages/flutterjs_analyzer
-  engine:
-    path: packages/engine
+  flutterjs_core:
+    path: packages/flutterjs_core
   flutterjs_gen:
     path: packages/flutterjs_gen
   flutterjs_tools:
