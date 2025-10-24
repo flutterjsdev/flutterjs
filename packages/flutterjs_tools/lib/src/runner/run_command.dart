@@ -1,22 +1,12 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
-import 'package:flutterjs_tools/runner/helper.dart';
+import 'package:flutterjs_tools/src/runner/helper.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
 import 'package:engine/src/binary_constrain/binary_ir_reader.dart';
 
-// import '../../dev/engine/analyzer/analying_project.dart';
-// import '../../dev/engine/analyzer/ir_linker.dart';
-// import '../../dev/engine/binary_constrain/binary_ir_reader.dart';
-// import '../../dev/engine/binary_constrain/binary_ir_writer.dart';
-// import '../../dev/engine/declaration_pass.dart';
-// import '../../dev/engine/flow_analysis_pass.dart';
-// import '../../dev/engine/new_ast_IR/dart_file_builder.dart';
-// import '../../dev/engine/new_ast_IR/diagnostics/analysis_issue.dart';
-// import '../../dev/engine/symbol_resolution.dart';
-// import '../../dev/engine/type_inference_pass.dart';
-// import '../../dev/engine/validation_pass.dart';
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:engine/engine.dart';
 
 // import '../../dev/runner/helper.dart';
 // import '../../dev/engine/binary_constrain/validating/comprehensive_ir_validator.dart';

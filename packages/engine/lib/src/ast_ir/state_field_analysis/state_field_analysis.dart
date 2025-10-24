@@ -422,74 +422,74 @@ class StateFieldIssueIR extends IRNode {
       '[${severity.name.toUpperCase()}] ${issueType.name}: $message';
 }
 
-// =============================================================================
-// REBUILD TRIGGER GRAPH
-// =============================================================================
+// // =============================================================================
+// // REBUILD TRIGGER GRAPH
+// // =============================================================================
 
-/// Models dependencies between state changes and UI rebuilds
-///
-/// Nodes: StateField, Edges: "change in X triggers rebuild of Y"
-@immutable
-class RebuildTriggerGraph extends IRNode {
-  /// All state fields as graph nodes
-  final List<StateFieldAnalysis> stateFields;
+// /// Models dependencies between state changes and UI rebuilds
+// ///
+// /// Nodes: StateField, Edges: "change in X triggers rebuild of Y"
+// @immutable
+// class RebuildTriggerGraph extends IRNode {
+//   /// All state fields as graph nodes
+//   final List<StateFieldAnalysis> stateFields;
 
-  /// Edges: state field → build method/widget
-  final List<RebuildTriggerEdge> edges;
+//   /// Edges: state field → build method/widget
+//   final List<RebuildTriggerEdge> edges;
 
-  /// Computed transitive closure (field X affects all these widgets)
-  final Map<String, Set<String>> transitiveAffects;
+//   /// Computed transitive closure (field X affects all these widgets)
+//   final Map<String, Set<String>> transitiveAffects;
 
-  /// Analysis results
-  final RebuildGraphAnalysisIR analysis;
+//   /// Analysis results
+//   final RebuildGraphAnalysisIR analysis;
 
-  RebuildTriggerGraph({
-    required super.id,
-    required super.sourceLocation,
-    this.stateFields = const [],
-    this.edges = const [],
-    this.transitiveAffects = const {},
-    required this.analysis,
-  });
+//   RebuildTriggerGraph({
+//     required super.id,
+//     required super.sourceLocation,
+//     this.stateFields = const [],
+//     this.edges = const [],
+//     this.transitiveAffects = const {},
+//     required this.analysis,
+//   });
 
-  /// Find all fields that affect a given widget
-  Set<String> getFieldsAffecting(String widgetName) {
-    final affecting = <String>{};
-    for (final edge in edges) {
-      if (edge.targetWidget == widgetName) {
-        affecting.add(edge.sourceField);
-      }
-    }
-    return affecting;
-  }
+//   /// Find all fields that affect a given widget
+//   Set<String> getFieldsAffecting(String widgetName) {
+//     final affecting = <String>{};
+//     for (final edge in edges) {
+//       if (edge.targetWidget == widgetName) {
+//         affecting.add(edge.sourceField);
+//       }
+//     }
+//     return affecting;
+//   }
 
-  /// Find all widgets affected by a given field
-  Set<String> getWidgetsAffectedBy(String fieldName) =>
-      transitiveAffects[fieldName] ?? {};
+//   /// Find all widgets affected by a given field
+//   Set<String> getWidgetsAffectedBy(String fieldName) =>
+//       transitiveAffects[fieldName] ?? {};
 
-  /// Find redundant state modifications (same field modified multiple times per operation)
-  List<RedundantModificationIR> findRedundantModifications() {
-    final result = <RedundantModificationIR>[];
-    for (final field in stateFields) {
-      if (field.setStateCallsModifying.length > 1) {
-        result.add(
-          RedundantModificationIR(
-            fieldName: field.field.name,
-            modificationCount: field.setStateCallsModifying.length,
-            locations: field.setStateCallsModifying
-                .map((m) => m.setStateLocation)
-                .toList(),
-          ),
-        );
-      }
-    }
-    return result;
-  }
+//   /// Find redundant state modifications (same field modified multiple times per operation)
+//   List<RedundantModificationIR> findRedundantModifications() {
+//     final result = <RedundantModificationIR>[];
+//     for (final field in stateFields) {
+//       if (field.setStateCallsModifying.length > 1) {
+//         result.add(
+//           RedundantModificationIR(
+//             fieldName: field.field.name,
+//             modificationCount: field.setStateCallsModifying.length,
+//             locations: field.setStateCallsModifying
+//                 .map((m) => m.setStateLocation)
+//                 .toList(),
+//           ),
+//         );
+//       }
+//     }
+//     return result;
+//   }
 
-  @override
-  String toShortString() =>
-      'RebuildGraph [${stateFields.length} fields, ${edges.length} dependencies]';
-}
+//   @override
+//   String toShortString() =>
+//       'RebuildGraph [${stateFields.length} fields, ${edges.length} dependencies]';
+// }
 
 /// A single edge in the rebuild trigger graph
 @immutable

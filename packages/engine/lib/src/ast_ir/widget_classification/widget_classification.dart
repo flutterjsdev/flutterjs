@@ -1,3 +1,4 @@
+import 'package:engine/src/ast_ir/ast_it.dart';
 import 'package:meta/meta.dart';
 import '../class_decl.dart';
 import 'dart:core';
@@ -276,83 +277,6 @@ enum ChildHandling {
 // =============================================================================
 
 /// Information about a widget's build method
-@immutable
-class BuildMethodDecl {
-  /// Unique identifier for this build method
-  final String id;
-
-  /// Return type (usually Widget, but could be other types)
-  final String returnType;
-
-  /// Whether the method is async
-  final bool isAsync;
-
-  /// Number of statements in the build method
-  final int statementCount;
-
-  /// Whether build method has conditional logic
-  final bool hasConditionals;
-
-  /// Whether build method has loops
-  final bool hasLoops;
-
-  /// Widgets instantiated directly in this build method
-  final List<String> instantiatedWidgets;
-
-  /// Calls to Theme.of, MediaQuery.of, etc.
-  final List<String> ancestorReads;
-
-  /// Calls to Provider, context.read, context.watch
-  final List<String> providerReads;
-
-  /// Calls to FutureBuilder, StreamBuilder
-  final List<String> asyncBuilders;
-
-  /// State fields accessed in this build
-  final List<String> accessedStateFields;
-
-  /// Maximum widget tree depth in returned tree
-  final int maxTreeDepth;
-
-  /// Total widget nodes potentially created
-  final int potentialNodeCount;
-
-  const BuildMethodDecl({
-    required this.id,
-    this.returnType = 'Widget',
-    this.isAsync = false,
-    this.statementCount = 0,
-    this.hasConditionals = false,
-    this.hasLoops = false,
-    this.instantiatedWidgets = const [],
-    this.ancestorReads = const [],
-    this.providerReads = const [],
-    this.asyncBuilders = const [],
-    this.accessedStateFields = const [],
-    this.maxTreeDepth = 0,
-    this.potentialNodeCount = 0,
-  });
-
-  /// Whether this build method is complex (heuristic)
-  bool get isComplex =>
-      statementCount > 20 ||
-      hasConditionals ||
-      hasLoops ||
-      instantiatedWidgets.length > 10 ||
-      maxTreeDepth > 5;
-
-  /// Performance rating based on complexity
-  PerformanceProfile get performanceRating {
-    if (potentialNodeCount > 100) return PerformanceProfile.veryExpensive;
-    if (potentialNodeCount > 50) return PerformanceProfile.expensive;
-    if (isComplex) return PerformanceProfile.moderate;
-    return PerformanceProfile.lightweight;
-  }
-
-  @override
-  String toString() =>
-      'BuildMethod(returns: $returnType, statements: $statementCount)';
-}
 
 // =============================================================================
 // WIDGET CLASSIFICATION ENGINE
@@ -532,7 +456,7 @@ class WidgetClassifier {
       isStateless: isStateless,
       isStateful: isStateful,
       isInherited: isInherited,
-      buildReturnType: buildMethodFromClass?.returnType ?? 'Widget',
+      buildReturnType: buildMethodFromClass?.returnType.displayName() ?? 'Widget',
       buildMethod: buildMethod,
       stateClassName: stateClassName,
       performanceProfile: performanceProfile,
@@ -558,19 +482,88 @@ class WidgetClassifier {
   }
 
   /// Extract BuildMethodDecl from ClassDecl's build method
+  /// Now constructs full BuildMethodDecl extending MethodDecl
   static BuildMethodDecl? _extractBuildMethod(ClassDecl classDecl) {
     try {
-      final buildMethod = classDecl.methods.firstWhere(
+      final buildMethodBase = classDecl.methods.firstWhere(
         (m) => m.name == 'build',
       );
+      
+      // Construct BuildMethodDecl with all inherited MethodDecl properties
       return BuildMethodDecl(
-        id: buildMethod.id,
-        returnType: buildMethod.returnType.displayName(),
-        isAsync: buildMethod.isAsync,
+        // Inherited MethodDecl properties
+        id: buildMethodBase.id,
+        name: buildMethodBase.name,
+        returnType: buildMethodBase.returnType,
+        sourceLocation: buildMethodBase.sourceLocation,
+        parameters: buildMethodBase.parameters,
+        body: buildMethodBase.body,
+        isAsync: buildMethodBase.isAsync,
+        documentation: buildMethodBase.documentation,
+        annotations: buildMethodBase.annotations,
+        className: buildMethodBase.className,
+        markedOverride: buildMethodBase.markedOverride,
+        
+        // BuildMethodDecl-specific properties (State version)
+        maxTreeDepth: 0, // Will be computed by analyzer
+        estimatedNodeCount: 0,
+        hasConditionals: false,
+        hasLoops: false,
+        createsWidgetsInLoops: false,
+        instantiatedWidgets: const [],
+        ancestorReads: const [],
+        providerReads: const [],
+        asyncBuilders: const [],
+        accessedStateFields: const [],
       );
     } catch (e) {
       return null;
     }
+  }
+
+  /// Determine performance profile based on build method analysis
+  static PerformanceProfile _determinePerformanceProfile(
+    ClassDecl classDecl,
+    BuildMethodDecl? buildMethod,
+  ) {
+    // If build method provided, use its performance rating
+    if (buildMethod != null) {
+       if (buildMethod.estimatedNodeCount > 100) {
+        return PerformanceProfile.veryExpensive;
+      }
+      if (buildMethod.estimatedNodeCount > 50) {
+        return PerformanceProfile.expensive;
+      }
+      if (buildMethod.statementCount > 30) {
+        return PerformanceProfile.moderate;
+      }
+      if (buildMethod.createsWidgetsInLoops || buildMethod.hasLoops) {
+        return PerformanceProfile.expensive;
+      }
+      return PerformanceProfile.lightweight;
+    }
+
+    // Heuristic: analyze class complexity
+    final methodCount = classDecl.methods.length;
+    final fieldCount = classDecl.fields.length;
+
+    // Check widget name patterns
+    if (classDecl.name.contains('Future') ||
+        classDecl.name.contains('Stream')) {
+      return PerformanceProfile.expensive;
+    }
+    if (classDecl.name == 'ListView' ||
+        classDecl.name == 'GridView' ||
+        classDecl.name == 'CustomScrollView') {
+      return PerformanceProfile.moderate;
+    }
+
+    // Check structural complexity
+    if (methodCount > 10 || fieldCount > 5) {
+      return PerformanceProfile.moderate;
+    }
+
+    return PerformanceProfile.lightweight;
   }
 
   /// Detect if widget is const-constructible
@@ -682,35 +675,6 @@ class WidgetClassifier {
     }
 
     return ChildHandling.singleChild;
-  }
-
-  /// Determine performance profile
-  static PerformanceProfile _determinePerformanceProfile(
-    ClassDecl classDecl,
-    BuildMethodDecl? buildMethod,
-  ) {
-    if (buildMethod != null) {
-      return buildMethod.performanceRating;
-    }
-
-    // Heuristic: analyze class complexity
-    final methodCount = classDecl.methods.length;
-    final fieldCount = classDecl.fields.length;
-
-    if (classDecl.name.contains('Future') ||
-        classDecl.name.contains('Stream')) {
-      return PerformanceProfile.expensive;
-    }
-    if (classDecl.name == 'ListView' ||
-        classDecl.name == 'GridView' ||
-        classDecl.name == 'CustomScrollView') {
-      return PerformanceProfile.moderate;
-    }
-    if (methodCount > 10 || fieldCount > 5) {
-      return PerformanceProfile.moderate;
-    }
-
-    return PerformanceProfile.lightweight;
   }
 
   /// Predict if widget rebuilds frequently

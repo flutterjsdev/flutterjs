@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import '../ast_it.dart';
 import '../diagnostics/source_location.dart';
 import 'expression_types/operations/operations.dart';
 import 'ir_node.dart';
@@ -605,26 +606,7 @@ class MapExpressionIR extends ExpressionIR {
 }
 
 /// A single key-value entry in a map literal
-@immutable
-class MapEntryIR {
-  final ExpressionIR key;
-  final ExpressionIR value;
 
-  const MapEntryIR({required this.key, required this.value});
-
-  bool get isConstant => key.isConstant && value.isConstant;
-
-  Map<String, dynamic> toJson() {
-    return {'key': key.toJson(), 'value': value.toJson()};
-  }
-
-  factory MapEntryIR.fromJson(Map<String, dynamic> json) {
-    return MapEntryIR(
-      key: ExpressionIR.fromJson(json['key'] as Map<String, dynamic>),
-      value: ExpressionIR.fromJson(json['value'] as Map<String, dynamic>),
-    );
-  }
-}
 
 /// Represents a set literal
 @immutable

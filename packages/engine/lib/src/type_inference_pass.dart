@@ -839,10 +839,7 @@ class NullTypeIR extends TypeIR {
     : super(name: 'Null', isNullable: true);
 }
 
-class NeverTypeIR extends TypeIR {
-  const NeverTypeIR({required super.id, required super.sourceLocation})
-    : super(name: 'Never', isNullable: false);
-}
+
 
 class UnresolvedTypeIR extends TypeIR {
   final String unresolvedName;
@@ -882,33 +879,9 @@ class StreamTypeIR extends TypeIR {
   String get name => 'Stream<${wrappedType.name}>';
 }
 
-class FunctionTypeIR extends TypeIR {
-  final TypeIR returnType;
-  final List<TypeIR> parameterTypes;
 
-  const FunctionTypeIR({
-    required super.id,
-    required this.returnType,
-    required this.parameterTypes,
-    required super.sourceLocation,
-  }) : super(name: 'Function', isNullable: false);
-}
 
-class GenericTypeIR extends TypeIR {
-  final String baseTypeName;
-  final List<TypeIR> typeArguments;
 
-  const GenericTypeIR({
-    required super.id,
-    required this.baseTypeName,
-    required this.typeArguments,
-    required super.sourceLocation,
-  }) : super(name: '$baseTypeName<', isNullable: false);
-
-  @override
-  String get name =>
-      '$baseTypeName<${typeArguments.map((t) => t.name).join(', ')}>';
-}
 
 // Extension to DartFile to hold type inference info
 extension DartFileTypeInference on DartFile {

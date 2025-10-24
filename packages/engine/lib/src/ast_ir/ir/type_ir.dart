@@ -258,6 +258,8 @@ class DynamicTypeIR extends TypeIR {
   bool get isGeneric => false;
 
   @override
+  bool isAssignableTo(TypeIR other) => true; // dynamic is assignable to everything
+  @override
   String displayName() => name;
 }
 
