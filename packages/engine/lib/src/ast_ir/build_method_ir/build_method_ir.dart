@@ -731,14 +731,9 @@ enum ConditionalPatternType {
   nullCoalesce, // value ?? default
 }
 
-enum LoopTypeIR {
-  forLoop, // for (var i = 0; ...)
-  forEach, // for (var item in items)
-  mapMethod, // items.map()
-  expandMethod, // items.expand()
-  listMap, // [...list.map()]
-  custom, // other iteration
-}
+
+
+
 
 enum AncestorAccessTypeIR {
   theme, // Theme.of(context)

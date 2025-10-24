@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 
+import '../../../ast_it.dart';
 import '../../expression_ir.dart';
 import '../../ir_node.dart';
 import '../../type_ir.dart';
@@ -128,7 +129,10 @@ class MapLiteralExpr extends ExpressionIR {
 
 @immutable
 class MapEntryIR extends IRNode {
+  /// The key expression in this map entry
   final ExpressionIR key;
+
+  /// The value expression in this map entry
   final ExpressionIR value;
 
   const MapEntryIR({
@@ -139,8 +143,38 @@ class MapEntryIR extends IRNode {
     super.metadata,
   });
 
+  /// Whether both key and value are constant expressions
+  bool get isConstant => key.isConstant && value.isConstant;
+
+  /// Short string representation of this map entry
   @override
   String toShortString() => '${key.toShortString()}: ${value.toShortString()}';
+
+  /// Convert to JSON for serialization
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'sourceLocation': sourceLocation.toJson(),
+      'key': key.toJson(),
+      'value': value.toJson(),
+      if (metadata != null) 'metadata': metadata,
+    };
+  }
+
+  /// Create from JSON
+  factory MapEntryIR.fromJson(Map<String, dynamic> json) {
+    return MapEntryIR(
+      id: json['id'] as String,
+      sourceLocation: SourceLocationIR.fromJson(
+        json['sourceLocation'] as Map<String, dynamic>,
+      ),
+      key: ExpressionIR.fromJson(json['key'] as Map<String, dynamic>),
+      value: ExpressionIR.fromJson(json['value'] as Map<String, dynamic>),
+      metadata: json['metadata'] != null
+          ? json['metadata'] as Map<String, dynamic>
+          : null,
+    );
+  }
 }
 
 @immutable

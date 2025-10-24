@@ -1,6 +1,7 @@
 name: flutterjs
 description: A sample command-line application.
 version: 1.0.0
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # repository: https://github.com/my_org/my_repo
 
 workspace:
@@ -17,7 +18,18 @@ environment:
 # Add regular dependencies here.
 dependencies:
   path: ^1.9.0
-  args: 
+  args:
+  flutterjs_analyzer:
+    path: packages/flutterjs_analyzer
+  engine:
+    path: packages/engine
+  flutterjs_gen:
+    path: packages/flutterjs_gen
+  flutterjs_tools:
+    path: packages/flutterjs_tools
+  dev_utils:
+    path: packages/dev_utils    
+  
 
 dev_dependencies:
   lints: ^6.0.0

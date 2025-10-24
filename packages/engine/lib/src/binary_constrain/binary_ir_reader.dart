@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
+import '../ast_ir/ast_it.dart';
 import '../ast_ir/class_decl.dart';
 import '../ast_ir/dart_file_builder.dart';
 import '../ast_ir/diagnostics/analysis_issue.dart';
@@ -29,6 +30,8 @@ import 'binary_ir_writer.dart';
 /// - Checksum validation
 /// - Full IR reconstruction
 class BinaryIRReader {
+   int _entryIdCounter = 0;
+  int _exprIdCounter = 0;
   late ByteData _data;
   late List<String> _stringTable;
   int _offset = 0;
@@ -1543,26 +1546,41 @@ class BinaryIRReader {
     );
   }
 
-  MapExpressionIR _readMapLiteralExpression() {
-    final entryCount = _readUint32();
-    final entries = <MapEntryIR>[];
-    for (int i = 0; i < entryCount; i++) {
-      final key = _readExpression();
-      final value = _readExpression();
-      entries.add(MapEntryIR(key: key, value: value));
-    }
-    final isConst = _readByte() != 0;
-    final resultType = _readType();
-    final sourceLocation = _readSourceLocation();
-
-    return MapExpressionIR(
-      id: 'expr_map',
-      entries: entries,
-      isConst: isConst,
-      resultType: resultType,
-      sourceLocation: sourceLocation,
+ MapExpressionIR _readMapLiteralExpression() {
+  final entryCount = _readUint32();
+  final entries = <MapEntryIR>[];
+  
+  for (int i = 0; i < entryCount; i++) {
+    final entryId = 'map_entry_${_entryIdCounter++}';
+    final entrySourceLocation = _readSourceLocation();
+    
+    final key = _readExpression();
+    final value = _readExpression();
+    
+    entries.add(
+      MapEntryIR(
+        id: entryId,
+        sourceLocation: entrySourceLocation,
+        key: key,
+        value: value,
+      ),
     );
   }
+  
+  final isConst = _readByte() != 0;
+  final resultType = _readType();
+  final sourceLocation = _readSourceLocation();
+  final exprId = 'expr_map_${_exprIdCounter++}';
+
+  return MapExpressionIR(
+    id: exprId,
+    entries: entries,
+    isConst: isConst,
+    resultType: resultType,
+    sourceLocation: sourceLocation,
+  );
+}
+
 
   // --- Special ---
 
