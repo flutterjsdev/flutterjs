@@ -1,0 +1,27 @@
+{
+  "name": "flutter_js",
+  "version": "1.0.0",
+  "description": "JavaScript runtime for Flutter.js",
+  "main": "dist/flutter_js.js",
+  "module": "dist/flutter_js.esm.js",
+  "bin": {
+    "flutter_js": "./cli/index.js"
+  },
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "prepare": "npm run build"
+  },
+  "keywords": ["flutter", "framework", "transpiler"],
+  "author": "Jayprakash Pal <jaypal1046@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.0.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup": "^4.0.0"
+  }
+}
