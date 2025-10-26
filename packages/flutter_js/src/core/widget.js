@@ -1,150 +1,367 @@
-import { BuildContext } from '../context/build_context.js';
-import { FrameworkScheduler } from '../scheduler/framework_scheduler.js';
+import { BuildContext } from './build_context.js';
+import { FrameworkScheduler } from './scheduler.js';
+// ============================================================================
+// 4. WIDGET CLASS - Abstract base
+// ============================================================================
+
+/**
+ * Widget - Abstract base class for all widgets
+ */
 class Widget {
   constructor(key = null) {
     if (new.target === Widget) {
-      throw new Error('Widget is abstract');
+      throw new Error('Widget is abstract and cannot be instantiated');
     }
     this.key = key;
   }
 
+  /**
+   * Create an Element for this widget
+   * Must be implemented in subclasses
+   */
   createElement() {
-    throw new Error(`${this.constructor.name}.createElement() must be implemented`);
+    throw new Error(
+      `${this.constructor.name}.createElement() must be implemented`
+    );
   }
 
+  /**
+   * Get short description of widget
+   */
   toStringShort() {
-    const type = this.constructor.name;
-    return this.key ? `${type}-${this.key}` : type;
+    return `${this.constructor.name}${this.key ? `-${this.key}` : ''}`;
+  }
+
+  toString() {
+    return this.toStringShort();
   }
 }
 
+// ============================================================================
+// 5. ELEMENT CLASS - Base element
+// ============================================================================
+
+/**
+ * Element - Represents an instance of a widget in the widget tree
+ */
 class Element {
   constructor(widget) {
+    if (!widget) {
+      throw new Error('Element requires a widget');
+    }
+
     this.widget = widget;
     this._parent = null;
     this._children = [];
     this._mounted = false;
     this._depth = 0;
+    this._deactivated = false;
+
+    // Performance tracking
+    this._debugLabel = widget.constructor.name;
+
+    // Create context
     this.context = new BuildContext(this);
   }
 
+  /**
+   * Mount this element into the tree
+   */
   mount(parent = null) {
     this._parent = parent;
     this._mounted = true;
 
     // Calculate depth for scheduler optimization
     if (parent) {
-      this._depth = (parent._depth || 0) + 1;
+      this._depth = parent._depth + 1;
+    } else {
+      this._depth = 0;
+    }
+
+    if (FrameworkScheduler._config.debugMode) {
+      console.log(`📍 Mount: ${this._debugLabel} (depth: ${this._depth})`);
     }
   }
 
+  /**
+   * Unmount this element from the tree
+   */
   unmount() {
     this._mounted = false;
-    this._children.forEach(child => child.unmount());
-    this._children = [];
-  }
 
-  markNeedsBuild() {
-    if (this._mounted && !FrameworkScheduler.isUpdating()) {
-      FrameworkScheduler.markDirty(this);
+    // Unmount all children
+    for (const child of this._children) {
+      child.unmount();
+    }
+
+    this._children = [];
+
+    if (FrameworkScheduler._config.debugMode) {
+      console.log(`🗑️  Unmount: ${this._debugLabel}`);
     }
   }
 
+  /**
+   * Deactivate this element
+   */
+  deactivate() {
+    this._deactivated = true;
+    for (const child of this._children) {
+      child.deactivate();
+    }
+  }
+
+  /**
+   * Mark this element as needing rebuild
+   */
+  markNeedsBuild() {
+    if (!this._mounted || this._deactivated) {
+      return;
+    }
+    FrameworkScheduler.markNeedsBuild(this);
+  }
+
+  /**
+   * Mark this element as needing layout
+   */
+  markNeedsLayout() {
+    if (!this._mounted || this._deactivated) {
+      return;
+    }
+    FrameworkScheduler.markNeedsLayout(this);
+  }
+
+  /**
+   * Perform rebuild
+   */
   performRebuild() {
     // Override in subclasses
   }
 
-  dispose() {
-    this.unmount();
+  /**
+   * Perform layout
+   */
+  performLayout() {
+    // Override in subclasses
   }
 
+  /**
+   * Add child element
+   */
+  addChild(child) {
+    this._children.push(child);
+  }
+
+  /**
+   * Remove child element
+   */
+  removeChild(child) {
+    const index = this._children.indexOf(child);
+    if (index > -1) {
+      this._children.splice(index, 1);
+    }
+  }
+
+  /**
+   * Check if this element can update with new widget
+   */
   static canUpdate(oldWidget, newWidget) {
     return oldWidget?.constructor === newWidget?.constructor &&
       oldWidget?.key === newWidget?.key;
   }
-}
 
-
-class StatefulWidget extends Widget {
-  constructor(key = null) {
-    super(key);
-  }
-
-  createElement() {
-    return new StatefulElement(this);
-  }
-
-  createState() {
-    throw new Error(`${this.constructor.name}.createState() must be implemented`);
+  /**
+   * Get debug label
+   */
+  get debugLabel() {
+    return this._debugLabel;
   }
 }
 
-class StatefulElement extends Element {
-  constructor(widget) {
-    super(widget);
-    this.state = widget.createState();
-    this.state._element = this;
-  }
+// ============================================================================
+// 6. STATELESS WIDGET & ELEMENT
+// ============================================================================
 
-  mount(parent = null) {
-    super.mount(parent);
-    this.state._mounted = true;
-
-    if (!this.state._didInitState) {
-      this.state._didInitState = true;
-      this.state.initState();
-    }
-
-    this.state.didChangeDependencies();
-  }
-
-  unmount() {
-    this.state.dispose();
-    this.state._mounted = false;
-    super.unmount();
-  }
-
-  performRebuild() {
-    this.state.didUpdateWidget(this.widget);
-    return this.state.build(this.context);
-  }
-
-  updateWidget(newWidget) {
-    this.widget = newWidget;
-    this.state.widget = newWidget;
-    this.markNeedsBuild();
-  }
-}
-
+/**
+ * StatelessWidget - Immutable widget that depends only on props/configuration
+ */
 class StatelessWidget extends Widget {
   constructor(key = null) {
     super(key);
   }
 
-  createElement() {
-    return new StatelessElement(this);
-  }
-
+  /**
+   * Build the widget UI
+   */
   build(context) {
     throw new Error(`${this.constructor.name}.build() must be implemented`);
   }
+
+  /**
+   * Create element for this widget
+   */
+  createElement() {
+    return new StatelessElement(this);
+  }
 }
 
+/**
+ * StatelessElement - Element for stateless widget
+ */
 class StatelessElement extends Element {
+  constructor(widget) {
+    super(widget);
+  }
+
+  /**
+   * Mount the element
+   */
   mount(parent = null) {
     super.mount(parent);
   }
 
+  /**
+   * Perform rebuild
+   */
   performRebuild() {
-    return this.widget.build(this.context);
+    const builtWidget = this.widget.build(this.context);
+    return builtWidget;
   }
 }
 
+// ============================================================================
+// 7. STATEFUL WIDGET & ELEMENT
+// ============================================================================
+
+/**
+ * StatefulWidget - Widget that holds mutable state
+ */
+class StatefulWidget extends Widget {
+  constructor(key = null) {
+    super(key);
+  }
+
+  /**
+   * Create the state object
+   */
+  createState() {
+    throw new Error(`${this.constructor.name}.createState() must be implemented`);
+  }
+
+  /**
+   * Create element for this widget
+   */
+  createElement() {
+    return new StatefulElement(this);
+  }
+}
+
+/**
+ * StatefulElement - Element for stateful widget
+ */
+class StatefulElement extends Element {
+  constructor(widget) {
+    super(widget);
+    this.state = widget.createState();
+    this.state._element = this;
+    this.state.widget = widget;
+  }
+
+  /**
+   * Mount the element
+   */
+  mount(parent = null) {
+    super.mount(parent);
+
+    this.state._mounted = true;
+
+    // Initialize state (call only once)
+    if (!this.state._didInitState) {
+      this.state._didInitState = true;
+      try {
+        this.state.initState();
+      } catch (error) {
+        console.error(`initState error in ${this._debugLabel}:`, error);
+      }
+    }
+
+    // Notify of dependencies
+    try {
+      this.state.didChangeDependencies();
+    } catch (error) {
+      console.error(`didChangeDependencies error in ${this._debugLabel}:`, error);
+    }
+  }
+
+  /**
+   * Unmount the element
+   */
+  unmount() {
+    try {
+      this.state.dispose();
+    } catch (error) {
+      console.error(`dispose error in ${this._debugLabel}:`, error);
+    }
+
+    this.state._mounted = false;
+    super.unmount();
+  }
+
+  /**
+   * Deactivate the element
+   */
+  deactivate() {
+    try {
+      this.state.deactivate();
+    } catch (error) {
+      console.error(`deactivate error in ${this._debugLabel}:`, error);
+    }
+
+    super.deactivate();
+  }
+
+  /**
+   * Update widget
+   */
+  updateWidget(newWidget) {
+    const oldWidget = this.widget;
+    this.widget = newWidget;
+    this.state.widget = newWidget;
+
+    try {
+      this.state.didUpdateWidget(oldWidget);
+    } catch (error) {
+      console.error(`didUpdateWidget error in ${this._debugLabel}:`, error);
+    }
+
+    this.markNeedsBuild();
+  }
+
+  /**
+   * Perform rebuild
+   */
+  performRebuild() {
+    try {
+      return this.state.build(this.context);
+    } catch (error) {
+      console.error(`build error in ${this._debugLabel}:`, error);
+      throw error;
+    }
+  }
+}
+
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
 export {
+
+
   Widget,
   Element,
-  StatefulWidget,
-  StatefulElement,
   StatelessWidget,
-  StatelessElement
+  StatelessElement,
+  StatefulWidget,
+  StatefulElement
 };
+
