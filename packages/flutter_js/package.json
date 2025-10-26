@@ -1,27 +1,68 @@
 {
   "name": "flutter_js",
   "version": "1.0.0",
-  "description": "JavaScript runtime for Flutter.js",
-  "main": "dist/flutter_js.js",
-  "module": "dist/flutter_js.esm.js",
+  "description": "Lightweight Flutter.js CLI with zero external dependencies - Build tool for Flutter to JavaScript projects",
+  "main": "bin/index.js",
   "bin": {
-    "flutter_js": "./cli/index.js"
+    "flutter_js": "./bin/index.js"
   },
   "scripts": {
-    "build": "rollup -c",
-    "dev": "rollup -c -w",
-    "prepare": "npm run build"
+    "dev": "node bin/index.js dev",
+    "build": "node bin/index.js build",
+    "preview": "node bin/index.js preview",
+    "test": "node test/test.js",
+    "build:binary": "pkg . --compress Brotli",
+    "build:linux": "pkg . -t node18-linux-x64 -o dist/flutter_js-linux",
+    "build:macos": "pkg . -t node18-macos-x64 -o dist/flutter_js-macos",
+    "build:windows": "pkg . -t node18-win-x64 -o dist/flutter_js.exe",
+    "build:all": "npm run build:linux && npm run build:macos && npm run build:windows"
   },
-  "keywords": ["flutter", "framework", "transpiler"],
-  "author": "Jayprakash Pal <jaypal1046@gmail.com>",
+  "keywords": [
+    "flutter",
+    "flutter.js",
+    "flutter_js",
+    "dart",
+    "framework",
+    "cli",
+    "build-tool",
+    "bundler",
+    "ssr",
+    "csr",
+    "transpiler",
+    "zero-dependency"
+  ],
+  "author": "Your Name <your.email@example.com>",
   "license": "MIT",
-  "dependencies": {
-    "commander": "^11.0.0"
+  "engines": {
+    "node": ">=14.0.0"
   },
-  "devDependencies": {
-    "@rollup/plugin-node-resolve": "^15.0.0",
-    "@rollup/plugin-commonjs": "^25.0.0",
-    "@rollup/plugin-terser": "^0.4.4",
-    "rollup": "^4.0.0"
-  }
+  "files": [
+    "bin/",
+    "commands/",
+    "templates/",
+    "utils/",
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "pkg": {
+    "targets": [
+      "node18-linux-x64",
+      "node18-macos-x64",
+      "node18-win-x64"
+    ],
+    "outputPath": "dist",
+    "assets": [
+      "templates/**/*",
+      "dist/**/*"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/flutter_js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/flutter_js/issues"
+  },
+  "homepage": "https://github.com/yourusername/flutter_js#readme"
 }
