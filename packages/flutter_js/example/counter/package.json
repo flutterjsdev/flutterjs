@@ -1,5 +1,5 @@
 {
-  "name": "jay",
+  "name": "counter",
   "version": "1.0.0",
   "description": "A Flutter.js application",
   "scripts": {
