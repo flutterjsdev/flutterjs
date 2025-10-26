@@ -1,4 +1,4 @@
-# js
+# counter
 
 A Flutter.js application.
 
@@ -38,7 +38,7 @@ flutter_js preview
 ## Project Structure
 
 ```
-js/
+counter/
 ├── flutter.config.js      # Configuration file
 ├── src/
 │   └── main.dart         # Your Flutter/Dart code
