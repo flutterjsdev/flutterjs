@@ -1,39 +1,78 @@
+
+
+// ============================================================================
+// 6. STATE CLASS - Base class for stateful widget state
+// ============================================================================
 class State {
   constructor() {
     this.widget = null;
     this._element = null;
     this._mounted = false;
     this._didInitState = false;
+    this._deactivated = false;
   }
 
   get mounted() {
-    return this._mounted;
+    return this._mounted && !this._deactivated;
   }
 
   get context() {
-    return this._element?.context;
+    if (!this._element) {
+      throw new Error('State context accessed before mount');
+    }
+    return this._element.context;
   }
 
-  setState(fn) {
-    if (!this._mounted) {
-      console.warn(`setState() called on unmounted ${this.widget?.constructor.name}`);
-      return;
-    }
-
-    // Execute updater immediately (synchronously)
-    if (typeof fn === 'function') {
-      fn();
-    }
-
-    // Schedule rebuild through scheduler
-    this._element?.markNeedsBuild();
-  }
-
+  /**
+   * Initialize state - called once when widget is first created
+   */
   initState() {}
-  didChangeDependencies() {}
+
+  /**
+   * Called when widget configuration changes
+   */
   didUpdateWidget(oldWidget) {}
+
+  /**
+   * Called when dependencies change
+   */
+  didChangeDependencies() {}
+
+  /**
+   * Called when widget is removed from tree
+   */
+  deactivate() {}
+
+  /**
+   * Called when widget is permanently removed
+   */
   dispose() {}
+
+  /**
+   * Build the widget
+   */
   build(context) {
     throw new Error(`${this.constructor.name}.build() must be implemented`);
   }
+
+  /**
+   * Update state and trigger rebuild
+   */
+  setState(fn) {
+    if (!this.mounted) {
+      throw new Error(
+        `setState() called on unmounted ${this.widget?.constructor?.name ?? 'Unknown'}`
+      );
+    }
+
+    // Execute updater synchronously
+    if (typeof fn === 'function') {
+      fn.call(this);
+    }
+
+    // Mark element as needing rebuild
+    this._element?.markNeedsBuild();
+  }
 }
+
+ export default { State };

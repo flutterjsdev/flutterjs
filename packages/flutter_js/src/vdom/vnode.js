@@ -1,4 +1,4 @@
-class VNode {
+export class VNode {
   constructor({
     tag,
     props = {},
@@ -7,28 +7,36 @@ class VNode {
     ref = null,
     events = {}
   }) {
-    this.tag = tag;           // 'div', 'button', 'span'
+    this.tag = tag;           // 'div', 'button', 'span', etc.
     this.props = props;       // HTML attributes
     this.children = children; // VNode[] or string[]
-    this.key = key;
-    this.ref = ref;
-    this.events = events;     // { onClick: fn, ... }
+    this.key = key;           // For list reconciliation
+    this.ref = ref;           // Reference to DOM element
+    this.events = events;     // { onClick: fn, onHover: fn, ... }
     this._element = null;     // Cached DOM element
   }
 
-  // Render to HTML string (for SSR/SSG)
+  /**
+   * Converts VNode to HTML string (for SSR)
+   */
   toHTML() {
     const attrs = this._serializeAttrs();
     const openTag = `<${this.tag}${attrs ? ' ' + attrs : ''}>`;
 
+    // Self-closing tags
     if (this._isVoidTag()) {
       return openTag;
     }
 
+    // Children
     const childrenHTML = this.children
       .map(child => {
-        if (child instanceof VNode) return child.toHTML();
-        if (child === null || child === undefined) return '';
+        if (child instanceof VNode) {
+          return child.toHTML();
+        }
+        if (child === null || child === undefined) {
+          return '';
+        }
         return this._escapeHTML(String(child));
       })
       .join('');
@@ -36,14 +44,17 @@ class VNode {
     return `${openTag}${childrenHTML}</${this.tag}>`;
   }
 
-  // Render to DOM (for CSR)
+  /**
+   * Converts VNode to DOM element (for CSR)
+   */
   toDOM() {
     const element = document.createElement(this.tag);
     this._element = element;
 
-    // Apply props
+    // Apply props (attributes)
     Object.entries(this.props).forEach(([key, value]) => {
       if (value === null || value === undefined) return;
+
       if (key === 'className') {
         element.className = value;
       } else if (key === 'style' && typeof value === 'object') {
@@ -78,10 +89,14 @@ class VNode {
     return element;
   }
 
-  // Hydrate: attach events to existing DOM
+  /**
+   * Hydrates existing DOM element with events
+   * (Used when rendering on server, then hydrating on client)
+   */
   hydrate(existingElement) {
     this._element = existingElement;
 
+    // Attach events to existing DOM
     Object.entries(this.events).forEach(([eventName, handler]) => {
       if (handler) {
         existingElement.addEventListener(eventName, handler);
@@ -103,6 +118,9 @@ class VNode {
     return existingElement;
   }
 
+  /**
+   * Serialize HTML attributes
+   */
   _serializeAttrs() {
     return Object.entries(this.props)
       .map(([key, value]) => {
@@ -121,19 +139,37 @@ class VNode {
       .join(' ');
   }
 
+  /**
+   * Check if tag is self-closing
+   */
   _isVoidTag() {
     return ['img', 'br', 'hr', 'input', 'meta', 'link'].includes(this.tag);
   }
 
+  /**
+   * Escape HTML special characters
+   */
   _escape(str) {
-    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    const map = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    };
     return str.replace(/[&<>"']/g, c => map[c]);
   }
 
+  /**
+   * Escape HTML for text content
+   */
   _escapeHTML(str) {
     return this._escape(str);
   }
 
+  /**
+   * Convert camelCase to kebab-case
+   */
   _camelToKebab(str) {
     return str.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
   }
