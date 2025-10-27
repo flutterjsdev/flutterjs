@@ -117,8 +117,8 @@ These are **configuration/property objects** that define how other widgets look.
 ### Widgets
 
 #### A. Color & Theme
-- **colors.dart** → Color definitions
-- **color_scheme.dart** → Color palette
+1 - **colors.dart** → Color definitions 
+ - **color_scheme.dart** → Color palette
 - **text_theme.dart** → Text styles
 - **theme.dart** → Complete theme
 - **theme_data.dart** → Theme configuration
@@ -134,6 +134,7 @@ These are **configuration/property objects** that define how other widgets look.
 - **chip_theme.dart** → Chip styling config
 - **dialog_theme.dart** → Dialog styling config
 - **divider_theme.dart** → Divider styling config
+
 - **drawer_theme.dart** → Drawer styling config
 - **elevated_button_theme.dart** → ElevatedButton styling
 - **filled_button_theme.dart** → FilledButton styling
