@@ -1,5 +1,6 @@
 import { BuildContext } from './build_context.js';
 import { FrameworkScheduler } from './scheduler.js';
+import { ElementIdentifier } from './element_identifier.js';
 // ============================================================================
 // 4. WIDGET CLASS - Abstract base
 // ============================================================================
@@ -56,7 +57,12 @@ class Element {
     this._mounted = false;
     this._depth = 0;
     this._deactivated = false;
-
+    this._elementId = null;
+    this._identificationStrategy = null;  // 'keyed' or 'unkeyed'
+    // Global identifier generator
+    if (!Element._identifier) {
+      Element._identifier = new ElementIdentifier();
+    }
     // Performance tracking
     this._debugLabel = widget.constructor.name;
 
@@ -78,9 +84,52 @@ class Element {
       this._depth = 0;
     }
 
+    // Generate element ID based on identification strategy
+    this._generateElementId();
+
     if (FrameworkScheduler._config.debugMode) {
+      const path = Element._identifier.getWidgetPath(this);
       console.log(`📍 Mount: ${this._debugLabel} (depth: ${this._depth})`);
+      console.log(`   Path: ${path}`);
+      console.log(`   ID: ${this._elementId}`);
     }
+  }
+
+
+  /**
+  * Generate element ID using Flutter-style identification
+  */
+  _generateElementId() {
+    this._elementId = Element._identifier.getElementId(this);
+
+    // Determine strategy for debugging
+    if (this.widget.key) {
+      this._identificationStrategy = 'keyed';
+    } else {
+      this._identificationStrategy = 'unkeyed';
+    }
+  }
+
+  /**
+   * Get unique element ID
+   */
+  getElementId() {
+    return this._elementId;
+  }
+
+
+  /**
+  * Get identification strategy (for debugging)
+  */
+  getIdentificationStrategy() {
+    return this._identificationStrategy;
+  }
+
+  /**
+   * Get complete widget path in tree
+   */
+  getWidgetPath() {
+    return Element._identifier.getWidgetPath(this);
   }
 
   /**
@@ -150,6 +199,8 @@ class Element {
    */
   addChild(child) {
     this._children.push(child);
+    // Invalidate ID cache when tree structure changes
+    Element._identifier.invalidateCache();
   }
 
   /**
@@ -159,15 +210,31 @@ class Element {
     const index = this._children.indexOf(child);
     if (index > -1) {
       this._children.splice(index, 1);
+      Element._identifier.invalidateCache();
     }
   }
 
   /**
    * Check if this element can update with new widget
    */
-  static canUpdate(oldWidget, newWidget) {
-    return oldWidget?.constructor === newWidget?.constructor &&
-      oldWidget?.key === newWidget?.key;
+  static canUpdate(oldElement, newWidget) {
+    // 1. Check if widget types match
+    if (oldElement?.widget.constructor !== newWidget?.constructor) {
+      return false;
+    }
+
+    // 2. If both have keys, they must match
+    if (oldElement?.widget.key && newWidget?.key) {
+      return oldElement.widget.key === newWidget.key;
+    }
+
+    // 3. If both are keyless, they can update (position-based)
+    if (!oldElement?.widget.key && !newWidget?.key) {
+      return true;
+    }
+
+    // 4. Mismatch: one keyed, one keyless
+    return false;
   }
 
   /**
