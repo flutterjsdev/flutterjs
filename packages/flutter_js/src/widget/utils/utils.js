@@ -1,6 +1,8 @@
-// index.js (or index.ts)
+// index.js (or index.ts) - Barrel file for all design system utilities
 
-// Utils (added yesterday)
+// ===================================================================
+// Utils (added 2 days ago)
+// ===================================================================
 export * from './alignment.js';
 export * from './axis.js';
 export * from './border.js';
@@ -25,7 +27,10 @@ export * from './text_align.js';
 export * from './text_overflow.js';
 export * from './text_style.js';
 
-// Themes with added properties (2 hours ago)
+
+// ===================================================================
+// Themes (updated with new properties)
+// ===================================================================
 export * from './badge_theme.js';
 export * from './checkbox_theme.js';
 export * from './colors_theme.js';
@@ -37,36 +42,32 @@ export * from './switch_theme.js';
 export * from './typography_theme.js';
 
 
+// ===================================================================
+// New Properties Added (yesterday)
+// ===================================================================
+export * from './axis_direction.js';
+export * from './blend_mode.js';
+export * from './box_shape.js';
+export * from './decoration_position.js';
+export * from './filter_quality.js';
+export * from './flex_fit.js';
+export * from './font_style.js';
+export * from './horizontal_direction.js';
+export * from './keyboard_type.js';
+export * from './main_axis_size.js';
+export * from './shape_border.js';
+export * from './stack_fit.js';
+export * from './text_baseline.js';
+export * from './text_decoration.js';
+export * from './text_direction.js';
+export * from './text_input_action.js';
+export * from './text_input_type.js';
+export * from './vertical_direction.js';
+export * from './wrap_alignment.js';
+export * from './wrap_cross_alignment.js';
 
-export * from './text_direction.js';
-export * from './horizontal_direction.js';
-export * from './vertical_direction.js';
-export * from './main_axis_size.js';
-export * from './decoration_position.js';
-export * from './text_decoration.js';
-export * from './font_style.js';
-export * from './shape_border.js';
-export * from './text_overflow.js';
-export * from './text_direction.js';
-export * from './horizontal_direction.js';
-export * from './vertical_direction.js';
-export * from './main_axis_size.js';
-export * from './decoration_position.js';
-export * from './text_decoration.js';
-export * from './font_style.js';
-export * from './shape_border.js';
-export * from './text_overflow.js';
-export * from './text_direction.js';
-export * from './horizontal_direction.js';
-export * from './vertical_direction.js';
-export * from './main_axis_size.js';
-export * from './decoration_position.js';
-export * from './text_decoration.js';
-export * from './font_style.js';
-export * from './shape_border.js';
-export * from './text_overflow.js';
-export * from './text_direction.js';
-export * from './horizontal_direction.js';
-export * from './vertical_direction.js';
 
+// ===================================================================
+// Other / Misc
+// ===================================================================
 export * from './other.js';
