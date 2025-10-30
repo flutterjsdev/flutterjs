@@ -1,4 +1,4 @@
-import { Alignment } from './alignment.js';
+import { Alignment } from './property/alignment.js';
 import { Math } from '../../core/math.js';
 export class LinearGradient {
   constructor({

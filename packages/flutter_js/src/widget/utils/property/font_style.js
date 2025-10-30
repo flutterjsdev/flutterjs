@@ -4,6 +4,7 @@
  */
 const FontStyle = Object.freeze({
   normal: 'normal',
-  italic: 'italic'
+  italic: 'italic',
+  bold: 'bold'
 });
 export { FontStyle };
