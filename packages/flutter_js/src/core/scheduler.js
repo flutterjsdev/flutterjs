@@ -1,10 +1,3 @@
-// ============================================================================
-// 0. POLYFILLS - Browser API compatibility
-// ============================================================================
-
-/**
- * Get global object (works in browser and Node.js)
- */
 const getGlobal = () => {
   if (typeof globalThis !== 'undefined') return globalThis;
   if (typeof global !== 'undefined') return global;
@@ -14,15 +7,11 @@ const getGlobal = () => {
 
 const GLOBAL = getGlobal();
 
-/**
- * requestAnimationFrame polyfill
- */
 const requestAnimationFrame = (() => {
   if (GLOBAL.requestAnimationFrame) {
     return GLOBAL.requestAnimationFrame.bind(GLOBAL);
   }
   
-  // Node.js fallback
   let lastTime = 0;
   return (callback) => {
     const currentTime = Date.now();
@@ -32,80 +21,71 @@ const requestAnimationFrame = (() => {
   };
 })();
 
-/**
- * cancelAnimationFrame polyfill
- */
 const cancelAnimationFrame = (() => {
   if (GLOBAL.cancelAnimationFrame) {
     return GLOBAL.cancelAnimationFrame.bind(GLOBAL);
   }
   return clearTimeout;
 })();
-// ============================================================================
-// 7. FRAMEWORK SCHEDULER - Manages element updates (layout, paint, rebuild)
-// ============================================================================
+
 class FrameworkScheduler {
   static {
-    this._dirtyElements = new Set();
     this._dirtyBuildElements = new Set();
+    this._dirtyLayoutElements = new Set();
     this._frameScheduled = false;
     this._updating = false;
     this._microtaskScheduled = false;
     
-    // Performance metrics
     this._metrics = {
       totalFrames: 0,
-      totalUpdates: 0,
-      maxUpdatesPerFrame: 0,
-      averageUpdatesPerFrame: 0,
-      frameTimings: [],
-      lastFrameTime: 0
+      totalBuilds: 0,
+      totalLayouts: 0,
+      maxBuildsPerFrame: 0,
+      maxLayoutsPerFrame: 0,
+      frameTimings: []
     };
     
-    // Configuration
     this._config = {
       debugMode: false,
-      maxFrameTime: 16.67, // 60 FPS target
-      batchMicrotasks: true
+      maxFrameTime: 16.67,
+      batchMicrotasks: true,
+      debugElements: new Map()
     };
   }
 
-  /**
-   * Mark an element as needing rebuild
-   */
   static markNeedsBuild(element) {
     if (!element || !element._mounted) {
       return;
     }
 
-    // Avoid duplicates
     if (this._dirtyBuildElements.has(element)) {
       return;
     }
 
     this._dirtyBuildElements.add(element);
+
+    if (this._config.debugMode) {
+      const info = this._config.debugElements.get(element.widget.constructor.name) || { builds: 0 };
+      info.builds = (info.builds || 0) + 1;
+      this._config.debugElements.set(element.widget.constructor.name, info);
+    }
+
     this._scheduleBuild();
   }
 
-  /**
-   * Mark an element as needing layout
-   */
   static markNeedsLayout(element) {
     if (!element || !element._mounted) {
       return;
     }
 
-    if (this._dirtyElements.has(element)) {
+    if (this._dirtyLayoutElements.has(element)) {
       return;
     }
 
-    this._dirtyElements.add(element);
+    this._dirtyLayoutElements.add(element);
     this._scheduleFrame();
   }
 
-  /**
-   * Schedule a frame using requestAnimationFrame
-   */
   static _scheduleFrame() {
     if (!this._frameScheduled) {
       this._frameScheduled = true;
@@ -113,9 +93,6 @@ class FrameworkScheduler {
     }
   }
 
-  /**
-   * Schedule builds using microtasks for better batching
-   */
   static _scheduleBuild() {
     if (!this._microtaskScheduled && this._config.batchMicrotasks) {
       this._microtaskScheduled = true;
@@ -125,9 +102,6 @@ class FrameworkScheduler {
     }
   }
 
-  /**
-   * Process builds (runs before frame)
-   */
   static _processBuild() {
     this._microtaskScheduled = false;
 
@@ -141,30 +115,35 @@ class FrameworkScheduler {
       const elements = Array.from(this._dirtyBuildElements);
       this._dirtyBuildElements.clear();
 
-      // Sort by depth (parents before children)
       elements.sort((a, b) => a._depth - b._depth);
 
-      // Rebuild all elements
       for (const element of elements) {
         try {
           if (element._mounted) {
+            element.context._markBuildStart();
             element.performRebuild();
+            element.context._markBuildEnd();
           }
         } catch (error) {
+          element.context._markBuildEnd();
           console.error(
-            `Rebuild error in ${element.widget?.constructor?.name || 'Unknown'}:`,
+            `Build error in ${element.widget?.constructor?.name || 'Unknown'}:`,
             error
           );
         }
       }
+
+      this._metrics.totalBuilds += elements.length;
+      this._metrics.maxBuildsPerFrame = Math.max(
+        this._metrics.maxBuildsPerFrame,
+        elements.length
+      );
+
     } finally {
       this._updating = false;
     }
   }
 
-  /**
-   * Process frame (layout and paint)
-   */
   static _processFrame(timestamp) {
     this._frameScheduled = false;
     const frameStart = performance.now();
@@ -172,14 +151,11 @@ class FrameworkScheduler {
     try {
       this._updating = true;
 
-      // Process layout updates
-      const layoutElements = Array.from(this._dirtyElements);
-      this._dirtyElements.clear();
+      const layoutElements = Array.from(this._dirtyLayoutElements);
+      this._dirtyLayoutElements.clear();
 
-      // Sort by depth
       layoutElements.sort((a, b) => a._depth - b._depth);
 
-      // Perform layout
       for (const element of layoutElements) {
         try {
           if (element._mounted && element.performLayout) {
@@ -193,29 +169,23 @@ class FrameworkScheduler {
         }
       }
 
-      // Update metrics
       const frameTime = performance.now() - frameStart;
-      const updateCount = layoutElements.length;
       
       this._metrics.totalFrames++;
-      this._metrics.totalUpdates += updateCount;
-      this._metrics.maxUpdatesPerFrame = Math.max(
-        this._metrics.maxUpdatesPerFrame,
-        updateCount
+      this._metrics.totalLayouts += layoutElements.length;
+      this._metrics.maxLayoutsPerFrame = Math.max(
+        this._metrics.maxLayoutsPerFrame,
+        layoutElements.length
       );
-      this._metrics.averageUpdatesPerFrame = 
-        this._metrics.totalUpdates / this._metrics.totalFrames;
       this._metrics.frameTimings.push(frameTime);
-      this._metrics.lastFrameTime = frameTime;
 
-      // Keep last 100 frame timings
       if (this._metrics.frameTimings.length > 100) {
         this._metrics.frameTimings.shift();
       }
 
       if (this._config.debugMode && frameTime > this._config.maxFrameTime) {
         console.warn(
-          `⚠️ Frame took ${frameTime.toFixed(2)}ms (${updateCount} updates) - exceeds 60fps target`
+          `⚠️ Frame took ${frameTime.toFixed(2)}ms (${layoutElements.length} layouts)`
         );
       }
 
@@ -223,102 +193,97 @@ class FrameworkScheduler {
       this._updating = false;
     }
 
-    // Schedule next frame if there are pending updates
-    if (this._dirtyElements.size > 0 || this._dirtyBuildElements.size > 0) {
+    if (this._dirtyLayoutElements.size > 0 || this._dirtyBuildElements.size > 0) {
       this._scheduleFrame();
     }
   }
 
-  /**
-   * Check if scheduler is currently updating
-   */
   static isUpdating() {
     return this._updating;
   }
 
-  /**
-   * Check if there are pending updates
-   */
   static hasPendingUpdates() {
-    return this._dirtyElements.size > 0 || this._dirtyBuildElements.size > 0;
+    return this._dirtyLayoutElements.size > 0 || this._dirtyBuildElements.size > 0;
   }
 
-  /**
-   * Get pending build count
-   */
   static getPendingBuildCount() {
     return this._dirtyBuildElements.size;
   }
 
-  /**
-   * Get pending layout count
-   */
   static getPendingLayoutCount() {
-    return this._dirtyElements.size;
+    return this._dirtyLayoutElements.size;
   }
 
-  /**
-   * Get performance metrics
-   */
   static getMetrics() {
+    const timings = this._metrics.frameTimings;
     return {
       ...this._metrics,
-      averageFrameTime: this._metrics.frameTimings.length > 0
-        ? this._metrics.frameTimings.reduce((a, b) => a + b, 0) / this._metrics.frameTimings.length
+      averageFrameTime: timings.length > 0
+        ? timings.reduce((a, b) => a + b, 0) / timings.length
+        : 0,
+      averageBuildsPerFrame: this._metrics.totalFrames > 0
+        ? this._metrics.totalBuilds / this._metrics.totalFrames
+        : 0,
+      averageLayoutsPerFrame: this._metrics.totalFrames > 0
+        ? this._metrics.totalLayouts / this._metrics.totalFrames
         : 0
     };
   }
 
-  /**
-   * Reset metrics
-   */
   static resetMetrics() {
     this._metrics = {
       totalFrames: 0,
-      totalUpdates: 0,
-      maxUpdatesPerFrame: 0,
-      averageUpdatesPerFrame: 0,
-      frameTimings: [],
-      lastFrameTime: 0
+      totalBuilds: 0,
+      totalLayouts: 0,
+      maxBuildsPerFrame: 0,
+      maxLayoutsPerFrame: 0,
+      frameTimings: []
     };
+    this._config.debugElements.clear();
   }
 
-  /**
-   * Flush all pending updates synchronously (for testing)
-   */
   static flush() {
     while (this.hasPendingUpdates()) {
       if (this._dirtyBuildElements.size > 0) {
         this._processBuild();
       }
-      if (this._dirtyElements.size > 0) {
+      if (this._dirtyLayoutElements.size > 0) {
         this._processFrame(performance.now());
       }
     }
   }
 
-  /**
-   * Set debug mode
-   */
   static setDebugMode(enabled) {
     this._config.debugMode = enabled;
   }
 
-  /**
-   * Print debug info
-   */
+  static getDebugElements() {
+    return Array.from(this._config.debugElements.entries()).map(([name, info]) => ({
+      name,
+      ...info
+    }));
+  }
+
   static debugPrint() {
     const metrics = this.getMetrics();
-    console.group('🔧 FrameworkScheduler Metrics');
+    console.group('🔧 FrameworkScheduler');
     console.table({
       'Total Frames': metrics.totalFrames,
-      'Total Updates': metrics.totalUpdates,
-      'Max Updates/Frame': metrics.maxUpdatesPerFrame,
-      'Avg Updates/Frame': metrics.averageUpdatesPerFrame.toFixed(2),
+      'Total Builds': metrics.totalBuilds,
+      'Total Layouts': metrics.totalLayouts,
+      'Avg Builds/Frame': metrics.averageBuildsPerFrame.toFixed(2),
+      'Avg Layouts/Frame': metrics.averageLayoutsPerFrame.toFixed(2),
+      'Max Builds/Frame': metrics.maxBuildsPerFrame,
+      'Max Layouts/Frame': metrics.maxLayoutsPerFrame,
       'Avg Frame Time (ms)': metrics.averageFrameTime.toFixed(2),
-      'Last Frame Time (ms)': metrics.lastFrameTime.toFixed(2),
       'Pending Updates': this.getPendingBuildCount() + this.getPendingLayoutCount()
     });
+
+    if (this._config.debugMode && this._config.debugElements.size > 0) {
+      console.log('Element Updates:');
+      console.table(this.getDebugElements());
+    }
+
     console.groupEnd();
   }
 }
