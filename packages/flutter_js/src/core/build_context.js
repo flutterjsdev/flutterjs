@@ -405,6 +405,87 @@ class BuildContext {
       );
     }
   }
+
+
+
+  dependOnInheritedWidgetOfExactType(widgetType) {
+    let current = this._element._parent;
+
+    while (current) {
+      if (
+        current instanceof InheritedElement &&
+        current.widget.constructor === widgetType
+      ) {
+        current.addDependent(this._element);
+        return current.widget;
+      }
+      current = current._parent;
+    }
+
+    return null;
+  }
+
+  getInheritedWidgetOfExactType(widgetType) {
+    let current = this._element._parent;
+
+    while (current) {
+      if (
+        current instanceof InheritedElement &&
+        current.widget.constructor === widgetType
+      ) {
+        return current.widget;
+      }
+      current = current._parent;
+    }
+
+    return null;
+  }
+
+  findAncestorStateOfType(stateType) {
+    let current = this._element._parent;
+
+    while (current) {
+      if (
+        current instanceof StatefulElement &&
+        current.state instanceof stateType
+      ) {
+        return current.state;
+      }
+      current = current._parent;
+    }
+
+    return null;
+  }
+
+  findAncestorRenderObjectOfType(renderObjectType) {
+    let current = this._element._parent;
+
+    while (current) {
+      if (current.renderObject instanceof renderObjectType) {
+        return current.renderObject;
+      }
+      current = current._parent;
+    }
+
+    return null;
+  }
+
+  dispatchNotification(notification) {
+    // Traverse up the tree notifying listeners
+    let current = this._element._parent;
+
+    while (current) {
+      if (current instanceof NotificationListenerElement) {
+        if (current.widget.onNotification) {
+          const handled = current.widget.onNotification(notification);
+          if (handled) return;
+        }
+      }
+      current = current._parent;
+    }
+  }
+
+
 }
 
 export { BuildContext };
