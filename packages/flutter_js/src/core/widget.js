@@ -1,6 +1,7 @@
 import { BuildContext } from './build_context.js';
 import { FrameworkScheduler } from './scheduler.js';
 import { ElementIdentifier } from './element_identifier.js';
+import { BuildOwner } from './build_owner.js';
 
 // ============================================================================
 // DIAGNOSTIC LEVELS - Mirror Dart's DiagnosticLevel
@@ -403,6 +404,8 @@ class StatelessWidget extends Widget {
   createElement() {
     return new StatelessElement(this);
   }
+
+   reassemble() {}
 }
 
 /**
@@ -420,12 +423,21 @@ class StatelessElement extends Element {
     super.mount(parent);
   }
 
+  reassemble() {
+    this.widget.reassemble?.();
+    super.reassemble();
+  }
+
   /**
    * Perform rebuild
    */
   performRebuild() {
-    const builtWidget = this.widget.build(this.context);
-    return builtWidget;
+    try {
+      return this.widget.build(this.context);
+    } catch (error) {
+      console.error(`build error: ${error}`);
+      return new ErrorWidget({ message: error.toString() });
+    }
   }
 }
 
@@ -448,12 +460,18 @@ class StatefulWidget extends Widget {
     throw new Error(`${this.constructor.name}.createState() must be implemented`);
   }
 
+  
+
   /**
    * Create element for this widget
    */
   createElement() {
     return new StatefulElement(this);
   }
+
+
+  // New: Called during hot reload
+  reassemble() {}
 }
 
 /**
@@ -549,6 +567,23 @@ class StatefulElement extends Element {
     }
   }
 
+  reassemble() {
+    try {
+      this.state.reassemble();
+    } catch (error) {
+      console.error(`reassemble error: ${error}`);
+    }
+    super.reassemble();
+  }
+
+   didChangeDependencies() {
+    try {
+      this.state.didChangeDependencies();
+    } catch (error) {
+      console.error(`didChangeDependencies error: ${error}`);
+    }
+  }
+
   /**
    * Debug properties for StatefulElement
    */
@@ -559,11 +594,185 @@ class StatefulElement extends Element {
   }
 }
 
+
+
+class ErrorWidget extends StatelessWidget {
+  constructor({ message = 'Error', error = null } = {}) {
+    super();
+    this.message = message;
+    this.error = error;
+  }
+
+  build(context) {
+    return new VNode({
+      tag: 'div',
+      props: {
+        style: {
+          backgroundColor: '#ff1744',
+          color: 'white',
+          padding: '16px',
+          borderRadius: '4px',
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word'
+        }
+      },
+      children: [this.message]
+    });
+  }
+}
+
+
+class Notification {
+  constructor() {
+    if (new.target === Notification) {
+      throw new Error('Notification is abstract');
+    }
+  }
+
+  dispatch(context) {
+    context.dispatchNotification(this);
+  }
+}
+
+class NotificationListener extends ProxyWidget {
+  constructor({ key = null, child = null, onNotification = null } = {}) {
+    super({ key, child });
+    this.onNotification = onNotification;
+  }
+
+  createElement() {
+    return new NotificationListenerElement(this);
+  }
+}
+
+
+class Key {
+  constructor() {
+    if (new.target === Key) {
+      throw new Error('Key is abstract');
+    }
+  }
+}
+
+class ValueKey extends Key {
+  constructor(value) {
+    super();
+    this.value = value;
+  }
+
+  equals(other) {
+    return other instanceof ValueKey && this.value === other.value;
+  }
+
+  toString() {
+    return `ValueKey(${this.value})`;
+  }
+}
+
+class ObjectKey extends Key {
+  constructor(value) {
+    super();
+    this.value = value;
+  }
+
+  equals(other) {
+    return other instanceof ObjectKey && this.value === other.value;
+  }
+
+  toString() {
+    return `ObjectKey(${this.value})`;
+  }
+}
+
+class GlobalKey extends Key {
+  constructor(debugLabel = null) {
+    super();
+    this.debugLabel = debugLabel;
+    this._currentElement = null;
+  }
+
+  get currentContext() {
+    return this._currentElement?.context || null;
+  }
+
+  get currentWidget() {
+    return this._currentElement?.widget || null;
+  }
+
+  get currentState() {
+    return this._currentElement?.state || null;
+  }
+
+  equals(other) {
+    return other instanceof GlobalKey && this === other;
+  }
+
+  toString() {
+    return `GlobalKey${this.debugLabel ? `(${this.debugLabel})` : ''}`;
+  }
+}
+
+// ============================================================================
+// 2. PROXY WIDGET - Base for wrapping widgets
+// ============================================================================
+
+class ProxyWidget extends Widget {
+  constructor({ key = null, child = null } = {}) {
+    super(key);
+    if (new.target === ProxyWidget) {
+      throw new Error('ProxyWidget is abstract');
+    }
+    this.child = child;
+  }
+
+  createElement() {
+    return new ProxyElement(this);
+  }
+}
+
+// ============================================================================
+// 3. INHERITED WIDGET - Ambient state propagation
+// ============================================================================
+
+class InheritedWidget extends ProxyWidget {
+  constructor({ key = null, child = null } = {}) {
+    super({ key, child });
+  }
+
+  /**
+   * Override to return true when dependent widgets should rebuild
+   */
+  updateShouldNotify(oldWidget) {
+    throw new Error(
+      `${this.constructor.name}.updateShouldNotify() must be implemented`
+    );
+  }
+
+  createElement() {
+    return new InheritedElement(this);
+  }
+
+  static of(context, widgetType) {
+    return context.dependOnInheritedWidgetOfExactType(widgetType);
+  }
+}
+
 // ============================================================================
 // EXPORTS
 // ============================================================================
 
 export {
+  GlobalKey,
+  ValueKey,
+  ObjectKey,
+  Key,
+  ProxyWidget,
+  InheritedWidget,
+  Notification,
+  NotificationListener,
+  ErrorWidget,
   DiagnosticLevel,
   DiagnosticsTreeStyle,
   Diagnosticable,

@@ -27,6 +27,8 @@ class FlutterApp {
 
     this.rootWidget = rootWidget;
     this.targetElement = targetElement;
+    this.buildOwner = new BuildOwner();
+    this.rootElement.buildOwner = this.buildOwner;
 
     // Configuration
     this.options = {
@@ -116,6 +118,9 @@ class FlutterApp {
     const cycleStart = performance.now();
 
     try {
+
+      this.buildOwner._processDirtyElements();
+      
       // ========== STEP 1: BUILD ==========
       const buildStart = performance.now();
 

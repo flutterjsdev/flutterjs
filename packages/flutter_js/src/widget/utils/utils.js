@@ -26,6 +26,7 @@ export * from './size.js';
 export * from './property/text_align.js';
 export * from './property/text_overflow.js';
 export * from './text_style.js';
+export * from './property/text_direction.js';
 
 
 // ===================================================================
@@ -71,3 +72,4 @@ export * from './property/wrap_cross_alignment.js';
 // Other / Misc
 // ===================================================================
 export * from './property/other.js';
+export * from './geometry.js';
