@@ -1,5 +1,5 @@
 import { Alignment } from './property/alignment.js';
-import { Math } from '../../core/math.js';
+
 export class LinearGradient {
   constructor({
     begin = Alignment.topLeft,

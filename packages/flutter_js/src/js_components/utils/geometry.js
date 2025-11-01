@@ -1,4 +1,3 @@
-import { Math as MathUtils } from '../../core/math.js';
 
 /**
  * OffsetBase - Abstract base class for Size and Offset

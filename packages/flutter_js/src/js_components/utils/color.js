@@ -1,4 +1,4 @@
-import { Math } from '../../core/math.js';
+
 export class Color {
   constructor(value) {
     if (typeof value === 'string') {

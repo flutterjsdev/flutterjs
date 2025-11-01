@@ -1,4 +1,4 @@
-import { Math } from '../../core/math.js';
+
 export class Offset {
   constructor(dx = 0, dy = 0) {
     this.dx = dx;
