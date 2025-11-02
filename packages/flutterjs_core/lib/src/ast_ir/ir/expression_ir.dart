@@ -607,7 +607,6 @@ class MapExpressionIR extends ExpressionIR {
 
 /// A single key-value entry in a map literal
 
-
 /// Represents a set literal
 @immutable
 class SetExpressionIR extends ExpressionIR {

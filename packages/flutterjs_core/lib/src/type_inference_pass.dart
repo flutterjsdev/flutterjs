@@ -1,6 +1,5 @@
 import 'package:collection/collection.dart';
 
-
 import 'ast_ir/class_decl.dart';
 import 'ast_ir/dart_file_builder.dart';
 import 'ast_ir/function_decl.dart';
@@ -839,8 +838,6 @@ class NullTypeIR extends TypeIR {
     : super(name: 'Null', isNullable: true);
 }
 
-
-
 class UnresolvedTypeIR extends TypeIR {
   final String unresolvedName;
 
@@ -878,10 +875,6 @@ class StreamTypeIR extends TypeIR {
   @override
   String get name => 'Stream<${wrappedType.name}>';
 }
-
-
-
-
 
 // Extension to DartFile to hold type inference info
 extension DartFileTypeInference on DartFile {

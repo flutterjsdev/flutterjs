@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:flutterjs_tools/command.dart';
 
-
 const String version = '2.0.0';
 const String appName = 'Flutter.js';
 

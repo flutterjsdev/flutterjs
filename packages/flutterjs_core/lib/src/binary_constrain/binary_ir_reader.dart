@@ -30,7 +30,7 @@ import 'binary_ir_writer.dart';
 /// - Checksum validation
 /// - Full IR reconstruction
 class BinaryIRReader {
-   int _entryIdCounter = 0;
+  int _entryIdCounter = 0;
   int _exprIdCounter = 0;
   late ByteData _data;
   late List<String> _stringTable;
@@ -551,41 +551,42 @@ class BinaryIRReader {
     );
   }
 
- FieldDecl _readFieldDecl() {
-  final id = _readStringRef();
-  final name = _readStringRef();
-  final type = _readType();
+  FieldDecl _readFieldDecl() {
+    final id = _readStringRef();
+    final name = _readStringRef();
+    final type = _readType();
 
-  final isFinal = _readByte() != 0;
-  final isConst = _readByte() != 0;
-  final isStatic = _readByte() != 0;
-  final isLate = _readByte() != 0;
-  final isPrivate = _readByte() != 0;
+    final isFinal = _readByte() != 0;
+    final isConst = _readByte() != 0;
+    final isStatic = _readByte() != 0;
+    final isLate = _readByte() != 0;
+    final isPrivate = _readByte() != 0;
 
-  final hasInitializer = _readByte() != 0;
-  ExpressionIR? initializer;
-  if (hasInitializer) {
-    initializer = _readExpression();
+    final hasInitializer = _readByte() != 0;
+    ExpressionIR? initializer;
+    if (hasInitializer) {
+      initializer = _readExpression();
+    }
+
+    final sourceLocation = _readSourceLocation();
+
+    return FieldDecl(
+      id: id,
+      name: name,
+      type: type,
+      isFinal: isFinal,
+      isConst: isConst,
+      isStatic: isStatic,
+      isLate: isLate,
+      initializer: initializer,
+      visibility: isPrivate
+          ? VisibilityModifier.private
+          : VisibilityModifier.public,
+      sourceLocation: sourceLocation,
+      isPrivate: isPrivate,
+    );
   }
 
-  final sourceLocation = _readSourceLocation();
-
-  return FieldDecl(
-    id: id,
-    name: name,
-    type: type,
-    isFinal: isFinal,
-    isConst: isConst,
-    isStatic: isStatic,
-    isLate: isLate,
-    initializer: initializer,
-    visibility: isPrivate
-        ? VisibilityModifier.private
-        : VisibilityModifier.public,
-    sourceLocation: sourceLocation,
-    isPrivate: isPrivate,
-  );
- }
   MethodDecl _readMethodDecl() {
     printlog('[READ CLASS Method] START - offset: $_offset');
 
@@ -1546,41 +1547,40 @@ class BinaryIRReader {
     );
   }
 
- MapExpressionIR _readMapLiteralExpression() {
-  final entryCount = _readUint32();
-  final entries = <MapEntryIR>[];
-  
-  for (int i = 0; i < entryCount; i++) {
-    final entryId = 'map_entry_${_entryIdCounter++}';
-    final entrySourceLocation = _readSourceLocation();
-    
-    final key = _readExpression();
-    final value = _readExpression();
-    
-    entries.add(
-      MapEntryIR(
-        id: entryId,
-        sourceLocation: entrySourceLocation,
-        key: key,
-        value: value,
-      ),
+  MapExpressionIR _readMapLiteralExpression() {
+    final entryCount = _readUint32();
+    final entries = <MapEntryIR>[];
+
+    for (int i = 0; i < entryCount; i++) {
+      final entryId = 'map_entry_${_entryIdCounter++}';
+      final entrySourceLocation = _readSourceLocation();
+
+      final key = _readExpression();
+      final value = _readExpression();
+
+      entries.add(
+        MapEntryIR(
+          id: entryId,
+          sourceLocation: entrySourceLocation,
+          key: key,
+          value: value,
+        ),
+      );
+    }
+
+    final isConst = _readByte() != 0;
+    final resultType = _readType();
+    final sourceLocation = _readSourceLocation();
+    final exprId = 'expr_map_${_exprIdCounter++}';
+
+    return MapExpressionIR(
+      id: exprId,
+      entries: entries,
+      isConst: isConst,
+      resultType: resultType,
+      sourceLocation: sourceLocation,
     );
   }
-  
-  final isConst = _readByte() != 0;
-  final resultType = _readType();
-  final sourceLocation = _readSourceLocation();
-  final exprId = 'expr_map_${_exprIdCounter++}';
-
-  return MapExpressionIR(
-    id: exprId,
-    entries: entries,
-    isConst: isConst,
-    resultType: resultType,
-    sourceLocation: sourceLocation,
-  );
-}
-
 
   // --- Special ---
 

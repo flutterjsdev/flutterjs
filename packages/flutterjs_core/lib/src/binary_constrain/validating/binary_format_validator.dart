@@ -32,15 +32,15 @@ class BinaryFormatValidator {
       // Check magic number
       final magic = _readUint32(bytes, 0);
       if (magic != BinaryConstants.MAGIC_NUMBER) {
-        errors.add(
-          'Invalid magic number: 0x${magic.toRadixString(16)}',
-        );
+        errors.add('Invalid magic number: 0x${magic.toRadixString(16)}');
       }
 
       // Check version
       final version = _readUint16(bytes, 4);
       if (version != BinaryConstants.FORMAT_VERSION) {
-        warnings.add('Version mismatch: $version (expected ${BinaryConstants.FORMAT_VERSION})');
+        warnings.add(
+          'Version mismatch: $version (expected ${BinaryConstants.FORMAT_VERSION})',
+        );
       }
 
       // Check flags
@@ -130,7 +130,12 @@ class SemanticValidator {
     // Check 5: Constructor parameter consistency
     for (final classDecl in dartFile.classDeclarations) {
       for (final constructor in classDecl.constructors) {
-        _validateConstructorParameters(constructor, classDecl, errors, warnings);
+        _validateConstructorParameters(
+          constructor,
+          classDecl,
+          errors,
+          warnings,
+        );
       }
     }
 
@@ -142,8 +147,10 @@ class SemanticValidator {
       warnings: warnings,
       metadata: {
         'classes_checked': dartFile.classDeclarations.length,
-        'methods_checked': dartFile.classDeclarations
-            .fold(0, (sum, c) => sum + c.methods.length),
+        'methods_checked': dartFile.classDeclarations.fold(
+          0,
+          (sum, c) => sum + c.methods.length,
+        ),
       },
     );
   }
@@ -176,7 +183,9 @@ class SemanticValidator {
     // This would require analyzing the method body AST
     // Placeholder for parameter usage checking
     if (method.parameters.isEmpty && method.name == 'build') {
-      warnings.add('Method ${method.name} has no parameters (may be intentional)');
+      warnings.add(
+        'Method ${method.name} has no parameters (may be intentional)',
+      );
     }
   }
 
@@ -250,9 +259,7 @@ class SemanticValidator {
     // Check parameter types
     for (final param in constructor.parameters) {
       if (param.type.displayName().isEmpty) {
-        warnings.add(
-          'Constructor parameter ${param.name} has empty type',
-        );
+        warnings.add('Constructor parameter ${param.name} has empty type');
       }
     }
   }
@@ -332,7 +339,10 @@ class RoundTripValidator {
       }
 
       // Step 4: Detailed comparison
-      final comparisonReport = _generateComparisonReport(originalIR, reparsedIR);
+      final comparisonReport = _generateComparisonReport(
+        originalIR,
+        reparsedIR,
+      );
       if (comparisonReport.hasMismatches) {
         for (final mismatch in comparisonReport.mismatches) {
           errors.add('Structure mismatch: $mismatch');
@@ -487,7 +497,8 @@ class RoundTripValidator {
   }
 
   bool _compareIRStructures(DartFile original, DartFile reparsed) {
-    if (original.classDeclarations.length != reparsed.classDeclarations.length) {
+    if (original.classDeclarations.length !=
+        reparsed.classDeclarations.length) {
       return false;
     }
 
@@ -521,7 +532,8 @@ class RoundTripValidator {
   ) {
     final mismatches = <String>[];
 
-    if (original.classDeclarations.length != reparsed.classDeclarations.length) {
+    if (original.classDeclarations.length !=
+        reparsed.classDeclarations.length) {
       mismatches.add(
         'Class count: ${original.classDeclarations.length} vs ${reparsed.classDeclarations.length}',
       );
@@ -581,9 +593,7 @@ class DifferentialTestValidator {
       isValid: errors.isEmpty,
       errors: errors,
       warnings: warnings,
-      metadata: {
-        'classes_tested': dartFile.classDeclarations.length,
-      },
+      metadata: {'classes_tested': dartFile.classDeclarations.length},
     );
   }
 
@@ -682,8 +692,5 @@ class ExpectedStructure {
   final List<String> expectedMethods;
   final String? expectedSuperclass;
 
-  ExpectedStructure({
-    required this.expectedMethods,
-    this.expectedSuperclass,
-  });
+  ExpectedStructure({required this.expectedMethods, this.expectedSuperclass});
 }

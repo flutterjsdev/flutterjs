@@ -4,6 +4,7 @@ import 'ir/ir_node.dart';
 import 'ir/type_ir.dart';
 import 'ir/expression_ir.dart';
 import 'variable_decl.dart';
+
 @immutable
 class ParameterDecl extends IRNode {
   /// Parameter name
@@ -77,8 +78,8 @@ class ParameterDecl extends IRNode {
         : '';
 
     final typeStr = type.displayName();
-    final defaultStr = defaultValue != null 
-        ? ' = ${defaultValue!.toShortString()}' 
+    final defaultStr = defaultValue != null
+        ? ' = ${defaultValue!.toShortString()}'
         : '';
 
     return '$bracket${modifiers.isNotEmpty ? '$modifiers ' : ''}$typeStr $name$defaultStr$closeBracket';
@@ -86,7 +87,7 @@ class ParameterDecl extends IRNode {
 }
 
 /// Type parameter declaration (e.g., <T extends Comparable>)
-///  
+///
 @immutable
 class TypeParameterDecl {
   /// Type parameter name

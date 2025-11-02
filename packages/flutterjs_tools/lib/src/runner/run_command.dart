@@ -7,7 +7,6 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 
 import 'package:analyzer/dart/ast/ast.dart';
 
-
 // import '../../dev/runner/helper.dart';
 // import '../../dev/engine/binary_constrain/validating/comprehensive_ir_validator.dart';
 
@@ -205,7 +204,6 @@ class RunCommand extends Command<void> {
         sourceBasePath: absoluteSourcePath, // NEW: Pass source base path
         verbose: verbose,
       );
-
 
       await validateIRFilesComprehensive(
         outputPath: absoluteOutputPath,
@@ -506,104 +504,109 @@ class RunCommand extends Command<void> {
   // =========================================================================
   // PHASE 3: SERIALIZATION
   // =========================================================================
-Future<int> _serializeIR({
-  required IRGenerationResults irResults,
-  required String outputPath,
-  required bool verbose,
-  required String sourceBasePath,
-}) async {
-  int fileCount = 0;
-  final failedFiles = <String, String>{}; // Track failures
+  Future<int> _serializeIR({
+    required IRGenerationResults irResults,
+    required String outputPath,
+    required bool verbose,
+    required String sourceBasePath,
+  }) async {
+    int fileCount = 0;
+    final failedFiles = <String, String>{}; // Track failures
 
-  // Normalize paths to handle Windows/Linux differences
-  final normalizedOutputPath = path.normalize(outputPath);
-  final normalizedSourceBasePath = path.normalize(sourceBasePath);
+    // Normalize paths to handle Windows/Linux differences
+    final normalizedOutputPath = path.normalize(outputPath);
+    final normalizedSourceBasePath = path.normalize(sourceBasePath);
 
-  for (final entry in irResults.dartFiles.entries) {
-    final filePath = entry.key;
-    final dartFile = entry.value;
+    for (final entry in irResults.dartFiles.entries) {
+      final filePath = entry.key;
+      final dartFile = entry.value;
 
-    try {
-      // Normalize file path
-      final normalizedFilePath = path.normalize(filePath);
-
-      // SAFETY CHECK: Verify file is actually under sourceBasePath
-      if (!normalizedFilePath.startsWith(normalizedSourceBasePath)) {
-        final error = 'File not under source path: $filePath';
-        failedFiles[filePath] = error;
-        if (verbose) print('    ✗ ${path.basename(filePath)}: $error');
-        continue;
-      }
-
-      // Calculate relative path safely
       try {
-        final relativePath = path.relative(
-          normalizedFilePath,
-          from: normalizedSourceBasePath,
-        );
+        // Normalize file path
+        final normalizedFilePath = path.normalize(filePath);
 
-        // Get directory structure, handling edge cases
-        var relativeDir = path.dirname(relativePath);
-        
-        // Handle case where file is in root (dirname returns '.')
-        if (relativeDir == '.') {
-          relativeDir = '';
+        // SAFETY CHECK: Verify file is actually under sourceBasePath
+        if (!normalizedFilePath.startsWith(normalizedSourceBasePath)) {
+          final error = 'File not under source path: $filePath';
+          failedFiles[filePath] = error;
+          if (verbose) print('    ✗ ${path.basename(filePath)}: $error');
+          continue;
         }
 
-        // Get filename without extension
-        final fileNameWithoutExt = path.basenameWithoutExtension(normalizedFilePath);
-        final outputFileName = '${fileNameWithoutExt}_ir.ir';
+        // Calculate relative path safely
+        try {
+          final relativePath = path.relative(
+            normalizedFilePath,
+            from: normalizedSourceBasePath,
+          );
 
-        // Build output path
-        final outputFile = relativeDir.isEmpty
-            ? File(path.join(normalizedOutputPath, outputFileName))
-            : File(path.join(normalizedOutputPath, relativeDir, outputFileName));
+          // Get directory structure, handling edge cases
+          var relativeDir = path.dirname(relativePath);
 
-        // Serialize
-        final binaryWriter = BinaryIRWriter();
-        final binaryBytes = binaryWriter.writeFileIR(
-          dartFile,
-          verbose: false, // Use false here to avoid noise
-        );
+          // Handle case where file is in root (dirname returns '.')
+          if (relativeDir == '.') {
+            relativeDir = '';
+          }
 
-        // Create directories
-        await outputFile.parent.create(recursive: true);
+          // Get filename without extension
+          final fileNameWithoutExt = path.basenameWithoutExtension(
+            normalizedFilePath,
+          );
+          final outputFileName = '${fileNameWithoutExt}_ir.ir';
 
-        // Write file
-        await outputFile.writeAsBytes(binaryBytes);
-        fileCount++;
+          // Build output path
+          final outputFile = relativeDir.isEmpty
+              ? File(path.join(normalizedOutputPath, outputFileName))
+              : File(
+                  path.join(normalizedOutputPath, relativeDir, outputFileName),
+                );
 
-        if (verbose) {
-          final sizeKb = (binaryBytes.length / 1024).toStringAsFixed(2);
-          final displayPath = relativeDir.isEmpty
-              ? outputFileName
-              : path.join(relativeDir, outputFileName);
-          print('    ✓ ${path.basename(filePath)} → $displayPath ($sizeKb KB)');
+          // Serialize
+          final binaryWriter = BinaryIRWriter();
+          final binaryBytes = binaryWriter.writeFileIR(
+            dartFile,
+            verbose: false, // Use false here to avoid noise
+          );
+
+          // Create directories
+          await outputFile.parent.create(recursive: true);
+
+          // Write file
+          await outputFile.writeAsBytes(binaryBytes);
+          fileCount++;
+
+          if (verbose) {
+            final sizeKb = (binaryBytes.length / 1024).toStringAsFixed(2);
+            final displayPath = relativeDir.isEmpty
+                ? outputFileName
+                : path.join(relativeDir, outputFileName);
+            print(
+              '    ✓ ${path.basename(filePath)} → $displayPath ($sizeKb KB)',
+            );
+          }
+        } catch (pathError) {
+          final error = 'Path calculation failed: $pathError';
+          failedFiles[filePath] = error;
+          if (verbose) print('    ✗ ${path.basename(filePath)}: $error');
         }
-      } catch (pathError) {
-        final error = 'Path calculation failed: $pathError';
+      } catch (e) {
+        final error = 'Serialization failed: $e';
         failedFiles[filePath] = error;
         if (verbose) print('    ✗ ${path.basename(filePath)}: $error');
       }
-    } catch (e) {
-      final error = 'Serialization failed: $e';
-      failedFiles[filePath] = error;
-      if (verbose) print('    ✗ ${path.basename(filePath)}: $error');
     }
+
+    // Report summary
+    if (verbose && failedFiles.isNotEmpty) {
+      print('\n    Failed to serialize ${failedFiles.length} files:');
+      for (final entry in failedFiles.entries) {
+        print('      • ${path.basename(entry.key)}: ${entry.value}');
+      }
+    }
+
+    return fileCount;
   }
 
-  // Report summary
-  if (verbose && failedFiles.isNotEmpty) {
-    print('\n    Failed to serialize ${failedFiles.length} files:');
-    for (final entry in failedFiles.entries) {
-      print('      • ${path.basename(entry.key)}: ${entry.value}');
-    }
-  }
-
-  return fileCount;
-}
-
-  
   // =========================================================================
   // OUTPUT FORMATTING
   // =========================================================================

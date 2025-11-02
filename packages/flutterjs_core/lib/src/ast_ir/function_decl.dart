@@ -375,8 +375,6 @@ class FunctionDecl extends IRNode {
   String toString() => signature;
 }
 
-
-
 /// Represents a type parameter in a generic function or class
 ///
 /// Examples: T, K extends Comparable<K>, U super Animal
@@ -422,8 +420,7 @@ class MethodDecl extends FunctionDecl {
   });
 
   /// Full method name with class context
-  String get fullQualifiedName => 
-      className != null ? '$className.$name' : name;
+  String get fullQualifiedName => className != null ? '$className.$name' : name;
 }
 
 /// Specialized FunctionDecl for constructors

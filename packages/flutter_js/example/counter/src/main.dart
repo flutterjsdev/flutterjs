@@ -1,5 +1,5 @@
 // Flutter.js Application Entry Point
-// 
+//
 // This is a placeholder file. Write your Flutter/Dart code here.
 // After writing your code, transpile it using:
 //   flutter_js_compiler transpile src/

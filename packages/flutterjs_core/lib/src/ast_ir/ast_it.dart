@@ -34,8 +34,6 @@ export 'ir/types/primitive_type_ir.dart';
 export 'ir/types/type_hierarchy.dart';
 export 'ir/types/type_validator.dart';
 
-
-
 // diagnostics
 export 'diagnostics/analysis_issue.dart';
 export 'diagnostics/issue_categorizer.dart';
@@ -60,4 +58,3 @@ export 'state_management/state_management.dart';
 
 // widget_classification
 export 'widget_classification/widget_classification.dart';
-

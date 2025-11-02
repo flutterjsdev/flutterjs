@@ -456,7 +456,8 @@ class WidgetClassifier {
       isStateless: isStateless,
       isStateful: isStateful,
       isInherited: isInherited,
-      buildReturnType: buildMethodFromClass?.returnType.displayName() ?? 'Widget',
+      buildReturnType:
+          buildMethodFromClass?.returnType.displayName() ?? 'Widget',
       buildMethod: buildMethod,
       stateClassName: stateClassName,
       performanceProfile: performanceProfile,
@@ -488,7 +489,7 @@ class WidgetClassifier {
       final buildMethodBase = classDecl.methods.firstWhere(
         (m) => m.name == 'build',
       );
-      
+
       // Construct BuildMethodDecl with all inherited MethodDecl properties
       return BuildMethodDecl(
         // Inherited MethodDecl properties
@@ -503,7 +504,7 @@ class WidgetClassifier {
         annotations: buildMethodBase.annotations,
         className: buildMethodBase.className,
         markedOverride: buildMethodBase.markedOverride,
-        
+
         // BuildMethodDecl-specific properties (State version)
         maxTreeDepth: 0, // Will be computed by analyzer
         estimatedNodeCount: 0,
@@ -528,7 +529,7 @@ class WidgetClassifier {
   ) {
     // If build method provided, use its performance rating
     if (buildMethod != null) {
-       if (buildMethod.estimatedNodeCount > 100) {
+      if (buildMethod.estimatedNodeCount > 100) {
         return PerformanceProfile.veryExpensive;
       }
       if (buildMethod.estimatedNodeCount > 50) {

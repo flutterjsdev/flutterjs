@@ -203,5 +203,3 @@ enum AsyncBuilderKindIR {
   futureBuilder, // FutureBuilder<T>
   streamBuilder, // StreamBuilder<T>
 }
-
-

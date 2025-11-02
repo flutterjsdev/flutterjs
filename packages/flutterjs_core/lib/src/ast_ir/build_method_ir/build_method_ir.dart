@@ -731,10 +731,6 @@ enum ConditionalPatternType {
   nullCoalesce, // value ?? default
 }
 
-
-
-
-
 enum AncestorAccessTypeIR {
   theme, // Theme.of(context)
   mediaQuery, // MediaQuery.of(context)

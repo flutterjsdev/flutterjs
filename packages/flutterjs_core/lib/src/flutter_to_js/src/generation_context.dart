@@ -1,7 +1,3 @@
-// ============================================================================
-// CONTEXT TRACKING
-// ============================================================================
-
 class GenerationContext {
   /// Current class being generated
   dynamic currentClass;
@@ -64,7 +60,8 @@ class GenerationContext {
   void exitBlock() => blockDepth = (blockDepth - 1).clamp(0, blockDepth);
 
   void enterWidgetTree() => widgetTreeDepth++;
-  void exitWidgetTree() => widgetTreeDepth = (widgetTreeDepth - 1).clamp(0, widgetTreeDepth);
+  void exitWidgetTree() =>
+      widgetTreeDepth = (widgetTreeDepth - 1).clamp(0, widgetTreeDepth);
 
   bool isInStatefulWidget() => inStatefulWidget;
   bool isInBuildMethod() => inBuildMethod;

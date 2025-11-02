@@ -3,7 +3,6 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
 
-
 // ============================================================================
 // ANALYZE COMMAND - Full Phase 1 Analysis with Report
 // ============================================================================

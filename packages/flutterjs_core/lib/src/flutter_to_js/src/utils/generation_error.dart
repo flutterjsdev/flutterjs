@@ -1,4 +1,4 @@
-enum ErrorSeverity {  fatal, error, warning, info }
+enum ErrorSeverity { fatal, error, warning, info }
 
 class GenerationError {
   final String message;
@@ -42,45 +42,55 @@ class ErrorCollector {
   }
 
   void errorUnknownExpression(dynamic expr, {String? context}) {
-    addError(GenerationError(
-      message: 'Unknown expression type: ${expr.runtimeType}',
-      severity: ErrorSeverity.error,
-      suggestion: 'Check IR structure and expression types',
-      context: context,
-    ));
+    addError(
+      GenerationError(
+        message: 'Unknown expression type: ${expr.runtimeType}',
+        severity: ErrorSeverity.error,
+        suggestion: 'Check IR structure and expression types',
+        context: context,
+      ),
+    );
   }
 
   void errorTypeMismatch(String expected, String got, {String? context}) {
-    addError(GenerationError(
-      message: 'Type mismatch: expected $expected, got $got',
-      severity: ErrorSeverity.warning,
-      context: context,
-    ));
+    addError(
+      GenerationError(
+        message: 'Type mismatch: expected $expected, got $got',
+        severity: ErrorSeverity.warning,
+        context: context,
+      ),
+    );
   }
 
   void errorUnresolvedIdentifier(String name, {String? context}) {
-    addError(GenerationError(
-      message: 'Unresolved identifier: $name',
-      severity: ErrorSeverity.error,
-      suggestion: 'Check variable declaration and scope',
-      context: context,
-    ));
+    addError(
+      GenerationError(
+        message: 'Unresolved identifier: $name',
+        severity: ErrorSeverity.error,
+        suggestion: 'Check variable declaration and scope',
+        context: context,
+      ),
+    );
   }
 
   void warningUnsupportedFeature(String feature, {String? context}) {
-    addError(GenerationError(
-      message: 'Unsupported feature: $feature',
-      severity: ErrorSeverity.warning,
-      suggestion: 'Feature will be simulated or skipped',
-      context: context,
-    ));
+    addError(
+      GenerationError(
+        message: 'Unsupported feature: $feature',
+        severity: ErrorSeverity.warning,
+        suggestion: 'Feature will be simulated or skipped',
+        context: context,
+      ),
+    );
   }
 
   void warningSyntaxTransformation(String description) {
-    addError(GenerationError(
-      message: 'Syntax transformation: $description',
-      severity: ErrorSeverity.info,
-    ));
+    addError(
+      GenerationError(
+        message: 'Syntax transformation: $description',
+        severity: ErrorSeverity.info,
+      ),
+    );
   }
 
   bool hasErrors() => errors.any((e) => e.severity == ErrorSeverity.error);

@@ -1,3 +1,7 @@
+// ============================================================================
+// CONFIGURATION & ERROR HANDLING
+// ============================================================================
+
 class GeneratorConfig {
   final int indentSpaces;
   final bool useSemicolons;

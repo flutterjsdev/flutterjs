@@ -1,6 +1,9 @@
-import 'context/generation_context.dart';
+import 'generation_context.dart';
 import 'utils/generation_error.dart';
 import 'utils/generator_config.dart';
+// ============================================================================
+// MAIN GENERATOR CLASS
+// ============================================================================
 
 class IRToFlutterJSGenerator {
   // Configuration
@@ -83,13 +86,13 @@ class IRToFlutterJSGenerator {
 
   void _initializeUnaryOperators() {
     unaryOpMap.addAll({
-      0x01: '-',      // negate
-      0x02: '!',      // not
-      0x03: '~',      // bitwise not
-      0x04: '++',     // pre-increment
-      0x05: '--',     // pre-decrement
-      0x06: '++',     // post-increment
-      0x07: '--',     // post-decrement
+      0x01: '-', // negate
+      0x02: '!', // not
+      0x03: '~', // bitwise not
+      0x04: '++', // pre-increment
+      0x05: '--', // pre-decrement
+      0x06: '++', // post-increment
+      0x07: '--', // post-decrement
     });
 
     _logVerbose('Initialized ${unaryOpMap.length} unary operators');
@@ -177,7 +180,6 @@ class IRToFlutterJSGenerator {
 
     _logVerbose('Registered ${widgetRegistry.length} widgets');
   }
-
 
   // =========================================================================
   // UTILITY METHODS
@@ -377,7 +379,9 @@ class IRToFlutterJSGenerator {
       generatedClasses.clear();
       generatedFunctions.clear();
 
-      _logVerbose('Configuration applied: ${config.verboseOutput ? "verbose" : "normal"}');
+      _logVerbose(
+        'Configuration applied: ${config.verboseOutput ? "verbose" : "normal"}',
+      );
 
       // TODO: Parse binary IR into dartFile
       // dartFile = binaryReader.readFileIR(binaryData);
@@ -401,10 +405,12 @@ class IRToFlutterJSGenerator {
 
       // Validate
       if (errorCollector.hasFatalErrors()) {
-        throw GenerationException(GenerationError(
-          message: 'Generation failed with fatal errors',
-          severity: ErrorSeverity.fatal,
-        ));
+        throw GenerationException(
+          GenerationError(
+            message: 'Generation failed with fatal errors',
+            severity: ErrorSeverity.fatal,
+          ),
+        );
       }
 
       _logInfo('✓ Code generation completed successfully');
