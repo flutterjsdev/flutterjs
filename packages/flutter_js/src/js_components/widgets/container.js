@@ -1,0 +1,777 @@
+import { Widget, StatelessWidget, Element } from '../../../core/widget.js';
+import { VNode } from '../core/vdom/vnode.js';
+import { Clip, TextDirection, Alignment } from '../../utils/utils.js';
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+const DecorationPosition = {
+  background: 'background',
+  foreground: 'foreground'
+};
+
+// ============================================================================
+// EDGE INSETS
+// ============================================================================
+
+class EdgeInsets {
+  constructor(top = 0, right = 0, bottom = 0, left = 0) {
+    this.top = top;
+    this.right = right;
+    this.bottom = bottom;
+    this.left = left;
+  }
+
+  /**
+   * Create symmetric insets
+   */
+  static symmetric({ vertical = 0, horizontal = 0 } = {}) {
+    return new EdgeInsets(vertical, horizontal, vertical, horizontal);
+  }
+
+  /**
+   * Create uniform insets
+   */
+  static all(value = 0) {
+    return new EdgeInsets(value, value, value, value);
+  }
+
+  /**
+   * Create only specific insets
+   */
+  static only({ top = 0, right = 0, bottom = 0, left = 0 } = {}) {
+    return new EdgeInsets(top, right, bottom, left);
+  }
+
+  /**
+   * Check if non-negative
+   */
+  get isNonNegative() {
+    return this.top >= 0 && this.right >= 0 && this.bottom >= 0 && this.left >= 0;
+  }
+
+  /**
+   * Get total horizontal
+   */
+  get horizontal() {
+    return this.left + this.right;
+  }
+
+  /**
+   * Get total vertical
+   */
+  get vertical() {
+    return this.top + this.bottom;
+  }
+
+  /**
+   * Add another inset
+   */
+  add(other) {
+    return new EdgeInsets(
+      this.top + other.top,
+      this.right + other.right,
+      this.bottom + other.bottom,
+      this.left + other.left
+    );
+  }
+
+  /**
+   * Convert to CSS
+   */
+  toCSSString() {
+    if (this.top === this.right && this.right === this.bottom && this.bottom === this.left) {
+      return `${this.top}px`;
+    }
+    if (this.top === this.bottom && this.left === this.right) {
+      return `${this.top}px ${this.left}px`;
+    }
+    return `${this.top}px ${this.right}px ${this.bottom}px ${this.left}px`;
+  }
+
+  /**
+   * Convert to CSS margin
+   */
+  toCSSMargin() {
+    return `${this.top}px ${this.right}px ${this.bottom}px ${this.left}px`;
+  }
+
+  /**
+   * Convert to CSS padding
+   */
+  toCSSPadding() {
+    return `${this.top}px ${this.right}px ${this.bottom}px ${this.left}px`;
+  }
+}
+
+// ============================================================================
+// BOX CONSTRAINTS
+// ============================================================================
+
+class BoxConstraints {
+  constructor(minWidth = 0, maxWidth = Infinity, minHeight = 0, maxHeight = Infinity) {
+    this.minWidth = minWidth;
+    this.maxWidth = maxWidth;
+    this.minHeight = minHeight;
+    this.maxHeight = maxHeight;
+  }
+
+  /**
+   * Create tight constraints
+   */
+  static tight(size) {
+    return new BoxConstraints(size.width, size.width, size.height, size.height);
+  }
+
+  /**
+   * Create loose constraints
+   */
+  static loose(size) {
+    return new BoxConstraints(0, size.width, 0, size.height);
+  }
+
+  /**
+   * Create expanding constraints
+   */
+  static expand({ width = Infinity, height = Infinity } = {}) {
+    return new BoxConstraints(0, width, 0, height);
+  }
+
+  /**
+   * Create for specific width/height
+   */
+  static tightFor({ width = null, height = null } = {}) {
+    return new BoxConstraints(
+      width !== null ? width : 0,
+      width !== null ? width : Infinity,
+      height !== null ? height : 0,
+      height !== null ? height : Infinity
+    );
+  }
+
+  /**
+   * Check if tight
+   */
+  get isTight() {
+    return this.minWidth === this.maxWidth && this.minHeight === this.maxHeight;
+  }
+
+  /**
+   * Check if valid
+   */
+  debugAssertIsValid() {
+    if (!(this.minWidth >= 0 && this.maxWidth >= this.minWidth &&
+          this.minHeight >= 0 && this.maxHeight >= this.minHeight)) {
+      throw new Error(
+        `Invalid BoxConstraints: ${this.minWidth}..${this.maxWidth}, ${this.minHeight}..${this.maxHeight}`
+      );
+    }
+    return true;
+  }
+
+  /**
+   * Tighten constraints
+   */
+  tighten({ width = null, height = null } = {}) {
+    return new BoxConstraints(
+      width !== null ? Math.max(this.minWidth, width) : this.minWidth,
+      width !== null ? Math.min(this.maxWidth, width) : this.maxWidth,
+      height !== null ? Math.max(this.minHeight, height) : this.minHeight,
+      height !== null ? Math.min(this.maxHeight, height) : this.maxHeight
+    );
+  }
+
+  /**
+   * Constrain size
+   */
+  constrain(size) {
+    return {
+      width: Math.max(this.minWidth, Math.min(this.maxWidth, size.width)),
+      height: Math.max(this.minHeight, Math.min(this.maxHeight, size.height))
+    };
+  }
+
+  toString() {
+    return `BoxConstraints(${this.minWidth}..${this.maxWidth}, ${this.minHeight}..${this.maxHeight})`;
+  }
+}
+
+// ============================================================================
+// DECORATION
+// ============================================================================
+
+class Decoration {
+  constructor() {
+    if (new.target === Decoration) {
+      throw new Error('Decoration is abstract');
+    }
+    this.padding = new EdgeInsets(0, 0, 0, 0);
+  }
+
+  /**
+   * Convert to CSS
+   */
+  toCSSStyle() {
+    throw new Error('toCSSStyle() must be implemented');
+  }
+
+  /**
+   * Debug validation
+   */
+  debugAssertIsValid() {
+    return true;
+  }
+}
+
+class BoxDecoration extends Decoration {
+  constructor({
+    color = null,
+    image = null,
+    border = null,
+    borderRadius = null,
+    boxShadow = [],
+    gradient = null,
+    backgroundBlendMode = null,
+    shape = 'rectangle'
+  } = {}) {
+    super();
+
+    this.color = color;
+    this.image = image;
+    this.border = border;
+    this.borderRadius = borderRadius;
+    this.boxShadow = boxShadow;
+    this.gradient = gradient;
+    this.backgroundBlendMode = backgroundBlendMode;
+    this.shape = shape;
+  }
+
+  toCSSStyle() {
+    const style = {};
+
+    if (this.color) {
+      style.backgroundColor = this.color;
+    }
+
+    if (this.borderRadius) {
+      if (typeof this.borderRadius === 'number') {
+        style.borderRadius = `${this.borderRadius}px`;
+      } else if (this.borderRadius.all !== undefined) {
+        style.borderRadius = `${this.borderRadius.all}px`;
+      } else {
+        const { topLeft = 0, topRight = 0, bottomLeft = 0, bottomRight = 0 } = this.borderRadius;
+        style.borderRadius = `${topLeft}px ${topRight}px ${bottomRight}px ${bottomLeft}px`;
+      }
+    }
+
+    if (this.border) {
+      if (typeof this.border === 'object') {
+        const { width = 1, color = 'black', style: borderStyle = 'solid' } = this.border;
+        style.border = `${width}px ${borderStyle} ${color}`;
+      }
+    }
+
+    if (this.boxShadow && this.boxShadow.length > 0) {
+      style.boxShadow = this.boxShadow
+        .map(shadow => {
+          const { offsetX = 0, offsetY = 0, blurRadius = 0, spreadRadius = 0, color = 'rgba(0,0,0,0.5)' } = shadow;
+          return `${offsetX}px ${offsetY}px ${blurRadius}px ${spreadRadius}px ${color}`;
+        })
+        .join(', ');
+    }
+
+    if (this.gradient) {
+      const { type = 'linear', colors = [], stops = [] } = this.gradient;
+      if (type === 'linear') {
+        const colorStops = colors.map((c, i) => `${c} ${(stops[i] || (i / colors.length)) * 100}%`).join(', ');
+        style.background = `linear-gradient(135deg, ${colorStops})`;
+      }
+    }
+
+    if (this.backgroundBlendMode) {
+      style.mixBlendMode = this.backgroundBlendMode;
+    }
+
+    return style;
+  }
+}
+
+// ============================================================================
+// COLORED BOX WIDGET
+// ============================================================================
+
+class ColoredBox extends StatelessWidget {
+  constructor({
+    key = null,
+    color = 'white',
+    child = null
+  } = {}) {
+    super(key);
+
+    this.color = color;
+    this.child = child;
+  }
+
+  build(context) {
+    return new DecoratedBox({
+      decoration: new BoxDecoration({ color: this.color }),
+      child: this.child
+    });
+  }
+}
+
+// ============================================================================
+// RENDER DECORATED BOX
+// ============================================================================
+
+class RenderDecoratedBox {
+  constructor({
+    decoration = null,
+    position = DecorationPosition.background,
+    configuration = {}
+  } = {}) {
+    this.decoration = decoration;
+    this.position = position;
+    this.configuration = configuration;
+  }
+
+  debugInfo() {
+    return {
+      type: 'RenderDecoratedBox',
+      position: this.position,
+      hasDecoration: !!this.decoration
+    };
+  }
+}
+
+// ============================================================================
+// DECORATED BOX WIDGET
+// ============================================================================
+
+class DecoratedBox extends Widget {
+  constructor({
+    key = null,
+    decoration = null,
+    position = DecorationPosition.background,
+    child = null
+  } = {}) {
+    super(key);
+
+    if (!decoration) {
+      throw new Error('DecoratedBox requires a decoration');
+    }
+
+    this.decoration = decoration;
+    this.position = position;
+    this.child = child;
+    this._renderObject = null;
+  }
+
+  /**
+   * Create render object
+   */
+  createRenderObject(context) {
+    return new RenderDecoratedBox({
+      decoration: this.decoration,
+      position: this.position,
+      configuration: {}
+    });
+  }
+
+  /**
+   * Update render object
+   */
+  updateRenderObject(context, renderObject) {
+    renderObject.decoration = this.decoration;
+    renderObject.position = this.position;
+  }
+
+  /**
+   * Build widget tree
+   */
+  build(context) {
+    if (!this._renderObject) {
+      this._renderObject = this.createRenderObject(context);
+    } else {
+      this.updateRenderObject(context, this._renderObject);
+    }
+
+    const elementId = context.element.getElementId();
+    const widgetPath = context.element.getWidgetPath();
+
+    let childVNode = null;
+    if (this.child) {
+      const childElement = this.child.createElement();
+      childElement.mount(context.element);
+      childVNode = childElement.performRebuild();
+    }
+
+    const decorationStyle = this.decoration.toCSSStyle();
+
+    const style = {
+      position: 'relative',
+      ...decorationStyle
+    };
+
+    return new VNode({
+      tag: 'div',
+      props: {
+        style,
+        'data-element-id': elementId,
+        'data-widget-path': widgetPath,
+        'data-widget': 'DecoratedBox',
+        'data-position': this.position
+      },
+      children: childVNode ? [childVNode] : [],
+      key: this.key
+    });
+  }
+
+  debugFillProperties(properties) {
+    super.debugFillProperties(properties);
+    const label = this.position === DecorationPosition.background ? 'bg' : 'fg';
+    properties.push({ name: label, value: this.decoration });
+  }
+
+  createElement() {
+    return new DecoratedBoxElement(this);
+  }
+}
+
+class DecoratedBoxElement extends Element {
+  performRebuild() {
+    return this.widget.build(this.context);
+  }
+}
+
+// ============================================================================
+// CONTAINER WIDGET
+// ============================================================================
+
+class Container extends StatelessWidget {
+  constructor({
+    key = null,
+    alignment = null,
+    padding = null,
+    color = null,
+    decoration = null,
+    foregroundDecoration = null,
+    width = null,
+    height = null,
+    constraints = null,
+    margin = null,
+    transform = null,
+    transformAlignment = null,
+    child = null,
+    clipBehavior = Clip.none
+  } = {}) {
+    super(key);
+
+    // Validation
+    if (padding !== null && !padding.isNonNegative) {
+      throw new Error('padding must be non-negative');
+    }
+    if (margin !== null && !margin.isNonNegative) {
+      throw new Error('margin must be non-negative');
+    }
+    if (color !== null && decoration !== null) {
+      throw new Error('Cannot provide both color and decoration. Use BoxDecoration(color: color).');
+    }
+    if (decoration !== null && !decoration.debugAssertIsValid()) {
+      throw new Error('decoration is not valid');
+    }
+
+    this.alignment = alignment;
+    this.padding = padding;
+    this.color = color;
+    this.decoration = decoration;
+    this.foregroundDecoration = foregroundDecoration;
+    this.margin = margin;
+    this.transform = transform;
+    this.transformAlignment = transformAlignment;
+    this.child = child;
+    this.clipBehavior = clipBehavior;
+
+    // Apply width/height to constraints
+    if (width !== null || height !== null) {
+      this.constraints = constraints?.tighten({ width, height }) ||
+        BoxConstraints.tightFor({ width, height });
+    } else {
+      this.constraints = constraints;
+    }
+  }
+
+  /**
+   * Get effective padding including decoration padding
+   * @private
+   */
+  _getPaddingIncludingDecoration() {
+    if (this.padding === null) {
+      return this.decoration?.padding;
+    }
+    if (this.decoration?.padding === null || this.decoration?.padding === undefined) {
+      return this.padding;
+    }
+    return this.padding.add(this.decoration.padding);
+  }
+
+  /**
+   * Build widget tree
+   */
+  build(context) {
+    let current = this.child;
+
+    // Handle empty container
+    if (this.child === null && (this.constraints === null || !this.constraints.isTight)) {
+      current = new LimitedBox({
+        maxWidth: 0,
+        maxHeight: 0,
+        child: new ConstrainedBox({
+          constraints: BoxConstraints.expand()
+        })
+      });
+    } else if (this.alignment !== null) {
+      current = new Align({
+        alignment: this.alignment,
+        child: current
+      });
+    }
+
+    // Apply padding
+    const effectivePadding = this._getPaddingIncludingDecoration();
+    if (effectivePadding !== null) {
+      current = new Padding({
+        padding: effectivePadding,
+        child: current
+      });
+    }
+
+    // Apply color
+    if (this.color !== null) {
+      current = new ColoredBox({
+        color: this.color,
+        child: current
+      });
+    }
+
+    // Apply clipping
+    if (this.clipBehavior !== Clip.none && this.decoration !== null) {
+      current = new ClipPath({
+        clipBehavior: this.clipBehavior,
+        child: current
+      });
+    }
+
+    // Apply decoration
+    if (this.decoration !== null) {
+      current = new DecoratedBox({
+        decoration: this.decoration,
+        child: current
+      });
+    }
+
+    // Apply foreground decoration
+    if (this.foregroundDecoration !== null) {
+      current = new DecoratedBox({
+        decoration: this.foregroundDecoration,
+        position: DecorationPosition.foreground,
+        child: current
+      });
+    }
+
+    // Apply constraints
+    if (this.constraints !== null) {
+      current = new ConstrainedBox({
+        constraints: this.constraints,
+        child: current
+      });
+    }
+
+    // Apply margin
+    if (this.margin !== null) {
+      current = new Padding({
+        padding: this.margin,
+        child: current
+      });
+    }
+
+    // Apply transform
+    if (this.transform !== null) {
+      current = new Transform({
+        transform: this.transform,
+        alignment: this.transformAlignment,
+        child: current
+      });
+    }
+
+    return current;
+  }
+
+  debugFillProperties(properties) {
+    super.debugFillProperties(properties);
+    if (this.alignment !== null) properties.push({ name: 'alignment', value: this.alignment });
+    if (this.padding !== null) properties.push({ name: 'padding', value: this.padding });
+    if (this.color !== null) {
+      properties.push({ name: 'bg', value: this.color });
+    } else if (this.decoration !== null) {
+      properties.push({ name: 'bg', value: this.decoration });
+    }
+    if (this.foregroundDecoration !== null) properties.push({ name: 'fg', value: this.foregroundDecoration });
+    if (this.constraints !== null) properties.push({ name: 'constraints', value: this.constraints });
+    if (this.margin !== null) properties.push({ name: 'margin', value: this.margin });
+  }
+}
+
+// ============================================================================
+// SUPPORTING WIDGETS (Placeholder implementations)
+// ============================================================================
+
+class Align extends StatelessWidget {
+  constructor({ key = null, alignment = Alignment.center, child = null } = {}) {
+    super(key);
+    this.alignment = alignment;
+    this.child = child;
+  }
+
+  build(context) {
+    const childElement = this.child?.createElement();
+    if (childElement) {
+      childElement.mount(context.element);
+      const childVNode = childElement.performRebuild();
+
+      return new VNode({
+        tag: 'div',
+        props: {
+          style: {
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }
+        },
+        children: [childVNode]
+      });
+    }
+    return new VNode({ tag: 'div', children: [] });
+  }
+}
+
+class Padding extends StatelessWidget {
+  constructor({ key = null, padding = null, child = null } = {}) {
+    super(key);
+    this.padding = padding;
+    this.child = child;
+  }
+
+  build(context) {
+    const childElement = this.child?.createElement();
+    const paddingCSS = this.padding?.toCSSPadding?.() || '0';
+
+    if (childElement) {
+      childElement.mount(context.element);
+      const childVNode = childElement.performRebuild();
+
+      return new VNode({
+        tag: 'div',
+        props: {
+          style: { padding: paddingCSS }
+        },
+        children: [childVNode]
+      });
+    }
+    return new VNode({ tag: 'div', children: [] });
+  }
+}
+
+class ClipPath extends StatelessWidget {
+  constructor({ key = null, clipBehavior = Clip.hardEdge, child = null } = {}) {
+    super(key);
+    this.clipBehavior = clipBehavior;
+    this.child = child;
+  }
+
+  build(context) {
+    const childElement = this.child?.createElement();
+    if (childElement) {
+      childElement.mount(context.element);
+      return childElement.performRebuild();
+    }
+    return new VNode({ tag: 'div', children: [] });
+  }
+}
+
+class ConstrainedBox extends StatelessWidget {
+  constructor({ key = null, constraints = null, child = null } = {}) {
+    super(key);
+    this.constraints = constraints;
+    this.child = child;
+  }
+
+  build(context) {
+    const childElement = this.child?.createElement();
+    if (childElement) {
+      childElement.mount(context.element);
+      return childElement.performRebuild();
+    }
+    return new VNode({ tag: 'div', children: [] });
+  }
+}
+
+class LimitedBox extends StatelessWidget {
+  constructor({ key = null, maxWidth = Infinity, maxHeight = Infinity, child = null } = {}) {
+    super(key);
+    this.maxWidth = maxWidth;
+    this.maxHeight = maxHeight;
+    this.child = child;
+  }
+
+  build(context) {
+    const childElement = this.child?.createElement();
+    if (childElement) {
+      childElement.mount(context.element);
+      return childElement.performRebuild();
+    }
+    return new VNode({ tag: 'div', children: [] });
+  }
+}
+
+class Transform extends StatelessWidget {
+  constructor({ key = null, transform = null, alignment = null, child = null } = {}) {
+    super(key);
+    this.transform = transform;
+    this.alignment = alignment;
+    this.child = child;
+  }
+
+  build(context) {
+    const childElement = this.child?.createElement();
+    if (childElement) {
+      childElement.mount(context.element);
+      return childElement.performRebuild();
+    }
+    return new VNode({ tag: 'div', children: [] });
+  }
+}
+
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
+export {
+  Container,
+  DecoratedBox,
+  DecoratedBoxElement,
+  RenderDecoratedBox,
+  ColoredBox,
+  EdgeInsets,
+  BoxConstraints,
+  BoxDecoration,
+  Decoration,
+  DecorationPosition,
+  Align,
+  Padding,
+  ClipPath,
+  ConstrainedBox,
+  LimitedBox,
+  Transform
+};
