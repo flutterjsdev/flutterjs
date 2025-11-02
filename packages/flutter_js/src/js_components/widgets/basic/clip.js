@@ -3,17 +3,6 @@ import { VNode } from '../../../vdom/vnode.js';
 import { Clip } from '../../utils.js';
 
 // ============================================================================
-// CLIP BEHAVIOR ENUM
-// ============================================================================
-
-// const Clip = {
-//     none: 'none',
-//     hardEdge: 'hard-edge',
-//     antiAlias: 'anti-alias',
-//     antiAliasWithSaveLayer: 'anti-alias-save-layer'
-// };
-
-// ============================================================================
 // CUSTOM CLIPPER BASE CLASS
 // Override getClip() to return clip-path CSS string
 // ============================================================================
@@ -542,4 +531,593 @@ class ClipRRectElement extends ProxyWidget.constructor.prototype.constructor {
     }
 }
 
-export { ClipRect, RenderClipRect, ClipRRect, RenderClipRRect, CustomClipper, Clip };
+// ============================================================================
+// CLIP RSUPERELLIPSE WIDGET
+// Clips to superellipse shape with border radius
+// ============================================================================
+
+class ClipRSuperellipse extends ProxyWidget {
+    constructor({
+        key = null,
+        borderRadius = null,
+        clipper = null,
+        clipBehavior = Clip.antiAlias,
+        child = null
+    } = {}) {
+        super({ key, child });
+
+        if (clipper && !(clipper instanceof CustomClipper)) {
+            throw new Error(
+                `ClipRSuperellipse requires a CustomClipper instance, got: ${typeof clipper}`
+            );
+        }
+
+        if (!Object.values(Clip).includes(clipBehavior)) {
+            throw new Error(
+                `Invalid clipBehavior: ${clipBehavior}`
+            );
+        }
+
+        this.borderRadius = borderRadius || { all: 0 };
+        this.clipper = clipper;
+        this.clipBehavior = clipBehavior;
+        this._renderObject = null;
+        this._containerElement = null;
+    }
+
+    /**
+     * Create render object
+     */
+    createRenderObject(context) {
+        return new RenderClipRSuperellipse({
+            borderRadius: this.borderRadius,
+            clipper: this.clipper,
+            clipBehavior: this.clipBehavior
+        });
+    }
+
+    /**
+     * Update render object
+     */
+    updateRenderObject(context, renderObject) {
+        renderObject.borderRadius = this.borderRadius;
+        renderObject.clipBehavior = this.clipBehavior;
+        renderObject.clipper = this.clipper;
+    }
+
+    /**
+     * Build the widget
+     */
+    build(context) {
+        if (!this._renderObject) {
+            this._renderObject = this.createRenderObject(context);
+        } else {
+            this.updateRenderObject(context, this._renderObject);
+        }
+
+        let childVNode = null;
+        if (this.child) {
+            const childElement = this.child.createElement();
+            childElement.mount(context.element);
+            childVNode = childElement.performRebuild();
+        }
+
+        const elementId = context.element.getElementId();
+        const widgetPath = context.element.getWidgetPath();
+
+        const borderRadiusCss = this._getBorderRadiusCSS();
+        const overflowValue = this.clipBehavior === Clip.none ? 'visible' : 'hidden';
+
+        const style = {
+            borderRadius: borderRadiusCss,
+            overflow: overflowValue,
+            position: 'relative'
+        };
+
+        return new VNode({
+            tag: 'div',
+            props: {
+                style,
+                'data-element-id': elementId,
+                'data-widget-path': widgetPath,
+                'data-widget': 'ClipRSuperellipse',
+                'data-border-radius': JSON.stringify(this.borderRadius),
+                'data-clip-behavior': this.clipBehavior,
+                ref: (el) => this._onContainerMount(el)
+            },
+            children: childVNode ? [childVNode] : [],
+            key: this.key
+        });
+    }
+
+    /**
+     * Convert border radius to CSS string
+     * @private
+     */
+    _getBorderRadiusCSS() {
+        if (typeof this.borderRadius === 'number') {
+            return `${this.borderRadius}px`;
+        }
+
+        if (this.borderRadius.all !== undefined) {
+            return `${this.borderRadius.all}px`;
+        }
+
+        const {
+            topLeft = 0,
+            topRight = 0,
+            bottomLeft = 0,
+            bottomRight = 0
+        } = this.borderRadius;
+
+        return `${topLeft}px ${topRight}px ${bottomRight}px ${bottomLeft}px`;
+    }
+
+    /**
+     * Mount container and apply custom clipper
+     * @private
+     */
+    _onContainerMount(el) {
+        if (!el) return;
+
+        this._containerElement = el;
+
+        if (this.clipper) {
+            this._applyClipper();
+        }
+
+        const resizeHandler = () => this._applyClipper();
+        window.addEventListener('resize', resizeHandler);
+        el._cleanupResize = () => window.removeEventListener('resize', resizeHandler);
+    }
+
+    /**
+     * Apply custom clipper
+     * @private
+     */
+    _applyClipper() {
+        if (!this.clipper || !this._containerElement) return;
+
+        try {
+            const rect = this._containerElement.getBoundingClientRect();
+            const size = {
+                width: Math.ceil(rect.width) || 100,
+                height: Math.ceil(rect.height) || 100
+            };
+
+            const clipPath = this.clipper.getClip(size);
+            if (clipPath) {
+                this._containerElement.style.clipPath = clipPath;
+                this._containerElement.style.WebkitClipPath = clipPath;
+            }
+        } catch (error) {
+            console.error('Error applying superellipse clipper:', error);
+        }
+    }
+
+    /**
+     * Debug properties
+     */
+    debugFillProperties(properties) {
+        super.debugFillProperties(properties);
+        properties.push({ name: 'borderRadius', value: JSON.stringify(this.borderRadius) });
+        properties.push({ name: 'hasClipper', value: !!this.clipper });
+        properties.push({ name: 'clipBehavior', value: this.clipBehavior });
+    }
+
+    /**
+     * Create element
+     */
+    createElement() {
+        return new ClipRSuperellipseElement(this);
+    }
+}
+
+class RenderClipRSuperellipse {
+    constructor({
+        borderRadius = null,
+        clipper = null,
+        clipBehavior = Clip.antiAlias
+    } = {}) {
+        this.borderRadius = borderRadius || { all: 0 };
+        this.clipper = clipper;
+        this.clipBehavior = clipBehavior;
+    }
+
+    debugInfo() {
+        return {
+            type: 'RenderClipRSuperellipse',
+            borderRadius: JSON.stringify(this.borderRadius),
+            hasClipper: !!this.clipper,
+            clipBehavior: this.clipBehavior
+        };
+    }
+}
+
+class ClipRSuperellipseElement extends ProxyWidget.constructor.prototype.constructor {
+    performRebuild() {
+        return this.widget.build(this.context);
+    }
+
+    detach() {
+        if (this.widget._containerElement && this.widget._containerElement._cleanupResize) {
+            this.widget._containerElement._cleanupResize();
+        }
+        super.detach();
+    }
+}
+
+// ============================================================================
+// CLIP OVAL WIDGET
+// Clips child to oval/ellipse shape
+// ============================================================================
+
+class ClipOval extends ProxyWidget {
+    constructor({
+        key = null,
+        clipper = null,
+        clipBehavior = Clip.antiAlias,
+        child = null
+    } = {}) {
+        super({ key, child });
+
+        if (clipper && !(clipper instanceof CustomClipper)) {
+            throw new Error(
+                `ClipOval requires a CustomClipper instance, got: ${typeof clipper}`
+            );
+        }
+
+        if (!Object.values(Clip).includes(clipBehavior)) {
+            throw new Error(
+                `Invalid clipBehavior: ${clipBehavior}`
+            );
+        }
+
+        this.clipper = clipper;
+        this.clipBehavior = clipBehavior;
+        this._renderObject = null;
+        this._containerElement = null;
+    }
+
+    /**
+     * Create render object
+     */
+    createRenderObject(context) {
+        return new RenderClipOval({
+            clipper: this.clipper,
+            clipBehavior: this.clipBehavior
+        });
+    }
+
+    /**
+     * Update render object
+     */
+    updateRenderObject(context, renderObject) {
+        renderObject.clipper = this.clipper;
+        renderObject.clipBehavior = this.clipBehavior;
+    }
+
+    /**
+     * Unmount and cleanup
+     */
+    unmountRenderObject(renderObject) {
+        renderObject.clipper = null;
+    }
+
+    /**
+     * Build the widget
+     */
+    build(context) {
+        if (!this._renderObject) {
+            this._renderObject = this.createRenderObject(context);
+        } else {
+            this.updateRenderObject(context, this._renderObject);
+        }
+
+        let childVNode = null;
+        if (this.child) {
+            const childElement = this.child.createElement();
+            childElement.mount(context.element);
+            childVNode = childElement.performRebuild();
+        }
+
+        const elementId = context.element.getElementId();
+        const widgetPath = context.element.getWidgetPath();
+
+        const overflowValue = this.clipBehavior === Clip.none ? 'visible' : 'hidden';
+
+        const style = {
+            borderRadius: '50%',
+            overflow: overflowValue,
+            position: 'relative'
+        };
+
+        return new VNode({
+            tag: 'div',
+            props: {
+                style,
+                'data-element-id': elementId,
+                'data-widget-path': widgetPath,
+                'data-widget': 'ClipOval',
+                'data-clip-behavior': this.clipBehavior,
+                ref: (el) => this._onContainerMount(el)
+            },
+            children: childVNode ? [childVNode] : [],
+            key: this.key
+        });
+    }
+
+    /**
+     * Mount container and apply custom clipper
+     * @private
+     */
+    _onContainerMount(el) {
+        if (!el) return;
+
+        this._containerElement = el;
+
+        if (this.clipper) {
+            this._applyClipper();
+        }
+
+        const resizeHandler = () => this._applyClipper();
+        window.addEventListener('resize', resizeHandler);
+        el._cleanupResize = () => window.removeEventListener('resize', resizeHandler);
+    }
+
+    /**
+     * Apply custom clipper
+     * @private
+     */
+    _applyClipper() {
+        if (!this.clipper || !this._containerElement) return;
+
+        try {
+            const rect = this._containerElement.getBoundingClientRect();
+            const size = {
+                width: Math.ceil(rect.width) || 100,
+                height: Math.ceil(rect.height) || 100
+            };
+
+            const clipPath = this.clipper.getClip(size);
+            if (clipPath) {
+                this._containerElement.style.clipPath = clipPath;
+                this._containerElement.style.WebkitClipPath = clipPath;
+            }
+        } catch (error) {
+            console.error('Error applying oval clipper:', error);
+        }
+    }
+
+    /**
+     * Debug properties
+     */
+    debugFillProperties(properties) {
+        super.debugFillProperties(properties);
+        properties.push({ name: 'hasClipper', value: !!this.clipper });
+        properties.push({ name: 'clipBehavior', value: this.clipBehavior });
+    }
+
+    /**
+     * Create element
+     */
+    createElement() {
+        return new ClipOvalElement(this);
+    }
+}
+
+class RenderClipOval {
+    constructor({ clipper = null, clipBehavior = Clip.antiAlias } = {}) {
+        this.clipper = clipper;
+        this.clipBehavior = clipBehavior;
+    }
+
+    debugInfo() {
+        return {
+            type: 'RenderClipOval',
+            hasClipper: !!this.clipper,
+            clipBehavior: this.clipBehavior
+        };
+    }
+}
+
+class ClipOvalElement extends ProxyWidget.constructor.prototype.constructor {
+    performRebuild() {
+        return this.widget.build(this.context);
+    }
+
+    detach() {
+        if (this.widget._containerElement && this.widget._containerElement._cleanupResize) {
+            this.widget._containerElement._cleanupResize();
+        }
+        super.detach();
+    }
+}
+
+// ============================================================================
+// CLIP PATH WIDGET
+// Clips child to custom path shape
+// ============================================================================
+
+class ClipPath extends ProxyWidget {
+    constructor({
+        key = null,
+        clipper = null,
+        clipBehavior = Clip.antiAlias,
+        child = null
+    } = {}) {
+        super({ key, child });
+
+        if (clipper && !(clipper instanceof CustomClipper)) {
+            throw new Error(
+                `ClipPath requires a CustomClipper instance, got: ${typeof clipper}`
+            );
+        }
+
+        if (!Object.values(Clip).includes(clipBehavior)) {
+            throw new Error(
+                `Invalid clipBehavior: ${clipBehavior}`
+            );
+        }
+
+        this.clipper = clipper;
+        this.clipBehavior = clipBehavior;
+        this._renderObject = null;
+        this._containerElement = null;
+    }
+
+    /**
+     * Create render object
+     */
+    createRenderObject(context) {
+        return new RenderClipPath({
+            clipper: this.clipper,
+            clipBehavior: this.clipBehavior
+        });
+    }
+
+    /**
+     * Update render object
+     */
+    updateRenderObject(context, renderObject) {
+        renderObject.clipper = this.clipper;
+        renderObject.clipBehavior = this.clipBehavior;
+    }
+
+    /**
+     * Unmount and cleanup
+     */
+    unmountRenderObject(renderObject) {
+        renderObject.clipper = null;
+    }
+
+    /**
+     * Build the widget
+     */
+    build(context) {
+        if (!this._renderObject) {
+            this._renderObject = this.createRenderObject(context);
+        } else {
+            this.updateRenderObject(context, this._renderObject);
+        }
+
+        let childVNode = null;
+        if (this.child) {
+            const childElement = this.child.createElement();
+            childElement.mount(context.element);
+            childVNode = childElement.performRebuild();
+        }
+
+        const elementId = context.element.getElementId();
+        const widgetPath = context.element.getWidgetPath();
+
+        const overflowValue = this.clipBehavior === Clip.none ? 'visible' : 'hidden';
+
+        const style = {
+            overflow: overflowValue,
+            position: 'relative'
+        };
+
+        return new VNode({
+            tag: 'div',
+            props: {
+                style,
+                'data-element-id': elementId,
+                'data-widget-path': widgetPath,
+                'data-widget': 'ClipPath',
+                'data-clip-behavior': this.clipBehavior,
+                ref: (el) => this._onContainerMount(el)
+            },
+            children: childVNode ? [childVNode] : [],
+            key: this.key
+        });
+    }
+
+    /**
+     * Mount container and apply custom clipper
+     * @private
+     */
+    _onContainerMount(el) {
+        if (!el) return;
+
+        this._containerElement = el;
+
+        if (this.clipper) {
+            this._applyClipper();
+        }
+
+        const resizeHandler = () => this._applyClipper();
+        window.addEventListener('resize', resizeHandler);
+        el._cleanupResize = () => window.removeEventListener('resize', resizeHandler);
+    }
+
+    /**
+     * Apply custom clipper
+     * @private
+     */
+    _applyClipper() {
+        if (!this.clipper || !this._containerElement) return;
+
+        try {
+            const rect = this._containerElement.getBoundingClientRect();
+            const size = {
+                width: Math.ceil(rect.width) || 100,
+                height: Math.ceil(rect.height) || 100
+            };
+
+            const clipPath = this.clipper.getClip(size);
+            if (clipPath) {
+                this._containerElement.style.clipPath = clipPath;
+                this._containerElement.style.WebkitClipPath = clipPath;
+            }
+        } catch (error) {
+            console.error('Error applying path clipper:', error);
+        }
+    }
+
+    /**
+     * Debug properties
+     */
+    debugFillProperties(properties) {
+        super.debugFillProperties(properties);
+        properties.push({ name: 'hasClipper', value: !!this.clipper });
+        properties.push({ name: 'clipBehavior', value: this.clipBehavior });
+    }
+
+    /**
+     * Create element
+     */
+    createElement() {
+        return new ClipPathElement(this);
+    }
+}
+
+class RenderClipPath {
+    constructor({ clipper = null, clipBehavior = Clip.antiAlias } = {}) {
+        this.clipper = clipper;
+        this.clipBehavior = clipBehavior;
+    }
+
+    debugInfo() {
+        return {
+            type: 'RenderClipPath',
+            hasClipper: !!this.clipper,
+            clipBehavior: this.clipBehavior
+        };
+    }
+}
+
+class ClipPathElement extends ProxyWidget.constructor.prototype.constructor {
+    performRebuild() {
+        return this.widget.build(this.context);
+    }
+
+    detach() {
+        if (this.widget._containerElement && this.widget._containerElement._cleanupResize) {
+            this.widget._containerElement._cleanupResize();
+        }
+        super.detach();
+    }
+}
+
+export { ClipRect, RenderClipRect, ClipRRect, RenderClipRRect, ClipRSuperellipse, RenderClipRSuperellipse, ClipOval, RenderClipOval, ClipPath, RenderClipPath, CustomClipper, };
