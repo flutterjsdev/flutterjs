@@ -313,10 +313,20 @@ class TryStmt extends StatementIR {
 }
 
 @immutable
-class CatchClauseStmt extends IRNode {
+class CatchClauseStmt extends StatementIR {
+  /// Type of exception being caught (e.g., Exception, CustomError)
+  /// Can be null to catch all types
   final TypeIR? exceptionType;
+
+  /// Name of the variable holding the exception instance
+  /// Default: 'error' if not specified
   final String? exceptionParameter;
+
+  /// Optional: Name of the variable holding the stack trace
+  /// Default: null (not used in JavaScript)
   final String? stackTraceParameter;
+
+  /// The catch block statements
   final StatementIR body;
 
   const CatchClauseStmt({
@@ -330,10 +340,7 @@ class CatchClauseStmt extends IRNode {
   });
 
   @override
-  String toShortString() {
-    String typeStr = exceptionType?.displayName() ?? 'dynamic';
-    return 'catch ($typeStr ${exceptionParameter ?? 'e'}) { ... }';
-  }
+  String toShortString() => 'catch (${exceptionParameter ?? 'error'}) { ... }';
 }
 
 // =============================================================================
