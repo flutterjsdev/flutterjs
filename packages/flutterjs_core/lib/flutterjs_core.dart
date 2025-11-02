@@ -6,3 +6,4 @@ export 'src/flow_analysis_pass.dart';
 export 'src/symbol_resolution.dart';
 export 'src/type_inference_pass.dart';
 export 'src/validation_pass.dart';
+export 'src/flutter_to_js/flutter_to_js.dart';

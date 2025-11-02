@@ -129,6 +129,64 @@ class DependencyGraph {
       return true;
     }
   }
+
+
+   /// Returns the number of edges in the graph
+  int get edgeCount {
+    return _dependencies.values.fold<int>(0, (sum, deps) => sum + deps.length);
+  }
+
+  /// Get all nodes in the graph
+  List<String> getAllNodes() {
+    return _dependencies.keys.toList();
+  }
+
+  /// Get all transitive dependencies of a node
+  Set<String> getAllTransitiveDependencies(String filePath) {
+    final result = <String>{};
+    final visited = <String>{};
+
+    void visit(String node) {
+      if (visited.contains(node)) return;
+      visited.add(node);
+      for (final dependency in _dependencies[node] ?? <String>[]) {
+        result.add(dependency);
+        visit(dependency);
+      }
+    }
+
+    visit(filePath);
+    return result;
+  }
+
+  /// Export graph as JSON
+  Map<String, dynamic> toJson() {
+    final nodes = <String, dynamic>{};
+    for (final node in _dependencies.keys) {
+      final deps = _dependencies[node] ?? <String>{};
+      final dependents = _dependents[node] ?? <String>{};
+      
+      nodes[node] = {
+        'dependencies': deps.toList(),
+        'dependents': dependents.toList(),
+        'dependencyCount': deps.length,
+        'dependentCount': dependents.length,
+        'transitiveDependencies': getAllTransitiveDependencies(node).toList(),
+        'transitiveDependents': getTransitiveDependents(node).toList(),
+      };
+    }
+    
+    return {
+      'totalNodes': nodeCount,
+      'totalEdges': edgeCount,
+      'nodes': nodes,
+      'cycles': detectCycles(),
+      'statistics': {
+        'avgDependenciesPerFile': nodeCount > 0 ? edgeCount / nodeCount : 0.0,
+        'cycleCount': detectCycles().length,
+      },
+    };
+  }
 }
 
 class CircularDependencyException implements Exception {

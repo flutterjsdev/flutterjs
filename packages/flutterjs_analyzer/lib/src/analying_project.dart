@@ -1,3 +1,4 @@
+
 import 'package:analyzer/dart/analysis/analysis_context.dart';
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
@@ -10,6 +11,7 @@ import 'package:analyzer/diagnostic/diagnostic.dart' as analyzer_diagnostic;
 import 'package:analyzer/dart/element/element.dart' as analyzer_results;
 
 import 'TypeDeclarationVisitor.dart';
+import 'analysis_output_generator.dart';
 import 'dependency_graph.dart';
 import 'dependency_resolver.dart';
 import 'incremental_cache.dart';
@@ -18,20 +20,12 @@ import 'dart:async';
 import 'package:analyzer/dart/ast/ast.dart';
 
 /// Advanced multi-pass project analyzer with incremental compilation support
-///
-/// **Architecture:**
-/// ```
-/// Phase 1: Discovery & Dependency Resolution
-///    ↓
-/// Phase 2: Change Detection (Incremental)
-///    ↓
-/// Phase 3: Type Resolution (Parallel)
-///    ↓
-/// Phase 4: Cache Persistence
-/// ```
+/// and output file generation in build folder
 class ProjectAnalyzer {
   final String projectPath;
   final String cacheDir;
+  final String buildDir;
+  final String outputDir;
 
   late AnalysisContextCollection _collection;
 
@@ -45,6 +39,7 @@ class ProjectAnalyzer {
   final bool enableVerboseLogging;
   final bool enableCache;
   final bool enableParallelProcessing;
+  final bool generateOutputFiles;
   final List<String> excludePatterns;
 
   // Analysis state
@@ -63,10 +58,13 @@ class ProjectAnalyzer {
   ProjectAnalyzer(
     this.projectPath, {
     String? cacheDir,
+    String? buildDir,
+    String? outputDir,
     this.maxParallelism = 4,
     this.enableVerboseLogging = true,
     this.enableCache = true,
     this.enableParallelProcessing = true,
+    this.generateOutputFiles = true,
     this.excludePatterns = const [
       '**/.dart_tool/**',
       '**/build/**',
@@ -75,7 +73,10 @@ class ProjectAnalyzer {
       '**/*.mocks.dart',
       '**/test/**',
     ],
-  }) : cacheDir = cacheDir ?? path.join(projectPath, '.flutter_js_cache');
+  })  : cacheDir = cacheDir ?? path.join(projectPath, '.flutter_js_cache'),
+        buildDir = buildDir ?? path.join(projectPath, 'build'),
+        outputDir = outputDir ??
+            path.join(projectPath, 'build', 'analysis_output');
 
   // ==========================================================================
   // INITIALIZATION
@@ -88,6 +89,11 @@ class ProjectAnalyzer {
     try {
       // Validate project structure
       await _validateProjectStructure();
+
+      // Initialize build and output directories
+      if (generateOutputFiles) {
+        await _initializeOutputDirectories();
+      }
 
       // Initialize analysis context
       final libPath = path.normalize(
@@ -114,6 +120,43 @@ class ProjectAnalyzer {
       _log('✓ Initialization complete');
     } catch (e, stackTrace) {
       _logError('Failed to initialize analyzer', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Initialize output directories in build folder
+  Future<void> _initializeOutputDirectories() async {
+    try {
+      final buildDirectory = Directory(buildDir);
+      if (!await buildDirectory.exists()) {
+        await buildDirectory.create(recursive: true);
+        _log('✓ Created build directory: $buildDir');
+      }
+
+      final outputDirectory = Directory(outputDir);
+      if (!await outputDirectory.exists()) {
+        await outputDirectory.create(recursive: true);
+        _log('✓ Created output directory: $outputDir');
+      }
+
+      // Create subdirectories for organized output
+      final subdirs = [
+        'dependencies',
+        'types',
+        'imports',
+        'reports',
+      ];
+
+      for (final subdir in subdirs) {
+        final dir = Directory(path.join(outputDir, subdir));
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+      }
+
+      _log('✓ Output directory structure initialized');
+    } catch (e, stackTrace) {
+      _logError('Failed to initialize output directories', e, stackTrace);
       rethrow;
     }
   }
@@ -187,6 +230,11 @@ class ProjectAnalyzer {
         ),
       );
 
+      // PHASE 5: Generate output files
+      if (generateOutputFiles) {
+        await _phase5_GenerateOutputFiles(result);
+      }
+
       _notifyProgress(
         AnalysisPhase.complete,
         _totalFiles,
@@ -206,42 +254,6 @@ class ProjectAnalyzer {
       );
       _logError('Analysis failed', e, stackTrace);
       rethrow;
-    }
-  }
-
-  /// Analyze a single file incrementally
-  Future<FileAnalysisResult?> analyzeFile(String filePath) async {
-    try {
-      final context = _getContextForFile(filePath);
-      if (context == null) {
-        _log('⚠️  No context found for $filePath');
-        return null;
-      }
-
-      final session = context.currentSession;
-      final result = await session.getResolvedUnit(filePath);
-
-      if (result is ResolvedUnitResult) {
-        final analysisResult = FileAnalysisResult(
-          path: filePath,
-          unit: result.unit,
-          libraryElement: result.libraryElement,
-          errors: result.diagnostics,
-          imports: _extractImports(result.unit),
-          exports: _extractExports(result.unit),
-          parts: _extractParts(result.unit),
-          hash: await _computeFileHash(filePath),
-        );
-
-        _analysisResults[filePath] = analysisResult;
-        return analysisResult;
-      }
-
-      return null;
-    } catch (e, stackTrace) {
-      _logError('Failed to analyze file: $filePath', e, stackTrace);
-      _errorFiles++;
-      return null;
     }
   }
 
@@ -313,7 +325,6 @@ class ProjectAnalyzer {
 
     for (final filePath in allFiles) {
       try {
-        // STEP 1: Quick check - modification time
         final file = File(filePath);
         if (!await file.exists()) {
           _logVerbose('   File not found: ${path.basename(filePath)}');
@@ -325,7 +336,6 @@ class ProjectAnalyzer {
         final currentModTime = stat.modified.millisecondsSinceEpoch;
         final cachedModTime = await _cache.getFileModTime(filePath);
 
-        // If modification time hasn't changed, skip hash computation
         if (cachedModTime != null && currentModTime == cachedModTime) {
           quickSkipped++;
           skippedFiles.add(filePath);
@@ -342,16 +352,13 @@ class ProjectAnalyzer {
           continue;
         }
 
-        // STEP 2: Modification time changed, compute hash to verify
         hashComputed++;
         final currentHash = await _computeFileHash(filePath);
         final cachedHash = await _cache.getFileHash(filePath);
 
         if (currentHash != cachedHash) {
-          // Content actually changed
           changedFiles.add(filePath);
 
-          // Invalidate all dependents recursively
           final dependents = _dependencyResolver.getAllDependents(filePath);
           changedFiles.addAll(dependents);
 
@@ -360,13 +367,10 @@ class ProjectAnalyzer {
             '(+${dependents.length} dependents)',
           );
         } else {
-          // Hash same, just touch time changed (e.g., git checkout)
-          // Update mod time in cache but don't mark as changed
           skippedFiles.add(filePath);
           _logVerbose('   Touch only: ${path.basename(filePath)}');
         }
 
-        // Update cache with new values
         await _cache.setFileHash(filePath, currentHash);
         await _cache.setFileModTime(filePath, currentModTime);
 
@@ -381,7 +385,6 @@ class ProjectAnalyzer {
         }
       } catch (e) {
         _logVerbose('   Error checking ${path.basename(filePath)}: $e');
-        // Treat as changed on error (safe default)
         changedFiles.add(filePath);
       }
     }
@@ -429,7 +432,6 @@ class ProjectAnalyzer {
           continue;
         }
 
-        // Extract type declarations for registry
         final visitor = TypeDeclarationVisitor(filePath, _typeRegistry);
         result.unit.accept(visitor);
 
@@ -437,7 +439,6 @@ class ProjectAnalyzer {
           '   Parsed ${path.basename(filePath)} - ${visitor.typesFound} types',
         );
 
-        // Store parsed info
         parsedFiles[filePath] = ParsedFileInfo(
           path: filePath,
           unit: result.unit,
@@ -447,14 +448,14 @@ class ProjectAnalyzer {
         );
 
         processed++;
-        _processedFiles = processed; // FIX: Update progress counter
+        _processedFiles = processed;
 
         if (processed % 20 == 0) {
           _notifyProgress(
             AnalysisPhase.typeResolution,
             processed,
             filesInOrder.length,
-            'Parsed $processed/$filesInOrder.length files...',
+            'Parsed $processed/${filesInOrder.length} files...',
           );
         }
       } catch (e, stackTrace) {
@@ -510,7 +511,223 @@ class ProjectAnalyzer {
       _log('✓ Cached ${parsedFiles.length} analysis results');
     } catch (e, stackTrace) {
       _logError('Failed to cache analysis results', e, stackTrace);
-      // Non-fatal - continue without cache
+    }
+  }
+
+  // ==========================================================================
+  // PHASE 5: OUTPUT FILE GENERATION
+  // ==========================================================================
+
+  Future<void> _phase5_GenerateOutputFiles(
+    ProjectAnalysisResult result,
+  ) async {
+    _notifyProgress(
+      AnalysisPhase.outputGeneration,
+      0,
+      5,
+      'Generating output files...',
+    );
+
+    _log('📁 Phase 5: Generating output files in $outputDir...');
+
+    try {
+      int step = 0;
+
+      // 1. Generate dependency graph report
+      step++;
+      _notifyProgress(
+        AnalysisPhase.outputGeneration,
+        step,
+        5,
+        'Generating dependency graph...',
+      );
+      await _generateDependencyGraph(result);
+      _log('   ✓ Dependency graph generated');
+
+      // 2. Generate type registry report
+      step++;
+      _notifyProgress(
+        AnalysisPhase.outputGeneration,
+        step,
+        5,
+        'Generating type registry...',
+      );
+      await _generateTypeRegistry(result);
+      _log('   ✓ Type registry generated');
+
+      // 3. Generate import analysis report
+      step++;
+      _notifyProgress(
+        AnalysisPhase.outputGeneration,
+        step,
+        5,
+        'Generating import analysis...',
+      );
+      await _generateImportAnalysis(result);
+      _log('   ✓ Import analysis generated');
+
+      // 4. Generate analysis summary report
+      step++;
+      _notifyProgress(
+        AnalysisPhase.outputGeneration,
+        step,
+        5,
+        'Generating summary report...',
+      );
+      await _generateAnalysisSummary(result);
+      _log('   ✓ Summary report generated');
+
+      // 5. Generate detailed statistics
+      step++;
+      _notifyProgress(
+        AnalysisPhase.outputGeneration,
+        step,
+        5,
+        'Generating statistics...',
+      );
+      await _generateStatisticsReport(result);
+      _log('   ✓ Statistics report generated');
+
+      _log('✓ All output files generated successfully in $outputDir');
+    } catch (e, stackTrace) {
+      _logError('Failed to generate output files', e, stackTrace);
+    }
+  }
+
+  /// Generate dependency graph JSON file
+  Future<void> _generateDependencyGraph(ProjectAnalysisResult result) async {
+  try {
+    final output = AnalysisOutputGenerator.generateDependencyGraphJson(
+      result.dependencyGraph,
+      result.analysisOrder,
+    );
+
+    final file = File(path.join(outputDir, 'dependencies', 'graph.json'));
+    await file.writeAsString(
+      jsonEncode(output),
+      encoding: utf8,
+      flush: true,
+    );
+  } catch (e, stackTrace) {
+    _logError('Failed to generate dependency graph', e, stackTrace);
+  }
+}
+
+  /// Generate type registry JSON file
+Future<void> _generateTypeRegistry(ProjectAnalysisResult result) async {
+  try {
+    final output = AnalysisOutputGenerator.generateTypeRegistryJson(
+      result.typeRegistry,
+    );
+
+    final file = File(path.join(outputDir, 'types', 'registry.json'));
+    await file.writeAsString(
+      jsonEncode(output),
+      encoding: utf8,
+      flush: true,
+    );
+  } catch (e, stackTrace) {
+    _logError('Failed to generate type registry', e, stackTrace);
+  }
+}
+
+  /// Generate import analysis report
+  Future<void> _generateImportAnalysis(ProjectAnalysisResult result) async {
+    try {
+      final importMap = <String, Set<String>>{};
+      final externalImports = <String>{};
+
+      for (final parsedFile in result.parsedUnits.values) {
+        for (final import in parsedFile.imports) {
+          if (import.isPackageImport || import.isDartCoreImport) {
+            externalImports.add(import.uri);
+          } else if (import.isRelative) {
+            importMap.putIfAbsent(
+              parsedFile.path,
+              () => <String>{},
+            ).add(import.uri);
+          }
+        }
+      }
+
+      final output = {
+        'timestamp': DateTime.now().toIso8601String(),
+        'internalImports': importMap
+            .map((k, v) => MapEntry(path.relative(k, from: projectPath), v.toList())),
+        'externalImports': externalImports.toList(),
+        'uniqueExternalCount': externalImports.length,
+      };
+
+      final file = File(path.join(outputDir, 'imports', 'analysis.json'));
+      await file.writeAsString(
+        jsonEncode(output),
+        encoding: utf8,
+        flush: true,
+      );
+    } catch (e, stackTrace) {
+      _logError('Failed to generate import analysis', e, stackTrace);
+    }
+  }
+
+  /// Generate analysis summary report
+  Future<void> _generateAnalysisSummary(ProjectAnalysisResult result) async {
+    try {
+      final stats = result.statistics;
+      final output = {
+        'timestamp': DateTime.now().toIso8601String(),
+        'projectPath': projectPath,
+        'analysisDuration': '${stats.durationMs}ms',
+        'summary': {
+          'totalFiles': stats.totalFiles,
+          'processedFiles': stats.processedFiles,
+          'cachedFiles': stats.cachedFiles,
+          'errorFiles': stats.errorFiles,
+          'changedFiles': stats.changedFiles,
+          'cacheHitRate': '${(stats.cacheHitRate * 100).toStringAsFixed(1)}%',
+          'errorRate': '${(stats.errorRate * 100).toStringAsFixed(1)}%',
+        },
+        'performance': {
+          'avgTimePerFile': '${stats.avgTimePerFile.toStringAsFixed(2)}ms',
+          'throughput': '${stats.throughput.toStringAsFixed(0)} files/sec',
+        },
+        'output': {
+          'dependencyGraphFile': 'dependencies/graph.json',
+          'typeRegistryFile': 'types/registry.json',
+          'importAnalysisFile': 'imports/analysis.json',
+          'statisticsFile': 'reports/statistics.json',
+          'summaryFile': 'reports/summary.json',
+        },
+      };
+
+      final file = File(path.join(outputDir, 'reports', 'summary.json'));
+      await file.writeAsString(
+        jsonEncode(output),
+        encoding: utf8,
+        flush: true,
+      );
+    } catch (e, stackTrace) {
+      _logError('Failed to generate analysis summary', e, stackTrace);
+    }
+  }
+
+  /// Generate detailed statistics report
+  Future<void> _generateStatisticsReport(
+    ProjectAnalysisResult result,
+  ) async {
+    try {
+      final stats = result.statistics;
+      final output = stats.toJson();
+      output['timestamp'] = DateTime.now().toIso8601String();
+      output['reportPath'] = outputDir;
+
+      final file = File(path.join(outputDir, 'reports', 'statistics.json'));
+      await file.writeAsString(
+        jsonEncode(output),
+        encoding: utf8,
+        flush: true,
+      );
+    } catch (e, stackTrace) {
+      _logError('Failed to generate statistics report', e, stackTrace);
     }
   }
 
@@ -518,14 +735,48 @@ class ProjectAnalyzer {
   // HELPER METHODS
   // ==========================================================================
 
+  /// Analyze a single file incrementally
+  Future<FileAnalysisResult?> analyzeFile(String filePath) async {
+    try {
+      final context = _getContextForFile(filePath);
+      if (context == null) {
+        _log('⚠️  No context found for $filePath');
+        return null;
+      }
+
+      final session = context.currentSession;
+      final result = await session.getResolvedUnit(filePath);
+
+      if (result is ResolvedUnitResult) {
+        final analysisResult = FileAnalysisResult(
+          path: filePath,
+          unit: result.unit,
+          libraryElement: result.libraryElement,
+          errors: result.diagnostics,
+          imports: _extractImports(result.unit),
+          exports: _extractExports(result.unit),
+          parts: _extractParts(result.unit),
+          hash: await _computeFileHash(filePath),
+        );
+
+        _analysisResults[filePath] = analysisResult;
+        return analysisResult;
+      }
+
+      return null;
+    } catch (e, stackTrace) {
+      _logError('Failed to analyze file: $filePath', e, stackTrace);
+      _errorFiles++;
+      return null;
+    }
+  }
+
   /// Get analysis context for a specific file
   AnalysisContext? _getContextForFile(String filePath) {
-    // Cache lookup
     if (_fileToContext.containsKey(filePath)) {
       return _fileToContext[filePath];
     }
 
-    // Find context
     try {
       for (final context in _collection.contexts) {
         final analyzedFiles = context.contextRoot.analyzedFiles();
@@ -549,26 +800,20 @@ class ProjectAnalyzer {
         throw FileSystemException('File not found', filePath);
       }
 
-      // Read and normalize content
       var content = await file.readAsString(encoding: utf8);
 
-      // Normalize line endings and whitespace
       content = content
-          .replaceAll('\r\n', '\n') // Windows -> Unix
-          .replaceAll('\r', '\n') // Old Mac -> Unix
+          .replaceAll('\r\n', '\n')
+          .replaceAll('\r', '\n')
           .split('\n')
-          .map(
-            (line) => line.trimRight(),
-          ) // Remove trailing whitespace per line
+          .map((line) => line.trimRight())
           .join('\n')
-          .trim(); // Remove leading/trailing empty lines
+          .trim();
 
-      // Compute hash
       final bytes = utf8.encode(content);
       return md5.convert(bytes).toString();
     } catch (e) {
       _logVerbose('Failed to compute hash for $filePath: $e');
-      // Return deterministic fallback based on file path
       return md5.convert(utf8.encode(filePath)).toString();
     }
   }
@@ -668,6 +913,16 @@ class ProjectAnalyzer {
       _log(
         '   Cache hit rate:  ${(stats.cacheHitRate * 100).toStringAsFixed(1)}%',
       );
+    }
+
+    if (generateOutputFiles) {
+      _log('\n📁 Output Files:');
+      _log('   Location: $outputDir');
+      _log('   - dependencies/graph.json');
+      _log('   - types/registry.json');
+      _log('   - imports/analysis.json');
+      _log('   - reports/summary.json');
+      _log('   - reports/statistics.json');
     }
   }
 
@@ -826,6 +1081,7 @@ enum AnalysisPhase {
   changeDetection,
   typeResolution,
   caching,
+  outputGeneration,
   complete,
   error,
 }
@@ -881,7 +1137,7 @@ class AnalysisStatistics {
   }
 }
 
-/// Parsed file information ready for IR generation (Phase 2)
+/// Parsed file information ready for IR generation
 class ParsedFileInfo {
   final String path;
   final CompilationUnit unit;

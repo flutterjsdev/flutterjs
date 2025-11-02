@@ -207,6 +207,41 @@ class TypeRegistry {
       'stateClasses': _types.values.where((t) => t.isState).length,
     };
   }
+
+  /// Get all registered types
+  List<TypeInfo> getAllTypes() {
+    return _types.values.toList();
+  }
+
+  /// Export registry with statistics
+  Map<String, dynamic> toJsonWithStats() {
+    final types = _types.values.toList();
+    final typesByKind = <String, int>{};
+    final typesByFile = <String, int>{};
+
+    for (final type in types) {
+      typesByKind[type.kind.toString()] = 
+          (typesByKind[type.kind.toString()] ?? 0) + 1;
+      typesByFile[type.filePath] = (typesByFile[type.filePath] ?? 0) + 1;
+    }
+
+    return {
+      'totalTypes': typeCount,
+      'types': types.map((t) => {
+        'name': t.name,
+        'kind': t.kind.toString(),
+        'filePath': t.filePath,
+        'isWidget': t.isWidget,
+        'isStatefulWidget': t.isStatefulWidget,
+        'isState': t.isState,
+      }).toList(),
+      'statistics': {
+        'typesByKind': typesByKind,
+        'typesByFile': typesByFile,
+        'filesWithTypes': _fileTypes.length,
+      },
+    };
+  }
 }
 
 /// Type information extracted from declarations

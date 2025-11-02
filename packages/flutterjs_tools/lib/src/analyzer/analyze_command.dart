@@ -564,6 +564,8 @@ extension AnalysisPhaseDisplay on AnalysisPhase {
         return '✅ Complete';
       case AnalysisPhase.error:
         return '❌ Error';
+      case AnalysisPhase.outputGeneration:
+        return '📦 Output';  
     }
   }
 }
