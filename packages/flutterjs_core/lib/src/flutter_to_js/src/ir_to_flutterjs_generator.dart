@@ -416,41 +416,11 @@ class IRToJavaScriptFormatter {
     }
   }
 
-  void _generateFunctions() {
-    if (dartFile.functionDeclarations.isEmpty) return;
-
-    writeln("\n// ========== FUNCTIONS ==========\n");
-
-    for (int i = 0; i < dartFile.functionDeclarations.length; i++) {
-      String func = _convertFunctionDeclaration(
-        dartFile.functionDeclarations[i],
-      );
-      writeln(func);
-      if (i < dartFile.functionDeclarations.length - 1) {
-        writeln("");
-      }
-    }
-  }
-
-  void _generateClasses() {
-    if (dartFile.classDeclarations.isEmpty) return;
-
-    writeln("\n// ========== CLASSES ==========\n");
-
-    for (int i = 0; i < dartFile.classDeclarations.length; i++) {
-      String cls = _convertClassDeclaration(dartFile.classDeclarations[i]);
-      writeln(cls);
-      if (i < dartFile.classDeclarations.length - 1) {
-        writeln("");
-      }
-    }
-  }
-
   // =========================================================================
   // VARIABLE DECLARATION
   // =========================================================================
 
-  String _convertVariableDeclaration(VariableDecl variable) {
+   String _convertVariableDeclaration(VariableDecl variable) {
     scopeManager.addVariable(variable.name, variable.type);
 
     String keyword = variable.isConst ? 'const' : 'let';
@@ -465,193 +435,6 @@ class IRToJavaScriptFormatter {
     String result = '$keyword ${variable.name}$init;';
 
     return type.isNotEmpty ? '$type\n$result' : result;
-  }
-
-  // =========================================================================
-  // FUNCTION DECLARATION
-  // =========================================================================
-
-  String _convertFunctionDeclaration(FunctionDecl func) {
-    context.enterFunction(func);
-    scopeManager.pushScope('function');
-
-    for (final param in func.parameters) {
-      scopeManager.addVariable(param.name, param.type, isParameter: true);
-    }
-
-    String asyncKeyword = func.isAsync ? 'async ' : '';
-    String params = func.parameters.map((p) => p.name).join(', ');
-
-    String result = '${asyncKeyword}function ${func.name}($params) {\n';
-    indent();
-
-    // TODO: Add function body conversion
-    writeln('// Function implementation');
-
-    dedent();
-    result += '\n${getIndent()}}';
-
-    scopeManager.popScope();
-    context.exitFunction();
-
-    return result;
-  }
-
-  // =========================================================================
-  // CLASS DECLARATION
-  // =========================================================================
-
-  String _convertClassDeclaration(ClassDecl classDecl) {
-    bool isStateful = _isStatefulWidget(classDecl);
-    context.enterClass(classDecl, isStateful: isStateful);
-    scopeManager.pushScope('class');
-
-    // Register fields in scope
-    for (final field in classDecl.fields) {
-      scopeManager.addVariable(field.name, field.type, isField: true);
-    }
-
-    String baseClass = _getBaseClass(classDecl.superclass);
-    String result = 'class ${classDecl.name} extends $baseClass {\n';
-
-    indent();
-
-    // Constructor
-    if (classDecl.fields.isNotEmpty || baseClass != 'Widget') {
-      result += _convertConstructor(classDecl) + '\n\n';
-    }
-
-    // For StatefulWidget, generate createState
-    if (isStateful) {
-      result += _generateCreateState(classDecl) + '\n\n';
-    }
-
-    // Methods
-    for (int i = 0; i < classDecl.methods.length; i++) {
-      result += _convertMethodDeclaration(classDecl.methods[i]);
-      if (i < classDecl.methods.length - 1) {
-        result += '\n\n';
-      }
-    }
-
-    dedent();
-    result += '\n${getIndent()}}';
-
-    // Generate State class if StatefulWidget
-    if (isStateful) {
-      result += '\n\n' + _generateStateClass(classDecl);
-    }
-
-    scopeManager.popScope();
-    context.exitClass();
-
-    return result;
-  }
-
-  String _convertConstructor(ClassDecl classDecl) {
-    scopeManager.pushScope('constructor');
-
-    String result = 'constructor() {\n';
-    indent();
-
-    // Call super if needed
-    if (classDecl.superclass != null &&
-        !classDecl.superclass!.displayName().contains('Widget')) {
-      writeln('super();');
-    }
-
-    // Initialize fields
-    for (final field in classDecl.fields) {
-      if (field.initializer != null) {
-        String init = _convertExpression(field.initializer!);
-        writeln('this.${field.name} = $init;');
-      } else {
-        writeln('this.${field.name} = null;');
-      }
-    }
-
-    dedent();
-    result += '${getIndent()}}';
-
-    scopeManager.popScope();
-
-    return result;
-  }
-
-  String _convertMethodDeclaration(MethodDecl method) {
-    context.enterMethod(method);
-    scopeManager.pushScope('method');
-
-    // Register parameters
-    for (final param in method.parameters) {
-      scopeManager.addVariable(param.name, param.type, isParameter: true);
-    }
-
-    String asyncKeyword = method.isAsync ? 'async ' : '';
-    String params = method.parameters.map((p) => p.name).join(', ');
-
-    String result = '${asyncKeyword}${method.name}($params) {\n';
-    indent();
-
-    // Special handling for lifecycle methods
-    if (method.name == 'initState') {
-      writeln('super.initState();');
-    } else if (method.name == 'dispose') {
-      writeln('// Cleanup code here');
-    } else if (method.name == 'build') {
-      writeln('// Build widget tree');
-    } else {
-      writeln('// Method implementation');
-    }
-
-    dedent();
-    result += '${getIndent()}}';
-
-    scopeManager.popScope();
-    context.exitMethod();
-
-    return result;
-  }
-
-  String _generateCreateState(ClassDecl classDecl) {
-    String stateName = '_${classDecl.name}State';
-    return 'createState() {\n${getIndent(1)}return new $stateName();\n${getIndent()}}';
-  }
-
-  String _generateStateClass(ClassDecl statefulWidget) {
-    String stateName = '_${statefulWidget.name}State';
-
-    String result = 'class $stateName extends State {\n';
-    indent();
-
-    result += 'constructor() {\n';
-    indent();
-    writeln('super();');
-    dedent();
-    result += '${getIndent()}}\n\n';
-
-    result += 'initState() {\n';
-    indent();
-    writeln('super.initState();');
-    dedent();
-    result += '${getIndent()}}\n\n';
-
-    result += 'build(context) {\n';
-    indent();
-    writeln('return new Container({});');
-    dedent();
-    result += '${getIndent()}}\n\n';
-
-    result += 'dispose() {\n';
-    indent();
-    writeln('super.dispose();');
-    dedent();
-    result += '${getIndent()}}\n';
-
-    dedent();
-    result += '${getIndent()}}';
-
-    return result;
   }
 
   // =========================================================================
@@ -1450,4 +1233,372 @@ class IRToJavaScriptFormatter {
 
     return report.toString();
   }
+
+  String _convertFunctionDeclaration(FunctionDecl func) {
+    context.enterFunction(func);
+    scopeManager.pushScope('function');
+
+    for (final param in func.parameters) {
+      scopeManager.addVariable(param.name, param.type, isParameter: true);
+    }
+
+    String asyncKeyword = func.isAsync ? 'async ' : '';
+    String params = func.parameters.map((p) => p.name).join(', ');
+
+    String result = '${asyncKeyword}function ${func.name}($params) {\n';
+    indent();
+
+    // Convert function body properly
+    if (func.body != null) {
+      if (func.body is BlockStmt) {
+        final blockStmt = func.body as BlockStmt;
+        for (final stmt in blockStmt.statements) {
+          writeln(_convertStatement(stmt));
+        }
+      } else if (func.body is StatementIR) {
+        writeln(_convertStatement(func.body as StatementIR));
+      }
+    } else {
+      writeln('// TODO: Function body not available');
+    }
+
+    dedent();
+    result += output.toString().split('\n').lastWhere((l) => l.isNotEmpty);
+    result += '\n${getIndent()}}\n';
+
+    scopeManager.popScope();
+    context.exitFunction();
+
+    return result;
+  }
+
+  String _convertMethodDeclaration(MethodDecl method) {
+    context.enterMethod(method);
+    scopeManager.pushScope('method');
+
+    // Register parameters
+    for (final param in method.parameters) {
+      scopeManager.addVariable(param.name, param.type, isParameter: true);
+    }
+
+    String asyncKeyword = method.isAsync ? 'async ' : '';
+    String params = method.parameters.map((p) => p.name).join(', ');
+
+    String result = '${asyncKeyword}${method.name}($params) {\n';
+    indent();
+
+    // Special handling for lifecycle methods
+    if (method.name == 'initState') {
+      writeln('super.initState();');
+    } else if (method.name == 'dispose') {
+      writeln('super.dispose();');
+    } else if (method.name == 'build') {
+      writeln('// Build widget tree - implement build method');
+    } else {
+      // Convert actual method body
+      if (method.body != null) {
+        if (method.body is BlockStmt) {
+          final blockStmt = method.body as BlockStmt;
+          for (final stmt in blockStmt.statements) {
+            writeln(_convertStatement(stmt));
+          }
+        } else if (method.body is StatementIR) {
+          writeln(_convertStatement(method.body as StatementIR));
+        }
+      } else {
+        writeln('// Method implementation');
+      }
+    }
+
+    dedent();
+    result += '${getIndent()}}';
+
+    scopeManager.popScope();
+    context.exitMethod();
+
+    return result;
+  }
+
+  String _convertClassDeclaration(ClassDecl classDecl) {
+    bool isStateful = _isStatefulWidget(classDecl);
+    context.enterClass(classDecl, isStateful: isStateful);
+    scopeManager.pushScope('class');
+
+    // Register fields in scope
+    for (final field in classDecl.fields) {
+      scopeManager.addVariable(field.name, field.type, isField: true);
+    }
+
+    String baseClass = _getBaseClass(classDecl.superclass);
+    String result = 'class ${classDecl.name} extends $baseClass {\n';
+
+    indent();
+
+    // Constructor
+    if (classDecl.fields.isNotEmpty || baseClass != 'Widget') {
+      result += _convertConstructor(classDecl) + '\n\n';
+    }
+
+    // For StatefulWidget, generate createState
+    if (isStateful) {
+      result += _generateCreateState(classDecl) + '\n\n';
+    }
+
+    // Methods
+    for (int i = 0; i < classDecl.methods.length; i++) {
+      result += getIndent() + _convertMethodDeclaration(classDecl.methods[i]);
+      if (i < classDecl.methods.length - 1) {
+        result += '\n\n';
+      }
+    }
+
+    dedent();
+    result += '\n${getIndent()}}';
+
+    // Generate State class if StatefulWidget
+    if (isStateful) {
+      result += '\n\n' + _generateStateClass(classDecl);
+    }
+
+    scopeManager.popScope();
+    context.exitClass();
+
+    return result;
+  }
+
+  String _convertConstructor(ClassDecl classDecl) {
+    scopeManager.pushScope('constructor');
+
+    String result = 'constructor() {\n';
+    indent();
+
+    // Call super if needed
+    if (classDecl.superclass != null &&
+        !classDecl.superclass!.displayName().contains('Widget')) {
+      writeln('super();');
+    }
+
+    // Initialize fields
+    for (final field in classDecl.fields) {
+      if (field.initializer != null) {
+        String init = _convertExpression(field.initializer!);
+        writeln('this.${field.name} = $init;');
+      } else {
+        writeln('this.${field.name} = null;');
+      }
+    }
+
+    dedent();
+    result += '${getIndent()}}';
+
+    scopeManager.popScope();
+
+    return result;
+  }
+
+  String _generateCreateState(ClassDecl classDecl) {
+    String stateName = '_${classDecl.name}State';
+    return '${getIndent()}createState() {\n${getIndent(1)}return new $stateName();\n${getIndent()}}';
+  }
+
+  String _generateStateClass(ClassDecl statefulWidget) {
+    String stateName = '_${statefulWidget.name}State';
+
+    String result = 'class $stateName extends State {\n';
+    indent();
+
+    // Constructor
+    result += '${getIndent()}constructor() {\n';
+    indent();
+    writeln('super();');
+    dedent();
+    result += '${getIndent()}}\n\n';
+
+    // initState
+    result += '${getIndent()}initState() {\n';
+    indent();
+    writeln('super.initState();');
+    dedent();
+    result += '${getIndent()}}\n\n';
+
+    // build
+    result += '${getIndent()}build(context) {\n';
+    indent();
+    writeln('return new Container({});');
+    dedent();
+    result += '${getIndent()}}\n\n';
+
+    // dispose
+    result += '${getIndent()}dispose() {\n';
+    indent();
+    writeln('super.dispose();');
+    dedent();
+    result += '${getIndent()}}\n';
+
+    dedent();
+    result += '${getIndent()}}';
+
+    return result;
+  }
+
+  void _generateFunctions() {
+    if (dartFile.functionDeclarations.isEmpty) return;
+
+    writeln("\n// ========== FUNCTIONS ==========\n");
+
+    for (int i = 0; i < dartFile.functionDeclarations.length; i++) {
+      final functionDecl = dartFile.functionDeclarations[i];
+      
+      // Get base function structure
+      String asyncKeyword = functionDecl.isAsync ? 'async ' : '';
+      String params = functionDecl.parameters.map((p) => p.name).join(', ');
+      
+      write('${asyncKeyword}function ${functionDecl.name}($params) {\n');
+      indent();
+
+      // Convert function body
+      if (functionDecl.body != null) {
+        if (functionDecl.body is BlockStmt) {
+          final blockStmt = functionDecl.body as BlockStmt;
+          for (final stmt in blockStmt.statements) {
+            writeln(_convertStatement(stmt));
+          }
+        } else if (functionDecl.body is StatementIR) {
+          writeln(_convertStatement(functionDecl.body as StatementIR));
+        }
+      } else {
+        writeln('// TODO: Function body');
+      }
+
+      dedent();
+      writeln('}');
+      
+      if (i < dartFile.functionDeclarations.length - 1) {
+        writeln("");
+      }
+    }
+  }
+
+  void _generateClasses() {
+    if (dartFile.classDeclarations.isEmpty) return;
+
+    writeln("\n// ========== CLASSES ==========\n");
+
+    for (int i = 0; i < dartFile.classDeclarations.length; i++) {
+      bool isStateful = _isStatefulWidget(dartFile.classDeclarations[i]);
+      final classDecl = dartFile.classDeclarations[i];
+      
+      // Class header
+      String baseClass = _getBaseClass(classDecl.superclass);
+      writeln('class ${classDecl.name} extends $baseClass {');
+      indent();
+
+      // Constructor
+      writeln('constructor() {');
+      indent();
+      if (classDecl.fields.isNotEmpty) {
+        for (final field in classDecl.fields) {
+          if (field.initializer != null) {
+            String init = _convertExpression(field.initializer!);
+            writeln('this.${field.name} = $init;');
+          } else {
+            writeln('this.${field.name} = null;');
+          }
+        }
+      }
+      dedent();
+      writeln('}');
+      
+      writeln('');
+
+      // createState for StatefulWidget
+      if (isStateful) {
+        writeln('createState() {');
+        indent();
+        writeln('return new _${classDecl.name}State();');
+        dedent();
+        writeln('}');
+        writeln('');
+      }
+
+      // Methods
+      for (int j = 0; j < classDecl.methods.length; j++) {
+        final method = classDecl.methods[j];
+        String asyncKeyword = method.isAsync ? 'async ' : '';
+        String params = method.parameters.map((p) => p.name).join(', ');
+        
+        writeln('${asyncKeyword}${method.name}($params) {');
+        indent();
+
+        if (method.name == 'initState') {
+          writeln('super.initState();');
+        } else if (method.name == 'dispose') {
+          writeln('super.dispose();');
+        } else if (method.name == 'build') {
+          writeln('// Build implementation');
+        } else if (method.body != null) {
+          if (method.body is BlockStmt) {
+            final blockStmt = method.body as BlockStmt;
+            for (final stmt in blockStmt.statements) {
+              writeln(_convertStatement(stmt));
+            }
+          } else if (method.body is StatementIR) {
+            writeln(_convertStatement(method.body as StatementIR));
+          }
+        }
+
+        dedent();
+        writeln('}');
+        
+        if (j < classDecl.methods.length - 1) {
+          writeln('');
+        }
+      }
+
+      dedent();
+      writeln('}');
+
+      // Generate State class if StatefulWidget
+      if (isStateful) {
+        writeln('');
+        writeln('class _${classDecl.name}State extends State {');
+        indent();
+        
+        writeln('constructor() {');
+        indent();
+        writeln('super();');
+        dedent();
+        writeln('}');
+        writeln('');
+
+        writeln('initState() {');
+        indent();
+        writeln('super.initState();');
+        dedent();
+        writeln('}');
+        writeln('');
+
+        writeln('build(context) {');
+        indent();
+        writeln('return new Container({});');
+        dedent();
+        writeln('}');
+        writeln('');
+
+        writeln('dispose() {');
+        indent();
+        writeln('super.dispose();');
+        dedent();
+        writeln('}');
+
+        dedent();
+        writeln('}');
+      }
+
+      if (i < dartFile.classDeclarations.length - 1) {
+        writeln("");
+      }
+    }
+  }
+
 }
