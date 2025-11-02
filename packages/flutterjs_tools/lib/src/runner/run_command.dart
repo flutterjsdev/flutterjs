@@ -266,7 +266,7 @@ class RunCommand extends Command<void> {
       // ===== PHASE 4: IR TO JAVASCRIPT CONVERSION (OPTIONAL) =====
       if (toJs) {
         if (!jsonOutput) {
-          print('\nPHASE 4: Converting IR Files to JavaScript...\n');
+          print('PHASE 4: Converting IR Files to JavaScript...');
         }
 
         try {
@@ -283,11 +283,14 @@ class RunCommand extends Command<void> {
 
           if (!jsonOutput) {
             if (jsFileCount > 0) {
-              print('\n  ✓ JavaScript files saved to: $jsOutputPath');
+              print('\n✓ JavaScript generation successful!');
+              print('  Output: $jsOutputPath');
             } else {
+              print('\n✗ No JavaScript files were generated.');
               print(
-                '\n  ✗ No JavaScript files were generated. Check IR files.',
+                '  Check IR files or formatter errors (use --verbose for details)',
               );
+              if (strictMode) exit(1);
             }
           }
         } catch (e, stackTrace) {
@@ -297,6 +300,8 @@ class RunCommand extends Command<void> {
           }
           if (strictMode) exit(1);
         }
+      } else {
+        if (verbose) print('Phase 4: Skipped (--to-js flag not provided)');
       }
 
       // ===== PRINT RESULTS =====
@@ -613,24 +618,20 @@ class RunCommand extends Command<void> {
     int fileCount = 0;
     int errorCount = 0;
 
-    const config = JSFormatterConfig(
-      indentSpaces: 2,
-      useSemicolons: true,
-      includeTypeComments: false,
-      formatCode: true,
-      minify: false,
-    );
-
-    final irDir = Directory(irInputPath);
-
-    // ✓ Check if IR directory exists
-    if (!await irDir.exists()) {
-      if (!jsonOutput) print('Error: IR directory not found: $irInputPath');
-      return 0;
+    if (!jsonOutput) {
+      print('\n  Initializing JavaScript conversion...');
+      print('  IR Input:  $irInputPath');
+      print('  JS Output: $jsOutputPath\n');
     }
 
-    if (!jsonOutput) {
-      print('  Scanning IR directory: $irInputPath\n');
+    // ✓ Check IR directory exists
+    final irDir = Directory(irInputPath);
+    if (!await irDir.exists()) {
+      if (!jsonOutput) {
+        print('  ✗ Error: IR directory not found');
+        print('    Expected: $irInputPath');
+      }
+      return 0;
     }
 
     // ✓ Find all .ir files
@@ -645,53 +646,74 @@ class RunCommand extends Command<void> {
         }
       }
     } catch (e) {
-      if (!jsonOutput) print('Error reading IR directory: $e');
+      if (!jsonOutput) print('  ✗ Error reading IR directory: $e');
       return 0;
     }
 
     if (irFiles.isEmpty) {
-      if (!jsonOutput) print('No .ir files found in $irInputPath');
+      if (!jsonOutput) {
+        print('  ✗ No .ir files found in:');
+        print('    $irInputPath');
+      }
       return 0;
     }
 
+    irFiles.sort();
+
     if (!jsonOutput) {
-      print('  Found ${irFiles.length} IR file(s)');
-      print('  Converting to JavaScript...\n');
+      print('  ✓ Found ${irFiles.length} IR file(s)');
+      print('  Converting each file to JavaScript...\n');
     }
 
-    irFiles.sort();
+    const config = JSFormatterConfig(
+      indentSpaces: 2,
+      useSemicolons: true,
+      includeTypeComments: false,
+      formatCode: true,
+      minify: false,
+    );
 
     // ✓ Process each .ir file
     for (final irFilePath in irFiles) {
       try {
         final irFile = File(irFilePath);
-        if (!await irFile.exists()) continue;
+        if (!await irFile.exists()) {
+          if (verbose) print('    ✗ IR file disappeared: $irFilePath');
+          continue;
+        }
 
+        // ✓ Get file info
         final irFileName = path.basename(irFilePath);
         final jsFileName = irFileName
             .replaceAll('_ir.ir', '.js')
-            .replaceAll('.ir', '.js');
+            .replaceAll(RegExp(r'\.ir$'), '.js');
 
-        // ✓ Calculate relative path for directory structure
+        // ✓ Calculate relative path to preserve directory structure
         final relativePath = path.relative(irFilePath, from: irInputPath);
         var relativeDir = path.dirname(relativePath);
         if (relativeDir == '.') relativeDir = '';
 
-        // ✓ Construct JS output path (preserve directory structure)
+        // ✓ Construct output file path
         final jsOutputFile = relativeDir.isEmpty
             ? File(path.join(jsOutputPath, jsFileName))
             : File(path.join(jsOutputPath, relativeDir, jsFileName));
 
         if (verbose) {
-          print('  Processing: $irFileName');
+          print('    Processing: $irFileName');
         }
 
         // ✓ Read binary IR file
         final irBytes = await irFile.readAsBytes();
         if (irBytes.isEmpty) {
-          if (verbose) print('    ✗ Empty IR file');
+          if (verbose) print('      ✗ IR file is empty');
           errorCount++;
           continue;
+        }
+
+        if (verbose) {
+          print(
+            '      ✓ Read ${(irBytes.length / 1024).toStringAsFixed(2)} KB',
+          );
         }
 
         // ✓ Deserialize binary IR to DartFile object
@@ -699,8 +721,17 @@ class RunCommand extends Command<void> {
         try {
           final reader = BinaryIRReader();
           dartFile = reader.readFileIR(irBytes);
+
+          if (verbose) {
+            print(
+              '      ✓ Deserialized: ${dartFile.classDeclarations.length} classes, '
+              '${dartFile.functionDeclarations.length} functions',
+            );
+          }
         } catch (e) {
-          if (verbose) print('    ✗ Failed to deserialize IR: $e');
+          if (verbose) {
+            print('      ✗ Deserialization failed: $e');
+          }
           errorCount++;
           continue;
         }
@@ -709,17 +740,20 @@ class RunCommand extends Command<void> {
         final formatter = IRToJavaScriptFormatter(config: config);
         final jsCode = formatter.format(dartFile);
 
+        if (verbose) {
+          print('      ✓ Formatted successfully');
+        }
+
         // ✓ Check for formatter errors
         if (formatter.errorCollector.hasErrors()) {
           final errors = formatter.errorCollector.errors
               .where((e) => e.severity == ErrorSeverity.ERROR)
-              .map((e) => e.message)
               .toList();
 
           if (verbose) {
-            print('    ✗ Formatter errors (${errors.length}):');
+            print('      ✗ Formatter errors (${errors.length}):');
             for (final error in errors.take(3)) {
-              print('      - $error');
+              print('        - ${error.message}');
             }
           }
           errorCount++;
@@ -728,40 +762,52 @@ class RunCommand extends Command<void> {
 
         // ✓ Verify JS code is not empty
         if (jsCode.isEmpty) {
-          if (verbose) print('    ✗ Generated empty JavaScript');
+          if (verbose) print('      ✗ Generated empty JavaScript');
           errorCount++;
           continue;
         }
 
         // ✓ Create output directory if needed
-        await jsOutputFile.parent.create(recursive: true);
+        try {
+          await jsOutputFile.parent.create(recursive: true);
+        } catch (e) {
+          if (verbose) print('      ✗ Failed to create directory: $e');
+          errorCount++;
+          continue;
+        }
 
         // ✓ Write JS file
-        await jsOutputFile.writeAsString(jsCode);
-        fileCount++;
+        try {
+          await jsOutputFile.writeAsString(jsCode);
+          fileCount++;
 
-        if (verbose) {
-          final sizeKb = (jsCode.length / 1024).toStringAsFixed(2);
-          final displayPath = relativeDir.isEmpty
-              ? jsFileName
-              : path.join(relativeDir, jsFileName);
-          print('    ✓ $jsFileName → $displayPath ($sizeKb KB)');
+          if (verbose) {
+            final sizeKb = (jsCode.length / 1024).toStringAsFixed(2);
+            final displayPath = relativeDir.isEmpty
+                ? jsFileName
+                : path.join(relativeDir, jsFileName);
+            print('      ✓ Written: $displayPath ($sizeKb KB)');
+          }
+        } catch (e) {
+          if (verbose) print('      ✗ Write failed: $e');
+          errorCount++;
+          continue;
         }
       } catch (e, stackTrace) {
         errorCount++;
         if (verbose) {
-          print('    ✗ Error processing ${path.basename(irFilePath)}: $e');
-          if (verbose) print('       $stackTrace');
+          print('    ✗ Unexpected error in ${path.basename(irFilePath)}');
+          print('      $e');
+          print('      Stack: $stackTrace');
         }
       }
     }
 
     if (!jsonOutput) {
-      print(
-        '\n  ✓ Successfully converted: $fileCount / ${irFiles.length} files',
-      );
+      print('  ✓ Conversion complete:');
+      print('    - Successful: $fileCount files');
       if (errorCount > 0) {
-        print('  ✗ Failed: $errorCount files');
+        print('    - Failed: $errorCount files');
       }
     }
 
