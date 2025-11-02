@@ -1,4 +1,3 @@
-
 import 'package:analyzer/dart/analysis/analysis_context.dart';
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
@@ -73,10 +72,19 @@ class ProjectAnalyzer {
       '**/*.mocks.dart',
       '**/test/**',
     ],
-  })  : cacheDir = cacheDir ?? path.join(projectPath, '.flutter_js_cache'),
-        buildDir = buildDir ?? path.join(projectPath, 'build'),
-        outputDir = outputDir ??
-            path.join(projectPath, 'build', 'analysis_output');
+  }) : buildDir = buildDir ?? path.join(projectPath, 'build'),
+       cacheDir =
+           cacheDir ??
+           path.join(
+             buildDir ?? path.join(projectPath, 'build'),
+             'flutter_js_cache',
+           ),
+       outputDir =
+           outputDir ??
+           path.join(
+             buildDir ?? path.join(projectPath, 'build'),
+             'analysis_output',
+           );
 
   // ==========================================================================
   // INITIALIZATION
@@ -140,12 +148,7 @@ class ProjectAnalyzer {
       }
 
       // Create subdirectories for organized output
-      final subdirs = [
-        'dependencies',
-        'types',
-        'imports',
-        'reports',
-      ];
+      final subdirs = ['dependencies', 'types', 'imports', 'reports'];
 
       for (final subdir in subdirs) {
         final dir = Directory(path.join(outputDir, subdir));
@@ -518,9 +521,7 @@ class ProjectAnalyzer {
   // PHASE 5: OUTPUT FILE GENERATION
   // ==========================================================================
 
-  Future<void> _phase5_GenerateOutputFiles(
-    ProjectAnalysisResult result,
-  ) async {
+  Future<void> _phase5_GenerateOutputFiles(ProjectAnalysisResult result) async {
     _notifyProgress(
       AnalysisPhase.outputGeneration,
       0,
@@ -596,40 +597,32 @@ class ProjectAnalyzer {
 
   /// Generate dependency graph JSON file
   Future<void> _generateDependencyGraph(ProjectAnalysisResult result) async {
-  try {
-    final output = AnalysisOutputGenerator.generateDependencyGraphJson(
-      result.dependencyGraph,
-      result.analysisOrder,
-    );
+    try {
+      final output = AnalysisOutputGenerator.generateDependencyGraphJson(
+        result.dependencyGraph,
+        result.analysisOrder,
+      );
 
-    final file = File(path.join(outputDir, 'dependencies', 'graph.json'));
-    await file.writeAsString(
-      jsonEncode(output),
-      encoding: utf8,
-      flush: true,
-    );
-  } catch (e, stackTrace) {
-    _logError('Failed to generate dependency graph', e, stackTrace);
+      final file = File(path.join(outputDir, 'dependencies', 'graph.json'));
+      await file.writeAsString(jsonEncode(output), encoding: utf8, flush: true);
+    } catch (e, stackTrace) {
+      _logError('Failed to generate dependency graph', e, stackTrace);
+    }
   }
-}
 
   /// Generate type registry JSON file
-Future<void> _generateTypeRegistry(ProjectAnalysisResult result) async {
-  try {
-    final output = AnalysisOutputGenerator.generateTypeRegistryJson(
-      result.typeRegistry,
-    );
+  Future<void> _generateTypeRegistry(ProjectAnalysisResult result) async {
+    try {
+      final output = AnalysisOutputGenerator.generateTypeRegistryJson(
+        result.typeRegistry,
+      );
 
-    final file = File(path.join(outputDir, 'types', 'registry.json'));
-    await file.writeAsString(
-      jsonEncode(output),
-      encoding: utf8,
-      flush: true,
-    );
-  } catch (e, stackTrace) {
-    _logError('Failed to generate type registry', e, stackTrace);
+      final file = File(path.join(outputDir, 'types', 'registry.json'));
+      await file.writeAsString(jsonEncode(output), encoding: utf8, flush: true);
+    } catch (e, stackTrace) {
+      _logError('Failed to generate type registry', e, stackTrace);
+    }
   }
-}
 
   /// Generate import analysis report
   Future<void> _generateImportAnalysis(ProjectAnalysisResult result) async {
@@ -642,28 +635,24 @@ Future<void> _generateTypeRegistry(ProjectAnalysisResult result) async {
           if (import.isPackageImport || import.isDartCoreImport) {
             externalImports.add(import.uri);
           } else if (import.isRelative) {
-            importMap.putIfAbsent(
-              parsedFile.path,
-              () => <String>{},
-            ).add(import.uri);
+            importMap
+                .putIfAbsent(parsedFile.path, () => <String>{})
+                .add(import.uri);
           }
         }
       }
 
       final output = {
         'timestamp': DateTime.now().toIso8601String(),
-        'internalImports': importMap
-            .map((k, v) => MapEntry(path.relative(k, from: projectPath), v.toList())),
+        'internalImports': importMap.map(
+          (k, v) => MapEntry(path.relative(k, from: projectPath), v.toList()),
+        ),
         'externalImports': externalImports.toList(),
         'uniqueExternalCount': externalImports.length,
       };
 
       final file = File(path.join(outputDir, 'imports', 'analysis.json'));
-      await file.writeAsString(
-        jsonEncode(output),
-        encoding: utf8,
-        flush: true,
-      );
+      await file.writeAsString(jsonEncode(output), encoding: utf8, flush: true);
     } catch (e, stackTrace) {
       _logError('Failed to generate import analysis', e, stackTrace);
     }
@@ -700,20 +689,14 @@ Future<void> _generateTypeRegistry(ProjectAnalysisResult result) async {
       };
 
       final file = File(path.join(outputDir, 'reports', 'summary.json'));
-      await file.writeAsString(
-        jsonEncode(output),
-        encoding: utf8,
-        flush: true,
-      );
+      await file.writeAsString(jsonEncode(output), encoding: utf8, flush: true);
     } catch (e, stackTrace) {
       _logError('Failed to generate analysis summary', e, stackTrace);
     }
   }
 
   /// Generate detailed statistics report
-  Future<void> _generateStatisticsReport(
-    ProjectAnalysisResult result,
-  ) async {
+  Future<void> _generateStatisticsReport(ProjectAnalysisResult result) async {
     try {
       final stats = result.statistics;
       final output = stats.toJson();
@@ -721,11 +704,7 @@ Future<void> _generateTypeRegistry(ProjectAnalysisResult result) async {
       output['reportPath'] = outputDir;
 
       final file = File(path.join(outputDir, 'reports', 'statistics.json'));
-      await file.writeAsString(
-        jsonEncode(output),
-        encoding: utf8,
-        flush: true,
-      );
+      await file.writeAsString(jsonEncode(output), encoding: utf8, flush: true);
     } catch (e, stackTrace) {
       _logError('Failed to generate statistics report', e, stackTrace);
     }
