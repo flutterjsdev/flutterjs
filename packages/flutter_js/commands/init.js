@@ -11,6 +11,29 @@ function mkdirp(dir) {
   fs.mkdirSync(dir);
 }
 
+// Copy directory recursively
+function copyDir(src, dest) {
+  mkdirp(dest);
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    
+    if (entry.isDirectory()) {
+      copyDir(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+// Copy single file
+function copyFile(src, dest) {
+  mkdirp(path.dirname(dest));
+  fs.copyFileSync(src, dest);
+}
+
 async function init(projectName, options) {
   if (!projectName) {
     console.error('❌ Project name is required!');
@@ -21,6 +44,7 @@ async function init(projectName, options) {
   console.log(`🚀 Creating new Flutter.js project: ${projectName}\n`);
   
   const projectPath = path.join(process.cwd(), projectName);
+  const templateDir = path.join(__dirname, '..', 'templates');
   
   // Check if directory already exists
   if (fs.existsSync(projectPath)) {
@@ -29,12 +53,52 @@ async function init(projectName, options) {
   }
   
   try {
-    // Create project structure
+    // Create base project directory
     console.log('📁 Creating project structure...');
     mkdirp(projectPath);
-    mkdirp(path.join(projectPath, 'src'));
-    mkdirp(path.join(projectPath, 'assets'));
     mkdirp(path.join(projectPath, '.flutter_js'));
+    
+    // Copy template files from framework
+    console.log('📋 Setting up from templates...');
+    
+    // Copy .vscode configuration
+    if (fs.existsSync(path.join(templateDir, '.vscode'))) {
+      console.log('  ⚙️  Copying VS Code configuration...');
+      copyDir(
+        path.join(templateDir, '.vscode'),
+        path.join(projectPath, '.vscode')
+      );
+    }
+    
+    // Copy src folder with main.fjs
+    if (fs.existsSync(path.join(templateDir, 'src'))) {
+      console.log('  📝 Copying source templates...');
+      copyDir(
+        path.join(templateDir, 'src'),
+        path.join(projectPath, 'src')
+      );
+    }
+    
+    // Copy assets folder
+    if (fs.existsSync(path.join(templateDir, 'assets'))) {
+      console.log('  🎨 Copying assets...');
+      copyDir(
+        path.join(templateDir, 'assets'),
+        path.join(projectPath, 'assets')
+      );
+    }
+    
+    // Copy config files
+    const configFiles = ['.eslintrc.json', '.prettierrc.json', '.gitignore'];
+    for (const configFile of configFiles) {
+      const srcPath = path.join(templateDir, configFile);
+      if (fs.existsSync(srcPath)) {
+        console.log(`  🔧 Copying ${configFile}...`);
+        copyFile(srcPath, path.join(projectPath, configFile));
+      }
+    }
+    
+    // Generate dynamic files
     
     // Create package.json
     console.log('📦 Creating package.json...');
@@ -47,7 +111,11 @@ async function init(projectName, options) {
         build: 'flutter_js build',
         preview: 'flutter_js preview',
       },
-      keywords: ['flutter', 'flutter.js'],
+      devDependencies: {
+        eslint: '^8.0.0',
+        prettier: '^3.0.0',
+      },
+      keywords: ['flutter', 'flutter.js', 'fjs'],
       author: '',
       license: 'MIT',
     };
@@ -96,27 +164,6 @@ async function init(projectName, options) {
       configContent
     );
     
-    // Create src/main.dart (placeholder)
-    console.log('📝 Creating src/main.dart...');
-    const mainDartContent = `// Flutter.js Application Entry Point
-// 
-// This is a placeholder file. Write your Flutter/Dart code here.
-// After writing your code, transpile it using:
-//   flutter_js_compiler transpile src/
-//
-// Then build and run:
-//   flutter_js dev
-
-void main() {
-  // Your Flutter app code here
-  print('Hello from Flutter.js!');
-}
-`;
-    fs.writeFileSync(
-      path.join(projectPath, 'src', 'main.dart'),
-      mainDartContent
-    );
-    
     // Create README.md
     console.log('📄 Creating README.md...');
     const readmeContent = `# ${projectName}
@@ -125,27 +172,26 @@ A Flutter.js application.
 
 ## Getting Started
 
-### 1. Transpile Flutter Code
-First, transpile your Dart code to JavaScript:
+### 1. Install Dependencies
 
 \`\`\`bash
-flutter_js_compiler transpile src/
+npm install
 \`\`\`
-
-This will generate \`.flutter_js/app.generated.js\`
 
 ### 2. Start Development Server
 
 \`\`\`bash
-flutter_js dev
+npm run dev
 \`\`\`
 
 Opens development server at http://localhost:3000
 
+The development server watches for changes in your \`.fjs\` files and automatically rebuilds.
+
 ### 3. Build for Production
 
 \`\`\`bash
-flutter_js build
+npm run build
 \`\`\`
 
 Creates optimized build in \`dist/\` folder.
@@ -153,21 +199,52 @@ Creates optimized build in \`dist/\` folder.
 ### 4. Preview Production Build
 
 \`\`\`bash
-flutter_js preview
+npm run preview
 \`\`\`
 
 ## Project Structure
 
 \`\`\`
 ${projectName}/
-├── flutter.config.js      # Configuration file
+├── .vscode/
+│   ├── settings.json        # VS Code configuration
+│   └── extensions.json      # Recommended extensions
+├── flutter.config.js        # Flutter.js configuration
+├── .eslintrc.json           # ESLint rules
+├── .prettierrc.json         # Prettier formatting
 ├── src/
-│   └── main.dart         # Your Flutter/Dart code
-├── assets/               # Images, fonts, etc.
-├── .flutter_js/          # Generated files (gitignore this)
+│   └── main.fjs            # Your Flutter.js code
+├── assets/                  # Images, fonts, etc.
+├── .flutter_js/            # Generated files (gitignore)
 │   └── app.generated.js
-├── dist/                 # Production build
+├── dist/                   # Production build
 └── package.json
+\`\`\`
+
+## About .fjs Files
+
+\`.fjs\` is the Flutter.js file format - think of it like \`.js\` but with Flutter-specific syntax and transformations:
+
+- Write Flutter-like code in JavaScript
+- Automatic transpilation to standard JavaScript
+- Full IDE support with autocomplete
+- ESLint integration for code quality
+- Hot reload during development
+
+Example \`.fjs\` code:
+
+\`\`\`fjs
+class CounterApp extends FJSWidget {
+  @override
+  build(context) {
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(title: Text('Counter')),
+        body: Center(child: Text('Count: 0')),
+      ),
+    );
+  }
+}
 \`\`\`
 
 ## Available Scripts
@@ -184,6 +261,15 @@ Edit \`flutter.config.js\` to customize:
 - Development server settings
 - Optimization settings
 
+## IDE Setup
+
+This project comes with VS Code configuration:
+
+- **settings.json** - Editor settings optimized for .fjs files
+- **extensions.json** - Recommended extensions
+
+Install recommended extensions for the best experience!
+
 ## Learn More
 
 - [Flutter.js Documentation](https://flutter-js.dev)
@@ -194,73 +280,20 @@ Edit \`flutter.config.js\` to customize:
       readmeContent
     );
     
-    // Create .gitignore
-    console.log('🔒 Creating .gitignore...');
-    const gitignoreContent = `# Dependencies
-node_modules/
-
-# Build outputs
-dist/
-.dev/
-
-# Generated files
-.flutter_js/
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Logs
-*.log
-npm-debug.log*
-`;
-    fs.writeFileSync(
-      path.join(projectPath, '.gitignore'),
-      gitignoreContent
-    );
-    
-    // Create example asset
-    console.log('🎨 Creating example assets...');
-    const assetsReadme = `# Assets Directory
-
-Place your static assets here:
-- Images (PNG, JPG, SVG, etc.)
-- Fonts (TTF, WOFF, WOFF2)
-- Icons
-- Other static files
-
-Example structure:
-\`\`\`
-assets/
-├── images/
-│   ├── logo.png
-│   └── background.jpg
-├── fonts/
-│   └── CustomFont.ttf
-└── icons/
-    └── favicon.ico
-\`\`\`
-
-These files will be copied to the build output automatically.
-`;
-    fs.writeFileSync(
-      path.join(projectPath, 'assets', 'README.md'),
-      assetsReadme
-    );
-    
     // Success message
     console.log('\n✅ Project created successfully!\n');
     console.log('📋 Next steps:\n');
     console.log(`   cd ${projectName}`);
-    console.log('   # Write your Flutter code in src/main.dart');
-    console.log('   flutter_js_compiler transpile src/');
-    console.log('   flutter_js dev');
+    console.log('   npm install');
+    console.log('   npm run dev');
+    console.log('');
+    console.log('📝 Files created:');
+    console.log('   ✓ .vscode/ - VS Code configuration');
+    console.log('   ✓ src/main.fjs - Your app entry point');
+    console.log('   ✓ .eslintrc.json - Linting rules');
+    console.log('   ✓ .prettierrc.json - Code formatting');
+    console.log('   ✓ flutter.config.js - App configuration');
+    console.log('   ✓ package.json - Project metadata');
     console.log('');
     console.log('🎉 Happy coding!\n');
     

@@ -12,6 +12,17 @@ function mkdirp(dir) {
   fs.mkdirSync(dir);
 }
 
+
+async function transpileFJS(options) {
+  const { processFJSFiles } = require('../src/fjs.js');
+  const srcPath = path.join(process.cwd(), 'src');
+  const fjsPath = path.join(process.cwd(), '.flutter_js');
+  
+  console.log('🔄 Transpiling .fjs files...');
+  processFJSFiles(srcPath, fjsPath);
+  console.log('✅ .fjs transpilation complete\n');
+}
+
 // Simple copy directory
 function copyDir(src, dest) {
   mkdirp(dest);

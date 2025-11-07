@@ -55,13 +55,12 @@ class InheritedElement extends ProxyElement {
     }
   }
 
+
   performRebuild() {
-    const shouldNotify = !this._child ||
-      this.widget.updateShouldNotify(this._child.widget);
+    const result = super.performRebuild();   // <-- child is rebuilt here
 
-    const result = super.performRebuild();
-
-    if (shouldNotify) {
+    // this._child now holds the *new* child element
+    if (this._child && this.widget.updateShouldNotify?.(this._child.widget)) {
       this.notifyDependents();
     }
 

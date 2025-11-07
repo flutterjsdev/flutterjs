@@ -177,29 +177,24 @@ function openBrowser(url) {
 }
 
 function watchFiles() {
-  const watchPath = path.join(process.cwd(), '.flutter_js');
+  const srcPath = path.join(process.cwd(), 'src');
   
-  if (!fs.existsSync(watchPath)) {
+  if (!fs.existsSync(srcPath)) {
     return;
   }
   
-  fs.watch(watchPath, { recursive: true }, (eventType, filename) => {
-    if (filename && filename.endsWith('.js')) {
+  fs.watch(srcPath, { recursive: true }, (eventType, filename) => {
+    if (filename && (filename.endsWith('.fjs') || filename.endsWith('.js'))) {
       console.log(`\n🔄 Change detected: ${filename}`);
       console.log('   Rebuilding...\n');
       
-      // Rebuild in background
-      const { build } = require('./build');
-      build({ 
-        mode: 'dev', 
-        output: '.dev', 
-        minify: false, 
-        obfuscate: false 
-      }).catch(err => {
-        console.error('❌ Rebuild failed:', err.message);
-      });
+      const { processFJSFiles } = require('../src/utils/fjs');
+      const srcPath = path.join(process.cwd(), 'src');
+      const fjsPath = path.join(process.cwd(), '.flutter_js');
+      processFJSFiles(srcPath, fjsPath);
     }
   });
 }
+
 
 module.exports = { dev };

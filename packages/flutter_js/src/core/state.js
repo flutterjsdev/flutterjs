@@ -80,30 +80,30 @@ class State extends Diagnosticable {
    * Called once when state is first created
    * Initialize variables, set up listeners, etc.
    */
-  initState() {}
+  initState() { }
 
   /**
    * Called when this widget's dependency changes
    * Also called after initState() on first mount
    */
-  didChangeDependencies() {}
+  didChangeDependencies() { }
 
   /**
    * Called when widget configuration changes
    * oldWidget is the previous configuration
    */
-  didUpdateWidget(oldWidget) {}
+  didUpdateWidget(oldWidget) { }
 
   /**
    * Called when widget is deactivated
    * Pause expensive operations
    */
-  deactivate() {}
+  deactivate() { }
 
   /**
    * Called when widget is reactivated after deactivation
    */
-  activate() {}
+  activate() { }
 
   /**
    * Called when widget is removed from tree
@@ -242,9 +242,9 @@ class State extends Diagnosticable {
         this._isUpdating = false;
 
         // Process any queued updates from callbacks
-        if (this._stateUpdateQueue.length > 0) {
+        if (this._stateUpdateQueue.length)
           this._processStateUpdates();
-        }
+
       }
     });
   }
@@ -266,9 +266,19 @@ class State extends Diagnosticable {
    * @internal Called by framework
    */
   _mount(element) {
+
+
     this._element = element;
+    this._widget = element.widget;           // <-- set widget *before* initState
     this._mounted = true;
     this._debugLifecycleState = StateLifecycle.ready;
+
+    // initState can now safely use this.context
+    if (!this._didInitState) {
+      this._didInitState = true;
+      this.initState();
+    }
+    this.didChangeDependencies();
   }
 
   /**
@@ -300,9 +310,10 @@ class State extends Diagnosticable {
    * Update widget reference
    * @internal Called by framework
    */
-  _updateWidget(newWidget) {
-    this._widget = newWidget;
-  }
+  get widget() { return this._widget; }
+
+
+  reassemble() { }
 
   /**
    * Mark state lifecycle as ready after initState
@@ -378,6 +389,28 @@ class State extends Diagnosticable {
       hasQueuedUpdates: this._stateUpdateQueue.length > 0
     };
   }
+}
+
+
+
+export function StateOf(WidgetClass) {
+  class TypedState extends State {
+    constructor() {
+      super();
+      // runtime check – useful for dev tools
+      this._expectedWidgetType = WidgetClass;
+    }
+    // override widget getter to enforce type (dev only)
+    get widget() {
+      const w = super.widget;
+      if (process.env.NODE_ENV === 'development' && w?.constructor !== this._expectedWidgetType) {
+        console.warn(`State expected ${this._expectedWidgetType.name} but got ${w?.constructor.name}`);
+      }
+      return w;
+    }
+  }
+  TypedState._widgetType = WidgetClass;
+  return TypedState;
 }
 
 export { State, StateLifecycle };

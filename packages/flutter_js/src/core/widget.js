@@ -84,7 +84,7 @@ class Diagnosticable {
   debugInfo() {
     const properties = [];
     this.debugFillProperties(properties);
-    
+
     return {
       type: this.constructor.name,
       key: this.key || null,
@@ -178,12 +178,12 @@ class Element extends Diagnosticable {
     this._deactivated = false;
     this._elementId = null;
     this._identificationStrategy = null;  // 'keyed' or 'unkeyed'
-    
+
     // Global identifier generator
     if (!Element._identifier) {
       Element._identifier = new ElementIdentifier();
     }
-    
+
     // Performance tracking
     this._debugLabel = widget.constructor.name;
     this.key = widget.key; // For diagnostic purposes
@@ -405,7 +405,7 @@ class StatelessWidget extends Widget {
     return new StatelessElement(this);
   }
 
-   reassemble() {}
+  reassemble() { }
 }
 
 /**
@@ -460,7 +460,7 @@ class StatefulWidget extends Widget {
     throw new Error(`${this.constructor.name}.createState() must be implemented`);
   }
 
-  
+
 
   /**
    * Create element for this widget
@@ -471,7 +471,7 @@ class StatefulWidget extends Widget {
 
 
   // New: Called during hot reload
-  reassemble() {}
+  reassemble() { }
 }
 
 /**
@@ -488,28 +488,33 @@ class StatefulElement extends Element {
   /**
    * Mount the element
    */
+
   mount(parent = null) {
-    super.mount(parent);
-
-    this.state._mounted = true;
-
-    // Initialize state (call only once)
-    if (!this.state._didInitState) {
-      this.state._didInitState = true;
-      try {
-        this.state.initState();
-      } catch (error) {
-        console.error(`initState error in ${this._debugLabel}:`, error);
-      }
-    }
-
-    // Notify of dependencies
-    try {
-      this.state.didChangeDependencies();
-    } catch (error) {
-      console.error(`didChangeDependencies error in ${this._debugLabel}:`, error);
-    }
+    super.mount(parent);        // sets _parent, _depth, creates BuildContext, …
+    this.state._mount(this);    // <-- ONE LINE DOES IT ALL
   }
+  // mount(parent = null) {
+  //   super.mount(parent);
+  //   this.state._mount(this);
+  //   this.state._mounted = true;
+
+  //   // Initialize state (call only once)
+  //   if (!this.state._didInitState) {
+  //     this.state._didInitState = true;
+  //     try {
+  //       this.state.initState();
+  //     } catch (error) {
+  //       console.error(`initState error in ${this._debugLabel}:`, error);
+  //     }
+  //   }
+
+  //   // Notify of dependencies
+  //   try {
+  //     this.state.didChangeDependencies();
+  //   } catch (error) {
+  //     console.error(`didChangeDependencies error in ${this._debugLabel}:`, error);
+  //   }
+  // }
 
   /**
    * Unmount the element
@@ -521,8 +526,13 @@ class StatefulElement extends Element {
       console.error(`dispose error in ${this._debugLabel}:`, error);
     }
 
-    this.state._mounted = false;
+    this.state._unmount();
     super.unmount();
+  }
+
+  activate() {
+    this.state._reactivate();          // Use hook
+    super.activate?.();                // optional if base has it
   }
 
   /**
@@ -534,7 +544,7 @@ class StatefulElement extends Element {
     } catch (error) {
       console.error(`deactivate error in ${this._debugLabel}:`, error);
     }
-
+    this.state._deactivate();
     super.deactivate();
   }
 
@@ -544,7 +554,7 @@ class StatefulElement extends Element {
   updateWidget(newWidget) {
     const oldWidget = this.widget;
     this.widget = newWidget;
-    this.state.widget = newWidget;
+    this.state._updateWidget(newWidget);   // Use internal hook
 
     try {
       this.state.didUpdateWidget(oldWidget);
@@ -576,7 +586,7 @@ class StatefulElement extends Element {
     super.reassemble();
   }
 
-   didChangeDependencies() {
+  didChangeDependencies() {
     try {
       this.state.didChangeDependencies();
     } catch (error) {

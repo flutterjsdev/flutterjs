@@ -39,6 +39,7 @@
   "files": [
     "bin/",
     "commands/",
+    "src/",
     "templates/",
     "utils/",
     "dist/",
