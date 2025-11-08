@@ -7,6 +7,7 @@
 
 import 'package:collection/collection.dart';
 import 'package:flutterjs_core/src/ast_ir/ir/expression_types/cascade_expression_ir.dart';
+import 'package:flutterjs_core/src/flutter_to_js/src/flutter_prop_converters.dart';
 import '../../ast_ir/ast_it.dart';
 import 'expression_code_generator.dart';
 import 'statement_code_generator.dart';
@@ -61,13 +62,17 @@ class BuildMethodCodeGen {
   /// Track widget tree structure
   final WidgetTree? widgetTree;
 
+  final FlutterPropConverter propConverter;
+
   BuildMethodCodeGen({
     BuildMethodGenConfig? config,
     WidgetInstantiationCodeGen? widgetInstanGen,
     StatementCodeGen? stmtGen,
     ExpressionCodeGen? exprGen,
     this.widgetTree,
-  }) : config = config ?? const BuildMethodGenConfig(),
+    FlutterPropConverter? propConverter,
+  }) : propConverter = propConverter ?? FlutterPropConverter(),
+   config = config ?? const BuildMethodGenConfig(),
        widgetInstanGen = widgetInstanGen ?? WidgetInstantiationCodeGen(),
        stmtGen = stmtGen ?? StatementCodeGen(),
        exprGen = exprGen ?? ExpressionCodeGen() {

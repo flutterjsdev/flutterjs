@@ -6,6 +6,7 @@
 // ============================================================================
 
 import 'package:collection/collection.dart';
+import 'package:flutterjs_core/src/flutter_to_js/src/flutter_prop_converters.dart';
 import '../../ast_ir/ast_it.dart';
 import 'expression_code_generator.dart';
 import 'statement_code_generator.dart';
@@ -42,14 +43,16 @@ class FunctionCodeGen {
   final ExpressionCodeGen exprGen;
   late Indenter indenter;
   final List<CodeGenError> errors = [];
-
+  final FlutterPropConverter propConverter;
   FunctionCodeGen({
     FunctionGenConfig? config,
     StatementCodeGen? stmtGen,
     ExpressionCodeGen? exprGen,
-  })  : config = config ?? const FunctionGenConfig(),
-        stmtGen = stmtGen ?? StatementCodeGen(),
-        exprGen = exprGen ?? ExpressionCodeGen() {
+    FlutterPropConverter? propConverter,
+  }) : propConverter = propConverter ?? FlutterPropConverter(),
+       config = config ?? const FunctionGenConfig(),
+       stmtGen = stmtGen ?? StatementCodeGen(),
+       exprGen = exprGen ?? ExpressionCodeGen() {
     indenter = Indenter(this.config.indent);
   }
 
@@ -149,7 +152,10 @@ class FunctionCodeGen {
         }
       } else {
         // Expression body - wrap in return
-        final expr = exprGen.generate(func.body as ExpressionIR, parenthesize: false);
+        final expr = exprGen.generate(
+          func.body as ExpressionIR,
+          parenthesize: false,
+        );
         buffer.writeln(indenter.line('return $expr;'));
       }
     } else {
@@ -222,7 +228,10 @@ class FunctionCodeGen {
         }
       } else {
         // Expression body
-        final expr = exprGen.generate(method.body as ExpressionIR, parenthesize: false);
+        final expr = exprGen.generate(
+          method.body as ExpressionIR,
+          parenthesize: false,
+        );
         buffer.writeln(indenter.line('return $expr;'));
       }
     } else if (!method.isAbstract) {
@@ -277,32 +286,46 @@ class FunctionCodeGen {
       return '';
     }
 
-    // Separate parameters by type
-    final required = parameters.where((p) => p.isRequired && !p.isNamed).toList();
-    final optional = parameters.where((p) => !p.isRequired && !p.isNamed).toList();
+    final required = parameters
+        .where((p) => p.isRequired && !p.isNamed)
+        .toList();
+    final optional = parameters
+        .where((p) => !p.isRequired && !p.isNamed)
+        .toList();
     final named = parameters.where((p) => p.isNamed).toList();
 
     final parts = <String>[];
 
-    // Required positional parameters
-    parts.addAll(required.map((p) => _generateParameter(p)));
+    parts.addAll(required.map((p) => p.name));
 
-    // Optional positional parameters with defaults
     for (final param in optional) {
-      final def = param.defaultValue != null
-          ? exprGen.generate(param.defaultValue!, parenthesize: false)
-          : 'undefined';
-      parts.add('${param.name} = $def');
+      String defValue = 'undefined';
+      if (param.defaultValue != null) {
+        final result = propConverter.convertProperty(
+          param.name,
+          param.defaultValue!,
+          param.type.displayName(),
+        );
+        defValue = result.code;
+      }
+      parts.add('${param.name} = $defValue');
     }
 
-    // Named parameters → object destructuring
     if (named.isNotEmpty) {
-      final namedParts = named.map((p) {
-        final def = p.defaultValue != null
-            ? exprGen.generate(p.defaultValue!, parenthesize: false)
-            : 'undefined';
-        return '${p.name} = $def';
-      }).join(', ');
+      final namedParts = named
+          .map((p) {
+            String defValue = 'undefined';
+            if (p.defaultValue != null) {
+              final result = propConverter.convertProperty(
+                p.name,
+                p.defaultValue!,
+                p.type.displayName(),
+              );
+              defValue = result.code;
+            }
+            return '${p.name} = $defValue';
+          })
+          .join(', ');
 
       parts.add('{ $namedParts } = {}');
     }

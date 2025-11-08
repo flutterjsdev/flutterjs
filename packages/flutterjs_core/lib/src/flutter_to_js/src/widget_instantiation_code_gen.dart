@@ -11,6 +11,7 @@ import 'package:collection/collection.dart';
 import '../../ast_ir/ast_it.dart';
 import '../../ast_ir/ir/expression_types/cascade_expression_ir.dart';
 import 'expression_code_generator.dart';
+import 'flutter_prop_converters.dart';
 import 'flutter_widget_registry.dart';
 
 // ============================================================================
@@ -59,10 +60,14 @@ class WidgetInstantiationCodeGen {
   final List<CodeGenWarning> warnings = [];
   final List<CodeGenError> errors = [];
 
+  final FlutterPropConverter propConverter;
+
   WidgetInstantiationCodeGen({
     WidgetInstantiationConfig? config,
     ExpressionCodeGen? exprGen,
-  }) : config = config ?? const WidgetInstantiationConfig(),
+    FlutterPropConverter? propConverter,
+  }) : propConverter = propConverter ?? FlutterPropConverter(),
+       config = config ?? const WidgetInstantiationConfig(),
        registry = FlutterWidgetRegistry(),
        exprGen = exprGen ?? ExpressionCodeGen() {
     indenter = Indenter(this.config.indent);
@@ -212,7 +217,7 @@ class WidgetInstantiationCodeGen {
       }
 
       // Check if required
-      if (propInfo.isRequired && propValue == null) {
+      if (propInfo.isRequired) {
         final error = CodeGenError(
           message:
               'Required property "$propName" missing in widget "${jsInfo.jsClass}"',
@@ -291,52 +296,58 @@ class WidgetInstantiationCodeGen {
   // PROPERTY CONVERSION
   // =========================================================================
 
-  String _convertPropValue(ExpressionIR expr, PropertyInfo? propInfo) {
-    final propType = propInfo?.type;
+  String _convertPropValue(ExpressionIR expr, PropertyInfo propInfo) {
+    // Convert PropType to string for prop converter
+    final typeString = _propTypeToString(propInfo.type);
 
-    switch (propType) {
-      case PropType.widget:
-        return _convertWidget(expr);
+    // Use the prop converter
+    final result = propConverter.convertProperty(
+      propInfo.name,
+      expr,
+      typeString,
+    );
 
-      case PropType.widgetList:
-        return _convertWidgetList(expr);
-
-      case PropType.color:
-        return _convertColor(expr);
-
-      case PropType.alignment:
-        return _convertAlignment(expr);
-
-      case PropType.edgeInsets:
-        return _convertEdgeInsets(expr);
-
-      case PropType.textStyle:
-        return _convertTextStyle(expr);
-
-      case PropType.textAlign:
-        return _convertTextAlign(expr);
-
-      case PropType.mainAxisAlignment:
-      case PropType.crossAxisAlignment:
-        return _convertAxisAlignment(expr);
-
-      case PropType.boxFit:
-        return _convertBoxFit(expr);
-
-      case PropType.duration:
-        return _convertDuration(expr);
-
-      case PropType.curve:
-        return _convertCurve(expr);
-
-      case PropType.callback:
-      case PropType.function:
-        return _convertCallback(expr);
-
-      default:
-        // Default: use expression generator
-        return exprGen.generate(expr, parenthesize: false);
+    // Log warnings if conversion failed
+    if (!result.isSuccessful) {
+      warnings.add(
+        CodeGenWarning(
+          severity: WarningSeverity.warning,
+          message:
+              'Property conversion failed for "${propInfo.name}": ${result.errors.join(", ")}',
+          widget: 'unknown',
+        ),
+      );
     }
+
+    // Return the converted code (never null due to fallback in propConverter)
+    return result.code;
+  }
+
+  String _propTypeToString(PropType propType) {
+    return switch (propType) {
+      PropType.string => 'String',
+      PropType.int => 'int',
+      PropType.double => 'double',
+      PropType.bool => 'bool',
+      PropType.dynamic => 'dynamic',
+      PropType.widget => 'Widget',
+      PropType.widgetList => 'List<Widget>',
+      PropType.color => 'Color',
+      PropType.alignment => 'Alignment',
+      PropType.edgeInsets => 'EdgeInsets',
+      PropType.textStyle => 'TextStyle',
+      PropType.textAlign => 'TextAlign',
+      PropType.mainAxisAlignment => 'MainAxisAlignment',
+      PropType.crossAxisAlignment => 'CrossAxisAlignment',
+      PropType.boxFit => 'BoxFit',
+      PropType.crossAxisSize => 'CrossAxisSize',
+      PropType.mainAxisSize => 'MainAxisSize',
+      PropType.function => 'Function',
+      PropType.callback => 'Callback',
+      PropType.duration => 'Duration',
+      PropType.curve => 'Curve',
+      PropType.key => 'Key',
+    };
   }
 
   String _convertWidget(ExpressionIR expr) {

@@ -5,9 +5,9 @@
 // Handles widget class, state class, lifecycle methods, and reactive state
 // ============================================================================
 
-
 import '../../ast_ir/ast_it.dart';
 import 'build_method_code_gen.dart';
+import 'flutter_prop_converters.dart';
 import 'function_code_generator.dart';
 
 // ============================================================================
@@ -157,6 +157,7 @@ class StatefulWidgetJSCodeGen {
   late Indenter indenter;
   final List<CodeGenWarning> warnings = [];
   final List<CodeGenError> errors = [];
+  final FlutterPropConverter propConverter;
 
   StatefulWidgetJSCodeGen({
     required this.statefulWidget,
@@ -166,7 +167,9 @@ class StatefulWidgetJSCodeGen {
     required this.buildMethodGen,
     required this.funcCodeGen,
     StatefulWidgetGenConfig? config,
-  })  : config = config ?? const StatefulWidgetGenConfig() {
+    FlutterPropConverter? propConverter,
+  }) : propConverter = propConverter ?? FlutterPropConverter(),
+       config = config ?? const StatefulWidgetGenConfig() {
     indenter = Indenter(this.config.indent);
   }
 
@@ -218,8 +221,7 @@ class StatefulWidgetJSCodeGen {
       // Check that build method exists
       if (lifecycleMapping.build == null) {
         final error = CodeGenError(
-          message:
-              'State class must have a build() method',
+          message: 'State class must have a build() method',
           suggestion: 'Add: Widget build(BuildContext context) { ... }',
         );
         errors.add(error);
@@ -242,9 +244,9 @@ class StatefulWidgetJSCodeGen {
       if (stateClass.declaration.superclass == null) {
         final warning = CodeGenWarning(
           severity: WarningSeverity.warning,
-          message:
-              '${stateClass.declaration.name} should extend State',
-          suggestion: 'Change: class ${stateClass.declaration.name} extends State<${statefulWidget.declaration.name}>',
+          message: '${stateClass.declaration.name} should extend State',
+          suggestion:
+              'Change: class ${stateClass.declaration.name} extends State<${statefulWidget.declaration.name}>',
         );
         warnings.add(warning);
       }
@@ -264,7 +266,9 @@ class StatefulWidgetJSCodeGen {
     }
 
     // Class header
-    buffer.writeln('class ${statefulWidget.declaration.name} extends StatefulWidget {');
+    buffer.writeln(
+      'class ${statefulWidget.declaration.name} extends StatefulWidget {',
+    );
     indenter.indent();
 
     // Constructor with props
@@ -287,9 +291,7 @@ class StatefulWidgetJSCodeGen {
         : <ParameterDecl>[];
 
     // Build parameter list
-    final paramStr = params.isEmpty
-        ? ''
-        : params.map((p) => p.name).join(', ');
+    final paramStr = params.isEmpty ? '' : params.map((p) => p.name).join(', ');
 
     buffer.writeln(indenter.line('constructor({$paramStr} = {}) {'));
     indenter.indent();
@@ -322,9 +324,7 @@ class StatefulWidgetJSCodeGen {
     final buffer = StringBuffer();
 
     buffer.writeln('/**');
-    buffer.writeln(
-      ' * ${statefulWidget.declaration.name} - A stateful widget',
-    );
+    buffer.writeln(' * ${statefulWidget.declaration.name} - A stateful widget');
 
     // Document widget properties
     if (statefulWidget.declaration.constructors.isNotEmpty) {
@@ -407,39 +407,65 @@ class StatefulWidgetJSCodeGen {
   }
 
   void _generateStateFields(StringBuffer buffer) {
-    // Reactive fields
     for (final fieldName in stateModel.reactiveFields) {
-      final field = stateClass.declaration.instanceFields
-          .firstWhereOrNull((f) => f.name == fieldName);
+      final field = stateClass.declaration.instanceFields.firstWhereOrNull(
+        (f) => f.name == fieldName,
+      );
 
       if (field != null) {
-        final initialValue = field.initializer != null
-            ? '/* TODO: init from ${field.initializer.runtimeType} */'
-            : _getDefaultValue(field.type);
+        String initialValue = 'null';
 
-        // Type comment
-        final typeComment =
-            config.generateJSDoc ? ' // ${field.type.displayName()}' : '';
+        if (field.initializer != null) {
+          final result = propConverter.convertProperty(
+            field.name,
+            field.initializer!,
+            field.type.displayName(),
+          );
+          initialValue = result.code;
 
-        buffer.writeln(indenter.line('$fieldName = $initialValue;$typeComment'));
+          if (!result.isSuccessful) {
+            warnings.add(
+              CodeGenWarning(
+                severity: WarningSeverity.warning,
+                message: 'Field init conversion failed: ${field.name}',
+              ),
+            );
+          }
+        }
+
+        final typeComment = config.generateJSDoc
+            ? ' // ${field.type.displayName()}'
+            : '';
+
+        buffer.writeln(
+          indenter.line('$fieldName = $initialValue;$typeComment'),
+        );
       }
     }
 
-    // Non-reactive fields
     for (final fieldName in stateModel.nonReactiveFields) {
-      final field = stateClass.declaration.instanceFields
-          .firstWhereOrNull((f) => f.name == fieldName);
+      final field = stateClass.declaration.instanceFields.firstWhereOrNull(
+        (f) => f.name == fieldName,
+      );
 
       if (field != null) {
-        final initialValue = field.initializer != null
-            ? '/* TODO: init */'
-            : _getDefaultValue(field.type);
+        String initialValue = 'null';
 
-        buffer.writeln(indenter.line('$fieldName = $initialValue; // Non-reactive'));
+        if (field.initializer != null) {
+          final result = propConverter.convertProperty(
+            field.name,
+            field.initializer!,
+            field.type.displayName(),
+          );
+          initialValue = result.code;
+        }
+
+        buffer.writeln(
+          indenter.line('$fieldName = $initialValue; // Non-reactive'),
+        );
       }
     }
 
-    // Resource fields (controllers, listeners, etc)
     for (final fieldName in stateModel.resources) {
       buffer.writeln(indenter.line('$fieldName = null; // Resource'));
     }
@@ -556,9 +582,7 @@ class StatefulWidgetJSCodeGen {
     if (config.trackStateChanges) {
       buffer.writeln(indenter.line('// Track state change'));
       for (final field in stateModel.reactiveFields) {
-        buffer.writeln(
-          indenter.line('const oldValue_$field = this.$field;'),
-        );
+        buffer.writeln(indenter.line('const oldValue_$field = this.$field;'));
       }
     }
 
@@ -579,12 +603,14 @@ class StatefulWidgetJSCodeGen {
 
   void _generateCustomMethods(StringBuffer buffer) {
     final customMethods = stateClass.declaration.instanceMethods
-        .where((m) =>
-            m.name != 'build' &&
-            m.name != 'initState' &&
-            m.name != 'dispose' &&
-            m.name != 'didUpdateWidget' &&
-            m.name != 'didChangeDependencies')
+        .where(
+          (m) =>
+              m.name != 'build' &&
+              m.name != 'initState' &&
+              m.name != 'dispose' &&
+              m.name != 'didUpdateWidget' &&
+              m.name != 'didChangeDependencies',
+        )
         .toList();
 
     for (int i = 0; i < customMethods.length; i++) {
@@ -630,9 +656,7 @@ class StatefulWidgetJSCodeGen {
     final buffer = StringBuffer();
 
     buffer.writeln('/**');
-    buffer.writeln(
-      ' * State for ${statefulWidget.declaration.name}',
-    );
+    buffer.writeln(' * State for ${statefulWidget.declaration.name}');
     buffer.writeln(' * Manages reactive state and lifecycle');
     buffer.writeln(' */');
 
@@ -670,15 +694,9 @@ class StatefulWidgetJSCodeGen {
   String generateReport() {
     final buffer = StringBuffer();
 
-    buffer.writeln(
-      '\n╔════════════════════════════════════════════════════╗',
-    );
-    buffer.writeln(
-      '║    STATEFUL WIDGET GENERATION REPORT               ║',
-    );
-    buffer.writeln(
-      '╚════════════════════════════════════════════════════╝\n',
-    );
+    buffer.writeln('\n╔════════════════════════════════════════════════════╗');
+    buffer.writeln('║    STATEFUL WIDGET GENERATION REPORT               ║');
+    buffer.writeln('╚════════════════════════════════════════════════════╝\n');
 
     buffer.writeln('Widget: ${statefulWidget.declaration.name}');
     buffer.writeln('State: ${stateClass.declaration.name}');
@@ -743,7 +761,8 @@ class CodeGenError {
   CodeGenError({required this.message, this.suggestion});
 
   @override
-  String toString() => 'ERROR: $message'
+  String toString() =>
+      'ERROR: $message'
       '${suggestion != null ? '\n  Suggestion: $suggestion' : ''}';
 }
 

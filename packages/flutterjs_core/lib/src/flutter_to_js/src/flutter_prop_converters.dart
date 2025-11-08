@@ -296,7 +296,7 @@ class FlutterPropConverter {
   // EDGE INSETS CONVERSION
   // =========================================================================
 
-  ConversionResult convertEdgeInsets(ExpressionIR expr) {
+ConversionResult convertEdgeInsets(ExpressionIR expr) {
     // EdgeInsets.all(16) -> {top: 16, right: 16, bottom: 16, left: 16}
     // EdgeInsets.symmetric(h: 8, v: 16) -> {top: 16, left: 8, ...}
     // EdgeInsets.only(top: 10, left: 5) -> {top: 10, left: 5, ...}
@@ -306,10 +306,13 @@ class FlutterPropConverter {
 
       if (method == 'all') {
         final value = _getArgumentValue(expr, 0);
-        return ConversionResult(
-          code: "new EdgeInsets({top: $value, right: $value, bottom: $value, left: $value})",
-          dartType: 'EdgeInsets',
-        );
+        // FIX: Handle null value
+        if (value != null) {
+          return ConversionResult(
+            code: "new EdgeInsets({top: $value, right: $value, bottom: $value, left: $value})",
+            dartType: 'EdgeInsets',
+          );
+        }
       }
 
       if (method == 'symmetric') {
@@ -349,7 +352,7 @@ class FlutterPropConverter {
   // TEXT STYLE CONVERSION
   // =========================================================================
 
-  ConversionResult convertTextStyle(ExpressionIR expr) {
+ ConversionResult convertTextStyle(ExpressionIR expr) {
     // TextStyle(fontSize: 16, color: Colors.blue, fontWeight: FontWeight.bold)
     // -> {fontSize: 16, color: '#2196F3', fontWeight: 'bold'}
 
@@ -423,7 +426,6 @@ class FlutterPropConverter {
       dartType: 'TextStyle',
     );
   }
-
   // =========================================================================
   // TEXT ALIGNMENT CONVERSION
   // =========================================================================
@@ -711,11 +713,11 @@ class FlutterPropConverter {
 
   ConversionResult convertBoxShadow(ExpressionIR expr) {
     if (expr is InstanceCreationExpressionIR) {
-      final offsetX = _getNamedArgumentValue(expr, 'offset.dx') ?? '0';
-      final offsetY = _getNamedArgumentValue(expr, 'offset.dy') ?? '0';
-      final blur = _getNamedArgumentValue(expr, 'blurRadius') ?? '4';
-      final spread = _getNamedArgumentValue(expr, 'spreadRadius') ?? '0';
-      final color = _getNamedArgumentValue(expr, 'color') ?? '#000000';
+      final offsetX = _getNamedArgumentValueFromInstance(expr, 'offset.dx') ?? '0';
+      final offsetY = _getNamedArgumentValueFromInstance(expr, 'offset.dy') ?? '0';
+      final blur = _getNamedArgumentValueFromInstance(expr, 'blurRadius') ?? '4';
+      final spread = _getNamedArgumentValueFromInstance(expr, 'spreadRadius') ?? '0';
+      final color = _getNamedArgumentValueFromInstance(expr, 'color') ?? '#000000';
 
       return ConversionResult(
         code: "$offsetX $offsetY ${blur}px ${spread}px $color",
@@ -737,7 +739,7 @@ class FlutterPropConverter {
   // ANIMATION CONVERSION
   // =========================================================================
 
-  ConversionResult convertDuration(ExpressionIR expr) {
+ ConversionResult convertDuration(ExpressionIR expr) {
     // Duration(milliseconds: 300) -> 300
     // Duration(seconds: 1) -> 1000
 
@@ -745,18 +747,21 @@ class FlutterPropConverter {
       final method = expr.methodName;
       final value = _getArgumentValue(expr, 0);
     
-      if (method == 'milliseconds') {
-        return ConversionResult(
-          code: value,
-          dartType: 'Duration',
-        );
-      }
+      // FIX: Handle null value properly
+      if (value != null) {
+        if (method == 'milliseconds') {
+          return ConversionResult(
+            code: value,
+            dartType: 'Duration',
+          );
+        }
 
-      if (method == 'seconds') {
-        return ConversionResult(
-          code: '($value * 1000)',
-          dartType: 'Duration',
-        );
+        if (method == 'seconds') {
+          return ConversionResult(
+            code: '($value * 1000)',
+            dartType: 'Duration',
+          );
+        }
       }
     }
 
@@ -1014,6 +1019,19 @@ class FlutterPropConverter {
 
   String? _getNamedArgumentValue(
     MethodCallExpressionIR expr,
+    String name,
+  ) {
+    if (expr.namedArguments.containsKey(name)) {
+      return exprGen.generate(
+        expr.namedArguments[name]!,
+        parenthesize: false,
+      );
+    }
+    return null;
+  }
+
+    String? _getNamedArgumentValueFromInstance(
+    InstanceCreationExpressionIR expr,
     String name,
   ) {
     if (expr.namedArguments.containsKey(name)) {

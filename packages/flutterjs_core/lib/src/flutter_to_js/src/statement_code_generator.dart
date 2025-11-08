@@ -6,6 +6,7 @@
 // ============================================================================
 
 import 'package:collection/collection.dart';
+import 'package:flutterjs_core/src/flutter_to_js/src/flutter_prop_converters.dart';
 import '../../ast_ir/ast_it.dart';
 import 'expression_code_generator.dart';
 
@@ -62,11 +63,14 @@ class StatementCodeGen {
   final ExpressionCodeGen exprGen;
   late Indenter indenter;
   final List<CodeGenError> errors = [];
+  final FlutterPropConverter propConverter;
 
   StatementCodeGen({
     StatementGenConfig? config,
     ExpressionCodeGen? exprGen,
-  })  : config = config ?? const StatementGenConfig(),
+    FlutterPropConverter? propConverter,
+  })  :propConverter = propConverter ?? FlutterPropConverter(),
+   config = config ?? const StatementGenConfig(),
         exprGen = exprGen ?? ExpressionCodeGen() {
     indenter = Indenter(this.config.indent);
   }
@@ -197,10 +201,13 @@ class StatementCodeGen {
     // Build declaration
     String decl = '$keyword ${stmt.name}';
 
-    // Add initializer if present
     if (stmt.initializer != null) {
-      final init = exprGen.generate(stmt.initializer!, parenthesize: false);
-      decl += ' = $init';
+      final result = propConverter.convertProperty(
+        stmt.name,
+        stmt.initializer!,
+        stmt.type?.displayName(),
+      );
+      decl += ' = ${result.code}';
     }
 
     final semi = config.useSemicolons ? ';' : '';

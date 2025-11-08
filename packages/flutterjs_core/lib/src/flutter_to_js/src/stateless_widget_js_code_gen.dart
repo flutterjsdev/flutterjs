@@ -7,6 +7,7 @@
 
 import '../../ast_ir/ast_it.dart';
 import 'build_method_code_gen.dart';
+import 'flutter_prop_converters.dart';
 import 'function_code_generator.dart';
 import 'statement_code_generator.dart';
 import 'expression_code_generator.dart';
@@ -112,7 +113,7 @@ class StatelessWidgetJSCodeGen {
 
   final List<String> warnings = [];
   final List<String> errors = [];
-
+  final FlutterPropConverter propConverter;
   StatelessWidgetJSCodeGen({
     required this.widgetInfo,
     required this.buildMethodGen,
@@ -120,10 +121,12 @@ class StatelessWidgetJSCodeGen {
     StatementCodeGen? stmtCodeGen,
     ExpressionCodeGen? exprGen,
     StatelessWidgetGenConfig? config,
-  })  : config = config ?? const StatelessWidgetGenConfig(),
-        funcCodeGen = funcCodeGen ?? FunctionCodeGen(),
-        stmtCodeGen = stmtCodeGen ?? StatementCodeGen(),
-        exprGen = exprGen ?? ExpressionCodeGen() {
+    FlutterPropConverter? propConverter,
+  }) : propConverter = propConverter ?? FlutterPropConverter(),
+       config = config ?? const StatelessWidgetGenConfig(),
+       funcCodeGen = funcCodeGen ?? FunctionCodeGen(),
+       stmtCodeGen = stmtCodeGen ?? StatementCodeGen(),
+       exprGen = exprGen ?? ExpressionCodeGen() {
     indenter = Indenter(this.config.indent);
   }
 
@@ -141,8 +144,7 @@ class StatelessWidgetJSCodeGen {
       final validation = _validateWidget();
       if (!validation.isValid && config.validateStructure) {
         errors.addAll(validation.errors);
-        final errorMsg =
-            'Cannot generate widget: ${errors.join("; ")}';
+        final errorMsg = 'Cannot generate widget: ${errors.join("; ")}';
         throw CodeGenError(
           message: errorMsg,
           suggestion: 'Fix widget structure before code generation',
@@ -188,8 +190,7 @@ class StatelessWidgetJSCodeGen {
 
     // Check that it extends StatelessWidget
     if (widgetInfo.declaration.superclass != null) {
-      final superName =
-          widgetInfo.declaration.superclass!.displayName();
+      final superName = widgetInfo.declaration.superclass!.displayName();
       if (!superName.contains('StatelessWidget')) {
         warns.add(
           'Widget should extend StatelessWidget, but extends $superName',
@@ -232,9 +233,7 @@ class StatelessWidgetJSCodeGen {
 
     // Check for stateful patterns
     if (widgetInfo.declaration.instanceFields.any((f) => !f.isFinal)) {
-      warns.add(
-        'StatelessWidget should not have mutable fields',
-      );
+      warns.add('StatelessWidget should not have mutable fields');
     }
 
     return ValidationResult(
@@ -334,7 +333,17 @@ class StatelessWidgetJSCodeGen {
           ? ' // ${param.type.displayName()}'
           : '';
 
-      buffer.writeln(indenter.line('${param.name} = null;$typeHint'));
+      String defaultInit = 'null';
+      if (param.defaultValue != null) {
+        final result = propConverter.convertProperty(
+          param.name,
+          param.defaultValue!,
+          param.type.displayName(),
+        );
+        defaultInit = result.code;
+      }
+
+      buffer.writeln(indenter.line('${param.name} = $defaultInit;$typeHint'));
     }
   }
 
@@ -356,9 +365,7 @@ class StatelessWidgetJSCodeGen {
 
     // Assign parameters to properties
     for (final param in widgetInfo.constructorParams) {
-      buffer.writeln(
-        indenter.line('this.${param.name} = ${param.name};'),
-      );
+      buffer.writeln(indenter.line('this.${param.name} = ${param.name};'));
     }
 
     indenter.dedent();
@@ -379,8 +386,7 @@ class StatelessWidgetJSCodeGen {
         .where((p) => !p.isRequired && !p.isNamed)
         .toList();
 
-    final named =
-        widgetInfo.constructorParams.where((p) => p.isNamed).toList();
+    final named = widgetInfo.constructorParams.where((p) => p.isNamed).toList();
 
     final parts = <String>[];
 
@@ -397,12 +403,14 @@ class StatelessWidgetJSCodeGen {
 
     // Named parameters â†' object destructuring
     if (named.isNotEmpty) {
-      final namedParts = named.map((p) {
-        final defValue = p.defaultValue != null
-            ? exprGen.generate(p.defaultValue!, parenthesize: false)
-            : 'undefined';
-        return '${p.name} = $defValue';
-      }).join(', ');
+      final namedParts = named
+          .map((p) {
+            final defValue = p.defaultValue != null
+                ? exprGen.generate(p.defaultValue!, parenthesize: false)
+                : 'undefined';
+            return '${p.name} = $defValue';
+          })
+          .join(', ');
 
       parts.add('{ $namedParts } = {}');
     }
@@ -524,17 +532,17 @@ class StatelessWidgetJSCodeGen {
         try {
           buffer.writeln(stmtCodeGen.generate(stmt));
         } catch (e) {
-          warnings.add(
-            'Could not generate statement in ${method.name}: $e',
-          );
+          warnings.add('Could not generate statement in ${method.name}: $e');
           buffer.writeln(indenter.line('// TODO: Statement conversion failed'));
         }
       }
     } else {
       // Expression body
       try {
-        final expr =
-            exprGen.generate(method.body as ExpressionIR, parenthesize: false);
+        final expr = exprGen.generate(
+          method.body as ExpressionIR,
+          parenthesize: false,
+        );
         buffer.writeln(indenter.line('return $expr;'));
       } catch (e) {
         warnings.add('Could not generate method body for ${method.name}: $e');
@@ -552,11 +560,13 @@ class StatelessWidgetJSCodeGen {
     }
 
     // Separate by type
-    final required =
-        parameters.where((p) => p.isRequired && !p.isNamed).toList();
+    final required = parameters
+        .where((p) => p.isRequired && !p.isNamed)
+        .toList();
 
-    final optional =
-        parameters.where((p) => !p.isRequired && !p.isNamed).toList();
+    final optional = parameters
+        .where((p) => !p.isRequired && !p.isNamed)
+        .toList();
 
     final named = parameters.where((p) => p.isNamed).toList();
 
@@ -705,20 +715,19 @@ extension StatelessWidgetCodeGenFactory on ClassDecl {
     required BuildMethodCodeGen buildMethodGen,
     StatelessWidgetGenConfig? config,
   }) {
-    final buildMethod =
-        instanceMethods.firstWhereOrNull((m) => m.name == 'build');
+    final buildMethod = instanceMethods.firstWhereOrNull(
+      (m) => m.name == 'build',
+    );
 
     final otherMethods = instanceMethods
         .where((m) => m.name != 'build')
         .toList();
 
-    final ctor =
-        constructors.isNotEmpty ? constructors.first : null;
+    final ctor = constructors.isNotEmpty ? constructors.first : null;
 
     final constructorParams = ctor?.parameters ?? [];
 
-    final staticMethods =
-        methods.where((m) => m.isStatic).toList();
+    final staticMethods = methods.where((m) => m.isStatic).toList();
 
     final widgetInfo = StatelessWidgetInfo(
       declaration: this,

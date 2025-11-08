@@ -7,6 +7,7 @@
 
 import 'package:collection/collection.dart';
 import 'package:flutterjs_core/src/ast_ir/ast_it.dart';
+import 'package:flutterjs_core/src/flutter_to_js/src/flutter_prop_converters.dart';
 import 'expression_code_generator.dart';
 import 'function_code_generator.dart';
 import 'statement_code_generator.dart';
@@ -48,13 +49,16 @@ class ClassCodeGen {
   final FunctionCodeGen funcGen;
   late Indenter indenter;
   final List<CodeGenError> errors = [];
+  final FlutterPropConverter propConverter;
 
   ClassCodeGen({
     ClassGenConfig? config,
     ExpressionCodeGen? exprGen,
     StatementCodeGen? stmtGen,
     FunctionCodeGen? funcGen,
-  })  : config = config ?? const ClassGenConfig(),
+    FlutterPropConverter? propConverter,
+  })  :   propConverter = propConverter ?? FlutterPropConverter(),
+   config = config ?? const ClassGenConfig(),
         exprGen = exprGen ?? ExpressionCodeGen(),
         stmtGen = stmtGen ?? StatementCodeGen(),
         funcGen = funcGen ?? FunctionCodeGen() {
@@ -211,15 +215,16 @@ class ClassCodeGen {
 
     String declaration = '$staticKeyword${field.name}';
 
-    // Initialize with default value
     if (field.initializer != null) {
-      final init = exprGen.generate(field.initializer!, parenthesize: false);
-      declaration += ' = $init';
+      final result = propConverter.convertProperty(
+        field.name,
+        field.initializer!,
+        field.type.displayName(),
+      );
+      declaration += ' = ${result.code}';
     } else if (field.isFinal || field.isConst) {
-      // Final/const fields should have initializers
       declaration += ' = null';
     } else {
-      // Mutable fields default to null
       declaration += ' = null';
     }
 

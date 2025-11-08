@@ -1,2 +1,13 @@
-
-export 'src/ir_to_flutterjs_generator.dart';
+export 'src/build_method_code_gen.dart';
+export 'src/class_code_generator.dart' hide Indenter ;
+export 'src/expression_code_generator.dart' hide CodeGenError;
+export 'src/file_code_gen.dart' hide Indenter;
+export 'src/statement_code_generator.dart' hide Indenter;
+export 'src/widget_instantiation_code_gen.dart' hide WarningSeverity, CodeGenError, CodeGenWarning, Indenter;
+export 'src/flutter_prop_converters.dart';
+export 'src/function_code_generator.dart' hide Indenter;
+export 'src/output_validator.dart';
+export 'src/ir_post_deserialize_validator.dart' hide ValidationError, ValidationReport;
+export 'src/stateless_widget_js_code_gen.dart' hide Indenter, CodeGenError, FirstWhereOrNull;
+export 'src/stateful_widget_js_code_gen.dart' hide Indenter, CodeGenError, WarningSeverity, CodeGenWarning;
+export 'src/special_language_features.dart' hide  Indenter;
