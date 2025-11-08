@@ -71,9 +71,9 @@ class DepthCalculator implements ExpressionVisitor<int> {
   }
 
   int _visit(ExpressionIR expr) {
-    if (expr is IntLiteralExpr)
+    if (expr is IntLiteralExpr) {
       return visitIntLiteral(expr);
-    else if (expr is DoubleLiteralExpr)
+    } else if (expr is DoubleLiteralExpr)
       return visitDoubleLiteral(expr);
     else if (expr is StringLiteralExpr)
       return visitStringLiteral(expr);

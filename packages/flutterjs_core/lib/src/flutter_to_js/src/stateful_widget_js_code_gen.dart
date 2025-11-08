@@ -1,0 +1,899 @@
+// ============================================================================
+// PHASE 3.4: STATEFUL WIDGET CODE GENERATOR
+// ============================================================================
+// Converts Flutter StatefulWidget + State pattern to JavaScript
+// Handles widget class, state class, lifecycle methods, and reactive state
+// ============================================================================
+
+
+import '../../ast_ir/ast_it.dart';
+import 'build_method_code_gen.dart';
+import 'function_code_generator.dart';
+
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+/// Configuration for stateful widget generation
+class StatefulWidgetGenConfig {
+  /// Whether to generate JSDoc comments
+  final bool generateJSDoc;
+
+  /// Whether to generate state change tracking
+  final bool trackStateChanges;
+
+  /// Whether to validate lifecycle methods
+  final bool validateLifecycle;
+
+  /// Whether to generate super() calls
+  final bool generateSuperCalls;
+
+  /// Indentation string
+  final String indent;
+
+  const StatefulWidgetGenConfig({
+    this.generateJSDoc = true,
+    this.trackStateChanges = false,
+    this.validateLifecycle = true,
+    this.generateSuperCalls = true,
+    this.indent = '  ',
+  });
+}
+
+// ============================================================================
+// ANALYSIS MODELS
+// ============================================================================
+
+/// Information about a widget and its declarations
+class WidgetInfo {
+  /// The class declaration
+  final ClassDecl declaration;
+
+  /// Whether this is a StatefulWidget or State class
+  final bool isStatefulWidget;
+
+  /// Corresponding State class (if StatefulWidget)
+  final ClassDecl? stateClass;
+
+  WidgetInfo({
+    required this.declaration,
+    required this.isStatefulWidget,
+    this.stateClass,
+  });
+
+  @override
+  String toString() => 'WidgetInfo(${declaration.name})';
+}
+
+/// Lifecycle methods mapping
+class LifecycleMapping {
+  /// initState method
+  final MethodDecl? initState;
+
+  /// dispose method
+  final MethodDecl? dispose;
+
+  /// didUpdateWidget method
+  final MethodDecl? didUpdateWidget;
+
+  /// didChangeDependencies method
+  final MethodDecl? didChangeDependencies;
+
+  /// build method
+  final MethodDecl? build;
+
+  LifecycleMapping({
+    this.initState,
+    this.dispose,
+    this.didUpdateWidget,
+    this.didChangeDependencies,
+    this.build,
+  });
+
+  /// Check if all required lifecycle methods are present
+  bool get isComplete => build != null;
+
+  /// Get all defined lifecycle methods
+  List<MethodDecl> getAllMethods() {
+    return [
+      if (initState != null) initState!,
+      if (dispose != null) dispose!,
+      if (didUpdateWidget != null) didUpdateWidget!,
+      if (didChangeDependencies != null) didChangeDependencies!,
+      if (build != null) build!,
+    ];
+  }
+
+  @override
+  String toString() {
+    final methods = <String>[];
+    if (initState != null) methods.add('initState');
+    if (dispose != null) methods.add('dispose');
+    if (didUpdateWidget != null) methods.add('didUpdateWidget');
+    if (didChangeDependencies != null) methods.add('didChangeDependencies');
+    if (build != null) methods.add('build');
+    return 'LifecycleMapping(${methods.join(", ")})';
+  }
+}
+
+/// State field analysis
+class StateModel {
+  /// Fields that are reactive (used in build and modified via setState)
+  final List<String> reactiveFields;
+
+  /// Fields that are non-reactive (private, caches, etc)
+  final List<String> nonReactiveFields;
+
+  /// Controllers and resources
+  final List<String> resources;
+
+  /// Which fields are reset on dispose
+  final Set<String> disposableFields;
+
+  StateModel({
+    this.reactiveFields = const [],
+    this.nonReactiveFields = const [],
+    this.resources = const [],
+    this.disposableFields = const {},
+  });
+
+  @override
+  String toString() =>
+      'StateModel(reactive: ${reactiveFields.length}, non-reactive: ${nonReactiveFields.length})';
+}
+
+// ============================================================================
+// MAIN STATEFUL WIDGET GENERATOR
+// ============================================================================
+
+class StatefulWidgetJSCodeGen {
+  final StatefulWidgetGenConfig config;
+  final WidgetInfo statefulWidget;
+  final WidgetInfo stateClass;
+  final LifecycleMapping lifecycleMapping;
+  final StateModel stateModel;
+  final BuildMethodCodeGen buildMethodGen;
+  final FunctionCodeGen funcCodeGen;
+  late Indenter indenter;
+  final List<CodeGenWarning> warnings = [];
+  final List<CodeGenError> errors = [];
+
+  StatefulWidgetJSCodeGen({
+    required this.statefulWidget,
+    required this.stateClass,
+    required this.lifecycleMapping,
+    required this.stateModel,
+    required this.buildMethodGen,
+    required this.funcCodeGen,
+    StatefulWidgetGenConfig? config,
+  })  : config = config ?? const StatefulWidgetGenConfig() {
+    indenter = Indenter(this.config.indent);
+  }
+
+  // =========================================================================
+  // PUBLIC API
+  // =========================================================================
+
+  /// Generate complete stateful widget code
+  String generate() {
+    try {
+      // Validate before generation
+      _validateStatefulWidget();
+
+      if (errors.isNotEmpty) {
+        final error = CodeGenError(
+          message:
+              'Cannot generate stateful widget due to ${errors.length} error(s)',
+          suggestion: 'Fix all errors before code generation',
+        );
+        throw error;
+      }
+
+      final buffer = StringBuffer();
+
+      // Generate widget class
+      buffer.writeln(_generateWidgetClass());
+      buffer.writeln();
+
+      // Generate state class
+      buffer.writeln(_generateStateClass());
+
+      return buffer.toString().trim();
+    } catch (e) {
+      final error = CodeGenError(
+        message: 'Failed to generate stateful widget: $e',
+        suggestion: 'Check class declarations and lifecycle methods',
+      );
+      errors.add(error);
+      rethrow;
+    }
+  }
+
+  // =========================================================================
+  // VALIDATION
+  // =========================================================================
+
+  void _validateStatefulWidget() {
+    if (config.validateLifecycle) {
+      // Check that build method exists
+      if (lifecycleMapping.build == null) {
+        final error = CodeGenError(
+          message:
+              'State class must have a build() method',
+          suggestion: 'Add: Widget build(BuildContext context) { ... }',
+        );
+        errors.add(error);
+      }
+
+      // Check that State class has proper name
+      final expectedStateName = '_${statefulWidget.declaration.name}State';
+      if (stateClass.declaration.name != expectedStateName) {
+        final warning = CodeGenWarning(
+          severity: WarningSeverity.warning,
+          message:
+              'State class name should follow convention: $expectedStateName',
+          suggestion:
+              'Rename from ${stateClass.declaration.name} to $expectedStateName',
+        );
+        warnings.add(warning);
+      }
+
+      // Check that State extends State
+      if (stateClass.declaration.superclass == null) {
+        final warning = CodeGenWarning(
+          severity: WarningSeverity.warning,
+          message:
+              '${stateClass.declaration.name} should extend State',
+          suggestion: 'Change: class ${stateClass.declaration.name} extends State<${statefulWidget.declaration.name}>',
+        );
+        warnings.add(warning);
+      }
+    }
+  }
+
+  // =========================================================================
+  // WIDGET CLASS GENERATION
+  // =========================================================================
+
+  String _generateWidgetClass() {
+    final buffer = StringBuffer();
+
+    // JSDoc
+    if (config.generateJSDoc) {
+      buffer.writeln(_generateWidgetJSDoc());
+    }
+
+    // Class header
+    buffer.writeln('class ${statefulWidget.declaration.name} extends StatefulWidget {');
+    indenter.indent();
+
+    // Constructor with props
+    _generateWidgetConstructor(buffer);
+
+    buffer.writeln();
+
+    // createState() method
+    _generateCreateState(buffer);
+
+    indenter.dedent();
+    buffer.write(indenter.line('}'));
+
+    return buffer.toString().trim();
+  }
+
+  void _generateWidgetConstructor(StringBuffer buffer) {
+    final params = statefulWidget.declaration.constructors.isNotEmpty
+        ? statefulWidget.declaration.constructors.first.parameters
+        : <ParameterDecl>[];
+
+    // Build parameter list
+    final paramStr = params.isEmpty
+        ? ''
+        : params.map((p) => p.name).join(', ');
+
+    buffer.writeln(indenter.line('constructor({$paramStr} = {}) {'));
+    indenter.indent();
+
+    if (config.generateSuperCalls) {
+      buffer.writeln(indenter.line('super();'));
+    }
+
+    // Assign parameters to properties
+    for (final param in params) {
+      buffer.writeln(indenter.line('this.${param.name} = ${param.name};'));
+    }
+
+    indenter.dedent();
+    buffer.writeln(indenter.line('}'));
+  }
+
+  void _generateCreateState(StringBuffer buffer) {
+    buffer.writeln(indenter.line('createState() {'));
+    indenter.indent();
+
+    final stateName = '_${statefulWidget.declaration.name}State';
+    buffer.writeln(indenter.line('return new $stateName();'));
+
+    indenter.dedent();
+    buffer.writeln(indenter.line('}'));
+  }
+
+  String _generateWidgetJSDoc() {
+    final buffer = StringBuffer();
+
+    buffer.writeln('/**');
+    buffer.writeln(
+      ' * ${statefulWidget.declaration.name} - A stateful widget',
+    );
+
+    // Document widget properties
+    if (statefulWidget.declaration.constructors.isNotEmpty) {
+      final params = statefulWidget.declaration.constructors.first.parameters;
+      for (final param in params) {
+        buffer.writeln(' * @param {any} ${param.name} - Widget property');
+      }
+    }
+
+    buffer.writeln(' */');
+
+    return buffer.toString();
+  }
+
+  // =========================================================================
+  // STATE CLASS GENERATION
+  // =========================================================================
+
+  String _generateStateClass() {
+    final buffer = StringBuffer();
+
+    // JSDoc
+    if (config.generateJSDoc) {
+      buffer.writeln(_generateStateJSDoc());
+    }
+
+    // Class header
+    final stateName = '_${statefulWidget.declaration.name}State';
+    buffer.writeln('class $stateName extends State {');
+    indenter.indent();
+
+    // Constructor
+    _generateStateConstructor(buffer);
+    buffer.writeln();
+
+    // State fields
+    _generateStateFields(buffer);
+    if (stateModel.reactiveFields.isNotEmpty ||
+        stateModel.nonReactiveFields.isNotEmpty) {
+      buffer.writeln();
+    }
+
+    // initState lifecycle
+    _generateInitState(buffer);
+
+    // dispose lifecycle
+    _generateDispose(buffer);
+
+    // didUpdateWidget lifecycle
+    _generateDidUpdateWidget(buffer);
+
+    // didChangeDependencies lifecycle
+    _generateDidChangeDependencies(buffer);
+
+    // setState wrapper
+    _generateSetStateWrapper(buffer);
+
+    // Custom methods (non-lifecycle)
+    _generateCustomMethods(buffer);
+
+    // build method
+    _generateBuildMethod(buffer);
+
+    indenter.dedent();
+    buffer.write(indenter.line('}'));
+
+    return buffer.toString().trim();
+  }
+
+  void _generateStateConstructor(StringBuffer buffer) {
+    buffer.writeln(indenter.line('constructor() {'));
+    indenter.indent();
+
+    if (config.generateSuperCalls) {
+      buffer.writeln(indenter.line('super();'));
+    }
+
+    indenter.dedent();
+    buffer.writeln(indenter.line('}'));
+  }
+
+  void _generateStateFields(StringBuffer buffer) {
+    // Reactive fields
+    for (final fieldName in stateModel.reactiveFields) {
+      final field = stateClass.declaration.instanceFields
+          .firstWhereOrNull((f) => f.name == fieldName);
+
+      if (field != null) {
+        final initialValue = field.initializer != null
+            ? '/* TODO: init from ${field.initializer.runtimeType} */'
+            : _getDefaultValue(field.type);
+
+        // Type comment
+        final typeComment =
+            config.generateJSDoc ? ' // ${field.type.displayName()}' : '';
+
+        buffer.writeln(indenter.line('$fieldName = $initialValue;$typeComment'));
+      }
+    }
+
+    // Non-reactive fields
+    for (final fieldName in stateModel.nonReactiveFields) {
+      final field = stateClass.declaration.instanceFields
+          .firstWhereOrNull((f) => f.name == fieldName);
+
+      if (field != null) {
+        final initialValue = field.initializer != null
+            ? '/* TODO: init */'
+            : _getDefaultValue(field.type);
+
+        buffer.writeln(indenter.line('$fieldName = $initialValue; // Non-reactive'));
+      }
+    }
+
+    // Resource fields (controllers, listeners, etc)
+    for (final fieldName in stateModel.resources) {
+      buffer.writeln(indenter.line('$fieldName = null; // Resource'));
+    }
+  }
+
+  void _generateInitState(StringBuffer buffer) {
+    if (lifecycleMapping.initState == null) {
+      buffer.writeln(indenter.line('initState() {'));
+      indenter.indent();
+
+      if (config.generateSuperCalls) {
+        buffer.writeln(indenter.line('super.initState();'));
+      }
+
+      buffer.writeln(indenter.line('// TODO: Initialize state'));
+
+      indenter.dedent();
+      buffer.writeln(indenter.line('}'));
+    } else {
+      // Generate from existing method
+      buffer.writeln(indenter.line('initState() {'));
+      indenter.indent();
+
+      if (config.generateSuperCalls) {
+        buffer.writeln(indenter.line('super.initState();'));
+      }
+
+      // TODO: Generate method body from IR
+      buffer.writeln(indenter.line('// TODO: Convert initState body'));
+
+      indenter.dedent();
+      buffer.writeln(indenter.line('}'));
+    }
+
+    buffer.writeln();
+  }
+
+  void _generateDispose(StringBuffer buffer) {
+    if (lifecycleMapping.dispose == null) {
+      buffer.writeln(indenter.line('dispose() {'));
+      indenter.indent();
+
+      // Generate cleanup for disposable fields
+      if (stateModel.disposableFields.isNotEmpty) {
+        for (final field in stateModel.disposableFields) {
+          buffer.writeln(indenter.line('this.$field?.dispose();'));
+        }
+      }
+
+      if (config.generateSuperCalls) {
+        buffer.writeln(indenter.line('super.dispose();'));
+      }
+
+      indenter.dedent();
+      buffer.writeln(indenter.line('}'));
+    } else {
+      // Generate from existing method
+      buffer.writeln(indenter.line('dispose() {'));
+      indenter.indent();
+
+      // TODO: Generate method body from IR
+
+      if (config.generateSuperCalls) {
+        buffer.writeln(indenter.line('super.dispose();'));
+      }
+
+      indenter.dedent();
+      buffer.writeln(indenter.line('}'));
+    }
+
+    buffer.writeln();
+  }
+
+  void _generateDidUpdateWidget(StringBuffer buffer) {
+    if (lifecycleMapping.didUpdateWidget == null) return;
+
+    buffer.writeln(indenter.line('didUpdateWidget(oldWidget) {'));
+    indenter.indent();
+
+    if (config.generateSuperCalls) {
+      buffer.writeln(indenter.line('super.didUpdateWidget(oldWidget);'));
+    }
+
+    buffer.writeln(indenter.line('// TODO: Convert didUpdateWidget body'));
+
+    indenter.dedent();
+    buffer.writeln(indenter.line('}'));
+    buffer.writeln();
+  }
+
+  void _generateDidChangeDependencies(StringBuffer buffer) {
+    if (lifecycleMapping.didChangeDependencies == null) return;
+
+    buffer.writeln(indenter.line('didChangeDependencies() {'));
+    indenter.indent();
+
+    if (config.generateSuperCalls) {
+      buffer.writeln(indenter.line('super.didChangeDependencies();'));
+    }
+
+    buffer.writeln(
+      indenter.line('// TODO: Convert didChangeDependencies body'),
+    );
+
+    indenter.dedent();
+    buffer.writeln(indenter.line('}'));
+    buffer.writeln();
+  }
+
+  void _generateSetStateWrapper(StringBuffer buffer) {
+    buffer.writeln(indenter.line('setState(callback) {'));
+    indenter.indent();
+
+    if (config.trackStateChanges) {
+      buffer.writeln(indenter.line('// Track state change'));
+      for (final field in stateModel.reactiveFields) {
+        buffer.writeln(
+          indenter.line('const oldValue_$field = this.$field;'),
+        );
+      }
+    }
+
+    buffer.writeln(indenter.line('callback.call(this);'));
+
+    if (config.trackStateChanges) {
+      buffer.writeln(indenter.line('// Trigger re-render'));
+    }
+
+    if (config.generateSuperCalls) {
+      buffer.writeln(indenter.line('super.setState();'));
+    }
+
+    indenter.dedent();
+    buffer.writeln(indenter.line('}'));
+    buffer.writeln();
+  }
+
+  void _generateCustomMethods(StringBuffer buffer) {
+    final customMethods = stateClass.declaration.instanceMethods
+        .where((m) =>
+            m.name != 'build' &&
+            m.name != 'initState' &&
+            m.name != 'dispose' &&
+            m.name != 'didUpdateWidget' &&
+            m.name != 'didChangeDependencies')
+        .toList();
+
+    for (int i = 0; i < customMethods.length; i++) {
+      final method = customMethods[i];
+
+      // TODO: Use funcCodeGen to generate method body
+      buffer.writeln(indenter.line('${method.name}(...args) {'));
+      indenter.indent();
+      buffer.writeln(indenter.line('// TODO: Implement ${method.name}'));
+      indenter.dedent();
+      buffer.writeln(indenter.line('}'));
+
+      if (i < customMethods.length - 1) {
+        buffer.writeln();
+      }
+    }
+
+    if (customMethods.isNotEmpty) {
+      buffer.writeln();
+    }
+  }
+
+  void _generateBuildMethod(StringBuffer buffer) {
+    if (lifecycleMapping.build == null) {
+      buffer.writeln(indenter.line('build(context) {'));
+      indenter.indent();
+      buffer.writeln(indenter.line('return null; // TODO: Implement'));
+      indenter.dedent();
+      buffer.write(indenter.line('}'));
+    } else {
+      // Use buildMethodGen to generate build
+      final buildCode = buildMethodGen.generateBuild(lifecycleMapping.build!);
+
+      // Indent the build code
+      final lines = buildCode.split('\n');
+      for (final line in lines) {
+        buffer.writeln(indenter.line(line));
+      }
+    }
+  }
+
+  String _generateStateJSDoc() {
+    final buffer = StringBuffer();
+
+    buffer.writeln('/**');
+    buffer.writeln(
+      ' * State for ${statefulWidget.declaration.name}',
+    );
+    buffer.writeln(' * Manages reactive state and lifecycle');
+    buffer.writeln(' */');
+
+    return buffer.toString();
+  }
+
+  // =========================================================================
+  // UTILITY METHODS
+  // =========================================================================
+
+  String _getDefaultValue(TypeIR type) {
+    final typeName = type.displayName();
+
+    return switch (typeName) {
+      'int' => '0',
+      'double' => '0.0',
+      'String' => '""',
+      'bool' => 'false',
+      'List' => '[]',
+      'Map' => '{}',
+      'Set' => 'new Set()',
+      'Future' => 'Promise.resolve(null)',
+      'Stream' => 'null',
+      _ => 'null',
+    };
+  }
+
+  /// Get all warnings
+  List<CodeGenWarning> getWarnings() => List.unmodifiable(warnings);
+
+  /// Get all errors
+  List<CodeGenError> getErrors() => List.unmodifiable(errors);
+
+  /// Generate comprehensive report
+  String generateReport() {
+    final buffer = StringBuffer();
+
+    buffer.writeln(
+      '\n╔════════════════════════════════════════════════════╗',
+    );
+    buffer.writeln(
+      '║    STATEFUL WIDGET GENERATION REPORT               ║',
+    );
+    buffer.writeln(
+      '╚════════════════════════════════════════════════════╝\n',
+    );
+
+    buffer.writeln('Widget: ${statefulWidget.declaration.name}');
+    buffer.writeln('State: ${stateClass.declaration.name}');
+    buffer.writeln('Lifecycle: $lifecycleMapping');
+    buffer.writeln('State Model: $stateModel\n');
+
+    if (errors.isEmpty && warnings.isEmpty) {
+      buffer.writeln('✅ No issues found!\n');
+      return buffer.toString();
+    }
+
+    if (errors.isNotEmpty) {
+      buffer.writeln('❌ ERRORS (${errors.length}):');
+      for (final error in errors) {
+        buffer.writeln('  - ${error.message}');
+        if (error.suggestion != null) {
+          buffer.writeln('    💡 ${error.suggestion}');
+        }
+      }
+      buffer.writeln();
+    }
+
+    if (warnings.isNotEmpty) {
+      buffer.writeln('⚠️  WARNINGS (${warnings.length}):');
+      for (final warning in warnings) {
+        buffer.writeln('  - ${warning.message}');
+        if (warning.suggestion != null) {
+          buffer.writeln('    💡 ${warning.suggestion}');
+        }
+      }
+    }
+
+    return buffer.toString();
+  }
+}
+
+// ============================================================================
+// WARNING & ERROR TYPES
+// ============================================================================
+
+enum WarningSeverity { info, warning, error }
+
+class CodeGenWarning {
+  final WarningSeverity severity;
+  final String message;
+  final String? suggestion;
+
+  CodeGenWarning({
+    required this.severity,
+    required this.message,
+    this.suggestion,
+  });
+
+  @override
+  String toString() => '${severity.name.toUpperCase()}: $message';
+}
+
+class CodeGenError {
+  final String message;
+  final String? suggestion;
+
+  CodeGenError({required this.message, this.suggestion});
+
+  @override
+  String toString() => 'ERROR: $message'
+      '${suggestion != null ? '\n  Suggestion: $suggestion' : ''}';
+}
+
+// ============================================================================
+// HELPER: INDENTER
+// ============================================================================
+
+class Indenter {
+  String _indent;
+  int _level = 0;
+
+  Indenter(this._indent);
+
+  void indent() => _level++;
+  void dedent() {
+    if (_level > 0) _level--;
+  }
+
+  String get current => _indent * _level;
+  String get next => _indent * (_level + 1);
+
+  String line(String code) => '$current$code';
+}
+
+// ============================================================================
+// EXAMPLE CONVERSIONS
+// ============================================================================
+
+/*
+EXAMPLE 1: Simple Counter
+──────────────────────────
+Dart:
+  class MyCounter extends StatefulWidget {
+    @override
+    State<MyCounter> createState() => _MyCounterState();
+  }
+  
+  class _MyCounterState extends State<MyCounter> {
+    int count = 0;
+    
+    @override
+    void initState() {
+      super.initState();
+    }
+    
+    @override
+    Widget build(BuildContext context) {
+      return Container(child: Text('$count'));
+    }
+  }
+
+JavaScript:
+  class MyCounter extends StatefulWidget {
+    constructor() {
+      super();
+    }
+    
+    createState() {
+      return new _MyCounterState();
+    }
+  }
+  
+  class _MyCounterState extends State {
+    constructor() {
+      super();
+    }
+    
+    count = 0; // int
+    
+    initState() {
+      super.initState();
+      // TODO: Initialize state
+    }
+    
+    dispose() {
+      super.dispose();
+    }
+    
+    setState(callback) {
+      callback.call(this);
+      super.setState();
+    }
+    
+    build(context) {
+      return new Container({
+        child: new Text({
+          data: `${this.count}`
+        })
+      });
+    }
+  }
+
+
+EXAMPLE 2: With Lifecycle & State
+──────────────────────────────────
+Dart:
+  class _MyWidgetState extends State<MyWidget> {
+    late TextEditingController _controller;
+    
+    @override
+    void initState() {
+      super.initState();
+      _controller = TextEditingController();
+    }
+    
+    @override
+    void dispose() {
+      _controller.dispose();
+      super.dispose();
+    }
+    
+    @override
+    Widget build(BuildContext context) {
+      return Column(children: [...]);
+    }
+  }
+
+JavaScript:
+  class _MyWidgetState extends State {
+    _controller = null; // Resource
+    
+    initState() {
+      super.initState();
+      this._controller = new TextEditingController();
+    }
+    
+    dispose() {
+      this._controller?.dispose();
+      super.dispose();
+    }
+    
+    setState(callback) {
+      callback.call(this);
+      super.setState();
+    }
+    
+    build(context) {
+      return new Column({
+        children: [...]
+      });
+    }
+  }
+*/
+
+extension ListX<T> on List<T> {
+  T? firstWhereOrNull(bool Function(T) test) {
+    try {
+      return firstWhere(test);
+    } catch (e) {
+      return null;
+    }
+  }
+}
