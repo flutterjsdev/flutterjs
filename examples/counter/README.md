@@ -1,4 +1,4 @@
-# counter_app
+# counter
 
 A new Flutter project.
 

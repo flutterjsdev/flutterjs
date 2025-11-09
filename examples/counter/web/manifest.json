@@ -1,11 +1,11 @@
 {
-    "name": "Your App Name",
-    "short_name": "YourApp",
-    "start_url": "/",
+    "name": "counter",
+    "short_name": "counter",
+    "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "Your app description for PWA",
+    "description": "A new Flutter project.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
@@ -31,6 +31,5 @@
             "type": "image/png",
             "purpose": "maskable"
         }
-    ],
-    "gcm_sender_id": "103953800507"
+    ]
 }

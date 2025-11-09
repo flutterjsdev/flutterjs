@@ -479,7 +479,7 @@ class RunCommand extends Command<void> {
   // PHASE 4-6: IR TO JAVASCRIPT WITH VALIDATION & OPTIMIZATION
   // =========================================================================
 
-  Future<int> _convertIRToJavaScriptWithValidation({
+   Future<int> _convertIRToJavaScriptWithValidation({
     required IRGenerationResults irResults,
     required String sourceBasePath,
     required String jsOutputPath,
@@ -530,52 +530,50 @@ class RunCommand extends Command<void> {
           runtimeRequirements: RuntimeRequirements(),
         );
 
-        var jsCode = fileCodeGen.generate(dartFile);
+        // ✅ FIXED: Properly await and store result
+        var jsCode = await fileCodeGen.generate(
+          dartFile,
+          validate: validateOutput,
+          optimize: optimizationLevel > 0,
+          optimizationLevel: optimizationLevel,
+        );
 
         if (verbose) {
-          print('    Phase 4: ${path.basename(dartFilePath)} - Generated');
+          print('    Phase 4: ${path.basename(dartFilePath)} - Generated (${jsCode.length} bytes)');
         }
 
-        // ===== PHASE 5: VALIDATION & OPTIMIZATION =====
-        if (validateOutput) {
-          final validator = OutputValidator(jsCode);
-          final validationReport = validator.validate();
+        // // ===== PHASE 5: VALIDATION & OPTIMIZATION =====
+        // if (validateOutput) {
+        //   final validator = OutputValidator(jsCode);
+        //   final validationReport = await validator.validate();
 
-          if (validationReport.hasCriticalIssues) {
-            for (final error in validationReport.errors) {
-              if (error.severity == ErrorSeverity.error ||
-                  error.severity == ErrorSeverity.fatal) {
-                errors.add(
-                  '${path.basename(dartFilePath)}: ${error.message}',
-                );
-              }
-            }
-            if (verbose) print('    Phase 5: ${path.basename(dartFilePath)} - Validation FAILED');
-            continue;
-          }
+        //   if (validationReport.hasCriticalIssues) {
+        //     for (final error in validationReport.errors) {
+        //       if (error.severity == ErrorSeverity.error ||
+        //           error.severity == ErrorSeverity.fatal) {
+        //         errors.add(
+        //           '${path.basename(dartFilePath)}: ${error.message}',
+        //         );
+        //       }
+        //     }
+        //     if (verbose) {
+        //       print('    Phase 5: ${path.basename(dartFilePath)} - ❌ Validation FAILED');
+        //     }
+        //     continue;
+        //   }
 
-          for (final error in validationReport.errors) {
-            if (error.severity == ErrorSeverity.warning) {
-              warnings.add(
-                '${path.basename(dartFilePath)}: ${error.message}',
-              );
-            }
-          }
+        //   for (final error in validationReport.errors) {
+        //     if (error.severity == ErrorSeverity.warning) {
+        //       warnings.add(
+        //         '${path.basename(dartFilePath)}: ${error.message}',
+        //       );
+        //     }
+        //   }
 
-          if (verbose) print('    Phase 5: ${path.basename(dartFilePath)} - Validated');
-        }
-
-        // Optimize if level > 0
-        if (optimizationLevel > 0) {
-          final optimizer = JSOptimizer(jsCode);
-          jsCode = optimizer.optimize(level: optimizationLevel);
-
-          if (verbose) {
-            print(
-              '    Phase 5: ${path.basename(dartFilePath)} - Optimized (Level $optimizationLevel)',
-            );
-          }
-        }
+        //   if (verbose) {
+        //     print('    Phase 5: ${path.basename(dartFilePath)} - ✅ Validated');
+        //   }
+        // }
 
         // ===== PHASE 6: OUTPUT & REPORTING =====
         await jsOutputFile.parent.create(recursive: true);
@@ -584,7 +582,7 @@ class RunCommand extends Command<void> {
 
         if (verbose) {
           final sizeKb = (jsCode.length / 1024).toStringAsFixed(2);
-          print('    Phase 6: ${path.basename(dartFilePath)} - Written ($sizeKb KB)');
+          print('    Phase 6: ${path.basename(dartFilePath)} - Written ($sizeKb KB) ✓');
         }
 
         // Generate report if requested
@@ -602,10 +600,15 @@ class RunCommand extends Command<void> {
             jsCode,
             optimizationLevel,
           ));
+
+          if (verbose) {
+            print('    Reports: ${path.basename(dartFilePath)}_conversion_report.json ✓');
+          }
         }
-      } catch (e) {
+      } catch (e, stackTrace) {
         if (verbose) {
-          print('    Error processing ${path.basename(entry.key)}: $e');
+          print('    ❌ Error processing ${path.basename(entry.key)}: $e');
+          if (verbose) print('       Stack: $stackTrace');
         }
         errors.add('${path.basename(entry.key)}: $e');
       }
