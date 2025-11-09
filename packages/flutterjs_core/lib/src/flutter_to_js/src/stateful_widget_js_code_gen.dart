@@ -5,7 +5,11 @@
 // Handles widget class, state class, lifecycle methods, and reactive state
 // ============================================================================
 
+import 'package:flutterjs_core/src/flutter_to_js/src/utils/indenter.dart';
+
 import '../../ast_ir/ast_it.dart';
+import '../../ast_ir/ir/expression_types/cascade_expression_ir.dart';
+import '../flutter_to_js.dart';
 import 'build_method_code_gen.dart';
 import 'flutter_prop_converters.dart';
 import 'function_code_generator.dart';
@@ -159,6 +163,9 @@ class StatefulWidgetJSCodeGen {
   final List<CodeGenError> errors = [];
   final FlutterPropConverter propConverter;
 
+  final StatementCodeGen stmtCodeGen; // Injected
+  final ExpressionCodeGen exprCodeGen; // Injected
+
   StatefulWidgetJSCodeGen({
     required this.statefulWidget,
     required this.stateClass,
@@ -168,7 +175,11 @@ class StatefulWidgetJSCodeGen {
     required this.funcCodeGen,
     StatefulWidgetGenConfig? config,
     FlutterPropConverter? propConverter,
+    StatementCodeGen? stmtCodeGen,
+    ExpressionCodeGen? exprCodeGen,
   }) : propConverter = propConverter ?? FlutterPropConverter(),
+       stmtCodeGen = stmtCodeGen ?? StatementCodeGen(),
+       exprCodeGen = exprCodeGen ?? ExpressionCodeGen(),
        config = config ?? const StatefulWidgetGenConfig() {
     indenter = Indenter(this.config.indent);
   }
@@ -472,71 +483,95 @@ class StatefulWidgetJSCodeGen {
   }
 
   void _generateInitState(StringBuffer buffer) {
-    if (lifecycleMapping.initState == null) {
-      buffer.writeln(indenter.line('initState() {'));
-      indenter.indent();
+    buffer.writeln(indenter.line('initState() {'));
+    indenter.indent();
 
-      if (config.generateSuperCalls) {
-        buffer.writeln(indenter.line('super.initState();'));
-      }
-
-      buffer.writeln(indenter.line('// TODO: Initialize state'));
-
-      indenter.dedent();
-      buffer.writeln(indenter.line('}'));
-    } else {
-      // Generate from existing method
-      buffer.writeln(indenter.line('initState() {'));
-      indenter.indent();
-
-      if (config.generateSuperCalls) {
-        buffer.writeln(indenter.line('super.initState();'));
-      }
-
-      // TODO: Generate method body from IR
-      buffer.writeln(indenter.line('// TODO: Convert initState body'));
-
-      indenter.dedent();
-      buffer.writeln(indenter.line('}'));
+    if (config.generateSuperCalls) {
+      buffer.writeln(indenter.line('super.initState();'));
     }
 
-    buffer.writeln();
+    if (lifecycleMapping.initState != null) {
+      // ACTUALLY convert the method body!
+      try {
+        final methodBody = lifecycleMapping.initState!.body;
+        if (methodBody != null) {
+          if (methodBody is BlockStmt) {
+            for (final stmt in methodBody.statements) {
+              buffer.writeln(stmtCodeGen.generate(stmt));
+            }
+          } else {
+            // Expression body
+            final expr = exprCodeGen.generate(
+              methodBody as ExpressionIR,
+              parenthesize: false,
+            );
+            buffer.writeln(indenter.line('return $expr;'));
+          }
+        } else {
+          buffer.writeln(indenter.line('// initState body not available'));
+        }
+      } catch (e) {
+        warnings.add(
+          CodeGenWarning(
+            severity: WarningSeverity.warning,
+            message: 'Could not generate initState body: $e',
+            suggestion: 'Check initState method structure',
+          ),
+        );
+        buffer.writeln(
+          indenter.line('// TODO: initState body (conversion failed)'),
+        );
+      }
+    } else {
+      buffer.writeln(indenter.line('// TODO: Initialize state'));
+    }
+
+    indenter.dedent();
+    buffer.writeln(indenter.line('}'));
   }
 
   void _generateDispose(StringBuffer buffer) {
-    if (lifecycleMapping.dispose == null) {
-      buffer.writeln(indenter.line('dispose() {'));
-      indenter.indent();
+    buffer.writeln(indenter.line('dispose() {'));
+    indenter.indent();
 
-      // Generate cleanup for disposable fields
-      if (stateModel.disposableFields.isNotEmpty) {
-        for (final field in stateModel.disposableFields) {
-          buffer.writeln(indenter.line('this.$field?.dispose();'));
-        }
+    // Generate cleanup for disposable fields
+    if (stateModel.disposableFields.isNotEmpty) {
+      for (final field in stateModel.disposableFields) {
+        buffer.writeln(indenter.line('this.$field?.dispose();'));
       }
-
-      if (config.generateSuperCalls) {
-        buffer.writeln(indenter.line('super.dispose();'));
-      }
-
-      indenter.dedent();
-      buffer.writeln(indenter.line('}'));
-    } else {
-      // Generate from existing method
-      buffer.writeln(indenter.line('dispose() {'));
-      indenter.indent();
-
-      // TODO: Generate method body from IR
-
-      if (config.generateSuperCalls) {
-        buffer.writeln(indenter.line('super.dispose();'));
-      }
-
-      indenter.dedent();
-      buffer.writeln(indenter.line('}'));
     }
 
-    buffer.writeln();
+    if (lifecycleMapping.dispose != null) {
+      // Convert dispose method body
+      try {
+        final methodBody = lifecycleMapping.dispose!.body;
+        if (methodBody != null && methodBody is! EmptyStatementIR) {
+          if (methodBody is BlockStmt) {
+            // Skip super.dispose() if already present
+            for (final stmt in methodBody.statements) {
+              if (stmt is! ExpressionStmt ||
+                  !_isSuperCall(stmt.expression, 'dispose')) {
+                buffer.writeln(stmtCodeGen.generate(stmt));
+              }
+            }
+          }
+        }
+      } catch (e) {
+        warnings.add(
+          CodeGenWarning(
+            severity: WarningSeverity.warning,
+            message: 'Could not generate dispose body: $e',
+          ),
+        );
+      }
+    }
+
+    if (config.generateSuperCalls) {
+      buffer.writeln(indenter.line('super.dispose();'));
+    }
+
+    indenter.dedent();
+    buffer.writeln(indenter.line('}'));
   }
 
   void _generateDidUpdateWidget(StringBuffer buffer) {
@@ -549,7 +584,24 @@ class StatefulWidgetJSCodeGen {
       buffer.writeln(indenter.line('super.didUpdateWidget(oldWidget);'));
     }
 
-    buffer.writeln(indenter.line('// TODO: Convert didUpdateWidget body'));
+    try {
+      final methodBody = lifecycleMapping.didUpdateWidget!.body;
+      if (methodBody != null && methodBody is BlockStmt) {
+        for (final stmt in methodBody.statements) {
+          if (stmt is! ExpressionStmt ||
+              !_isSuperCall(stmt.expression, 'didUpdateWidget')) {
+            buffer.writeln(stmtCodeGen.generate(stmt));
+          }
+        }
+      }
+    } catch (e) {
+      warnings.add(
+        CodeGenWarning(
+          severity: WarningSeverity.warning,
+          message: 'Could not generate didUpdateWidget body: $e',
+        ),
+      );
+    }
 
     indenter.dedent();
     buffer.writeln(indenter.line('}'));
@@ -616,12 +668,25 @@ class StatefulWidgetJSCodeGen {
     for (int i = 0; i < customMethods.length; i++) {
       final method = customMethods[i];
 
-      // TODO: Use funcCodeGen to generate method body
-      buffer.writeln(indenter.line('${method.name}(...args) {'));
-      indenter.indent();
-      buffer.writeln(indenter.line('// TODO: Implement ${method.name}'));
-      indenter.dedent();
-      buffer.writeln(indenter.line('}'));
+      try {
+        // USE funcCodeGen to properly generate the method!
+        final methodCode = funcCodeGen.generateMethod(method);
+        buffer.writeln(indenter.line(methodCode));
+      } catch (e) {
+        warnings.add(
+          CodeGenWarning(
+            severity: WarningSeverity.warning,
+            message: 'Could not generate method ${method.name}: $e',
+            suggestion: 'Check method structure',
+          ),
+        );
+        // Fallback
+        buffer.writeln(indenter.line('${method.name}(...args) {'));
+        indenter.indent();
+        buffer.writeln(indenter.line('// TODO: Method implementation failed'));
+        indenter.dedent();
+        buffer.writeln(indenter.line('}'));
+      }
 
       if (i < customMethods.length - 1) {
         buffer.writeln();
@@ -631,6 +696,16 @@ class StatefulWidgetJSCodeGen {
     if (customMethods.isNotEmpty) {
       buffer.writeln();
     }
+  }
+
+  // Helper to detect super calls
+  bool _isSuperCall(ExpressionIR expr, String methodName) {
+    if (expr is MethodCallExpressionIR) {
+      if (expr.target is SuperExpressionIR && expr.methodName == methodName) {
+        return true;
+      }
+    }
+    return false;
   }
 
   void _generateBuildMethod(StringBuffer buffer) {
@@ -770,22 +845,7 @@ class CodeGenError {
 // HELPER: INDENTER
 // ============================================================================
 
-class Indenter {
-  String _indent;
-  int _level = 0;
 
-  Indenter(this._indent);
-
-  void indent() => _level++;
-  void dedent() {
-    if (_level > 0) _level--;
-  }
-
-  String get current => _indent * _level;
-  String get next => _indent * (_level + 1);
-
-  String line(String code) => '$current$code';
-}
 
 // ============================================================================
 // EXAMPLE CONVERSIONS

@@ -6,9 +6,10 @@
 // ============================================================================
 
 import 'package:collection/collection.dart';
+import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:flutterjs_core/src/flutter_to_js/src/utils/code_gen_error.dart';
 import '../../ast_ir/ast_it.dart';
 import '../../ast_ir/ir/expression_types/cascade_expression_ir.dart';
-
 
 // ============================================================================
 // CONFIGURATION & HELPERS
@@ -18,13 +19,13 @@ import '../../ast_ir/ir/expression_types/cascade_expression_ir.dart';
 class ExpressionGenConfig {
   /// Whether to wrap expressions in parentheses for safety
   final bool safeParens;
-  
+
   /// Whether to include type annotations as comments
   final bool typeComments;
-  
+
   /// Whether to use const/let optimization
   final bool constOptimization;
-  
+
   /// Line width for formatting (0 = no wrapping)
   final int lineWidth;
 
@@ -36,23 +37,7 @@ class ExpressionGenConfig {
   });
 }
 
-/// Error reporting for code generation
-class CodeGenError {
-  final String message;
-  final String? expressionType;
-  final String? suggestion;
-
-  CodeGenError({
-    required this.message,
-    this.expressionType,
-    this.suggestion,
-  });
-
-  @override
-  String toString() => 'CodeGenError: $message'
-      '${expressionType != null ? ' (expr: $expressionType)' : ''}'
-      '${suggestion != null ? '\n  Suggestion: $suggestion' : ''}';
-}
+/// Error reporting for code 
 
 // ============================================================================
 // MAIN EXPRESSION CODE GENERATOR
@@ -61,16 +46,17 @@ class CodeGenError {
 class ExpressionCodeGen {
   final ExpressionGenConfig config;
   final List<CodeGenError> errors = [];
+  final List<CodeGenWarning> warnings = [];
 
   ExpressionCodeGen({ExpressionGenConfig? config})
-      : config = config ?? const ExpressionGenConfig();
+    : config = config ?? const ExpressionGenConfig();
 
   /// Generate JavaScript code from an expression IR
   /// Returns JS code or throws CodeGenError on unsupported expressions
   String generate(ExpressionIR expr, {bool parenthesize = false}) {
     try {
       String code = _generateExpression(expr);
-      
+
       if (parenthesize && config.safeParens) {
         code = '($code)';
       }
@@ -273,7 +259,7 @@ class ExpressionCodeGen {
 
   String _generatePropertyAccess(PropertyAccessExpressionIR expr) {
     final target = generate(expr.target, parenthesize: true);
-    
+
     // Check if property name is valid JS identifier
     if (_isValidIdentifier(expr.propertyName)) {
       return '$target.${expr.propertyName}';
@@ -285,12 +271,12 @@ class ExpressionCodeGen {
   String _generateIndexAccess(IndexAccessExpressionIR expr) {
     final target = generate(expr.target, parenthesize: true);
     final index = generate(expr.index, parenthesize: true);
-    
+
     // Handle null-aware index access (?.operator not standard, but can use optional chaining)
     if (expr.isNullAware) {
       return '$target?.[${index}]';
     }
-    
+
     return '$target[$index]';
   }
 
@@ -307,6 +293,13 @@ class ExpressionCodeGen {
   // =========================================================================
 
   String _generateBinary(BinaryExpressionIR expr) {
+    // Special handling for floor division
+    if (expr.operator == BinaryOperatorIR.floorDivide) {
+      final left = generate(expr.left, parenthesize: true);
+      final right = generate(expr.right, parenthesize: true);
+      return 'Math.floor($left / $right)';
+    }
+
     final left = generate(expr.left, parenthesize: true);
     final right = generate(expr.right, parenthesize: true);
     final op = _mapBinaryOperator(expr.operator);
@@ -326,7 +319,9 @@ class ExpressionCodeGen {
       case BinaryOperatorIR.divide:
         return '/';
       case BinaryOperatorIR.floorDivide:
-        return '~/'; // Note: Will need runtime helper
+        throw CodeGenError(
+          message: 'Floor division should be handled in _generateBinary',
+        );
       case BinaryOperatorIR.modulo:
         return '%';
 
@@ -369,9 +364,7 @@ class ExpressionCodeGen {
         return '??';
 
       default:
-        throw CodeGenError(
-          message: 'Unknown binary operator: $op',
-        );
+        throw CodeGenError(message: 'Unknown binary operator: $op');
     }
   }
 
@@ -403,9 +396,7 @@ class ExpressionCodeGen {
       case UnaryOperator.postDecrement:
         return '--';
       default:
-        throw CodeGenError(
-          message: 'Unknown unary operator: $op',
-        );
+        throw CodeGenError(message: 'Unknown unary operator: $op');
     }
   }
 
@@ -580,9 +571,7 @@ class ExpressionCodeGen {
 
   String _generateLambda(LambdaExpr expr) {
     // Generate parameter list
-    final params = expr.parameters
-        .map((p) => p.name)
-        .join(', ');
+    final params = expr.parameters.map((p) => p.name).join(', ');
 
     // Generate body
     if (expr.body != null) {
@@ -653,8 +642,57 @@ class ExpressionCodeGen {
       case 'Null':
         return '$value === null';
       default:
+        warnings.add(
+          CodeGenWarning(
+            severity: WarningSeverity.warning,
+            message: 'Type check for custom type: $typeName',
+            suggestion: 'Ensure $typeName is imported in generated code',
+          ),
+        );
         return '$value instanceof $typeName';
     }
+  }
+
+  List<CodeGenWarning> getWarnings() => List.unmodifiable(warnings);
+
+  /// Get all errors
+  List<CodeGenError> getErrors() => List.unmodifiable(errors);
+
+  /// Clear all warnings and errors
+  void clearIssues() {
+    warnings.clear();
+    errors.clear();
+  }
+
+  String generateIssuesReport() {
+    if (errors.isEmpty && warnings.isEmpty) {
+      return '✓ No issues found';
+    }
+
+    final buffer = StringBuffer();
+
+    if (errors.isNotEmpty) {
+      buffer.writeln('❌ ERRORS (${errors.length}):');
+      for (final error in errors) {
+        buffer.writeln('  - ${error.message}');
+        if (error.suggestion != null) {
+          buffer.writeln('    💡 ${error.suggestion}');
+        }
+      }
+    }
+
+    if (warnings.isNotEmpty) {
+      if (errors.isNotEmpty) buffer.writeln();
+      buffer.writeln('⚠️  WARNINGS (${warnings.length}):');
+      for (final warning in warnings) {
+        buffer.writeln('  - ${warning.message}');
+        if (warning.suggestion != null) {
+          buffer.writeln('    💡 ${warning.suggestion}');
+        }
+      }
+    }
+
+    return buffer.toString();
   }
 
   // =========================================================================
@@ -699,18 +737,25 @@ class ExpressionCodeGen {
 
   String _generateCascade(CascadeExpressionIR expr) {
     final target = generate(expr.target, parenthesize: false);
-    
+
     final sections = expr.cascadeSections
         .map((s) {
           if (s is MethodCallExpressionIR) {
-            // Don't include target, just method call
             final args = _generateArgumentList(s.arguments, s.namedArguments);
             return '.${s.methodName}($args)';
-          } else if (s is PropertyAccessExpressionIR) {
-            return '.${s.propertyName}';
-          } else {
-            return '.${generate(s, parenthesize: false)}';
           }
+          if (s is PropertyAccessExpressionIR) {
+            return '.${s.propertyName}';
+          }
+          if (s is AssignmentExpressionIR) {
+            return ' = ${generate(s.value, parenthesize: false)}';
+          }
+
+          throw CodeGenError(
+            message: 'Unsupported cascade section type: ${s.runtimeType}',
+            suggestion:
+                'Cascade sections must be method calls, property access, or assignments',
+          );
         })
         .join('');
 
@@ -742,17 +787,70 @@ class ExpressionCodeGen {
 
     // Check if it's a reserved word
     const reserved = {
-      'abstract', 'arguments', 'await', 'boolean',
-      'break', 'byte', 'case', 'catch', 'char', 'class', 'const', 'continue',
-      'debugger', 'default', 'delete', 'do', 'double',
-      'else', 'enum', 'eval', 'export', 'extends',
-      'false', 'final', 'finally', 'float', 'for', 'function',
-      'goto', 'if', 'implements', 'import', 'in', 'instanceof', 'int',
-      'interface', 'let', 'long', 'native', 'new', 'null',
-      'package', 'private', 'protected', 'public', 'return',
-      'short', 'static', 'super', 'switch', 'synchronized',
-      'this', 'throw', 'throws', 'transient', 'true', 'try', 'typeof',
-      'var', 'void', 'volatile', 'while', 'with', 'yield',
+      'abstract',
+      'arguments',
+      'await',
+      'boolean',
+      'break',
+      'byte',
+      'case',
+      'catch',
+      'char',
+      'class',
+      'const',
+      'continue',
+      'debugger',
+      'default',
+      'delete',
+      'do',
+      'double',
+      'else',
+      'enum',
+      'eval',
+      'export',
+      'extends',
+      'false',
+      'final',
+      'finally',
+      'float',
+      'for',
+      'function',
+      'goto',
+      'if',
+      'implements',
+      'import',
+      'in',
+      'instanceof',
+      'int',
+      'interface',
+      'let',
+      'long',
+      'native',
+      'new',
+      'null',
+      'package',
+      'private',
+      'protected',
+      'public',
+      'return',
+      'short',
+      'static',
+      'super',
+      'switch',
+      'synchronized',
+      'this',
+      'throw',
+      'throws',
+      'transient',
+      'true',
+      'try',
+      'typeof',
+      'var',
+      'void',
+      'volatile',
+      'while',
+      'with',
+      'yield',
     };
 
     return !reserved.contains(name);

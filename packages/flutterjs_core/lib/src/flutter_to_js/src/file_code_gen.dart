@@ -3,15 +3,8 @@
 // ============================================================================
 
 import 'package:flutterjs_core/src/ast_ir/ir/expression_types/cascade_expression_ir.dart';
-import 'package:flutterjs_core/src/ast_ir/diagnostics/source_location.dart';
-
 import '../../../flutterjs_core.dart';
-import 'class_code_generator.dart';
-import 'expression_code_generator.dart';
-import 'flutter_prop_converters.dart';
-import 'function_code_generator.dart';
-import 'output_validator.dart';
-import 'statement_code_generator.dart';
+import 'utils/indenter.dart';
 
 // ============================================================================
 // PHASE 4: FILE-LEVEL GENERATION - UPDATED WITH PHASE 5 INTEGRATION
@@ -791,26 +784,7 @@ class FileCodeGen {
   }
 }
 
-// ============================================================================
-// HELPER: Indenter
-// ============================================================================
 
-class Indenter {
-  String _indent;
-  int _level = 0;
-
-  Indenter(this._indent);
-
-  void indent() => _level++;
-  void dedent() {
-    if (_level > 0) _level--;
-  }
-
-  String get current => _indent * _level;
-  String get next => _indent * (_level + 1);
-
-  String line(String code) => '$current$code';
-}
 
 // ============================================================================
 // EXTENSION: FirstWhereOrNull

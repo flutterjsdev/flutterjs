@@ -8,9 +8,11 @@
 import 'package:collection/collection.dart';
 import 'package:flutterjs_core/src/ast_ir/ast_it.dart';
 import 'package:flutterjs_core/src/flutter_to_js/src/flutter_prop_converters.dart';
+import 'package:flutterjs_core/src/flutter_to_js/src/utils/code_gen_error.dart';
 import 'expression_code_generator.dart';
 import 'function_code_generator.dart';
 import 'statement_code_generator.dart';
+import 'utils/indenter.dart';
 
 // ============================================================================
 // CONFIGURATION
@@ -49,6 +51,7 @@ class ClassCodeGen {
   final FunctionCodeGen funcGen;
   late Indenter indenter;
   final List<CodeGenError> errors = [];
+  final List<CodeGenWarning> warnings = [];
   final FlutterPropConverter propConverter;
 
   ClassCodeGen({
@@ -57,11 +60,11 @@ class ClassCodeGen {
     StatementCodeGen? stmtGen,
     FunctionCodeGen? funcGen,
     FlutterPropConverter? propConverter,
-  })  :   propConverter = propConverter ?? FlutterPropConverter(),
-   config = config ?? const ClassGenConfig(),
-        exprGen = exprGen ?? ExpressionCodeGen(),
-        stmtGen = stmtGen ?? StatementCodeGen(),
-        funcGen = funcGen ?? FunctionCodeGen() {
+  }) : propConverter = propConverter ?? FlutterPropConverter(),
+       config = config ?? const ClassGenConfig(),
+       exprGen = exprGen ?? ExpressionCodeGen(),
+       stmtGen = stmtGen ?? StatementCodeGen(),
+       funcGen = funcGen ?? FunctionCodeGen() {
     indenter = Indenter(this.config.indent);
   }
 
@@ -170,17 +173,13 @@ class ClassCodeGen {
 
     // Interfaces
     if (cls.interfaces.isNotEmpty) {
-      final interfaces = cls.interfaces
-          .map((i) => i.displayName())
-          .join(', ');
+      final interfaces = cls.interfaces.map((i) => i.displayName()).join(', ');
       buffer.write(' implements $interfaces');
     }
 
     // Mixins
     if (cls.mixins.isNotEmpty) {
-      final mixins = cls.mixins
-          .map((m) => m.displayName())
-          .join(', ');
+      final mixins = cls.mixins.map((m) => m.displayName()).join(', ');
       buffer.write(' with $mixins');
     }
 
@@ -236,50 +235,133 @@ class ClassCodeGen {
   // =========================================================================
 
   String _generateConstructor(ConstructorDecl ctor, ClassDecl cls) {
-    final buffer = StringBuffer();
+    try {
+      final buffer = StringBuffer();
 
-    // Constructor name (named or default)
-    String constructorName = 'constructor';
-    if (ctor.constructorName != null && ctor.constructorName!.isNotEmpty) {
-      constructorName = 'constructor_${ctor.constructorName}';
-    }
+      // Constructor name (named or default)
+      String constructorName = 'constructor';
+      if (ctor.constructorName != null && ctor.constructorName!.isNotEmpty) {
+        constructorName = 'constructor_${ctor.constructorName}';
+      }
 
-    // Parameters
-    final params = _generateParameterList(ctor.parameters);
+      // Parameters
+      final params = _generateParameterList(ctor.parameters);
 
-    buffer.writeln(indenter.line('$constructorName($params) {'));
-    indenter.indent();
+      buffer.writeln(indenter.line('$constructorName($params) {'));
+      indenter.indent();
 
-    // Super call if extends another class
-    if (cls.superclass != null) {
-      buffer.writeln(indenter.line('super();'));
-    }
+      // Super call if extends another class
+      if (cls.superclass != null) {
+        buffer.writeln(indenter.line('super();'));
+      }
 
-    // Field assignments from parameters
-    if (config.generateFieldInitializers) {
-      for (final param in ctor.parameters) {
-        if (cls.instanceFields.any((f) => f.name == param.name)) {
+      // Field assignments from parameters
+      if (config.generateFieldInitializers) {
+        for (final param in ctor.parameters) {
+          final field = cls.instanceFields.firstWhereOrNull(
+            (f) => f.name == param.name,
+          );
+          if (field != null) {
+            buffer.writeln(
+              indenter.line('this.${param.name} = ${param.name};'),
+            );
+          }
+        }
+      }
+
+      // Handle field initializer list (e.g., Point.origin() : x = 0, y = 0)
+      if (ctor.initializers != null && ctor.initializers.isNotEmpty) {
+        for (final initializer in ctor.initializers) {
+          try {
+            // Initializer is typically: fieldName = expression
+            final fieldName = initializer.fieldName;
+            final expr = exprGen.generate(
+              initializer.value,
+              parenthesize: false,
+            );
+            buffer.writeln(indenter.line('this.$fieldName = $expr;'));
+          } catch (e) {
+            warnings.add(
+              CodeGenWarning(
+                severity: WarningSeverity.warning,
+                message: 'Could not generate initializer: $e',
+                suggestion: 'Check initializer expression in constructor',
+              ),
+            );
+            buffer.writeln(
+              indenter.line('/* TODO: Initializer failed - $e */'),
+            );
+          }
+        }
+      }
+
+      // Constructor body statements
+      if (ctor.body != null) {
+        try {
+          if (ctor.body is BlockStmt) {
+            // Block body: { statement1; statement2; ... }
+            final blockBody = ctor.body as BlockStmt;
+
+            if (blockBody.statements.isNotEmpty) {
+              for (final stmt in blockBody.statements) {
+                try {
+                  final stmtCode = stmtGen.generate(stmt);
+                  buffer.writeln(stmtCode);
+                } catch (e) {
+                  warnings.add(
+                    CodeGenWarning(
+                      severity: WarningSeverity.warning,
+                      message: 'Could not generate constructor statement: $e',
+                      suggestion:
+                          'Check statement structure in constructor body',
+                    ),
+                  );
+                  buffer.writeln(
+                    indenter.line('/* TODO: Statement failed - $e */'),
+                  );
+                }
+              }
+            }
+          } else if (ctor.body is ExpressionIR) {
+            // Expression body (rare for constructors, but handle it)
+            final expr = exprGen.generate(
+              ctor.body as ExpressionIR,
+              parenthesize: false,
+            );
+            buffer.writeln(indenter.line('$expr;'));
+          }
+        } catch (e) {
+          warnings.add(
+            CodeGenWarning(
+              severity: WarningSeverity.warning,
+              message: 'Could not generate constructor body: $e',
+              suggestion: 'Check constructor body structure',
+            ),
+          );
           buffer.writeln(
-            indenter.line('this.${param.name} = ${param.name};'),
+            indenter.line('/* Constructor body generation failed */'),
           );
         }
       }
+
+      indenter.dedent();
+      buffer.write(indenter.line('}'));
+
+      return buffer.toString().trim();
+    } catch (e) {
+      // Outer error handling
+      errors.add(
+        CodeGenError(
+          message: 'Critical error generating constructor: $e',
+          expressionType: ctor.runtimeType.toString(),
+          suggestion: 'Check constructor declaration structure',
+        ),
+      );
+      // Return minimal fallback
+      return indenter.line(
+        'constructor() { /* Constructor generation failed */ }',
+      );
     }
-
-    // TODO: Handle ctor.initializers (field initializer list)
-    // This requires parsing the initializer expressions
-
-    // Constructor body
-    if (ctor.body != null) {
-      // Note: ctor.body is not in standard ClassDecl, might need custom handling
-      // For now, just generate a TODO comment
-      buffer.writeln(indenter.line('// Constructor body'));
-    }
-
-    indenter.dedent();
-    buffer.write(indenter.line('}'));
-
-    return buffer.toString().trim();
   }
 
   // =========================================================================
@@ -291,7 +373,9 @@ class ClassCodeGen {
 
     // Modifiers
     if (method.isAbstract) {
-      return indenter.line('// abstract ${method.name}(${ _generateParameterList(method.parameters)});');
+      return indenter.line(
+        '// abstract ${method.name}(${_generateParameterList(method.parameters)});',
+      );
     }
 
     if (method.isAsync && method.isGenerator) {
@@ -324,7 +408,10 @@ class ClassCodeGen {
         }
       } else {
         // Expression body - wrap in return
-        final expr = exprGen.generate(method.body as ExpressionIR, parenthesize: false);
+        final expr = exprGen.generate(
+          method.body as ExpressionIR,
+          parenthesize: false,
+        );
         buffer.writeln(indenter.line('return $expr;'));
       }
     } else {
@@ -365,7 +452,10 @@ class ClassCodeGen {
           buffer.writeln(stmtGen.generate(stmt));
         }
       } else {
-        final expr = exprGen.generate(method.body as ExpressionIR, parenthesize: false);
+        final expr = exprGen.generate(
+          method.body as ExpressionIR,
+          parenthesize: false,
+        );
         buffer.writeln(indenter.line('return $expr;'));
       }
     } else {
@@ -388,8 +478,12 @@ class ClassCodeGen {
     }
 
     // Separate parameters by type
-    final required = parameters.where((p) => p.isRequired && !p.isNamed).toList();
-    final optional = parameters.where((p) => !p.isRequired && !p.isNamed).toList();
+    final required = parameters
+        .where((p) => p.isRequired && !p.isNamed)
+        .toList();
+    final optional = parameters
+        .where((p) => !p.isRequired && !p.isNamed)
+        .toList();
     final named = parameters.where((p) => p.isNamed).toList();
 
     final parts = <String>[];
@@ -407,12 +501,14 @@ class ClassCodeGen {
 
     // Named parameters → object destructuring
     if (named.isNotEmpty) {
-      final namedParts = named.map((p) {
-        final def = p.defaultValue != null
-            ? exprGen.generate(p.defaultValue!, parenthesize: false)
-            : 'undefined';
-        return '${p.name} = $def';
-      }).join(', ');
+      final namedParts = named
+          .map((p) {
+            final def = p.defaultValue != null
+                ? exprGen.generate(p.defaultValue!, parenthesize: false)
+                : 'undefined';
+            return '${p.name} = $def';
+          })
+          .join(', ');
 
       parts.add('{ $namedParts } = {}');
     }
@@ -454,10 +550,16 @@ class ClassCodeGen {
     buffer.writeln(indenter.line('equals(other) {'));
     indenter.indent();
 
-    buffer.writeln(indenter.line('if (!(other instanceof ${cls.name})) return false;'));
+    buffer.writeln(
+      indenter.line('if (!(other instanceof ${cls.name})) return false;'),
+    );
 
     for (final field in cls.instanceFields) {
-      buffer.writeln(indenter.line('if (this.${field.name} !== other.${field.name}) return false;'));
+      buffer.writeln(
+        indenter.line(
+          'if (this.${field.name} !== other.${field.name}) return false;',
+        ),
+      );
     }
 
     buffer.writeln(indenter.line('return true;'));
@@ -492,22 +594,6 @@ class ClassCodeGen {
 // HELPER: INDENTER (shared with other generators)
 // ============================================================================
 
-class Indenter {
-  String _indent;
-  int _level = 0;
-
-  Indenter(this._indent);
-
-  void indent() => _level++;
-  void dedent() {
-    if (_level > 0) _level--;
-  }
-
-  String get current => _indent * _level;
-  String get next => _indent * (_level + 1);
-
-  String line(String code) => '$current$code';
-}
 
 // ============================================================================
 // EXAMPLE CONVERSIONS

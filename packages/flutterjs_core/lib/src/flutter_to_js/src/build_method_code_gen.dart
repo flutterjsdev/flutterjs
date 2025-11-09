@@ -8,9 +8,11 @@
 import 'package:collection/collection.dart';
 import 'package:flutterjs_core/src/ast_ir/ir/expression_types/cascade_expression_ir.dart';
 import 'package:flutterjs_core/src/flutter_to_js/src/flutter_prop_converters.dart';
+import 'package:flutterjs_core/src/flutter_to_js/src/utils/code_gen_error.dart';
 import '../../ast_ir/ast_it.dart';
 import 'expression_code_generator.dart';
 import 'statement_code_generator.dart';
+import 'utils/indenter.dart';
 import 'widget_instantiation_code_gen.dart';
 
 // ============================================================================
@@ -72,7 +74,7 @@ class BuildMethodCodeGen {
     this.widgetTree,
     FlutterPropConverter? propConverter,
   }) : propConverter = propConverter ?? FlutterPropConverter(),
-   config = config ?? const BuildMethodGenConfig(),
+       config = config ?? const BuildMethodGenConfig(),
        widgetInstanGen = widgetInstanGen ?? WidgetInstantiationCodeGen(),
        stmtGen = stmtGen ?? StatementCodeGen(),
        exprGen = exprGen ?? ExpressionCodeGen() {
@@ -208,55 +210,67 @@ class BuildMethodCodeGen {
   // =========================================================================
   // WIDGET TREE GENERATION
   // =========================================================================
-
   String _generateReturnWidget(ExpressionIR expr) {
-    // Widget instantiation
-    if (expr is InstanceCreationExpressionIR) {
-      return widgetInstanGen.generateWidgetInstantiation(expr);
+    try {
+      // Handle widget instantiation
+      if (expr is InstanceCreationExpressionIR) {
+        return widgetInstanGen.generateWidgetInstantiation(expr);
+      }
+
+      // Handle conditional (ternary) rendering
+      if (expr is ConditionalExpressionIR) {
+        return _generateConditionalWidget(expr);
+      }
+
+      // Handle null coalescing
+      if (expr is NullCoalescingExpressionIR) {
+        return _generateNullCoalescingWidget(expr);
+      }
+
+      // Handle variable references
+      if (expr is IdentifierExpressionIR) {
+        return _validateWidgetVariable(expr.name);
+      }
+
+      // Handle method calls (helper methods)
+      if (expr is MethodCallExpressionIR) {
+        return _generateMethodCallWidget(expr);
+      }
+
+      // Handle null-aware access
+      if (expr is NullAwareAccessExpressionIR) {
+        return _generateNullAwareWidget(expr);
+      }
+
+      // Handle function calls
+      if (expr is FunctionCallExpr) {
+        return _generateFunctionCallWidget(expr);
+      }
+
+      // Handle cascade expressions
+      if (expr is CascadeExpressionIR) {
+        return exprGen.generate(expr, parenthesize: false);
+      }
+
+      // IMPORTANT: Don't silently fall through - report it
+      final warning = CodeGenWarning(
+        severity: WarningSeverity.warning,
+        message: 'Non-standard widget expression: ${expr.runtimeType}',
+        details: 'Attempting generic expression generation',
+        suggestion: 'Consider wrapping in a widget class',
+      );
+      warnings.add(warning);
+
+      return exprGen.generate(expr, parenthesize: false);
+    } catch (e) {
+      final error = CodeGenError(
+        message: 'Failed to generate return widget: $e',
+        expressionType: expr.runtimeType.toString(),
+        suggestion: 'Check widget tree structure',
+      );
+      errors.add(error);
+      return 'null /* Widget generation failed: $e */';
     }
-
-    // Conditional widget (ternary operator)
-    if (expr is ConditionalExpressionIR) {
-      return _generateConditionalWidget(expr);
-    }
-
-    // Null coalescing (widget ?? fallback)
-    if (expr is NullCoalescingExpressionIR) {
-      return _generateNullCoalescingWidget(expr);
-    }
-
-    // Variable reference to widget
-    if (expr is IdentifierExpressionIR) {
-      return _validateWidgetVariable(expr.name);
-    }
-
-    // Method call returning widget (e.g., helper method)
-    if (expr is MethodCallExpressionIR) {
-      return _generateMethodCallWidget(expr);
-    }
-
-    // Null-aware access
-    if (expr is NullAwareAccessExpressionIR) {
-      return _generateNullAwareWidget(expr);
-    }
-
-    // Function call returning widget
-    if (expr is FunctionCallExpr) {
-      return _generateFunctionCallWidget(expr);
-    }
-
-    // Fallback: generate as expression
-    final generated = exprGen.generate(expr, parenthesize: false);
-
-    final warning = CodeGenWarning(
-      severity: WarningSeverity.info,
-      message: 'Non-standard widget expression: ${expr.runtimeType}',
-      details: 'Generated as: $generated',
-      suggestion: 'Consider wrapping in a widget class',
-    );
-    warnings.add(warning);
-
-    return generated;
   }
 
   String _generateConditionalWidget(ConditionalExpressionIR expr) {
@@ -476,61 +490,10 @@ class WidgetTree {
 // WARNING & ERROR TYPES
 // ============================================================================
 
-enum WarningSeverity { info, warning, error }
 
-class CodeGenWarning {
-  final WarningSeverity severity;
-  final String message;
-  final String? details;
-  final String? suggestion;
-  final String? widget;
 
-  CodeGenWarning({
-    required this.severity,
-    required this.message,
-    this.details,
-    this.suggestion,
-    this.widget,
-  });
 
-  @override
-  String toString() => '${severity.name.toUpperCase()}: $message';
-}
 
-class CodeGenError {
-  final String message;
-  final String? expressionType;
-  final String? suggestion;
-
-  CodeGenError({required this.message, this.expressionType, this.suggestion});
-
-  @override
-  String toString() =>
-      'ERROR: $message'
-      '${expressionType != null ? ' (type: $expressionType)' : ''}'
-      '${suggestion != null ? '\n  Suggestion: $suggestion' : ''}';
-}
-
-// ============================================================================
-// HELPER: INDENTER
-// ============================================================================
-
-class Indenter {
-  String _indent;
-  int _level = 0;
-
-  Indenter(this._indent);
-
-  void indent() => _level++;
-  void dedent() {
-    if (_level > 0) _level--;
-  }
-
-  String get current => _indent * _level;
-  String get next => _indent * (_level + 1);
-
-  String line(String code) => '$current$code';
-}
 
 // ============================================================================
 // EXAMPLE CONVERSIONS

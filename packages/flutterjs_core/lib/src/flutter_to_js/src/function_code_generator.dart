@@ -7,9 +7,11 @@
 
 import 'package:collection/collection.dart';
 import 'package:flutterjs_core/src/flutter_to_js/src/flutter_prop_converters.dart';
+import 'package:flutterjs_core/src/flutter_to_js/src/utils/code_gen_error.dart';
 import '../../ast_ir/ast_it.dart';
 import 'expression_code_generator.dart';
 import 'statement_code_generator.dart';
+import 'utils/indenter.dart';
 
 // ============================================================================
 // CONFIGURATION
@@ -442,22 +444,6 @@ class FunctionCodeGen {
 // HELPER: INDENTER (shared with StatementCodeGen)
 // ============================================================================
 
-class Indenter {
-  String _indent;
-  int _level = 0;
-
-  Indenter(this._indent);
-
-  void indent() => _level++;
-  void dedent() {
-    if (_level > 0) _level--;
-  }
-
-  String get current => _indent * _level;
-  String get next => _indent * (_level + 1);
-
-  String line(String code) => '$current$code';
-}
 
 // ============================================================================
 // EXAMPLE CONVERSIONS

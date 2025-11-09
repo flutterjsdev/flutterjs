@@ -5,12 +5,15 @@
 // Handles widget class, constructor with props, methods, and build()
 // ============================================================================
 
+import 'package:flutterjs_core/src/flutter_to_js/src/utils/code_gen_error.dart';
+
 import '../../ast_ir/ast_it.dart';
 import 'build_method_code_gen.dart';
 import 'flutter_prop_converters.dart';
 import 'function_code_generator.dart';
 import 'statement_code_generator.dart';
 import 'expression_code_generator.dart';
+import 'utils/indenter.dart';
 
 // ============================================================================
 // CONFIGURATION
@@ -111,8 +114,8 @@ class StatelessWidgetJSCodeGen {
   final ExpressionCodeGen exprGen;
   late Indenter indenter;
 
-  final List<String> warnings = [];
-  final List<String> errors = [];
+  final List<CodeGenWarning> warnings = [];
+  final List<CodeGenError> errors = [];
   final FlutterPropConverter propConverter;
   StatelessWidgetJSCodeGen({
     required this.widgetInfo,
@@ -143,7 +146,16 @@ class StatelessWidgetJSCodeGen {
       // Validate widget structure
       final validation = _validateWidget();
       if (!validation.isValid && config.validateStructure) {
-        errors.addAll(validation.errors);
+        errors.addAll(
+          validation.errors
+              .map(
+                (e) => CodeGenError(
+                  message: e,
+                  suggestion: 'Check widget structure',
+                ),
+              )
+              .toList(),
+        );
         final errorMsg = 'Cannot generate widget: ${errors.join("; ")}';
         throw CodeGenError(
           message: errorMsg,
@@ -151,7 +163,11 @@ class StatelessWidgetJSCodeGen {
         );
       }
 
-      warnings.addAll(validation.warnings);
+      warnings.addAll(
+        validation.warnings.map((e) {
+          return CodeGenWarning(severity: WarningSeverity.warning, message: e);
+        }).toList(),
+      );
 
       // Generate code
       final buffer = StringBuffer();
@@ -167,7 +183,13 @@ class StatelessWidgetJSCodeGen {
       return buffer.toString().trim();
     } catch (e) {
       final error = 'Failed to generate stateless widget: $e';
-      errors.add(error);
+      errors.add(
+        CodeGenError(
+          message: error,
+          suggestion: "Check class and method declarations",
+        ),
+      );
+
       throw CodeGenError(
         message: error,
         suggestion: 'Check class and method declarations',
@@ -479,8 +501,12 @@ class StatelessWidgetJSCodeGen {
         }
       }
     } catch (e) {
-      warnings.add('Could not generate build method: $e');
-
+      warnings.add(
+        CodeGenWarning(
+          severity: WarningSeverity.error,
+          message: 'Could not generate build method: $e',
+        ),
+      );
       // Fallback
       buffer.writeln(indenter.line('build(context) {'));
       indenter.indent();
@@ -500,58 +526,103 @@ class StatelessWidgetJSCodeGen {
     MethodDecl method, {
     bool isStatic = false,
   }) {
-    // Modifiers
-    String modifiers = '';
+    try {
+      // Modifiers - ORDER MATTERS!
+      String modifiers = '';
 
-    if (method.isAsync) {
-      modifiers = 'async ';
-    } else if (method.isGenerator) {
-      modifiers = '* ';
-    }
+      // Static should come first if needed
+      if (isStatic) {
+        modifiers = 'static ';
+      }
 
-    // Getter/Setter
-    if (method.isGetter) {
-      modifiers = 'get ';
-    } else if (method.isSetter) {
-      modifiers = 'set ';
-    }
+      // Async/Generator keywords
+      if (method.isAsync && method.isGenerator) {
+        modifiers += 'async* ';
+      } else if (method.isAsync) {
+        modifiers += 'async ';
+      } else if (method.isGenerator) {
+        modifiers += '* ';
+      }
 
-    // Method signature
-    final params = _generateMethodParameters(method.parameters);
+      // Getter/Setter keywords - these come BEFORE the name
+      if (method.isGetter) {
+        modifiers += 'get ';
+      } else if (method.isSetter) {
+        modifiers += 'set ';
+      }
 
-    buffer.writeln('$modifiers${method.name}($params) {');
-    indenter.indent();
+      // Method signature
+      final params = _generateMethodParameters(method.parameters);
 
-    // Method body
-    if (method.body == null) {
-      buffer.writeln(indenter.line('// TODO: Implement ${method.name}'));
-    } else if (method.body is BlockStmt) {
-      final blockStmt = method.body as BlockStmt;
+      buffer.writeln('$modifiers${method.name}($params) {');
+      indenter.indent();
 
-      for (final stmt in blockStmt.statements) {
+      // Method body
+      if (method.body == null) {
+        buffer.writeln(indenter.line('// TODO: Implement ${method.name}'));
+      } else if (method.body is BlockStmt) {
+        // Block statement body
+        final blockStmt = method.body as BlockStmt;
+
+        if (blockStmt.statements.isEmpty) {
+          buffer.writeln(indenter.line('// Empty method body'));
+        } else {
+          for (final stmt in blockStmt.statements) {
+            try {
+              final stmtCode = stmtCodeGen.generate(stmt);
+              buffer.writeln(stmtCode);
+            } catch (e) {
+              warnings.add(
+                CodeGenWarning(
+                  severity: WarningSeverity.warning,
+                  message: 'Could not generate statement in ${method.name}: $e',
+                  suggestion: 'Check statement structure in source code',
+                ),
+              );
+              // Generate something rather than nothing
+              buffer.writeln(
+                indenter.line('/* TODO: Statement generation failed - $e */'),
+              );
+            }
+          }
+        }
+      } else {
+        // Expression body (arrow function style)
         try {
-          buffer.writeln(stmtCodeGen.generate(stmt));
+          final expr = exprGen.generate(
+            method.body as ExpressionIR,
+            parenthesize: false,
+          );
+          buffer.writeln(indenter.line('return $expr;'));
         } catch (e) {
-          warnings.add('Could not generate statement in ${method.name}: $e');
-          buffer.writeln(indenter.line('// TODO: Statement conversion failed'));
+          warnings.add(
+            CodeGenWarning(
+              severity: WarningSeverity.warning,
+              message:
+                  'Could not generate expression body for ${method.name}: $e',
+              suggestion: 'Check method body expression',
+            ),
+          );
+          buffer.writeln(
+            indenter.line('/* TODO: Expression body generation failed - $e */'),
+          );
         }
       }
-    } else {
-      // Expression body
-      try {
-        final expr = exprGen.generate(
-          method.body as ExpressionIR,
-          parenthesize: false,
-        );
-        buffer.writeln(indenter.line('return $expr;'));
-      } catch (e) {
-        warnings.add('Could not generate method body for ${method.name}: $e');
-        buffer.writeln(indenter.line('// TODO: Method body conversion failed'));
-      }
-    }
 
-    indenter.dedent();
-    buffer.write(indenter.line('}'));
+      indenter.dedent();
+      buffer.write(indenter.line('}'));
+    } catch (e) {
+      // Outer try-catch for unexpected errors
+      errors.add(
+        CodeGenError(
+          message: 'Critical error generating method ${method.name}: $e',
+          expressionType: method.runtimeType.toString(),
+          suggestion: 'Check method declaration structure',
+        ),
+      );
+      // Generate minimal fallback
+      buffer.writeln('${method.name}() { /* Error generating method */ }');
+    }
   }
 
   String _generateMethodParameters(List<ParameterDecl> parameters) {
@@ -605,10 +676,10 @@ class StatelessWidgetJSCodeGen {
   // =========================================================================
 
   /// Get all warnings
-  List<String> getWarnings() => List.unmodifiable(warnings);
+  List<CodeGenWarning> getWarnings() => List.unmodifiable(warnings);
 
   /// Get all errors
-  List<String> getErrors() => List.unmodifiable(errors);
+  List<CodeGenError> getErrors() => List.unmodifiable(errors);
 
   /// Check if generation was successful
   bool get isSuccessful => errors.isEmpty;
@@ -671,39 +742,20 @@ class StatelessWidgetJSCodeGen {
 // ERROR TYPES
 // ============================================================================
 
-class CodeGenError implements Exception {
-  final String message;
-  final String? suggestion;
+// class CodeGenError implements Exception {
+//   final String message;
+//   final String? suggestion;
 
-  CodeGenError({required this.message, this.suggestion});
+//   CodeGenError({required this.message, this.suggestion});
 
-  @override
-  String toString() =>
-      'CodeGenError: $message${suggestion != null ? '\n  Suggestion: $suggestion' : ''}';
-}
+//   @override
+//   String toString() =>
+//       'CodeGenError: $message${suggestion != null ? '\n  Suggestion: $suggestion' : ''}';
+// }
 
 // ============================================================================
 // INDENTER UTILITY
 // ============================================================================
-
-class Indenter {
-  String _indent;
-  int _level = 0;
-
-  Indenter(this._indent);
-
-  void indent() => _level++;
-
-  void dedent() {
-    if (_level > 0) _level--;
-  }
-
-  String get current => _indent * _level;
-
-  String get next => _indent * (_level + 1);
-
-  String line(String code) => '$current$code';
-}
 
 // ============================================================================
 // FACTORY CONSTRUCTOR FOR EASY CREATION

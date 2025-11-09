@@ -8,6 +8,8 @@
 // ============================================================================
 
 import 'package:collection/collection.dart';
+import 'package:flutterjs_core/src/flutter_to_js/src/utils/code_gen_error.dart';
+import 'package:flutterjs_core/src/flutter_to_js/src/utils/indenter.dart';
 import '../../ast_ir/ast_it.dart';
 import '../../ast_ir/ir/expression_types/cascade_expression_ir.dart';
 import 'expression_code_generator.dart';
@@ -624,60 +626,9 @@ class WidgetInstantiationCodeGen {
 // WARNING & ERROR TYPES
 // ============================================================================
 
-enum WarningSeverity { info, warning, error }
 
-class CodeGenWarning {
-  final WarningSeverity severity;
-  final String message;
-  final String? details;
-  final String? suggestion;
-  final String? widget;
-  final String? property;
-
-  CodeGenWarning({
-    required this.severity,
-    required this.message,
-    this.details,
-    this.suggestion,
-    this.widget,
-    this.property,
-  });
-
-  @override
-  String toString() => '${severity.name.toUpperCase()}: $message';
-}
-
-class CodeGenError {
-  final String message;
-  final String? expressionType;
-  final String? suggestion;
-
-  CodeGenError({required this.message, this.expressionType, this.suggestion});
-
-  @override
-  String toString() =>
-      'ERROR: $message'
-      '${expressionType != null ? ' (type: $expressionType)' : ''}'
-      '${suggestion != null ? '\n  Suggestion: $suggestion' : ''}';
-}
 
 // ============================================================================
 // HELPER: INDENTER
 // ============================================================================
 
-class Indenter {
-  String _indent;
-  int _level = 0;
-
-  Indenter(this._indent);
-
-  void indent() => _level++;
-  void dedent() {
-    if (_level > 0) _level--;
-  }
-
-  String get current => _indent * _level;
-  String get next => _indent * (_level + 1);
-
-  String line(String code) => '$current$code';
-}
