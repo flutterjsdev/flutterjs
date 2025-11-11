@@ -4,6 +4,7 @@
 
 import 'package:flutterjs_core/src/ast_ir/ir/expression_types/cascade_expression_ir.dart';
 import '../../../flutterjs_core.dart';
+import 'js_optimizer.dart';
 import 'utils/indenter.dart';
 
 class FileCodeGen {
@@ -25,7 +26,7 @@ class FileCodeGen {
   late ValidationReport? validationReport;
   late String? optimizedCode;
   final List<String> generationWarnings = [];
-  
+
   // ✅ NEW: Thread-safe lock for buffer operations
   late final _lock = Mutex();
 
@@ -56,7 +57,7 @@ class FileCodeGen {
   // =========================================================================
   // MAIN GENERATION WITH ASYNC SAFETY
   // =========================================================================
- Future<String> generate(
+  Future<String> generate(
     DartFile dartFile, {
     bool validate = true,
     bool optimize = false,
@@ -68,24 +69,27 @@ class FileCodeGen {
 
       // Step 2: Generate code with proper async/await
       var generatedCode = await _generateCodeAsync(dartFile);
-      print("jay ${generatedCode}");
+      print("jaypal ${generatedCode}");
 
       // Step 3: VALIDATE
       if (validate) {
         generatedCode = await _performValidationAsync(generatedCode, dartFile);
       }
-
+      print("after _performValidationAsync ${generatedCode}");
       // Step 4: OPTIMIZE
       if (optimize) {
-        generatedCode = await _performOptimizationAsync(generatedCode, optimizationLevel);
+        generatedCode = await _performOptimizationAsync(
+          generatedCode,
+          optimizationLevel,
+        );
       }
+      print("after _performOptimizationAsync ${generatedCode}");
 
       return generatedCode;
     } catch (e) {
       return _generateErrorOutput(e);
     }
   }
- 
 
   // =========================================================================
   // ASYNC FILE ANALYSIS
@@ -526,7 +530,9 @@ class FileCodeGen {
 
     for (int i = 0; i < dartFile.functionDeclarations.length; i++) {
       try {
-        code.writeln(await funcCodeGen.generate(dartFile.functionDeclarations[i]));
+        code.writeln(
+          await funcCodeGen.generate(dartFile.functionDeclarations[i]),
+        );
         if (i < dartFile.functionDeclarations.length - 1) {
           code.writeln();
         }
@@ -566,10 +572,14 @@ class FileCodeGen {
   // VALIDATION & OPTIMIZATION (ASYNC)
   // =========================================================================
 
-  Future<String> _performValidationAsync(String jsCode, DartFile dartFile) async {
+  Future<String> _performValidationAsync(
+    String jsCode,
+    DartFile dartFile,
+  ) async {
     final validator = outputValidator ?? OutputValidator(jsCode);
+    print("before validate ${jsCode}");
     validationReport = await validator.validate();
-
+    print("after validate ${jsCode}");
     if (validationReport!.hasCriticalIssues) {
       generationWarnings.add(
         '⚠️  CRITICAL VALIDATION ISSUES FOUND: ${validationReport!.errorCount} errors',
@@ -594,52 +604,86 @@ class FileCodeGen {
     return jsCode;
   }
 
-  Future<String> _performOptimizationAsync(String jsCode, int level) async {
+  Future<String> _performOptimizationAsync(
+    String jsCode,
+    int level, {
+    bool dryRun = false,
+    bool preserveComments = false,
+  }) async {
     if (level < 1 || level > 3) {
       generationWarnings.add(
-        '⚠️  Invalid optimization level $level, using level 1',
+        'Warning: Invalid optimization level $level, using level 1',
       );
-      return jsCode;
+      level = 1;
     }
 
     try {
-      final optimizer = jsOptimizer ?? JSOptimizer(jsCode);
-      optimizedCode = await optimizer.optimize(level: level);
+      final optimizer = JSOptimizer(jsCode);
 
-      final reduction = jsCode.length - optimizedCode!.length;
-      final reductionPercent = (reduction / jsCode.length * 100)
-          .toStringAsFixed(2);
-
-      generationWarnings.add(
-        '✅ Code optimized (Level $level): -$reduction bytes ($reductionPercent%)',
-      );
-
-      if (level == 3) {
-        var optimized = StringBuffer();
-        optimized.writeln(
-          '// ============================================================================',
+      // DRY RUN MODE: Show what would be optimized without actually doing it
+      if (dryRun) {
+        final analysis = optimizer.optimize(
+          level: level,
+          dryRun: true,
+          preserveComments_: preserveComments,
         );
-        optimized.writeln('// ✅ CODE MINIFIED (Level 3 Optimization)');
-        optimized.writeln(
-          '// Original: ${jsCode.length} bytes → Optimized: ${optimizedCode!.length} bytes',
-        );
-        optimized.writeln(
-          '// Reduction: $reduction bytes ($reductionPercent%)',
-        );
-        optimized.writeln(
-          '// ============================================================================\n',
-        );
-        optimized.write(optimizedCode!);
-
-        return optimized.toString();
+        generationWarnings.add('DRY RUN (Level $level): No changes applied');
+        return analysis;
       }
 
-      return optimizedCode!;
-    } catch (e) {
-      generationWarnings.add(
-        '⚠️  Optimization failed: $e, returning original code',
+      // ACTUAL OPTIMIZATION
+      final optimizedCode = optimizer.optimize(
+        level: level,
+        dryRun: false,
+        preserveComments_: preserveComments,
       );
-      return jsCode;
+
+      final reduction = jsCode.length - optimizedCode.length;
+      final reductionPercent = jsCode.length > 0
+          ? (reduction / jsCode.length * 100).toStringAsFixed(2)
+          : '0.00';
+
+      // Warn if optimization resulted in minimal gains
+      if (reduction < 50) {
+        generationWarnings.add(
+          'Note: Minimal optimization gains (Level $level): -$reduction bytes',
+        );
+      } else {
+        generationWarnings.add(
+          'Code optimized (Level $level): -$reduction bytes ($reductionPercent%)',
+        );
+      }
+
+      // Log all applied optimizations
+      for (final log in optimizer.optimizationLog) {
+        generationWarnings.add('  → $log');
+      }
+
+      if (level == 3) {
+        final header =
+            '''
+// ============================================================================
+// CODE MINIFIED & OPTIMIZED (Level 3)
+// Original: ${jsCode.length} bytes → Optimized: ${optimizedCode.length} bytes
+// Reduction: $reduction bytes ($reductionPercent%)
+// Note: Comments with "KEEP:" directive are preserved
+// ============================================================================\n''';
+        return header + optimizedCode;
+      }
+
+      if (level == 2) {
+        final header =
+            '''
+// Optimized (Level 2): $reductionPercent% reduction
+\n''';
+        return header + optimizedCode;
+      }
+
+      return optimizedCode;
+    } catch (e, stackTrace) {
+      generationWarnings.add('Optimization failed: $e');
+      generationWarnings.add('Stack trace: $stackTrace');
+      return jsCode; // Graceful fallback
     }
   }
 

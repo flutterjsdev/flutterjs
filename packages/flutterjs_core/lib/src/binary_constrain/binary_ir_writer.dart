@@ -17,6 +17,7 @@ import '../ast_ir/ir/statement/statement_ir.dart';
 import '../ast_ir/ir/type_ir.dart';
 import '../ast_ir/parameter_decl.dart';
 import '../ast_ir/variable_decl.dart';
+import '../ir_relationship_registry.dart';
 import 'binary_constain.dart';
 
 /// Serializes Flutter IR to binary format with checksums and validation
@@ -24,6 +25,13 @@ class BinaryIRWriter {
   final BytesBuilder _buffer = BytesBuilder();
   final List<String> _stringTable = [];
   final Map<String, int> _stringIndices = {};
+
+  // =========================================================================
+  // RELATIONSHIP TRACKING - NEW
+  // =========================================================================
+  late IRRelationshipRegistry _relationships;
+  int _relationshipsStartOffset = 0;
+
   int _stringTableStartOffset = 0;
   int _irDataStartOffset = 0;
 
@@ -38,6 +46,13 @@ class BinaryIRWriter {
   /// Serialize a DartFile IR to binary format
   Uint8List writeFileIR(DartFile fileIR, {bool verbose = false}) {
     _verbose = verbose;
+
+    // =====================================================================
+    // STEP 0: INITIALIZE RELATIONSHIP REGISTRY
+    // =====================================================================
+    _relationships = IRRelationshipRegistry();
+    printlog('[INIT] Relationship registry created');
+
     // =====================================================================
     // STEP 1: Validate before doing any work
     // =====================================================================
@@ -55,24 +70,43 @@ class BinaryIRWriter {
     _stringIndices.clear();
 
     try {
-      // Step 2: Collect all strings for deduplication
-      _collectStrings(fileIR);
+      // ===================================================================
+      // STEP 2: Build relationship map before collecting strings
+      // ===================================================================
+      _buildRelationships(fileIR);
 
-      // Step 3: Write header
+      // Step 3: Collect all strings for deduplication
+      _collectStrings(fileIR);
+      _collectStringsFromRelationships();
+
+      // Step 4: Write header
       _writeHeader();
 
-      // Step 4: Write string table
+      // Step 5: Write string table
       _writeStringTable();
 
-      // Step 5: Write IR data
+      // ===================================================================
+      // STEP 6: WRITE RELATIONSHIP SECTION - NEW
+      // ===================================================================
+      _relationshipsStartOffset = _buffer.length;
+      _writeRelationshipsSection();
+      printlog(
+        '[WRITE] Relationships section at offset: $_relationshipsStartOffset',
+      );
+
+      // Step 7: Write IR data
       _writeFileIRData(fileIR);
 
       // ===================================================================
-      // STEP 6: Write checksum if enabled
+      // STEP 8: Write checksum if enabled
       // ===================================================================
       if (_shouldWriteChecksum) {
         final dataBeforeChecksum = _buffer.toBytes();
         _writeChecksum(dataBeforeChecksum);
+      }
+
+      if (_verbose) {
+        _debugPrintStructure();
       }
 
       return _buffer.toBytes();
@@ -86,19 +120,434 @@ class BinaryIRWriter {
     }
   }
 
+
+  // =============================================================================
+// FUNCTION SERIALIZATION - BinaryIRWriter
+// =============================================================================
+
+/// Add these methods to BinaryIRWriter class
+
+void _collectStringsFromFunction(FunctionDecl func) {
+  printlog('[COLLECT FUNCTION] ${func.name}');
+  
+  _addString(func.id);
+  _addString(func.name);
+  _addString(func.returnType.displayName());
+  _addString(func.sourceLocation.file);
+  
+  if (func.documentation != null) {
+    _addString(func.documentation!);
+  }
+
+  // Collect from parameters
+  for (final param in func.parameters) {
+    _addString(param.id);
+    _addString(param.name);
+    _addString(param.type.displayName());
+    _addString(param.sourceLocation.file);
+    if (param.defaultValue != null) {
+      _collectStringsFromExpression(param.defaultValue);
+    }
+  }
+
+  // Collect from annotations
+  for (final ann in func.annotations) {
+    _addString(ann.name);
+  }
+
+  // Collect from type parameters
+  for (final tp in func.typeParameters) {
+    _addString(tp.name);
+    if (tp.bound != null) {
+      _addString(tp.bound!.displayName());
+    }
+  }
+
+  // For constructors
+  if (func is ConstructorDecl) {
+    if (func.constructorClass != null) {
+      _addString(func.constructorClass!);
+    }
+    if (func.constructorName != null) {
+      _addString(func.constructorName!);
+    }
+  }
+
+  // For methods
+  if (func is MethodDecl) {
+    if (func.className != null) {
+      _addString(func.className!);
+    }
+    if (func.overriddenSignature != null) {
+      _addString(func.overriddenSignature!);
+    }
+  }
+}
+
+void _writeFunctionDecl(FunctionDecl func) {
+  printlog('[WRITE FUNCTION] START - ${func.name} at offset ${_buffer.length}');
+
+  // Write basic metadata
+  _writeUint32(_getStringRef(func.id));
+  _writeUint32(_getStringRef(func.name));
+  _writeUint32(_getStringRef(func.returnType.displayName()));
+
+  // Write flags (all boolean properties in one byte for efficiency)
+  int flags = 0;
+  if (func.isAsync) flags |= 0x01;
+  if (func.isGenerator) flags |= 0x02;
+  if (func.isSyncGenerator) flags |= 0x04;
+  if (func.isStatic) flags |= 0x08;
+  if (func.isAbstract) flags |= 0x10;
+  if (func.isGetter) flags |= 0x20;
+  if (func.isSetter) flags |= 0x40;
+  if (func.isOperator) flags |= 0x80;
+  _writeByte(flags);
+
+  // Write more flags (second byte)
+  int flags2 = 0;
+  if (func.isFactory) flags2 |= 0x01;
+  if (func.isConst) flags2 |= 0x02;
+  if (func.isExternal) flags2 |= 0x04;
+  if (func.isLate) flags2 |= 0x08;
+  if (func.documentation != null) flags2 |= 0x10;
+  if (func is MethodDecl && func.markedOverride) flags2 |= 0x20;
+  _writeByte(flags2);
+
+  // Write visibility (1 byte: 0=public, 1=private, 2=protected)
+  final visibilityValue = func.visibility == VisibilityModifier.private ? 1 : 0;
+  _writeByte(visibilityValue);
+
+  printlog('[WRITE FUNCTION] After flags: ${_buffer.length}');
+
+  // Write return type
+  _writeType(func.returnType);
+
+  // Write documentation if present
+  if (func.documentation != null) {
+    _writeUint32(_getStringRef(func.documentation!));
+  }
+
+  // Write annotations
+  _writeUint32(func.annotations.length);
+  for (final ann in func.annotations) {
+    _writeAnnotation(ann);
+  }
+  printlog('[WRITE FUNCTION] After annotations: ${_buffer.length}');
+
+  // Write type parameters
+  _writeUint32(func.typeParameters.length);
+  for (final tp in func.typeParameters) {
+    _writeUint32(_getStringRef(tp.name));
+    _writeByte(tp.bound != null ? 1 : 0);
+    if (tp.bound != null) {
+      _writeType(tp.bound!);
+    }
+  }
+  printlog('[WRITE FUNCTION] After type params: ${_buffer.length}');
+
+  // Write parameters
+  _writeUint32(func.parameters.length);
+  for (final param in func.parameters) {
+    _writeParameterDecl(param);
+  }
+  printlog('[WRITE FUNCTION] After parameters: ${_buffer.length}');
+
+  // Write source location
+  _writeSourceLocation(func.sourceLocation);
+
+  // Write constructor-specific data
+  if (func is ConstructorDecl) {
+    _writeByte(1); // Is constructor
+    _writeUint32(_getStringRef(func.constructorClass ?? ''));
+    _writeByte(func.constructorName != null ? 1 : 0);
+    if (func.constructorName != null) {
+      _writeUint32(_getStringRef(func.constructorName!));
+    }
+
+    // Write initializers
+    _writeUint32(func.initializers.length);
+    for (final init in func.initializers) {
+      _writeUint32(_getStringRef(init.fieldName));
+      _writeByte(init.isThisField ? 1 : 0);
+      _writeExpression(init.value);
+      _writeSourceLocation(init.sourceLocation);
+    }
+
+    // Write super call
+    _writeByte(func.superCall != null ? 1 : 0);
+    if (func.superCall != null) {
+      _writeByte(func.superCall!.constructorName != null ? 1 : 0);
+      if (func.superCall!.constructorName != null) {
+        _writeUint32(_getStringRef(func.superCall!.constructorName!));
+      }
+      _writeUint32(func.superCall!.arguments.length);
+      for (final arg in func.superCall!.arguments) {
+        _writeExpression(arg);
+      }
+      _writeUint32(func.superCall!.namedArguments.length);
+      for (final entry in func.superCall!.namedArguments.entries) {
+        _writeUint32(_getStringRef(entry.key));
+        _writeExpression(entry.value);
+      }
+      _writeSourceLocation(func.superCall!.sourceLocation);
+    }
+
+    // Write redirected call
+    _writeByte(func.redirectedCall != null ? 1 : 0);
+    if (func.redirectedCall != null) {
+      _writeByte(func.redirectedCall!.constructorName != null ? 1 : 0);
+      if (func.redirectedCall!.constructorName != null) {
+        _writeUint32(_getStringRef(func.redirectedCall!.constructorName!));
+      }
+      _writeUint32(func.redirectedCall!.arguments.length);
+      for (final arg in func.redirectedCall!.arguments) {
+        _writeExpression(arg);
+      }
+      _writeUint32(func.redirectedCall!.namedArguments.length);
+      for (final entry in func.redirectedCall!.namedArguments.entries) {
+        _writeUint32(_getStringRef(entry.key));
+        _writeExpression(entry.value);
+      }
+      _writeSourceLocation(func.redirectedCall!.sourceLocation);
+    }
+
+    printlog('[WRITE FUNCTION] Constructor-specific data written');
+  } else {
+    _writeByte(0); // Not a constructor
+  }
+
+  // Write method-specific data
+  if (func is MethodDecl) {
+    _writeByte(1); // Is method
+    _writeByte(func.className != null ? 1 : 0);
+    if (func.className != null) {
+      _writeUint32(_getStringRef(func.className!));
+    }
+    _writeByte(func.overriddenSignature != null ? 1 : 0);
+    if (func.overriddenSignature != null) {
+      _writeUint32(_getStringRef(func.overriddenSignature!));
+    }
+    printlog('[WRITE FUNCTION] Method-specific data written');
+  } else {
+    _writeByte(0); // Not a method
+  }
+
+  printlog('[WRITE FUNCTION] END - ${func.name} at offset ${_buffer.length}');
+}
+
+  void _debugPrintStructure() {
+    printlog('\n=== BINARY STRUCTURE ===');
+    printlog('Header: 0 - 8 bytes');
+    printlog('String table: 8 - $_stringTableStartOffset bytes');
+    printlog(
+      'Relationships: $_stringTableStartOffset - $_relationshipsStartOffset bytes',
+    );
+    printlog('IR data: $_relationshipsStartOffset - $_irDataStartOffset bytes');
+    printlog('Total: ${_buffer.length} bytes');
+    printlog('=== END STRUCTURE ===\n');
+  }
+
+  // =========================================================================
+  // STEP 0: BUILD RELATIONSHIPS - NEW
+  // =========================================================================
+
+  void _buildRelationships(DartFile fileIR) {
+    printlog('[RELATIONSHIPS] Building relationship map...');
+
+    // Index all declarations first
+    final classesById = <String, ClassDecl>{};
+    final methodsById = <String, dynamic>{};
+    final fieldsById = <String, dynamic>{};
+
+    for (final classDecl in fileIR.classDeclarations) {
+      classesById[classDecl.id] = classDecl;
+
+      // Register methods
+      for (final method in classDecl.methods) {
+        methodsById[method.id] = method;
+        _relationships.registerMethodToClass(method.id, classDecl.id);
+      }
+
+      // Register fields
+      for (final field in classDecl.fields) {
+        fieldsById[field.id] = field;
+        _relationships.registerFieldToClass(field.id, classDecl.id);
+      }
+
+      // Register constructors
+      for (final constructor in classDecl.constructors) {
+        methodsById[constructor.id] = constructor;
+        _relationships.registerMethodToClass(constructor.id, classDecl.id);
+      }
+
+      // Register superclass
+      if (classDecl.superclass != null) {
+        _relationships.registerInheritance(
+          classDecl.id,
+          classDecl.superclass!.displayName(),
+        );
+      }
+
+      // Register interfaces
+      for (final iface in classDecl.interfaces) {
+        _relationships.registerInterfaceImplementation(
+          iface.displayName(),
+          classDecl.id,
+        );
+      }
+    }
+
+    // Process widget-state connections
+    _processWidgetStateConnections(classesById);
+
+    // Validate relationships
+    final errors = _relationships.validateAllRelationships(
+      methodsById.keys.toSet(),
+      fieldsById.keys.toSet(),
+      classesById,
+    );
+
+    if (errors.isNotEmpty) {
+      throw SerializationException(
+        'Relationship validation failed:\n${errors.join('\n')}',
+        offset: 0,
+        context: 'relationships',
+      );
+    }
+
+    printlog('[RELATIONSHIPS] Map built successfully');
+    if (_verbose) {
+      printlog(_relationships.generateReport());
+    }
+  }
+
+  void _processWidgetStateConnections(Map<String, ClassDecl> classesById) {
+    for (final classEntry in classesById.entries) {
+      final classDecl = classEntry.value;
+
+      // Check if StatefulWidget
+      if (_isStatefulWidget(classDecl)) {
+        // final createStateMethod = classDecl.methods
+        //     .firstWhere((m) => m.name == 'createState', orElse: () => null);
+        MethodDecl? createStateMethod;
+        try {
+          createStateMethod = classDecl.methods.firstWhere(
+            (m) => m.name == 'createState',
+          );
+        } catch (e) {
+          // createState method not found
+          createStateMethod = null;
+        }
+        if (createStateMethod != null) {
+          final stateClassId = _findStateClassFromWidget(
+            classDecl,
+            classesById,
+          );
+          if (stateClassId != null) {
+            _relationships.registerWidgetStateConnection(
+              classDecl.id,
+              stateClassId,
+            );
+
+            // Register lifecycle methods
+            final stateClass = classesById[stateClassId];
+            if (stateClass != null) {
+              _processStateLifecycleMethods(stateClassId, stateClass);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  bool _isStatefulWidget(ClassDecl classDecl) {
+    return classDecl.interfaces.any((i) => i.displayName() == 'StatefulWidget');
+  }
+
+  String? _findStateClassFromWidget(
+    ClassDecl widget,
+    Map<String, ClassDecl> classesById,
+  ) {
+    // Look for State<WidgetName> or _WidgetNameState pattern
+    final widgetName = widget.name;
+
+    // Pattern 1: _WidgetNameState
+    final pattern1 = '${widget.name}State';
+    for (final classEntry in classesById.entries) {
+      if (classEntry.value.name.endsWith(pattern1)) {
+        return classEntry.key;
+      }
+    }
+
+    // Pattern 2: _WidgetName
+    final pattern2 = '_$widgetName';
+    for (final classEntry in classesById.entries) {
+      if (classEntry.value.name == pattern2 &&
+          _isStateSubclass(classEntry.value)) {
+        return classEntry.key;
+      }
+    }
+
+    return null;
+  }
+
+  bool _isStateSubclass(ClassDecl classDecl) {
+    if (classDecl.superclass == null) return false;
+    final superName = classDecl.superclass!.displayName();
+    return superName.contains('State');
+  }
+
+  void _processStateLifecycleMethods(
+    String stateClassId,
+    ClassDecl stateClass,
+  ) {
+    for (final method in stateClass.methods) {
+      switch (method.name) {
+        case 'initState':
+          _relationships.registerStateLifecycleMethod(
+            stateClassId,
+            StateLifecycleMethod.initState,
+            method.id,
+          );
+          break;
+        case 'dispose':
+          _relationships.registerStateLifecycleMethod(
+            stateClassId,
+            StateLifecycleMethod.dispose,
+            method.id,
+          );
+          break;
+        case 'didUpdateWidget':
+          _relationships.registerStateLifecycleMethod(
+            stateClassId,
+            StateLifecycleMethod.didUpdateWidget,
+            method.id,
+          );
+          break;
+        case 'didChangeDependencies':
+          _relationships.registerStateLifecycleMethod(
+            stateClassId,
+            StateLifecycleMethod.didChangeDependencies,
+            method.id,
+          );
+          break;
+        case 'build':
+          _relationships.registerStateBuildMethod(stateClassId, method.id);
+          break;
+      }
+    }
+  }
+
   // =========================================================================
   // HEADER WRITING
   // =========================================================================
 
   void _writeHeader() {
     try {
-      // Magic number (4 bytes): "FLIR"
       _writeUint32(BinaryConstants.MAGIC_NUMBER);
-
-      // Format version (2 bytes)
       _writeUint16(BinaryConstants.FORMAT_VERSION);
 
-      // Flags (2 bytes)
       int flags = 0;
       if (_shouldWriteChecksum) {
         flags = BinaryConstants.setFlag(
@@ -121,6 +570,45 @@ class BinaryIRWriter {
   // =========================================================================
   // STRING TABLE WRITING
   // =========================================================================
+
+  void _collectStringsFromRelationships() {
+    // Collect lifecycle method type names
+    for (final entry in _relationships.stateLifecycleMethods.entries) {
+      for (final method in entry.value.values) {
+        _addString(method);
+      }
+    }
+
+    // Collect widget-state connection names
+    for (final entry in _relationships.widgetToStateClass.entries) {
+      _addString(entry.key);
+      _addString(entry.value);
+    }
+
+    // Collect method call names
+    for (final entry in _relationships.methodCalls.entries) {
+      _addString(entry.key);
+      for (final calledId in entry.value) {
+        _addString(calledId);
+      }
+    }
+
+    // Collect field access names
+    for (final entry in _relationships.fieldAccesses.entries) {
+      _addString(entry.key);
+      for (final fieldId in entry.value) {
+        _addString(fieldId);
+      }
+    }
+
+    // Collect class hierarchy
+    for (final entry in _relationships.classHierarchy.entries) {
+      _addString(entry.key);
+      _addString(entry.value);
+    }
+
+    printlog('[COLLECT] Relationship strings collected');
+  }
 
   void _writeStringTable() {
     try {
@@ -429,6 +917,171 @@ class BinaryIRWriter {
     }
   }
 
+  // =========================================================================
+  // RELATIONSHIP SECTION WRITING - NEW
+  // =========================================================================
+
+  void _writeRelationshipsSection() {
+    try {
+      printlog('[WRITE RELATIONSHIPS] START - offset: ${_buffer.length}');
+
+      // Write flags indicating which relationships are present
+      int relationshipFlags = 0;
+      if (_relationships.widgetToStateClass.isNotEmpty) {
+        relationshipFlags |= 0x0001;
+      }
+      if (_relationships.stateLifecycleMethods.isNotEmpty) {
+        relationshipFlags |= 0x0002;
+      }
+      if (_relationships.methodCalls.isNotEmpty) {
+        relationshipFlags |= 0x0004;
+      }
+      if (_relationships.fieldAccesses.isNotEmpty) {
+        relationshipFlags |= 0x0008;
+      }
+      if (_relationships.classHierarchy.isNotEmpty) {
+        relationshipFlags |= 0x0010;
+      }
+      if (_relationships.interfaceImplementers.isNotEmpty) {
+        relationshipFlags |= 0x0020;
+      }
+
+      _writeUint16(relationshipFlags);
+      printlog(
+        '[WRITE RELATIONSHIPS] Flags: 0x${relationshipFlags.toRadixString(16)}',
+      );
+
+      // Write each relationship type
+      if (relationshipFlags & 0x0001 != 0) {
+        _writeWidgetStateConnections();
+      }
+      if (relationshipFlags & 0x0002 != 0) {
+        _writeStateLifecycleMethods();
+      }
+      if (relationshipFlags & 0x0004 != 0) {
+        _writeMethodCallGraph();
+      }
+      if (relationshipFlags & 0x0008 != 0) {
+        _writeFieldAccessGraph();
+      }
+      if (relationshipFlags & 0x0010 != 0) {
+        _writeClassHierarchy();
+      }
+      if (relationshipFlags & 0x0020 != 0) {
+        _writeInterfaceImplementers();
+      }
+
+      printlog('[WRITE RELATIONSHIPS] END - offset: ${_buffer.length}');
+    } catch (e) {
+      throw SerializationException(
+        'Failed to write relationships section: $e',
+        offset: _buffer.length,
+        context: 'relationships_section',
+      );
+    }
+  }
+
+  void _writeWidgetStateConnections() {
+    printlog('[WRITE WIDGET-STATE] START');
+    _writeUint32(_relationships.widgetToStateClass.length);
+
+    for (final entry in _relationships.widgetToStateClass.entries) {
+      _writeUint32(_getStringRef(entry.key));
+      _writeUint32(_getStringRef(entry.value));
+    }
+
+    printlog(
+      '[WRITE WIDGET-STATE] END - ${_relationships.widgetToStateClass.length} connections',
+    );
+  }
+
+  void _writeStateLifecycleMethods() {
+    printlog('[WRITE STATE-LIFECYCLE] START');
+    _writeUint32(_relationships.stateLifecycleMethods.length);
+
+    for (final entry in _relationships.stateLifecycleMethods.entries) {
+      _writeUint32(_getStringRef(entry.key));
+      _writeByte(entry.value.length);
+
+      for (final methodEntry in entry.value.entries) {
+        _writeByte(methodEntry.key.index);
+        _writeUint32(_getStringRef(methodEntry.value));
+      }
+    }
+
+    // Write build methods
+    _writeUint32(_relationships.stateBuildMethods.length);
+    for (final entry in _relationships.stateBuildMethods.entries) {
+      _writeUint32(_getStringRef(entry.key));
+      _writeUint32(_getStringRef(entry.value));
+    }
+
+    printlog('[WRITE STATE-LIFECYCLE] END');
+  }
+
+  void _writeMethodCallGraph() {
+    printlog('[WRITE METHOD-CALLS] START');
+    _writeUint32(_relationships.methodCalls.length);
+
+    for (final entry in _relationships.methodCalls.entries) {
+      _writeUint32(_getStringRef(entry.key));
+      _writeUint32(entry.value.length);
+
+      for (final calledMethodId in entry.value) {
+        _writeUint32(_getStringRef(calledMethodId));
+      }
+    }
+
+    printlog('[WRITE METHOD-CALLS] END');
+  }
+
+  void _writeFieldAccessGraph() {
+    printlog('[WRITE FIELD-ACCESS] START');
+    _writeUint32(_relationships.fieldAccesses.length);
+
+    for (final entry in _relationships.fieldAccesses.entries) {
+      _writeUint32(_getStringRef(entry.key));
+      _writeUint32(entry.value.length);
+
+      for (final fieldId in entry.value) {
+        _writeUint32(_getStringRef(fieldId));
+      }
+    }
+
+    printlog('[WRITE FIELD-ACCESS] END');
+  }
+
+  void _writeClassHierarchy() {
+    printlog('[WRITE CLASS-HIERARCHY] START');
+    _writeUint32(_relationships.classHierarchy.length);
+
+    for (final entry in _relationships.classHierarchy.entries) {
+      _writeUint32(_getStringRef(entry.key));
+      _writeUint32(_getStringRef(entry.value));
+    }
+
+    printlog('[WRITE CLASS-HIERARCHY] END');
+  }
+
+  void _writeInterfaceImplementers() {
+    printlog('[WRITE INTERFACE-IMPLEMENTERS] START');
+    _writeUint32(_relationships.interfaceImplementers.length);
+
+    for (final entry in _relationships.interfaceImplementers.entries) {
+      _writeUint32(_getStringRef(entry.key));
+      _writeUint32(entry.value.length);
+
+      for (final implementerId in entry.value) {
+        _writeUint32(_getStringRef(implementerId));
+      }
+    }
+
+    printlog('[WRITE INTERFACE-IMPLEMENTERS] END');
+  }
+  // =========================================================================
+  // EXISTING METHODS (PLACEHOLDER)
+  // =========================================================================
+
   void _writeFileIRData(DartFile fileIR) {
     try {
       _irDataStartOffset = _buffer.length;
@@ -514,49 +1167,6 @@ class BinaryIRWriter {
       );
     }
   }
-
-  void _writeAnnotation(AnnotationIR ann) {
-    _writeUint32(_getStringRef(ann.name));
-
-    _writeUint32(ann.arguments.length);
-    for (final arg in ann.arguments) {
-      _writeExpression(arg);
-    }
-
-    _writeUint32(ann.namedArguments.length);
-    for (final entry in ann.namedArguments.entries) {
-      _writeUint32(_getStringRef(entry.key));
-      _writeExpression(entry.value);
-    }
-
-    _writeSourceLocation(ann.sourceLocation);
-  }
-  //   void _writeImportStmt(ImportStmt import) {
-  //   _writeUint32(_getStringRef(import.uri));
-  //   _writeByte(import.prefix != null ? 1 : 0);
-  //   if (import.prefix != null) {
-  //     _writeUint32(_getStringRef(import.prefix!));
-  //   }
-  //   _writeByte(import.isDeferred ? 1 : 0);
-
-  //   // ADD THIS - Write annotations
-  //   _writeUint32(import.annotations.length);
-  //   for (final ann in import.annotations) {
-  //     _writeAnnotation(ann);
-  //   }
-
-  //   _writeUint32(import.showList.length);
-  //   for (final show in import.showList) {
-  //     _writeUint32(_getStringRef(show));
-  //   }
-
-  //   _writeUint32(import.hideList.length);
-  //   for (final hide in import.hideList) {
-  //     _writeUint32(_getStringRef(hide));
-  //   }
-
-  //   _writeSourceLocation(import.sourceLocation);
-  // }
 
   void _writeImportStmt(ImportStmt import) {
     printlog('[WRITE IMPORT] START - buffer offset: ${_buffer.length}');

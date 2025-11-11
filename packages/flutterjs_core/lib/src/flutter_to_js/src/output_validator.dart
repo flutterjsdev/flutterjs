@@ -52,7 +52,9 @@ class ValidationReport {
   }) {
     fatalCount = errors.where((e) => e.severity == ErrorSeverity.fatal).length;
     errorCount = errors.where((e) => e.severity == ErrorSeverity.error).length;
-    warningCount = errors.where((e) => e.severity == ErrorSeverity.warning).length;
+    warningCount = errors
+        .where((e) => e.severity == ErrorSeverity.warning)
+        .length;
     infoCount = errors.where((e) => e.severity == ErrorSeverity.info).length;
   }
 
@@ -62,9 +64,15 @@ class ValidationReport {
   String generateReport() {
     final buffer = StringBuffer();
 
-    buffer.writeln('\n╔════════════════════════════════════════════════════════════════╗');
-    buffer.writeln('║              VALIDATION REPORT                                 ║');
-    buffer.writeln('╚════════════════════════════════════════════════════════════════╝\n');
+    buffer.writeln(
+      '\n╔════════════════════════════════════════════════════════════════╗',
+    );
+    buffer.writeln(
+      '║              VALIDATION REPORT                                 ║',
+    );
+    buffer.writeln(
+      '╚════════════════════════════════════════════════════════════════╝\n',
+    );
 
     buffer.writeln('Status: ${isValid ? '✅ PASSED' : '❌ FAILED'}');
     buffer.writeln('Duration: ${duration.inMilliseconds}ms\n');
@@ -121,16 +129,24 @@ class OutputValidator {
 
     // Run all validations
     _syntaxValidation();
+    print("jatpal code1 ${jsCode}");
     _semanticValidation();
+    print("jatpal code2 ${jsCode}");
     _runtimeValidation();
+    print("jatpal code3 ${jsCode}");
     _styleValidation();
+    print("jatpal code4 ${jsCode}");
 
     stopwatch.stop();
 
     return ValidationReport(
       errors: errors,
       duration: stopwatch.elapsed,
-      isValid: !errors.any((e) => e.severity == ErrorSeverity.fatal || e.severity == ErrorSeverity.error),
+      isValid: !errors.any(
+        (e) =>
+            e.severity == ErrorSeverity.fatal ||
+            e.severity == ErrorSeverity.error,
+      ),
       metrics: {
         'lines': jsCode.split('\n').length,
         'characters': jsCode.length,
@@ -146,8 +162,6 @@ class OutputValidator {
   // =========================================================================
 
   void _syntaxValidation() {
-    final lines = jsCode.split('\n');
-
     // Check braces balance
     _validateBraces(jsCode);
 
@@ -159,55 +173,36 @@ class OutputValidator {
 
     // Check function definitions
     _extractFunctions(jsCode);
-
+    final lines = jsCode;
     // Check variable declarations
-    _extractVariables(lines);
+    _extractVariables(lines.split('\n'));
   }
 
   void _validateBraces(String code) {
-    int openBraces = 0;
-    int openParens = 0;
-    int openBrackets = 0;
+    final stack = <String>[];
+    final pairs = {'(': ')', '[': ']', '{': '}'};
 
     for (int i = 0; i < code.length; i++) {
       final char = code[i];
 
-      if (char == '{') openBraces++;
-      if (char == '}') openBraces--;
-      if (char == '(') openParens++;
-      if (char == ')') openParens--;
-      if (char == '[') openBrackets++;
-      if (char == ']') openBrackets--;
-
-      if (openBraces < 0 || openParens < 0 || openBrackets < 0) {
-        _addError(
-          'Mismatched closing bracket at position $i',
-          ErrorSeverity.error,
-          suggestion: 'Check brace/bracket pairing',
-        );
-        return;
+      if (pairs.containsKey(char)) {
+        stack.add(char);
+      } else if (pairs.containsValue(char)) {
+        if (stack.isEmpty || pairs[stack.last] != char) {
+          _addError(
+            'Mismatched closing bracket "$char" at position $i',
+            ErrorSeverity.error,
+            suggestion:
+                'Expected ${stack.isNotEmpty ? pairs[stack.last] : "nothing"}',
+          );
+          return;
+        }
+        stack.removeLast();
       }
     }
 
-    if (openBraces != 0) {
-      _addError(
-        'Unmatched braces: $openBraces unclosed',
-        ErrorSeverity.error,
-      );
-    }
-
-    if (openParens != 0) {
-      _addError(
-        'Unmatched parentheses: $openParens unclosed',
-        ErrorSeverity.error,
-      );
-    }
-
-    if (openBrackets != 0) {
-      _addError(
-        'Unmatched brackets: $openBrackets unclosed',
-        ErrorSeverity.error,
-      );
+    if (stack.isNotEmpty) {
+      _addError('Unclosed brackets: ${stack.join(", ")}', ErrorSeverity.error);
     }
   }
 
@@ -225,17 +220,11 @@ class OutputValidator {
     }
 
     if (singleQuotes % 2 != 0) {
-      _addError(
-        'Unmatched single quotes',
-        ErrorSeverity.warning,
-      );
+      _addError('Unmatched single quotes', ErrorSeverity.warning);
     }
 
     if (doubleQuotes % 2 != 0) {
-      _addError(
-        'Unmatched double quotes',
-        ErrorSeverity.warning,
-      );
+      _addError('Unmatched double quotes', ErrorSeverity.warning);
     }
 
     if (backticks % 2 != 0) {
@@ -261,13 +250,17 @@ class OutputValidator {
 
   void _extractFunctions(String code) {
     // Extract function definitions: function name() { ... }
-    final pattern = RegExp(r'(?:function|async function|\*|async \*)\s+(\w+)\s*\(');
+    final pattern = RegExp(
+      r'(?:function|async function|\*|async \*)\s+(\w+)\s*\(',
+    );
     for (final match in pattern.allMatches(code)) {
       definedFunctions.add(match.group(1)!);
     }
 
     // Extract arrow functions: const name = (...) => { ... }
-    final arrowPattern = RegExp(r'(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?\(');
+    final arrowPattern = RegExp(
+      r'(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?\(',
+    );
     for (final match in arrowPattern.allMatches(code)) {
       definedFunctions.add(match.group(1)!);
     }
@@ -280,7 +273,9 @@ class OutputValidator {
       // Variable declarations: const/let/var name = ...
       final declPattern = RegExp(r'(?:const|let|var)\s+(\w+)\s*=');
       for (final match in declPattern.allMatches(line)) {
-        definedVariables.putIfAbsent(i.toString(), () => {}).add(match.group(1)!);
+        definedVariables
+            .putIfAbsent(i.toString(), () => {})
+            .add(match.group(1)!);
       }
 
       // Used variables (heuristic)
@@ -510,35 +505,34 @@ class OutputValidator {
     _validateConventions();
   }
 
-void _validateFormatting() {
-  final lines = jsCode.split('\n');
-  int expectedIndent = 0;
+  void _validateFormatting() {
+    final lines = jsCode.split('\n');
+    int expectedIndent = 0;
 
-  for (int i = 0; i < lines.length; i++) {
-    final line = lines[i];
-    if (line.isEmpty) continue;
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      if (line.isEmpty) continue;
 
-    final leadingSpaces = line.length - line.trimLeft().length;
-    final expectedSpaces = expectedIndent * 2;
+      final leadingSpaces = line.length - line.trimLeft().length;
+      final expectedSpaces = expectedIndent * 2;
 
-    // Check for inconsistent indentation
-    if (leadingSpaces % 2 != 0) {
-      _addError(
-        'Inconsistent indentation on line ${i + 1}',
-        ErrorSeverity.warning,
-        suggestion: 'Use 2-space indentation',
-      );
-    }
+      // Check for inconsistent indentation
+      if (leadingSpaces % 2 != 0) {
+        _addError(
+          'Inconsistent indentation on line ${i + 1}',
+          ErrorSeverity.warning,
+          suggestion: 'Use 2-space indentation',
+        );
+      }
 
-    // Track brace nesting - FIXED: Use proper character iteration
-    for (int j = 0; j < line.length; j++) {
-      final char = line[j];
-      if (char == '{') expectedIndent++;
-      if (char == '}') expectedIndent--;
+      // Track brace nesting - FIXED: Use proper character iteration
+      for (int j = 0; j < line.length; j++) {
+        final char = line[j];
+        if (char == '{') expectedIndent++;
+        if (char == '}') expectedIndent--;
+      }
     }
   }
-}
-
 
   void _validateNaming() {
     // Check for camelCase naming
@@ -570,11 +564,7 @@ void _validateFormatting() {
     }
   }
 
-  void _addError(
-    String message,
-    ErrorSeverity severity, {
-    String? suggestion,
-  }) {
+  void _addError(String message, ErrorSeverity severity, {String? suggestion}) {
     errors.add(
       ValidationError(
         message: message,
@@ -620,236 +610,5 @@ void _validateFormatting() {
     return parts
         .map((p) => p.isEmpty ? '' : p[0].toUpperCase() + p.substring(1))
         .join('');
-  }
-}
-
-// ============================================================================
-// JS OPTIMIZER - ADVANCED IMPLEMENTATION
-// ============================================================================
-
-class JSOptimizer {
-  String code;
-  final Map<String, String> constantCache = {};
-  final Set<String> unusedVariables = {};
-
-  JSOptimizer(this.code);
-
-  String optimize({int level = 1}) {
-    if (level < 1 || level > 3) {
-      throw ArgumentError('Optimization level must be 1-3');
-    }
-
-    if (level >= 1) {
-      code = _constantFolding();
-      code = _deadCodeElimination();
-    }
-
-    if (level >= 2) {
-      code = _commonSubexpressionElimination();
-      code = _variableInlining();
-    }
-
-    if (level >= 3) {
-      code = _methodInlining();
-      code = _minify();
-    }
-
-    return code;
-  }
-
-  // =========================================================================
-  // LEVEL 1: BASIC OPTIMIZATIONS
-  // =========================================================================
-
-  String _constantFolding() {
-    // 1 + 2 → 3
-    var result = code.replaceAllMapped(
-      RegExp(r'(\d+)\s*\+\s*(\d+)'),
-      (m) => (int.parse(m.group(1)!) + int.parse(m.group(2)!)).toString(),
-    );
-
-    // 'hello' + 'world' → 'helloworld'
-    result = result.replaceAllMapped(
-      RegExp(r"'([^']*)'\s*\+\s*'([^']*)'"),
-      (m) => "'${m.group(1)}${m.group(2)}'",
-    );
-
-    return result;
-  }
-
-  String _deadCodeElimination() {
-    final lines = code.split('\n');
-    final result = <String>[];
-    bool inUnreachableBlock = false;
-
-    for (final line in lines) {
-      final trimmed = line.trim();
-
-      // Mark unreachable code after return
-      if (trimmed.startsWith('return')) {
-        inUnreachableBlock = true;
-        result.add(line);
-        continue;
-      }
-
-      // Skip until we exit the block
-      if (inUnreachableBlock) {
-        if (trimmed == '}') {
-          inUnreachableBlock = false;
-        }
-        continue; // Skip dead code
-      }
-
-      result.add(line);
-    }
-
-    return result.join('\n');
-  }
-
-  // =========================================================================
-  // LEVEL 2: INTERMEDIATE OPTIMIZATIONS
-  // =========================================================================
-
-  String _commonSubexpressionElimination() {
-    // Identify repeated expressions and extract to variables
-    final pattern = RegExp(r'(\w+\.\w+\([^)]*\))');
-    final matches = pattern.allMatches(code);
-    final expressionMap = <String, int>{};
-
-    for (final match in matches) {
-      final expr = match.group(1)!;
-      expressionMap[expr] = (expressionMap[expr] ?? 0) + 1;
-    }
-
-    var result = code;
-    int varCounter = 0;
-
-    for (final entry in expressionMap.entries) {
-      if (entry.value > 1) {
-        // Extract common expression
-        final varName = '_cse${varCounter++}';
-        final declaration = 'const $varName = ${entry.key};';
-        result = result.replaceAll(entry.key, varName);
-
-        // Add declaration at the start
-        final lines = result.split('\n');
-        if (lines.isNotEmpty) {
-          lines.insert(0, declaration);
-          result = lines.join('\n');
-        }
-      }
-    }
-
-    return result;
-  }
-
-  String _variableInlining() {
-    // Inline single-use variables
-    var result = code;
-
-    // Find: const x = value; ... x (single use)
-    final pattern = RegExp(r'const\s+(\w+)\s*=\s*([^;]+);[^}]*\1(?![a-zA-Z0-9_])');
-
-    result = result.replaceAllMapped(
-      RegExp(r'const\s+(\w+)\s*=\s*([^;]+);'),
-      (m) {
-        final varName = m.group(1)!;
-        final value = m.group(2)!;
-        final useCount = _countOccurrences(result, varName);
-
-        // Inline if used only once
-        if (useCount == 1) {
-          result = result.replaceAll(varName, '($value)');
-          return ''; // Remove declaration
-        }
-
-        return m.group(0)!;
-      },
-    );
-
-    return result;
-  }
-
-  // =========================================================================
-  // LEVEL 3: AGGRESSIVE OPTIMIZATIONS
-  // =========================================================================
-
-  String _methodInlining() {
-    // Inline small methods
-    final pattern = RegExp(
-      r'(?:function|const\s+\w+\s*=)\s*(\w+)\s*\([^)]*\)\s*\{([^}]{1,50})\}',
-    );
-
-    var result = code;
-
-    for (final match in pattern.allMatches(code)) {
-      final methodName = match.group(1)!;
-      final methodBody = match.group(2)!.trim();
-
-      // Only inline if method is small and used
-      final useCount = _countOccurrences(result, '$methodName(');
-
-      if (useCount > 0 && useCount < 3 && methodBody.length < 100) {
-        // Inline the method
-        result = result.replaceAll(
-          RegExp('$methodName\\(\\)'),
-          '{ ${methodBody} }',
-        );
-      }
-    }
-
-    return result;
-  }
-
-  String _minify() {
-    var result = code;
-
-    // Remove comments
-    result = result.replaceAll(RegExp(r'//.*'), ''); // Single-line
-    result = result.replaceAll(RegExp(r'/\*[\s\S]*?\*/'), ''); // Multi-line
-
-    // Remove excess whitespace
-    result = result.replaceAll(RegExp(r'\n\s*\n'), '\n'); // Empty lines
-    result = result.replaceAll(RegExp(r'\s+'), ' '); // Multiple spaces
-
-    // Remove spaces around operators (but be careful)
-    result = result.replaceAll(RegExp(r'\s*([{}();,=+\-*/<>:])\s*'), '\1');
-
-    // Restore some necessary spaces
-    result = result.replaceAll(RegExp(r'([a-zA-Z0-9_])([a-zA-Z0-9_])'), '\1 \2');
-
-    return result.trim();
-  }
-
-  // =========================================================================
-  // HELPER METHODS
-  // =========================================================================
-
-  int _countOccurrences(String text, String pattern) {
-    return pattern.allMatches(text).length;
-  }
-
-  String generateReport(String originalCode) {
-    final originalSize = originalCode.length;
-    final optimizedSize = code.length;
-    final reduction = ((originalSize - optimizedSize) / originalSize * 100).toStringAsFixed(2);
-
-    return '''
-╔════════════════════════════════════════════════════════════════╗
-║              OPTIMIZATION REPORT                              ║
-╚════════════════════════════════════════════════════════════════╝
-
-Original Size:   $originalSize bytes
-Optimized Size:  $optimizedSize bytes
-Reduction:       ${originalSize - optimizedSize} bytes ($reduction%)
-
-Optimizations Applied:
-  ✓ Constant folding
-  ✓ Dead code elimination
-  ✓ Common subexpression elimination
-  ✓ Variable inlining
-  ✓ Method inlining
-  ✓ Minification
-''';
   }
 }

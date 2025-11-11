@@ -388,13 +388,13 @@ class ConditionalWidgetIR extends IRNode {
   final ConditionalPatternType patternType;
 
   ConditionalWidgetIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super. id,
+    required super. sourceLocation,
     required this.condition,
     this.thenWidget,
     this.elseWidget,
     required this.patternType,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() =>

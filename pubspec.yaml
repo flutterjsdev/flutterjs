@@ -5,7 +5,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # repository: https://github.com/my_org/my_repo
 
 workspace:
-  - examples/counter_app/
+  - examples/counter/
   - packages/dev_utils/
   - packages/flutterjs_tools/
   - packages/flutterjs_gen/

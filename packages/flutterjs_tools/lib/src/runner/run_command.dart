@@ -542,7 +542,7 @@ class RunCommand extends Command<void> {
           print('    Phase 4: ${path.basename(dartFilePath)} - Generated (${jsCode.length} bytes)');
         }
 
-        // // ===== PHASE 5: VALIDATION & OPTIMIZATION =====
+        // // // ===== PHASE 5: VALIDATION & OPTIMIZATION =====
         // if (validateOutput) {
         //   final validator = OutputValidator(jsCode);
         //   final validationReport = await validator.validate();
@@ -577,7 +577,9 @@ class RunCommand extends Command<void> {
 
         // ===== PHASE 6: OUTPUT & REPORTING =====
         await jsOutputFile.parent.create(recursive: true);
+        print("output ${jsCode}");
         await jsOutputFile.writeAsString(jsCode);
+        print("output1 ${jsOutputFile.readAsString()}");
         filesGenerated++;
 
         if (verbose) {
