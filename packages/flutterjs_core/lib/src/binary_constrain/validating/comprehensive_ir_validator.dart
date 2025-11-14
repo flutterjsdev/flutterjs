@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
 
-import '../binary_ir_reader.dart';
+import '../binary_ir_reader/binary_ir_reader.dart';
 import '../../ast_ir/dart_file_builder.dart';
 import 'binary_format_validator.dart';
 

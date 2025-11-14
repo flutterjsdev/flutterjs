@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
-import '../ast_ir/ast_it.dart';
-import '../ast_ir/ir/expression_types/cascade_expression_ir.dart';
-import 'binary_constain.dart';
-import 'binary_ir_writer.dart';
+import '../../ast_ir/ast_it.dart';
+import '../../ast_ir/ir/expression_types/cascade_expression_ir.dart';
+import '../binary_constain.dart';
+import '../binary_ir_writer/binary_ir_writer.dart';
 
 /// Deserializes Flutter IR from binary format
 ///

@@ -1,0 +1,197 @@
+import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/ir_relationship_registry.dart';
+
+mixin RelationshipWriter {
+  /// Returns the _relationships from BinaryIRWriter
+  IRRelationshipRegistry get _relationships;
+  bool get _verbose;
+
+  void printlog(String value);
+
+  void buildRelationships(DartFile fileIR) {
+    printlog('[RELATIONSHIPS] Building relationship map...');
+
+    // Index all declarations first
+    final classesById = <String, ClassDecl>{};
+    final methodsById = <String, dynamic>{};
+    final fieldsById = <String, dynamic>{};
+
+    for (final classDecl in fileIR.classDeclarations) {
+      classesById[classDecl.id] = classDecl;
+
+      // Register methods
+      for (final method in classDecl.methods) {
+        methodsById[method.id] = method;
+        _relationships.registerMethodToClass(method.id, classDecl.id);
+      }
+
+      // Register fields
+      for (final field in classDecl.fields) {
+        fieldsById[field.id] = field;
+        _relationships.registerFieldToClass(field.id, classDecl.id);
+      }
+
+      // Register constructors
+      for (final constructor in classDecl.constructors) {
+        methodsById[constructor.id] = constructor;
+        _relationships.registerMethodToClass(constructor.id, classDecl.id);
+      }
+
+      // Register superclass
+      if (classDecl.superclass != null) {
+        _relationships.registerInheritance(
+          classDecl.id,
+          classDecl.superclass!.displayName(),
+        );
+      }
+
+      // Register interfaces
+      for (final iface in classDecl.interfaces) {
+        _relationships.registerInterfaceImplementation(
+          iface.displayName(),
+          classDecl.id,
+        );
+      }
+    }
+
+    // Process widget-state connections
+    _processWidgetStateConnections(classesById);
+
+    // Validate relationships
+    final errors = _relationships.validateAllRelationships(
+      methodsById.keys.toSet(),
+      fieldsById.keys.toSet(),
+      classesById,
+    );
+
+    if (errors.isNotEmpty) {
+      throw SerializationException(
+        'Relationship validation failed:\n${errors.join('\n')}',
+        offset: 0,
+        context: 'relationships',
+      );
+    }
+
+    printlog('[RELATIONSHIPS] Map built successfully');
+    if (_verbose) {
+      printlog(_relationships.generateReport());
+    }
+  }
+
+  void _processWidgetStateConnections(Map<String, ClassDecl> classesById) {
+    for (final classEntry in classesById.entries) {
+      final classDecl = classEntry.value;
+
+      // Check if StatefulWidget
+      if (_isStatefulWidget(classDecl)) {
+        // final createStateMethod = classDecl.methods
+        //     .firstWhere((m) => m.name == 'createState', orElse: () => null);
+        MethodDecl? createStateMethod;
+        try {
+          createStateMethod = classDecl.methods.firstWhere(
+            (m) => m.name == 'createState',
+          );
+        } catch (e) {
+          // createState method not found
+          createStateMethod = null;
+        }
+        if (createStateMethod != null) {
+          final stateClassId = _findStateClassFromWidget(
+            classDecl,
+            classesById,
+          );
+          if (stateClassId != null) {
+            _relationships.registerWidgetStateConnection(
+              classDecl.id,
+              stateClassId,
+            );
+
+            // Register lifecycle methods
+            final stateClass = classesById[stateClassId];
+            if (stateClass != null) {
+              _processStateLifecycleMethods(stateClassId, stateClass);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  bool _isStatefulWidget(ClassDecl classDecl) {
+    return classDecl.interfaces.any((i) => i.displayName() == 'StatefulWidget');
+  }
+
+  String? _findStateClassFromWidget(
+    ClassDecl widget,
+    Map<String, ClassDecl> classesById,
+  ) {
+    // Look for State<WidgetName> or _WidgetNameState pattern
+    final widgetName = widget.name;
+
+    // Pattern 1: _WidgetNameState
+    final pattern1 = '${widget.name}State';
+    for (final classEntry in classesById.entries) {
+      if (classEntry.value.name.endsWith(pattern1)) {
+        return classEntry.key;
+      }
+    }
+
+    // Pattern 2: _WidgetName
+    final pattern2 = '_$widgetName';
+    for (final classEntry in classesById.entries) {
+      if (classEntry.value.name == pattern2 &&
+          _isStateSubclass(classEntry.value)) {
+        return classEntry.key;
+      }
+    }
+
+    return null;
+  }
+
+  bool _isStateSubclass(ClassDecl classDecl) {
+    if (classDecl.superclass == null) return false;
+    final superName = classDecl.superclass!.displayName();
+    return superName.contains('State');
+  }
+
+  void _processStateLifecycleMethods(
+    String stateClassId,
+    ClassDecl stateClass,
+  ) {
+    for (final method in stateClass.methods) {
+      switch (method.name) {
+        case 'initState':
+          _relationships.registerStateLifecycleMethod(
+            stateClassId,
+            StateLifecycleMethod.initState,
+            method.id,
+          );
+          break;
+        case 'dispose':
+          _relationships.registerStateLifecycleMethod(
+            stateClassId,
+            StateLifecycleMethod.dispose,
+            method.id,
+          );
+          break;
+        case 'didUpdateWidget':
+          _relationships.registerStateLifecycleMethod(
+            stateClassId,
+            StateLifecycleMethod.didUpdateWidget,
+            method.id,
+          );
+          break;
+        case 'didChangeDependencies':
+          _relationships.registerStateLifecycleMethod(
+            stateClassId,
+            StateLifecycleMethod.didChangeDependencies,
+            method.id,
+          );
+          break;
+        case 'build':
+          _relationships.registerStateBuildMethod(stateClassId, method.id);
+          break;
+      }
+    }
+  }
+}

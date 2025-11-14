@@ -2,7 +2,7 @@
 // IR RELATIONSHIP REGISTRY (COMPLETE VERSION)
 // =========================================================================
 
-import '../flutterjs_core.dart';
+import '../../../flutterjs_core.dart';
 
 class IRRelationshipRegistry {
   final Map<String, List<String>> classMethods = {};
@@ -252,21 +252,7 @@ enum StateLifecycleMethod {
   activate,
 }
 
-class SerializationException implements Exception {
-  final String message;
-  final int offset;
-  final String context;
 
-  SerializationException(
-    this.message, {
-    required this.offset,
-    this.context = 'unknown',
-  });
-
-  @override
-  String toString() =>
-      'SerializationException [$context] at offset $offset: $message';
-}
 
 // =========================================================================
 // VERIFICATION CHECKLIST FOR IRRelationshipRegistry
