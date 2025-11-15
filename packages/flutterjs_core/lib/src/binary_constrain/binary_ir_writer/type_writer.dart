@@ -1,10 +1,14 @@
-import 'package:flutterjs_core/flutterjs_core.dart';
+import 'dart:typed_data';
 
+import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:crypto/crypto.dart';
 mixin  TypeWriter {
     // These methods are provided by BinaryIRWriter
   void _writeByte(int value);
   void _writeUint32(int value);
   int _getStringRef(String str);
+
+  BytesBuilder get _buffer;
 
    void writeType(TypeIR type) {
     if (type is SimpleTypeIR) {
@@ -23,4 +27,19 @@ mixin  TypeWriter {
       _writeByte(type.isNullable ? 1 : 0);
     }
   }
+
+    void writeChecksum(Uint8List data) {
+    try {
+      final digest = sha256.convert(data);
+      final checksumBytes = digest.bytes;
+      _buffer.add(checksumBytes);
+    } catch (e) {
+      throw SerializationException(
+        'Failed to compute checksum: $e',
+        offset: _buffer.length,
+        context: 'checksum_write',
+      );
+    }
+  }
+
 }

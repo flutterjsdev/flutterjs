@@ -1,7 +1,7 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
 
-class ValidatorFile {
-    // =========================================================================
+mixin ValidatorFile {
+  // =========================================================================
   // VALIDATION (PRIORITY 2)
   // =========================================================================
 
@@ -89,5 +89,4 @@ class ValidatorFile {
 
     return errors;
   }
-
 }

@@ -7,6 +7,7 @@ mixin RelationshipWriter {
   bool get _verbose;
 
   void printlog(String value);
+  void _addString(String str);
 
   void buildRelationships(DartFile fileIR) {
     printlog('[RELATIONSHIPS] Building relationship map...');
@@ -193,5 +194,44 @@ mixin RelationshipWriter {
           break;
       }
     }
+  }
+
+  void collectStringsFromRelationships() {
+    // Collect lifecycle method type names
+    for (final entry in _relationships.stateLifecycleMethods.entries) {
+      for (final method in entry.value.values) {
+        _addString(method);
+      }
+    }
+
+    // Collect widget-state connection names
+    for (final entry in _relationships.widgetToStateClass.entries) {
+      _addString(entry.key);
+      _addString(entry.value);
+    }
+
+    // Collect method call names
+    for (final entry in _relationships.methodCalls.entries) {
+      _addString(entry.key);
+      for (final calledId in entry.value) {
+        _addString(calledId);
+      }
+    }
+
+    // Collect field access names
+    for (final entry in _relationships.fieldAccesses.entries) {
+      _addString(entry.key);
+      for (final fieldId in entry.value) {
+        _addString(fieldId);
+      }
+    }
+
+    // Collect class hierarchy
+    for (final entry in _relationships.classHierarchy.entries) {
+      _addString(entry.key);
+      _addString(entry.value);
+    }
+
+    printlog('[COLLECT] Relationship strings collected');
   }
 }

@@ -29,6 +29,7 @@ import 'variable_decl.dart';
 @immutable
 class FunctionDecl extends IRNode {
   /// Unique identifier for this function
+  /// (inherited from IRNode)
 
   /// Function name
   ///
@@ -42,17 +43,19 @@ class FunctionDecl extends IRNode {
   /// For constructors: return type is implicit (the class itself)
   /// For generators (async*): wraps type in Stream<T>
   /// For async functions: wraps type in Future<T>
-  TypeIR returnType;
+   TypeIR returnType;
 
   /// Parameters of this function
   final List<ParameterDecl> parameters;
 
-  /// Function body
+  /// Function body - list of statements
   ///
-  /// For regular functions: BlockStmt or ExpressionStmt (arrow functions)
+  /// For regular functions: list of statements (may be empty for arrow functions)
   /// For abstract methods: null
   /// For native functions: null
-  final StatementIR? body;
+  /// 
+  /// ✅ FIXED: Changed from StatementIR? to List<StatementIR>?
+  final List<StatementIR>? body;
 
   /// Whether this is declared with `async` keyword
   ///
@@ -64,13 +67,13 @@ class FunctionDecl extends IRNode {
   /// Indicates function yields values (returns Stream or Iterable)
   final bool isGenerator;
 
-  /// Whether this is a generator (`*` after return type or before body)
+  /// Whether this is a sync generator (`*` marker)
   ///
   /// Combined with isAsync:
-  /// - isAsync=false, isGenerator=false: regular function
-  /// - isAsync=true, isGenerator=false: async function returning Future
-  /// - isAsync=false, isGenerator=true: sync generator returning Iterable
-  /// - isAsync=true, isGenerator=true: async generator returning Stream
+  /// - isAsync=false, isSyncGenerator=false: regular function
+  /// - isAsync=true, isSyncGenerator=false: async function returning Future
+  /// - isAsync=false, isSyncGenerator=true: sync generator returning Iterable
+  /// - isAsync=true, isSyncGenerator=true: async generator returning Stream
   final bool isSyncGenerator;
 
   /// Type parameters for generic functions
@@ -137,7 +140,6 @@ class FunctionDecl extends IRNode {
     this.isGenerator = false,
     this.isSyncGenerator = false,
     this.typeParameters = const [],
-
     required super.sourceLocation,
     this.documentation,
     this.annotations = const [],
@@ -154,26 +156,26 @@ class FunctionDecl extends IRNode {
     this.constructorClass,
     this.constructorName,
     this.redirectsTo,
-  }) : assert(
-         !(isAsync && isSyncGenerator),
-         'Function cannot be both async and sync generator',
-       ),
-       assert(
-         !(isFactory && (isAbstract || isStatic)),
-         'Factory constructor cannot be abstract or static',
-       ),
-       assert(
-         !(isConst && (isAsync || isGenerator)),
-         'Const constructor cannot be async or generator',
-       ),
-       assert(
-         !(isGetter && (isSetter || isOperator)),
-         'Getter cannot also be setter or operator',
-       ),
-       assert(
-         !(isAbstract && body != null),
-         'Abstract method cannot have body',
-       );
+  })  : assert(
+          !(isAsync && isSyncGenerator),
+          'Function cannot be both async and sync generator',
+        ),
+        assert(
+          !(isFactory && (isAbstract || isStatic)),
+          'Factory constructor cannot be abstract or static',
+        ),
+        assert(
+          !(isConst && (isAsync || isGenerator)),
+          'Const constructor cannot be async or generator',
+        ),
+        assert(
+          !(isGetter && (isSetter || isOperator)),
+          'Getter cannot also be setter or operator',
+        ),
+        assert(
+          !(isAbstract && body != null),
+          'Abstract method cannot have body',
+        );
 
   /// Human-readable function signature
   ///
@@ -267,7 +269,7 @@ class FunctionDecl extends IRNode {
   List<ParameterDecl> get optionalParameters =>
       parameters.where((p) => !p.isRequired).toList();
 
-  /// Returns to analyze function behavior
+  /// Effective return type for analysis
   ///
   /// For async generators: returns Stream<T>
   /// For sync generators: returns Iterable<T>
@@ -324,13 +326,13 @@ class FunctionDecl extends IRNode {
       }
     }
 
-    // abstract methods cannot have body
-    if (isAbstract && body != null && body is! ExpressionStmt) {
+    // ✅ FIXED: abstract methods cannot have body (body is now List<StatementIR>?)
+    if (isAbstract && body != null && body!.isNotEmpty) {
       errors.add('Abstract method cannot have implementation');
     }
 
     // external functions should not have body (though some patterns allow it)
-    if (isExternal && body != null) {
+    if (isExternal && body != null && body!.isNotEmpty) {
       // This is sometimes valid, so warning only
     }
 
@@ -378,6 +380,8 @@ class FunctionDecl extends IRNode {
 /// Represents a type parameter in a generic function or class
 ///
 /// Examples: T, K extends Comparable<K>, U super Animal
+
+/// Represents a method declaration (instance, static, or abstract)
 @immutable
 class MethodDecl extends FunctionDecl {
   /// Name of the class containing this method
@@ -388,32 +392,32 @@ class MethodDecl extends FunctionDecl {
   /// Not definitive - just indicates @override annotation
   final bool markedOverride;
 
-  /// For intercepted methods: the method signature being overridden
+  /// For overridden methods: the method signature being overridden
   final String? overriddenSignature;
 
   MethodDecl({
     required super.id,
     required super.name,
     required super.returnType,
-    super.parameters,
+    super.parameters = const [],
     super.body,
-    super.isAsync,
-    super.isGenerator,
-    super.isSyncGenerator,
-    List<TypeParameterDecl> super.typeParameters = const [],
+    super.isAsync = false,
+    super.isGenerator = false,
+    super.isSyncGenerator = false,
+    super.typeParameters = const [],
     required super.sourceLocation,
     super.documentation,
-    super.annotations,
-    super.visibility,
-    super.isStatic,
-    super.isAbstract,
-    super.isGetter,
-    super.isSetter,
-    super.isOperator,
-    super.isFactory,
-    super.isConst,
-    super.isExternal,
-    super.isLate,
+    super.annotations = const [],
+    super.visibility = VisibilityModifier.public,
+    super.isStatic = false,
+    super.isAbstract = false,
+    super.isGetter = false,
+    super.isSetter = false,
+    super.isOperator = false,
+    super.isFactory = false,
+    super.isConst = false,
+    super.isExternal = false,
+    super.isLate = false,
     this.className,
     this.markedOverride = false,
     this.overriddenSignature,
@@ -445,7 +449,7 @@ class ConstructorDecl extends FunctionDecl {
     required String constructorClass,
     String? constructorName,
     List<ParameterDecl> parameters = const [],
-    StatementIR? body,
+    List<StatementIR>? body, // ✅ FIXED: Changed from StatementIR? to List<StatementIR>?
     bool isFactory = false,
     bool isConst = false,
     bool isExternal = false,

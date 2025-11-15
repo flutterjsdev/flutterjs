@@ -123,7 +123,7 @@ class BuildMethodIR extends MethodDecl {
     required SourceLocationIR sourceLocation,
     String? documentation,
     List<ParameterDecl> parameters = const [],
-    StatementIR? body,
+    List<StatementIR>? body,
     this.rootWidget,
     this.widgetTree,
     this.instantiatedWidgets = const [],

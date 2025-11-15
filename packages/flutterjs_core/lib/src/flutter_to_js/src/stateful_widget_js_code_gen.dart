@@ -482,7 +482,8 @@ class StatefulWidgetJSCodeGen {
     }
   }
 
-  void _generateInitState(StringBuffer buffer) {
+
+ void _generateInitState(StringBuffer buffer) {
     buffer.writeln(indenter.line('initState() {'));
     indenter.indent();
 
@@ -491,21 +492,13 @@ class StatefulWidgetJSCodeGen {
     }
 
     if (lifecycleMapping.initState != null) {
-      // ACTUALLY convert the method body!
+      // ✅ FIXED: methodBody is now List<StatementIR>?
       try {
         final methodBody = lifecycleMapping.initState!.body;
-        if (methodBody != null) {
-          if (methodBody is BlockStmt) {
-            for (final stmt in methodBody.statements) {
-              buffer.writeln(stmtCodeGen.generate(stmt));
-            }
-          } else {
-            // Expression body
-            final expr = exprCodeGen.generate(
-              methodBody as ExpressionIR,
-              parenthesize: false,
-            );
-            buffer.writeln(indenter.line('return $expr;'));
+        if (methodBody != null && methodBody.isNotEmpty) {
+          // methodBody is already a List<StatementIR>
+          for (final stmt in methodBody) {
+            buffer.writeln(stmtCodeGen.generate(stmt));
           }
         } else {
           buffer.writeln(indenter.line('// initState body not available'));
@@ -542,17 +535,16 @@ class StatefulWidgetJSCodeGen {
     }
 
     if (lifecycleMapping.dispose != null) {
-      // Convert dispose method body
+      // ✅ FIXED: methodBody is now List<StatementIR>?
       try {
         final methodBody = lifecycleMapping.dispose!.body;
-        if (methodBody != null && methodBody is! EmptyStatementIR) {
-          if (methodBody is BlockStmt) {
+        if (methodBody != null && methodBody.isNotEmpty) {
+          // methodBody is already a List<StatementIR>
+          for (final stmt in methodBody) {
             // Skip super.dispose() if already present
-            for (final stmt in methodBody.statements) {
-              if (stmt is! ExpressionStmt ||
-                  !_isSuperCall(stmt.expression, 'dispose')) {
-                buffer.writeln(stmtCodeGen.generate(stmt));
-              }
+            if (stmt is! ExpressionStmt ||
+                !_isSuperCall(stmt.expression, 'dispose')) {
+              buffer.writeln(stmtCodeGen.generate(stmt));
             }
           }
         }
@@ -586,8 +578,10 @@ class StatefulWidgetJSCodeGen {
 
     try {
       final methodBody = lifecycleMapping.didUpdateWidget!.body;
-      if (methodBody != null && methodBody is BlockStmt) {
-        for (final stmt in methodBody.statements) {
+      // ✅ FIXED: methodBody is now List<StatementIR>?
+      if (methodBody != null && methodBody.isNotEmpty) {
+        // methodBody is already a List<StatementIR>
+        for (final stmt in methodBody) {
           if (stmt is! ExpressionStmt ||
               !_isSuperCall(stmt.expression, 'didUpdateWidget')) {
             buffer.writeln(stmtCodeGen.generate(stmt));
@@ -618,14 +612,39 @@ class StatefulWidgetJSCodeGen {
       buffer.writeln(indenter.line('super.didChangeDependencies();'));
     }
 
-    buffer.writeln(
-      indenter.line('// TODO: Convert didChangeDependencies body'),
-    );
+    // ✅ FIXED: methodBody is now List<StatementIR>?
+    try {
+      final methodBody = lifecycleMapping.didChangeDependencies!.body;
+      if (methodBody != null && methodBody.isNotEmpty) {
+        // methodBody is already a List<StatementIR>
+        for (final stmt in methodBody) {
+          if (stmt is! ExpressionStmt ||
+              !_isSuperCall(stmt.expression, 'didChangeDependencies')) {
+            buffer.writeln(stmtCodeGen.generate(stmt));
+          }
+        }
+      } else {
+        buffer.writeln(
+          indenter.line('// TODO: Convert didChangeDependencies body'),
+        );
+      }
+    } catch (e) {
+      warnings.add(
+        CodeGenWarning(
+          severity: WarningSeverity.warning,
+          message: 'Could not generate didChangeDependencies body: $e',
+        ),
+      );
+      buffer.writeln(
+        indenter.line('// TODO: Convert didChangeDependencies body'),
+      );
+    }
 
     indenter.dedent();
     buffer.writeln(indenter.line('}'));
     buffer.writeln();
   }
+ 
 
   void _generateSetStateWrapper(StringBuffer buffer) {
     buffer.writeln(indenter.line('setState(callback) {'));
@@ -652,6 +671,9 @@ class StatefulWidgetJSCodeGen {
     buffer.writeln(indenter.line('}'));
     buffer.writeln();
   }
+
+
+
 
   void _generateCustomMethods(StringBuffer buffer) {
     final customMethods = stateClass.declaration.instanceMethods
