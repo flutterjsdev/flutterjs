@@ -1,13 +1,18 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/ir_relationship_registry.dart';
 
-mixin RelationshipWriter {
-  /// Returns the _relationships from BinaryIRWriter
-  IRRelationshipRegistry get _relationships;
-  bool get _verbose;
+import '../../ast_ir/ir/expression_types/cascade_expression_ir.dart';
 
+mixin RelationshipWriter {
+  /// Returns the relationships registry from BinaryIRWriter
+  IRRelationshipRegistry get relationshipsRegistry;
+  bool get isVerbose;
   void printlog(String value);
-  void _addString(String str);
+  void addString(String str);
+
+  // âœ… FIXED: Use getter to access _relationships
+  IRRelationshipRegistry get _relationships => relationshipsRegistry;
+  bool get _verbose => isVerbose;
 
   void buildRelationships(DartFile fileIR) {
     printlog('[RELATIONSHIPS] Building relationship map...');
@@ -55,6 +60,8 @@ mixin RelationshipWriter {
       }
     }
 
+    _processBuildMethods(classesById);
+
     // Process widget-state connections
     _processWidgetStateConnections(classesById);
 
@@ -79,14 +86,62 @@ mixin RelationshipWriter {
     }
   }
 
+  void _processBuildMethods(Map<String, ClassDecl> classesById) {
+    for (final classEntry in classesById.entries) {
+      final classDecl = classEntry.value;
+
+      // Find build method
+      MethodDecl? buildMethod;
+      try {
+        buildMethod = classDecl.methods.firstWhere((m) => m.name == 'build');
+      } catch (e) {
+        continue; // No build method
+      }
+
+      if (buildMethod != null && buildMethod.body != null) {
+        // Extract widget tree from return statement
+        final returnedWidget = _extractWidgetFromBuildBody(buildMethod.body!);
+
+        if (returnedWidget != null) {
+          // Store relationship: class -> widget tree
+          _relationships.registerClassBuildOutput(
+            classDecl.id,
+            returnedWidget.debugName,
+          );
+        }
+      }
+    }
+  }
+
+  InstanceCreationExpressionIR? _extractWidgetFromBuildBody(
+    List<StatementIR> body,
+  ) {
+    for (final stmt in body) {
+      if (stmt is ReturnStmt && stmt.expression != null) {
+        final expr = stmt.expression!;
+
+        // Direct widget return: return Scaffold(...)
+        if (expr is InstanceCreationExpressionIR) {
+          return expr;
+        }
+
+        // Wrapped in conditional: return condition ? Widget1 : Widget2
+        if (expr is ConditionalExpressionIR) {
+          if (expr.thenExpression is InstanceCreationExpressionIR) {
+            return expr.thenExpression as InstanceCreationExpressionIR;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   void _processWidgetStateConnections(Map<String, ClassDecl> classesById) {
     for (final classEntry in classesById.entries) {
       final classDecl = classEntry.value;
 
       // Check if StatefulWidget
       if (_isStatefulWidget(classDecl)) {
-        // final createStateMethod = classDecl.methods
-        //     .firstWhere((m) => m.name == 'createState', orElse: () => null);
         MethodDecl? createStateMethod;
         try {
           createStateMethod = classDecl.methods.firstWhere(
@@ -200,36 +255,36 @@ mixin RelationshipWriter {
     // Collect lifecycle method type names
     for (final entry in _relationships.stateLifecycleMethods.entries) {
       for (final method in entry.value.values) {
-        _addString(method);
+        addString(method);
       }
     }
 
     // Collect widget-state connection names
     for (final entry in _relationships.widgetToStateClass.entries) {
-      _addString(entry.key);
-      _addString(entry.value);
+      addString(entry.key);
+      addString(entry.value);
     }
 
     // Collect method call names
     for (final entry in _relationships.methodCalls.entries) {
-      _addString(entry.key);
+      addString(entry.key);
       for (final calledId in entry.value) {
-        _addString(calledId);
+        addString(calledId);
       }
     }
 
     // Collect field access names
     for (final entry in _relationships.fieldAccesses.entries) {
-      _addString(entry.key);
+      addString(entry.key);
       for (final fieldId in entry.value) {
-        _addString(fieldId);
+        addString(fieldId);
       }
     }
 
     // Collect class hierarchy
     for (final entry in _relationships.classHierarchy.entries) {
-      _addString(entry.key);
-      _addString(entry.value);
+      addString(entry.key);
+      addString(entry.value);
     }
 
     printlog('[COLLECT] Relationship strings collected');

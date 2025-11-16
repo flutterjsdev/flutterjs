@@ -233,7 +233,7 @@ class StatelessWidgetJSCodeGen {
       errs.add('Widget class has empty name');
     }
 
-    // Check that it extends StatelessWidget
+    // Check superclass
     if (widgetInfo.declaration.superclass != null) {
       final superName = widgetInfo.declaration.superclass!.displayName();
       if (!superName.contains('StatelessWidget')) {
@@ -245,13 +245,13 @@ class StatelessWidgetJSCodeGen {
       warns.add('Widget should explicitly extend StatelessWidget');
     }
 
-    // Check for build method
+    // ✓ FIXED: Validate build method thoroughly
     if (!widgetInfo.hasBuildMethod) {
       errs.add('StatelessWidget must have a build() method');
     } else {
       final buildMethod = widgetInfo.buildMethod!;
 
-      // Validate build method signature
+      // Check signature
       if (buildMethod.parameters.length != 1 ||
           buildMethod.parameters.first.name != 'context') {
         warns.add(
@@ -259,26 +259,57 @@ class StatelessWidgetJSCodeGen {
         );
       }
 
-      // ✅ FIXED: Validate build method has body (List<StatementIR>?)
+      // ✓ NEW: Check body exists
       if (buildMethod.body == null) {
         errs.add('build() method must have a body');
+      } else {
+        // ✓ NEW: Analyze body
+        final bodyType = _analyzeMethodBody(buildMethod.body);
+        final stmtCount = _getMethodStatementCount(buildMethod.body);
+        final hasReturn = _methodHasStatementType<ReturnStmt>(buildMethod.body);
+
+        if (bodyType == MethodBodyType.empty) {
+          errs.add('build() method body is empty');
+        } else if (!hasReturn) {
+          errs.add('build() method does not return a widget');
+        } else if (stmtCount > 10) {
+          warns.add(
+            'build() is complex ($stmtCount statements) - consider extracting helpers',
+          );
+        }
       }
     }
 
-    // Check constructor
-    final ctor = widgetInfo.declaration.constructors.isNotEmpty
-        ? widgetInfo.declaration.constructors.first
-        : null;
-
-    if (ctor == null && widgetInfo.constructorParams.isNotEmpty) {
-      warns.add(
-        'Widget has constructor parameters but no explicit constructor',
-      );
+    // ✓ NEW: Validate other methods have bodies
+    for (final method in widgetInfo.otherMethods) {
+      if (method.body == null && !method.isAbstract) {
+        warns.add('Method ${method.name}() has no body');
+      }
     }
 
-    // Check for stateful patterns
-    if (widgetInfo.declaration.instanceFields.any((f) => !f.isFinal)) {
-      warns.add('StatelessWidget should not have mutable fields');
+    // ✓ NEW: Validate constructor params match properties
+    if (widgetInfo.constructorParams.isNotEmpty) {
+      final propNames = widgetInfo.declaration.instanceFields
+          .map((f) => f.name)
+          .toSet();
+      for (final param in widgetInfo.constructorParams) {
+        if (!propNames.contains(param.name)) {
+          warns.add(
+            'Constructor parameter ${param.name} does not match any field',
+          );
+        }
+      }
+    }
+
+    // Check for stateful patterns (bad for StatelessWidget)
+    final mutableFields = widgetInfo.declaration.instanceFields
+        .where((f) => !f.isFinal && !f.isConst)
+        .toList();
+
+    if (mutableFields.isNotEmpty) {
+      warns.add(
+        'StatelessWidget should not have mutable fields: ${mutableFields.map((f) => f.name).join(", ")}',
+      );
     }
 
     return ValidationResult(
@@ -471,8 +502,20 @@ class StatelessWidgetJSCodeGen {
     for (int i = 0; i < widgetInfo.staticMethods.length; i++) {
       final method = widgetInfo.staticMethods[i];
 
-      buffer.write(indenter.line('static '));
-      _generateMethodBody(buffer, method, isStatic: true);
+      try {
+        buffer.write(indenter.line('static '));
+        _generateMethodBody(buffer, method, isStatic: true);
+      } catch (e) {
+        warnings.add(
+          CodeGenWarning(
+            severity: WarningSeverity.warning,
+            message: 'Could not generate static method ${method.name}: $e',
+          ),
+        );
+        buffer.writeln(
+          indenter.line('static ${method.name}() { /* Error */ }'),
+        );
+      }
 
       if (i < widgetInfo.staticMethods.length - 1) {
         buffer.writeln();
@@ -488,21 +531,30 @@ class StatelessWidgetJSCodeGen {
     for (int i = 0; i < widgetInfo.otherMethods.length; i++) {
       final method = widgetInfo.otherMethods[i];
 
-      _generateMethodBody(buffer, method, isStatic: false);
+      try {
+        _generateMethodBody(buffer, method, isStatic: false);
+      } catch (e) {
+        warnings.add(
+          CodeGenWarning(
+            severity: WarningSeverity.warning,
+            message: 'Could not generate method ${method.name}: $e',
+          ),
+        );
+        buffer.writeln(indenter.line('${method.name}() { /* Error */ }'));
+      }
 
       if (i < widgetInfo.otherMethods.length - 1) {
         buffer.writeln();
       }
     }
   }
-
   // =========================================================================
   // BUILD METHOD
   // =========================================================================
 
   void _generateBuildMethod(StringBuffer buffer) {
     if (widgetInfo.buildMethod == null) {
-      // Fallback: generate stub
+      // No build method - generate stub
       buffer.writeln(indenter.line('build(context) {'));
       indenter.indent();
       buffer.writeln(indenter.line('return null; // TODO: Implement'));
@@ -511,12 +563,36 @@ class StatelessWidgetJSCodeGen {
       return;
     }
 
-    // Use specialized build method generator
-    try {
-      final buildCode = buildMethodGen.generateBuild(widgetInfo.buildMethod!);
+    // ✓ FIXED: Analyze build method before generation
+    final buildMethod = widgetInfo.buildMethod!;
+    final bodyType = _analyzeMethodBody(buildMethod.body);
+    final stmtCount = _getMethodStatementCount(buildMethod.body);
 
-      // Add indentation
-      for (final line in buildCode.split('\n')) {
+    try {
+      // ✓ Check if body is valid
+      if (bodyType == MethodBodyType.none) {
+        buffer.writeln(indenter.line('build(context) {'));
+        indenter.indent();
+        buffer.writeln(indenter.line('// TODO: Implement build'));
+        indenter.dedent();
+        buffer.writeln(indenter.line('}'));
+        return;
+      } else if (bodyType == MethodBodyType.empty) {
+        buffer.writeln(indenter.line('build(context) {'));
+        indenter.indent();
+        buffer.writeln(indenter.line('// Empty build method'));
+        buffer.writeln(indenter.line('return null;'));
+        indenter.dedent();
+        buffer.writeln(indenter.line('}'));
+        return;
+      }
+
+      // ✓ Generate build using specialized generator
+      final buildCode = buildMethodGen.generateBuild(buildMethod);
+
+      // ✓ FIXED: Split and indent all lines
+      final lines = buildCode.split('\n');
+      for (final line in lines) {
         if (line.isNotEmpty) {
           buffer.writeln(indenter.line(line));
         } else {
@@ -528,6 +604,7 @@ class StatelessWidgetJSCodeGen {
         CodeGenWarning(
           severity: WarningSeverity.error,
           message: 'Could not generate build method: $e',
+          suggestion: 'Check build() method body structure',
         ),
       );
       // Fallback
@@ -550,15 +627,9 @@ class StatelessWidgetJSCodeGen {
     bool isStatic = false,
   }) {
     try {
-      // Modifiers - ORDER MATTERS!
+      // Build modifiers
       String modifiers = '';
-
-      // Static should come first if needed
-      if (isStatic) {
-        modifiers = 'static ';
-      }
-
-      // Async/Generator keywords
+      if (isStatic) modifiers = 'static ';
       if (method.isAsync && method.isGenerator) {
         modifiers += 'async* ';
       } else if (method.isAsync) {
@@ -566,8 +637,6 @@ class StatelessWidgetJSCodeGen {
       } else if (method.isGenerator) {
         modifiers += '* ';
       }
-
-      // Getter/Setter keywords - these come BEFORE the name
       if (method.isGetter) {
         modifiers += 'get ';
       } else if (method.isSetter) {
@@ -576,26 +645,31 @@ class StatelessWidgetJSCodeGen {
 
       // Method signature
       final params = _generateMethodParameters(method.parameters);
-
       buffer.writeln('$modifiers${method.name}($params) {');
       indenter.indent();
 
-      // ✅ FIXED: Analyze method body type (List<StatementIR>?)
+      // ✓ FIXED: Analyze method body
       final bodyType = _analyzeMethodBody(method.body);
+      final stmtCount = _getMethodStatementCount(method.body);
 
-      // Method body
       if (bodyType == MethodBodyType.none) {
         buffer.writeln(indenter.line('// TODO: Implement ${method.name}'));
       } else if (bodyType == MethodBodyType.empty) {
         buffer.writeln(indenter.line('// Empty method body'));
-      } else if (bodyType == MethodBodyType.singleStatement ||
-          bodyType == MethodBodyType.multipleStatements) {
-        // ✅ FIXED: Handle List<StatementIR> directly
+      } else if (stmtCount > 0) {
+        // ✓ FIXED: Generate statements with proper indentation
         if (method.body != null) {
           for (final stmt in method.body!) {
             try {
               final stmtCode = stmtCodeGen.generate(stmt);
-              buffer.writeln(stmtCode);
+              // ✓ FIXED: Split and indent each line
+              for (final line in stmtCode.split('\n')) {
+                if (line.isNotEmpty) {
+                  buffer.writeln(indenter.line(line));
+                } else {
+                  buffer.writeln();
+                }
+              }
             } catch (e) {
               warnings.add(
                 CodeGenWarning(
@@ -604,21 +678,19 @@ class StatelessWidgetJSCodeGen {
                   suggestion: 'Check statement structure in source code',
                 ),
               );
-              // Generate something rather than nothing
               buffer.writeln(
-                indenter.line('/* TODO: Statement generation failed - $e */'),
+                indenter.line('/* TODO: Statement generation failed */'),
               );
             }
           }
         }
       } else {
-        buffer.writeln(indenter.line('// TODO: Unknown body type'));
+        buffer.writeln(indenter.line('// Unknown body type'));
       }
 
       indenter.dedent();
       buffer.write(indenter.line('}'));
     } catch (e) {
-      // Outer try-catch for unexpected errors
       errors.add(
         CodeGenError(
           message: 'Critical error generating method ${method.name}: $e',
@@ -626,7 +698,6 @@ class StatelessWidgetJSCodeGen {
           suggestion: 'Check method declaration structure',
         ),
       );
-      // Generate minimal fallback
       buffer.writeln('${method.name}() { /* Error generating method */ }');
     }
   }
@@ -686,33 +757,27 @@ class StatelessWidgetJSCodeGen {
     if (body == null) {
       return MethodBodyType.none;
     }
-
     if (body.isEmpty) {
       return MethodBodyType.empty;
     }
-
+    // If we get here, body has statements
     if (body.length == 1) {
       return MethodBodyType.singleStatement;
     }
-
-    if (body.length > 1) {
-      return MethodBodyType.multipleStatements;
-    }
-
-    return MethodBodyType.unknown;
+    return MethodBodyType.multipleStatements;
   }
 
   /// ✅ FIXED: Get description of method body type
   String _describeMethodBodyType(MethodBodyType type) {
     switch (type) {
       case MethodBodyType.none:
-        return 'none';
+        return 'none (no body)';
       case MethodBodyType.empty:
-        return 'empty';
+        return 'empty (0 statements)';
       case MethodBodyType.singleStatement:
-        return 'singleStatement';
+        return 'singleStatement (1 statement)';
       case MethodBodyType.multipleStatements:
-        return 'multipleStatements';
+        return 'multipleStatements (multiple)';
       case MethodBodyType.unknown:
         return 'unknown';
     }
@@ -729,7 +794,7 @@ class StatelessWidgetJSCodeGen {
     return body.any((stmt) => stmt is T);
   }
 
-  /// ✅ FIXED: Get first statement of specific type
+  /// ✓ NEW: Get first statement of specific type
   T? _getFirstMethodStatement<T extends StatementIR>(List<StatementIR>? body) {
     if (body == null || body.isEmpty) return null;
     try {
@@ -765,21 +830,58 @@ class StatelessWidgetJSCodeGen {
     buffer.writeln('Methods: ${widgetInfo.totalMethods}');
     buffer.writeln('Status: ${isSuccessful ? ' SUCCESS' : 'FAILED'}\n');
 
+    // ✓ NEW: Analyze build method
+    if (widgetInfo.buildMethod != null) {
+      final buildBody = widgetInfo.buildMethod!.body;
+      final bodyType = _analyzeMethodBody(buildBody);
+      final stmtCount = _getMethodStatementCount(buildBody);
+      final hasReturn = _methodHasStatementType<ReturnStmt>(buildBody);
+
+      buffer.writeln('Build Method:');
+      buffer.writeln('  Type: ${_describeMethodBodyType(bodyType)}');
+      buffer.writeln('  Statements: $stmtCount');
+      buffer.writeln('  Returns Widget: ${hasReturn ? '✓' : '✗'}');
+    } else {
+      buffer.writeln('Build Method: ❌ MISSING\n');
+    }
+
+    // ✓ NEW: Analyze other methods
+    if (widgetInfo.otherMethods.isNotEmpty) {
+      buffer.writeln('\nInstance Methods (${widgetInfo.otherMethods.length}):');
+      for (final method in widgetInfo.otherMethods) {
+        final bodyType = _analyzeMethodBody(method.body);
+        final stmtCount = _getMethodStatementCount(method.body);
+        buffer.writeln(
+          '  ${method.name}: ${_describeMethodBodyType(bodyType)} ($stmtCount stmts)',
+        );
+      }
+    }
+
+    // ✓ NEW: Analyze static methods
+    if (widgetInfo.staticMethods.isNotEmpty) {
+      buffer.writeln('\nStatic Methods (${widgetInfo.staticMethods.length}):');
+      for (final method in widgetInfo.staticMethods) {
+        final bodyType = _analyzeMethodBody(method.body);
+        buffer.writeln(
+          '  ${method.name}: ${_describeMethodBodyType(bodyType)}',
+        );
+      }
+    }
+
     if (errors.isEmpty && warnings.isEmpty) {
-      buffer.writeln(' No issues found!\n');
+      buffer.writeln('\n✅ No issues found!\n');
       return buffer.toString();
     }
 
     if (errors.isNotEmpty) {
-      buffer.writeln(' ERRORS (${errors.length}):');
+      buffer.writeln('\n❌ ERRORS (${errors.length}):');
       for (final error in errors) {
         buffer.writeln('  - $error');
       }
-      buffer.writeln();
     }
 
     if (warnings.isNotEmpty) {
-      buffer.writeln('  WARNINGS (${warnings.length}):');
+      buffer.writeln('\n⚠️  WARNINGS (${warnings.length}):');
       for (final warning in warnings) {
         buffer.writeln('  - $warning');
       }

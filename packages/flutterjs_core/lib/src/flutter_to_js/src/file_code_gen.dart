@@ -38,16 +38,14 @@ class FileCodeGen {
     FunctionCodeGen? funcCodeGen,
     FlutterPropConverter? propConverter,
     RuntimeRequirements? runtimeRequirements,
-    OutputValidator? outputValidator,
-    JSOptimizer? jsOptimizer,
+    this.outputValidator,
+    this.jsOptimizer,
   }) : exprCodeGen = exprCodeGen ?? ExpressionCodeGen(),
        stmtCodeGen = stmtCodeGen ?? StatementCodeGen(),
        classCodeGen = classCodeGen ?? ClassCodeGen(),
        funcCodeGen = funcCodeGen ?? FunctionCodeGen(),
        propConverter = propConverter ?? FlutterPropConverter(),
-       runtimeRequirements = runtimeRequirements ?? RuntimeRequirements(),
-       outputValidator = outputValidator,
-       jsOptimizer = jsOptimizer {
+       runtimeRequirements = runtimeRequirements ?? RuntimeRequirements() {
     indenter = Indenter('  ');
     usedWidgets = {};
     usedHelpers = {};
@@ -70,13 +68,13 @@ class FileCodeGen {
 
       // Step 2: Generate code with proper async/await
       var generatedCode = await _generateCodeAsync(dartFile);
-      print("jaypal ${generatedCode}");
+     
 
       // Step 3: VALIDATE
       if (validate) {
         generatedCode = await _performValidationAsync(generatedCode, dartFile);
       }
-      print("after _performValidationAsync ${generatedCode}");
+     
       // Step 4: OPTIMIZE
       if (optimize) {
         generatedCode = await _performOptimizationAsync(
@@ -84,7 +82,7 @@ class FileCodeGen {
           optimizationLevel,
         );
       }
-      print("after _performOptimizationAsync ${generatedCode}");
+    
 
       return generatedCode;
     } catch (e) {

@@ -12,114 +12,9 @@ mixin ExpressionReader {
 
   TypeIR readType();
 
-  int get _offset;
+  ExpressionIR readExpression();
 
-  int get _entryIdCounter;
-  set _entryIdCounter(int value);
-
-  int get _exprIdCounter;
-  set _exprIdCounter(int value);
-
-  ExpressionIR readExpression() {
-    final exprType = readByte();
-
-    switch (exprType) {
-      case BinaryConstants.EXPR_LITERAL:
-        return _readLiteralExpression();
-
-      case BinaryConstants.EXPR_IDENTIFIER:
-        final name = readStringRef();
-        return IdentifierExpressionIR(
-          id: 'expr_id_$name',
-          name: name,
-          resultType: DynamicTypeIR(
-            id: 'type_dynamic',
-            sourceLocation: SourceLocationIR(
-              id: 'loc_type',
-              file: 'builtin',
-              line: 0,
-              column: 0,
-              offset: 0,
-              length: 0,
-            ),
-          ),
-          sourceLocation: SourceLocationIR(
-            id: 'loc_expr',
-            file: 'builtin',
-            line: 0,
-            column: 0,
-            offset: 0,
-            length: 0,
-          ),
-        );
-
-      case BinaryConstants.EXPR_BINARY:
-        return _readBinaryExpression();
-
-      case BinaryConstants.EXPR_METHOD_CALL:
-        return _readMethodCallExpression();
-
-      case BinaryConstants.EXPR_PROPERTY_ACCESS:
-        return _readPropertyAccessExpression();
-
-      case BinaryConstants.EXPR_CONDITIONAL:
-        return _readConditionalExpression();
-
-      case BinaryConstants.EXPR_LIST_LITERAL:
-        return _readListLiteralExpression();
-
-      case BinaryConstants.EXPR_MAP_LITERAL:
-        return _readMapLiteralExpression();
-      case BinaryConstants.EXPR_SET_LITERAL:
-        return _readSetLiteralExpression();
-      case BinaryConstants.EXPR_UNARY:
-        return _readUnaryExpression();
-      case BinaryConstants.EXPR_COMPOUND_ASSIGNMENT:
-        return _readCompoundAssignmentExpression();
-      case BinaryConstants.EXPR_ASSIGNMENT:
-        return _readAssignmentExpression();
-      case BinaryConstants.EXPR_INDEX_ACCESS:
-        return _readIndexAccessExpression();
-      case BinaryConstants.EXPR_CASCADE:
-        return _readCascadeExpression();
-      case BinaryConstants.EXPR_CAST:
-        return _readCastExpression();
-      case BinaryConstants.EXPR_TYPE_CHECK:
-        return readTypeCheckExpression();
-      case BinaryConstants.EXPR_AWAIT:
-        return _readAwaitExpression();
-      case BinaryConstants.EXPR_THROW:
-        return _readThrowExpression();
-      case BinaryConstants.EXPR_NULL_AWARE:
-        return _readNullAwareAccessExpression();
-
-      case BinaryConstants.EXPR_FUNCTION_CALL:
-        return _readFunctionCallExpression();
-      case BinaryConstants.EXPR_STRING_INTERPOLATION:
-        return readStringInterpolationExpression();
-      case BinaryConstants.EXPR_THIS:
-        return _readThisExpression();
-      case BinaryConstants.EXPR_SUPER:
-        return _readSuperExpression();
-      case BinaryConstants.EXPR_PARENTHESIZED:
-        return _readParenthesizedExpression();
-      case BinaryConstants.EXPR_INSTANCE_CREATION:
-        return _readInstanceCreationExpression();
-      case BinaryConstants.EXPR_LAMBDA:
-        return _readLambdaExpression();
-      case BinaryConstants.EXPR_IDENTIFIER:
-        return _readIdentifierExpression();
-      case BinaryConstants.OP_NULL_COALESCE:
-        return _readNullCoalescingExpression();
-      default:
-        throw SerializationException(
-          'Unknown expression type: 0x${exprType.toRadixString(16)}',
-          offset: _offset - 1,
-        );
-    }
-  }
-
-  LiteralExpressionIR _readLiteralExpression() {
+  LiteralExpressionIR readLiteralExpression() {
     final literalTypeIndex = readByte();
     final literalType = LiteralType.values[literalTypeIndex];
 
@@ -158,7 +53,7 @@ mixin ExpressionReader {
     );
   }
 
-  PropertyAccessExpressionIR _readPropertyAccessExpression() {
+  PropertyAccessExpressionIR readPropertyAccessExpression() {
     final target = readExpression();
     final propertyName = readStringRef();
     final sourceLocation = readSourceLocation();
@@ -173,7 +68,7 @@ mixin ExpressionReader {
     );
   }
 
-  ConditionalExpressionIR _readConditionalExpression() {
+  ConditionalExpressionIR readConditionalExpression() {
     final condition = readExpression();
     final thenExpression = readExpression();
     final elseExpression = readExpression();
@@ -190,7 +85,7 @@ mixin ExpressionReader {
     );
   }
 
-  BinaryExpressionIR _readBinaryExpression() {
+  BinaryExpressionIR readBinaryExpression() {
     final left = readExpression();
     final operatorIndex = readByte();
     final operator = BinaryOperatorIR.values[operatorIndex];
@@ -208,7 +103,7 @@ mixin ExpressionReader {
     );
   }
 
-  UnaryExpressionIR _readUnaryExpression() {
+  UnaryExpressionIR readUnaryExpression() {
     final operatorIndex = readByte();
     final operator = UnaryOperator.values[operatorIndex];
     final operand = readExpression();
@@ -224,7 +119,7 @@ mixin ExpressionReader {
     );
   }
 
-  CompoundAssignmentExpressionIR _readCompoundAssignmentExpression() {
+  CompoundAssignmentExpressionIR readCompoundAssignmentExpression() {
     final target = readExpression();
     final operatorIndex = readByte();
     final operator = BinaryOperatorIR.values[operatorIndex];
@@ -244,7 +139,7 @@ mixin ExpressionReader {
 
   // --- Assignment & Access ---
 
-  AssignmentExpressionIR _readAssignmentExpression() {
+  AssignmentExpressionIR readAssignmentExpression() {
     final target = readExpression();
     final value = readExpression();
     // final isCompound = readByte() != 0;
@@ -260,7 +155,7 @@ mixin ExpressionReader {
     );
   }
 
-  SetExpressionIR _readSetLiteralExpression() {
+  SetExpressionIR readSetLiteralExpression() {
     final elementCount = readUint32();
     final elements = <ExpressionIR>[];
     for (int i = 0; i < elementCount; i++) {
@@ -279,7 +174,7 @@ mixin ExpressionReader {
     );
   }
 
-  IndexAccessExpressionIR _readIndexAccessExpression() {
+  IndexAccessExpressionIR readIndexAccessExpression() {
     final target = readExpression();
     final index = readExpression();
     final resultType = readType();
@@ -296,7 +191,7 @@ mixin ExpressionReader {
     );
   }
 
-  CascadeExpressionIR _readCascadeExpression() {
+  CascadeExpressionIR readCascadeExpression() {
     final target = readExpression();
     final sectionCount = readUint32();
     final cascadeSections = <ExpressionIR>[];
@@ -316,7 +211,7 @@ mixin ExpressionReader {
 
   // --- Type Operations ---
 
-  CastExpressionIR _readCastExpression() {
+  CastExpressionIR readCastExpression() {
     final expression = readExpression();
     final targetType = readType();
     final sourceLocation = readSourceLocation();
@@ -348,7 +243,7 @@ mixin ExpressionReader {
 
   // --- Async Operations ---
 
-  AwaitExpr _readAwaitExpression() {
+  AwaitExpr readAwaitExpression() {
     final futureExpression = readExpression();
     final resultType = readType();
     final sourceLocation = readSourceLocation();
@@ -361,7 +256,7 @@ mixin ExpressionReader {
     );
   }
 
-  ThrowExpr _readThrowExpression() {
+  ThrowExpr readThrowExpression() {
     final exception = readExpression();
     final sourceLocation = readSourceLocation();
     final resultType = readType();
@@ -376,7 +271,7 @@ mixin ExpressionReader {
 
   // --- Null-Aware Operations ---
 
-  NullAwareAccessExpressionIR _readNullAwareAccessExpression() {
+  NullAwareAccessExpressionIR readNullAwareAccessExpression() {
     final target = readExpression();
     final operationTypeIndex = readByte();
     final operationType = NullAwareOperationType.values[operationTypeIndex];
@@ -395,7 +290,7 @@ mixin ExpressionReader {
     );
   }
 
-  NullCoalescingExpressionIR _readNullCoalescingExpression() {
+  NullCoalescingExpressionIR readNullCoalescingExpression() {
     final left = readExpression();
     final right = readExpression();
     final resultType = readType();
@@ -412,7 +307,7 @@ mixin ExpressionReader {
 
   // --- Function & Method Calls ---
 
-  MethodCallExpressionIR _readMethodCallExpression() {
+  MethodCallExpressionIR readMethodCallExpression() {
     final hasTarget = readByte() != 0;
     ExpressionIR? target;
     if (hasTarget) {
@@ -453,7 +348,7 @@ mixin ExpressionReader {
     );
   }
 
-  FunctionCallExpr _readFunctionCallExpression() {
+  FunctionCallExpr readFunctionCallExpression() {
     final functionName = readStringRef();
 
     final argCount = readUint32();
@@ -490,7 +385,7 @@ mixin ExpressionReader {
     );
   }
 
-  InstanceCreationExpressionIR _readInstanceCreationExpression() {
+  InstanceCreationExpressionIR readInstanceCreationExpression() {
     final type = readType();
     final hasConstructorName = readByte() != 0;
     final constructorName = hasConstructorName ? readStringRef() : null;
@@ -525,7 +420,7 @@ mixin ExpressionReader {
     );
   }
 
-  LambdaExpr _readLambdaExpression() {
+  LambdaExpr readLambdaExpression() {
     final paramCount = readUint32();
     final parameters = <ParameterIR>[];
     for (int i = 0; i < paramCount; i++) {
@@ -589,7 +484,7 @@ mixin ExpressionReader {
 
   // --- Identifiers & Access ---
 
-  IdentifierExpressionIR _readIdentifierExpression() {
+  IdentifierExpressionIR readIdentifierExpression() {
     final name = readStringRef();
     final resultType = readType();
     final sourceLocation = readSourceLocation();
@@ -604,7 +499,7 @@ mixin ExpressionReader {
 
   // --- Collections ---
 
-  ListExpressionIR _readListLiteralExpression() {
+  ListExpressionIR readListLiteralExpression() {
     final elementCount = readUint32();
     final elements = <ExpressionIR>[];
     for (int i = 0; i < elementCount; i++) {
@@ -625,44 +520,9 @@ mixin ExpressionReader {
     );
   }
 
-  MapExpressionIR _readMapLiteralExpression() {
-    final entryCount = readUint32();
-    final entries = <MapEntryIR>[];
-
-    for (int i = 0; i < entryCount; i++) {
-      final entryId = 'map_entry_${_entryIdCounter++}';
-      final entrySourceLocation = readSourceLocation();
-
-      final key = readExpression();
-      final value = readExpression();
-
-      entries.add(
-        MapEntryIR(
-          id: entryId,
-          sourceLocation: entrySourceLocation,
-          key: key,
-          value: value,
-        ),
-      );
-    }
-
-    final isConst = readByte() != 0;
-    final resultType = readType();
-    final sourceLocation = readSourceLocation();
-    final exprId = 'expr_map_${_exprIdCounter++}';
-
-    return MapExpressionIR(
-      id: exprId,
-      entries: entries,
-      isConst: isConst,
-      resultType: resultType,
-      sourceLocation: sourceLocation,
-    );
-  }
-
   // --- Special ---
 
-  ThisExpressionIR _readThisExpression() {
+  ThisExpressionIR readThisExpression() {
     final sourceLocation = readSourceLocation();
     final resultType = readType();
     return ThisExpressionIR(
@@ -672,7 +532,7 @@ mixin ExpressionReader {
     );
   }
 
-  SuperExpressionIR _readSuperExpression() {
+  SuperExpressionIR readSuperExpression() {
     final sourceLocation = readSourceLocation();
     final resultType = readType();
     return SuperExpressionIR(
@@ -682,7 +542,7 @@ mixin ExpressionReader {
     );
   }
 
-  ParenthesizedExpressionIR _readParenthesizedExpression() {
+  ParenthesizedExpressionIR readParenthesizedExpression() {
     final innerExpression = readExpression();
     final sourceLocation = readSourceLocation();
     final resultType = readType();

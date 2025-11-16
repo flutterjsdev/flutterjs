@@ -1,5 +1,10 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:flutterjs_core/src/ast_ir/diagnostics/source_location.dart';
+import 'package:flutterjs_core/src/ast_ir/import_export_stmt.dart';
+import 'package:flutterjs_core/src/ast_ir/ir/expression_ir.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/declaration_writer.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/expression_writer.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/relationship_writer.dart';
@@ -9,6 +14,7 @@ import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/type_writer
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/writer.dart';
 
 import '../../ast_ir/dart_file_builder.dart';
+import '../../ast_ir/ir/expression_types/cascade_expression_ir.dart';
 import 'ir_relationship_registry.dart';
 import '../binary_constain.dart';
 import 'validator_file.dart';
@@ -30,12 +36,10 @@ class BinaryIRWriter
   final Map<String, int> _stringIndices = {};
 
   // =========================================================================
-  // RELATIONSHIP TRACKING - NEW
+  // RELATIONSHIP TRACKING
   // =========================================================================
   late IRRelationshipRegistry _relationships;
-  // ValidatorFile validatorFile = ValidatorFile();
   int _relationshipsStartOffset = 0;
-
   int _stringTableStartOffset = 0;
   int _irDataStartOffset = 0;
 
@@ -43,22 +47,34 @@ class BinaryIRWriter
   bool _verbose = false;
 
   // =========================================================================
+  // MIXIN GETTERS - PROVIDE CONCRETE IMPLEMENTATIONS
+  // =========================================================================
+
+  /// Getter for RelationshipWriter mixin
+  @override
+  IRRelationshipRegistry get relationshipsRegistry => _relationships;
+
+  /// Getter for StringCollectionPhase and RelationshipWriter mixins
+  @override
+  bool get isVerbose => _verbose;
+
+  // =========================================================================
   // PUBLIC API
   // =========================================================================
 
   /// Serialize a DartFile IR to binary format
   Uint8List writeFileIR(DartFile fileIR, {bool verbose = false}) {
+    // CRITICAL: Initialize _verbose FIRST
     _verbose = verbose;
-
-    // =====================================================================
-    // STEP 0: INITIALIZE RELATIONSHIP REGISTRY
-    // =====================================================================
     _relationships = IRRelationshipRegistry();
-    printlog('[INIT] Relationship registry created');
 
+    printlog('[INIT] Serialization started with verbose=$_verbose');
+
+    // try {
     // =====================================================================
     // STEP 1: Validate before doing any work
     // =====================================================================
+    printlog('[STEP 1] Validating FileIR...');
     final validationErrors = validateFileIR(fileIR);
     if (validationErrors.isNotEmpty) {
       throw SerializationException(
@@ -67,67 +83,79 @@ class BinaryIRWriter
         context: 'validation',
       );
     }
+    printlog('[STEP 1] ✓ Validation passed');
 
     _buffer.clear();
     _stringTable.clear();
     _stringIndices.clear();
 
-    try {
-      // ===================================================================
-      // STEP 2: Build relationship map before collecting strings
-      // ===================================================================
-      buildRelationships(fileIR);
+    // ===================================================================
+    // STEP 2: Build relationship map before collecting strings
+    // ===================================================================
+    printlog('[STEP 2] Building relationships...');
+    buildRelationships(fileIR);
+    printlog('[STEP 2] ✓ Relationships built');
 
-      // Step 3: Collect all strings for deduplication
-      collectStrings(fileIR);
-      collectStringsFromRelationships();
+    // STEP 3: Collect all strings for deduplication
+    printlog('[STEP 3] Collecting strings...');
+    collectStrings(fileIR);
+    collectStringsFromRelationships();
+    printlog('[STEP 3] ✓ Collected ${_stringTable.length} unique strings');
 
-      // Step 4: Write header
-      _writeHeader();
+    // STEP 4: Write header
+    printlog('[STEP 4] Writing header...');
+    _writeHeader();
+    printlog('[STEP 4] ✓ Header written');
 
-      // Step 5: Write string table
-      _writeStringTable();
+    // STEP 5: Write string table
+    printlog('[STEP 5] Writing string table...');
+    _writeStringTable();
+    printlog('[STEP 5] ✓ String table written');
 
-      // ===================================================================
-      // STEP 6: WRITE RELATIONSHIP SECTION - NEW
-      // ===================================================================
-      _relationshipsStartOffset = _buffer.length;
-      _writeRelationshipsSection();
-      printlog(
-        '[WRITE] Relationships section at offset: $_relationshipsStartOffset',
-      );
+    // ===================================================================
+    // STEP 6: WRITE RELATIONSHIP SECTION
+    // ===================================================================
+    printlog('[STEP 6] Writing relationships section...');
+    _relationshipsStartOffset = _buffer.length;
+    _writeRelationshipsSection();
+    printlog(
+      '[STEP 6] ✓ Relationships written at offset $_relationshipsStartOffset',
+    );
 
-      // Step 7: Write IR data
-      _writeFileIRData(fileIR);
+    // STEP 7: Write IR data
+    printlog('[STEP 7] Writing IR data...');
+    _writeFileIRData(fileIR);
+    printlog('[STEP 7] ✓ IR data written');
 
-      // ===================================================================
-      // STEP 8: Write checksum if enabled
-      // ===================================================================
-      if (_shouldWriteChecksum) {
-        final dataBeforeChecksum = _buffer.toBytes();
-        writeChecksum(dataBeforeChecksum);
-      }
-
-      if (_verbose) {
-        _debugPrintStructure();
-      }
-
-      return _buffer.toBytes();
-    } catch (e) {
-      if (e is SerializationException) rethrow;
-      throw SerializationException(
-        'Serialization failed: $e',
-        offset: _buffer.length,
-        context: 'writeFileIR',
-      );
+    // ===================================================================
+    // STEP 8: Write checksum if enabled
+    // ===================================================================
+    if (_shouldWriteChecksum) {
+      printlog('[STEP 8] Writing checksum...');
+      final dataBeforeChecksum = _buffer.toBytes();
+      writeChecksum(dataBeforeChecksum);
+      printlog('[STEP 8] ✓ Checksum written');
     }
+
+    if (_verbose) {
+      _debugPrintStructure();
+    }
+
+    printlog('[✓ COMPLETE] Serialization successful: ${_buffer.length} bytes');
+    return _buffer.toBytes();
+    // } catch (e, stackTrace) {
+    //   if (e is SerializationException) {
+    //     printlog('[✗ ERROR] ${e.toString()} $stackTrace');
+    //     rethrow;
+    //   }
+    //   printlog('[✗ ERROR] Unexpected error: $e $stackTrace');
+    //   throw SerializationException(
+    //     'Serialization failed: $e $stackTrace',
+    //     offset: _buffer.length,
+    //     context: 'writeFileIR',
+    //   );
+    // }
   }
-
-  // =============================================================================
-  // FUNCTION SERIALIZATION - BinaryIRWriter
-  // =============================================================================
-
-  /// Add these methods to BinaryIRWriter class
 
   void _debugPrintStructure() {
     printlog('\n=== BINARY STRUCTURE ===');
@@ -191,7 +219,8 @@ class BinaryIRWriter
     }
   }
 
-  void _addString(String str) {
+  @override
+  void addString(String str) {
     if (str.isEmpty) return;
 
     if (!_stringIndices.containsKey(str)) {
@@ -200,20 +229,20 @@ class BinaryIRWriter
     }
   }
 
-  int _getStringRef(String str) {
-    _addString(str);
+  @override
+  int getStringRef(String str) {
+    addString(str);
     return _stringIndices[str] ?? 0;
   }
 
   // =========================================================================
-  // RELATIONSHIP SECTION WRITING - NEW
+  // RELATIONSHIP SECTION WRITING
   // =========================================================================
 
   void _writeRelationshipsSection() {
     try {
       printlog('[WRITE RELATIONSHIPS] START - offset: ${_buffer.length}');
 
-      // Write flags indicating which relationships are present
       int relationshipFlags = 0;
       if (_relationships.widgetToStateClass.isNotEmpty) {
         relationshipFlags |= 0x0001;
@@ -233,13 +262,15 @@ class BinaryIRWriter
       if (_relationships.interfaceImplementers.isNotEmpty) {
         relationshipFlags |= 0x0020;
       }
+      if (_relationships.classBuildOutputs.isNotEmpty) {
+        relationshipFlags |= 0x0040;
+      }
 
       writeUint16(relationshipFlags);
       printlog(
         '[WRITE RELATIONSHIPS] Flags: 0x${relationshipFlags.toRadixString(16)}',
       );
 
-      // Write each relationship type
       if (relationshipFlags & 0x0001 != 0) {
         _writeWidgetStateConnections();
       }
@@ -258,6 +289,9 @@ class BinaryIRWriter
       if (relationshipFlags & 0x0020 != 0) {
         _writeInterfaceImplementers();
       }
+      if (relationshipFlags & 0x0040 != 0) {
+        _writeClassBuildOutputs();
+      }
 
       printlog('[WRITE RELATIONSHIPS] END - offset: ${_buffer.length}');
     } catch (e) {
@@ -269,13 +303,25 @@ class BinaryIRWriter
     }
   }
 
+  void _writeClassBuildOutputs() {
+    printlog('[WRITE WIDGET-OUTPUTS] START');
+    writeUint32(_relationships.classBuildOutputs.length);
+
+    for (final entry in _relationships.classBuildOutputs.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value));
+    }
+
+    printlog('[WRITE WIDGET-OUTPUTS] END');
+  }
+
   void _writeWidgetStateConnections() {
     printlog('[WRITE WIDGET-STATE] START');
     writeUint32(_relationships.widgetToStateClass.length);
 
     for (final entry in _relationships.widgetToStateClass.entries) {
-      writeUint32(_getStringRef(entry.key));
-      writeUint32(_getStringRef(entry.value));
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value));
     }
 
     printlog(
@@ -288,20 +334,19 @@ class BinaryIRWriter
     writeUint32(_relationships.stateLifecycleMethods.length);
 
     for (final entry in _relationships.stateLifecycleMethods.entries) {
-      writeUint32(_getStringRef(entry.key));
+      writeUint32(getStringRef(entry.key));
       writeByte(entry.value.length);
 
       for (final methodEntry in entry.value.entries) {
         writeByte(methodEntry.key.index);
-        writeUint32(_getStringRef(methodEntry.value));
+        writeUint32(getStringRef(methodEntry.value));
       }
     }
 
-    // Write build methods
     writeUint32(_relationships.stateBuildMethods.length);
     for (final entry in _relationships.stateBuildMethods.entries) {
-      writeUint32(_getStringRef(entry.key));
-      writeUint32(_getStringRef(entry.value));
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value));
     }
 
     printlog('[WRITE STATE-LIFECYCLE] END');
@@ -312,11 +357,11 @@ class BinaryIRWriter
     writeUint32(_relationships.methodCalls.length);
 
     for (final entry in _relationships.methodCalls.entries) {
-      writeUint32(_getStringRef(entry.key));
+      writeUint32(getStringRef(entry.key));
       writeUint32(entry.value.length);
 
       for (final calledMethodId in entry.value) {
-        writeUint32(_getStringRef(calledMethodId));
+        writeUint32(getStringRef(calledMethodId));
       }
     }
 
@@ -328,11 +373,11 @@ class BinaryIRWriter
     writeUint32(_relationships.fieldAccesses.length);
 
     for (final entry in _relationships.fieldAccesses.entries) {
-      writeUint32(_getStringRef(entry.key));
+      writeUint32(getStringRef(entry.key));
       writeUint32(entry.value.length);
 
       for (final fieldId in entry.value) {
-        writeUint32(_getStringRef(fieldId));
+        writeUint32(getStringRef(fieldId));
       }
     }
 
@@ -344,8 +389,8 @@ class BinaryIRWriter
     writeUint32(_relationships.classHierarchy.length);
 
     for (final entry in _relationships.classHierarchy.entries) {
-      writeUint32(_getStringRef(entry.key));
-      writeUint32(_getStringRef(entry.value));
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value));
     }
 
     printlog('[WRITE CLASS-HIERARCHY] END');
@@ -356,11 +401,11 @@ class BinaryIRWriter
     writeUint32(_relationships.interfaceImplementers.length);
 
     for (final entry in _relationships.interfaceImplementers.entries) {
-      writeUint32(_getStringRef(entry.key));
+      writeUint32(getStringRef(entry.key));
       writeUint32(entry.value.length);
 
       for (final implementerId in entry.value) {
-        writeUint32(_getStringRef(implementerId));
+        writeUint32(getStringRef(implementerId));
       }
     }
 
@@ -368,7 +413,7 @@ class BinaryIRWriter
   }
 
   // =========================================================================
-  // EXISTING METHODS (PLACEHOLDER)
+  // FILE IR DATA WRITING
   // =========================================================================
 
   void _writeFileIRData(DartFile fileIR) {
@@ -376,21 +421,18 @@ class BinaryIRWriter
       _irDataStartOffset = _buffer.length;
       printlog('[WRITE FILE IR DATA] START');
 
-      // File metadata
-      writeUint32(_getStringRef(fileIR.filePath));
+      writeUint32(getStringRef(fileIR.filePath));
       printlog('[WRITE FILE IR] After filePath: ${_buffer.length}');
 
-      writeUint32(_getStringRef(fileIR.contentHash));
+      writeUint32(getStringRef(fileIR.contentHash));
       printlog('[WRITE FILE IR] After contentHash: ${_buffer.length}');
 
-      writeUint32(_getStringRef(fileIR.library ?? "<unknown>"));
+      writeUint32(getStringRef(fileIR.library ?? "<unknown>"));
       printlog('[WRITE FILE IR] After library: ${_buffer.length}');
 
-      // Analysis metadata
       writeUint64(DateTime.now().millisecondsSinceEpoch);
       printlog('[WRITE FILE IR] After analyzedAt: ${_buffer.length}');
 
-      // Imports
       writeUint32(fileIR.imports.length);
       printlog(
         '[WRITE FILE IR] After importCount: ${_buffer.length}, count: ${fileIR.imports.length}',
@@ -401,7 +443,6 @@ class BinaryIRWriter
       }
       printlog('[WRITE FILE IR] After imports loop: ${_buffer.length}');
 
-      // Exports
       writeUint32(fileIR.exports.length);
       printlog(
         '[WRITE FILE IR] After exportCount: ${_buffer.length}, count: ${fileIR.exports.length}',
@@ -412,7 +453,6 @@ class BinaryIRWriter
       }
       printlog('[WRITE FILE IR] After exports loop: ${_buffer.length}');
 
-      // Top-level variables
       writeUint32(fileIR.variableDeclarations.length);
       printlog('[WRITE FILE IR] After varCount: ${_buffer.length}');
 
@@ -421,7 +461,6 @@ class BinaryIRWriter
       }
       printlog('[WRITE FILE IR] After variables: ${_buffer.length}');
 
-      // Functions
       writeUint32(fileIR.functionDeclarations.length);
       printlog('[WRITE FILE IR] After funcCount: ${_buffer.length}');
 
@@ -430,7 +469,6 @@ class BinaryIRWriter
       }
       printlog('[WRITE FILE IR] After functions: ${_buffer.length}');
 
-      // Classes
       writeUint32(fileIR.classDeclarations.length);
       printlog('[WRITE FILE IR] After classCount: ${_buffer.length}');
 
@@ -439,7 +477,6 @@ class BinaryIRWriter
       }
       printlog('[WRITE FILE IR] After classes: ${_buffer.length}');
 
-      // Analysis issues
       writeUint32(fileIR.analysisIssues.length);
       printlog('[WRITE FILE IR] After issueCount: ${_buffer.length}');
 
@@ -457,7 +494,6 @@ class BinaryIRWriter
     }
   }
 
-  /// Add this method to BinaryIRWriter to validate before writing
   void debugSerialize(DartFile fileIR) {
     printlog('\n=== DEBUG SERIALIZATION ===');
 
@@ -471,14 +507,12 @@ class BinaryIRWriter
     printlog('   Functions: ${fileIR.functionDeclarations.length}');
     printlog('   Classes: ${fileIR.classDeclarations.length}');
 
-    // Check string collection
     printlog('\n2. Collecting strings...');
     final preCollectStrings = _stringTable.length;
     collectStrings(fileIR);
     printlog('   String table size: ${_stringTable.length}');
     printlog('   Strings added: ${_stringTable.length - preCollectStrings}');
 
-    // Show first and last few strings
     printlog('\n3. String table contents:');
     for (
       int i = 0;
@@ -504,12 +538,713 @@ class BinaryIRWriter
     printlog('   Unique strings: ${_stringTable.length}');
     printlog('   Max string index: ${_stringTable.length - 1}');
 
-    printlog('\n5. Potential issues to check:');
-    printlog('   ✓ Are string references within 0-${_stringTable.length - 1}?');
-    printlog('   ✓ Check BinaryIRWriter._getStringRef() returns valid indices');
-    printlog('   ✓ Verify string table size matches actual strings');
-
     printlog('\n=== END DEBUG ===\n');
+  }
+
+  @override
+  void writeSourceLocation(SourceLocationIR location) {
+    writeUint32(getStringRef(location.file));
+    writeUint32(location.line);
+    writeUint32(location.column);
+    writeUint32(location.offset);
+    writeUint32(location.length);
+  }
+
+  @override
+  void printlog(String message) {
+    if (isVerbose) {
+      print(message);
+    }
+  }
+
+  @override
+  void writeByte(int value) {
+    _buffer.addByte(value & 0xFF);
+  }
+
+  @override
+  void writeUint16(int value) {
+    _buffer.addByte((value & 0xFF));
+    _buffer.addByte((value >> 8) & 0xFF);
+  }
+
+  @override
+  void writeUint32(int value) {
+    _buffer.addByte((value & 0xFF));
+    _buffer.addByte((value >> 8) & 0xFF);
+    _buffer.addByte((value >> 16) & 0xFF);
+    _buffer.addByte((value >> 24) & 0xFF);
+  }
+
+  @override
+  void writeInt64(int value) {
+    writeUint32(value & 0xFFFFFFFF);
+    writeUint32((value >> 32) & 0xFFFFFFFF);
+  }
+
+  @override
+  void writeUint64(int value) {
+    writeInt64(value);
+  }
+
+  @override
+  void writeDouble(double value) {
+    final bytes = Float64List(1)..[0] = value;
+    _buffer.add(bytes.buffer.asUint8List());
+  }
+
+  @override
+  void writeString(String str) {
+    final bytes = utf8.encode(str);
+    if (bytes.length > BinaryConstants.MAX_STRING_LENGTH) {
+      throw SerializationException(
+        'String too long: ${bytes.length} bytes (max ${BinaryConstants.MAX_STRING_LENGTH})',
+        offset: _buffer.length,
+        context: 'string_write',
+      );
+    }
+    writeUint16(bytes.length);
+    _buffer.add(bytes);
+  }
+
+  @override
+  List<String> get stringTable => _stringTable;
+
+  @override
+  BytesBuilder get buffer => _buffer;
+
+  @override
+  void collectStringsFromImport(ImportStmt import) {
+    for (final ann in import.annotations) {
+      addString(ann.name);
+    }
+  }
+
+  @override
+  void writeExpression(ExpressionIR expr) {
+    if (expr is LiteralExpressionIR) {
+      writeByte(BinaryConstants.EXPR_LITERAL);
+      writeLiteralExpression(expr);
+    } else if (expr is IdentifierExpressionIR) {
+      writeByte(BinaryConstants.EXPR_IDENTIFIER);
+      writeUint32(getStringRef(expr.name));
+    } else if (expr is BinaryExpressionIR) {
+      writeByte(BinaryConstants.EXPR_BINARY);
+      writeBinaryExpression(expr);
+    } else if (expr is MethodCallExpressionIR) {
+      writeByte(BinaryConstants.EXPR_METHOD_CALL);
+      writeMethodCallExpression(expr);
+    } else if (expr is PropertyAccessExpressionIR) {
+      writeByte(BinaryConstants.EXPR_PROPERTY_ACCESS);
+      writePropertyAccessExpression(expr);
+    } else if (expr is ConditionalExpressionIR) {
+      writeByte(BinaryConstants.EXPR_CONDITIONAL);
+      writeConditionalExpression(expr);
+    } else if (expr is ListExpressionIR) {
+      writeByte(BinaryConstants.EXPR_LIST_LITERAL);
+      writeListLiteralExpression(expr);
+    } else if (expr is MapExpressionIR) {
+      writeByte(BinaryConstants.EXPR_MAP_LITERAL);
+      writeMapLiteralExpression(expr);
+    } else if (expr is SetExpressionIR) {
+      writeByte(BinaryConstants.EXPR_SET_LITERAL);
+      writeSetExpression(expr);
+    } else if (expr is UnaryExpressionIR) {
+      writeByte(BinaryConstants.EXPR_UNARY);
+      writeUnaryExpression(expr);
+    } else if (expr is CompoundAssignmentExpressionIR) {
+      writeByte(BinaryConstants.EXPR_COMPOUND_ASSIGNMENT);
+      writeCompoundAssignmentExpression(expr);
+    } else if (expr is AssignmentExpressionIR) {
+      writeByte(BinaryConstants.EXPR_ASSIGNMENT);
+      writeAssignmentExpression(expr);
+    } else if (expr is IndexAccessExpressionIR) {
+      writeByte(BinaryConstants.EXPR_INDEX_ACCESS);
+      writeIndexAccessExpression(expr);
+    } else if (expr is CascadeExpressionIR) {
+      writeByte(BinaryConstants.EXPR_CASCADE);
+      writeCascadeExpression(expr);
+    } else if (expr is CastExpressionIR) {
+      writeByte(BinaryConstants.EXPR_CAST);
+      writeCastExpression(expr);
+    } else if (expr is TypeCheckExpr) {
+      writeByte(BinaryConstants.EXPR_TYPE_CHECK);
+      writeTypeCheckExpression(expr);
+    } else if (expr is AwaitExpr) {
+      writeByte(BinaryConstants.EXPR_AWAIT);
+      writeAwaitExpression(expr);
+    } else if (expr is ThrowExpr) {
+      writeByte(BinaryConstants.EXPR_THROW);
+      writeThrowExpression(expr);
+    } else if (expr is NullAwareAccessExpressionIR) {
+      writeByte(BinaryConstants.EXPR_NULL_AWARE);
+      writeNullAwareAccessExpression(expr);
+    } else if (expr is NullCoalescingExpressionIR) {
+      writeByte(BinaryConstants.OP_NULL_COALESCE);
+      writeNullCoalescingExpression(expr);
+    } else if (expr is FunctionCallExpr) {
+      writeByte(BinaryConstants.EXPR_FUNCTION_CALL);
+      writeFunctionCallExpression(expr);
+    } else if (expr is StringInterpolationExpressionIR) {
+      writeByte(BinaryConstants.EXPR_STRING_INTERPOLATION);
+      writeStringInterpolationExpression(expr);
+    } else if (expr is InstanceCreationExpressionIR) {
+      writeByte(BinaryConstants.EXPR_INSTANCE_CREATION);
+      writeInstanceCreationExpression(expr);
+    } else if (expr is LambdaExpr) {
+      writeByte(BinaryConstants.EXPR_LAMBDA);
+      writeLambdaExpression(expr);
+    } else if (expr is ThisExpressionIR) {
+      writeByte(BinaryConstants.EXPR_THIS);
+      writeThisExpression(expr);
+    } else if (expr is SuperExpressionIR) {
+      writeByte(BinaryConstants.EXPR_SUPER);
+      writeSuperExpression(expr);
+    } else if (expr is ParenthesizedExpressionIR) {
+      writeByte(BinaryConstants.EXPR_PARENTHESIZED);
+      writeParenthesizedExpression(expr);
+    } else {
+      writeByte(BinaryConstants.EXPR_UNKNOWN);
+    }
+  }
+
+  @override
+  void writeStatement(StatementIR stmt) {
+    if (stmt is ExpressionStmt) {
+      writeByte(BinaryConstants.STMT_EXPRESSION);
+      writeExpressionStatement(stmt);
+    } else if (stmt is VariableDeclarationStmt) {
+      writeByte(BinaryConstants.STMT_VAR_DECL);
+      writeVariableDeclarationStatement(stmt);
+    } else if (stmt is ReturnStmt) {
+      writeByte(BinaryConstants.STMT_RETURN);
+      writeReturnStatement(stmt);
+    } else if (stmt is BreakStmt) {
+      writeByte(BinaryConstants.STMT_BREAK);
+      writeBreakStatement(stmt);
+    } else if (stmt is ContinueStmt) {
+      writeByte(BinaryConstants.STMT_CONTINUE);
+      writeContinueStatement(stmt);
+    } else if (stmt is ThrowStmt) {
+      writeByte(BinaryConstants.STMT_THROW);
+      writeThrowStatement(stmt);
+    } else if (stmt is AssertStatementIR) {
+      writeByte(BinaryConstants.STMT_ASSERT);
+      writeAssertStatement(stmt);
+    } else if (stmt is EmptyStatementIR) {
+      writeByte(BinaryConstants.STMT_EMPTY);
+      writeEmptyStatement(stmt);
+    } else if (stmt is BlockStmt) {
+      writeByte(BinaryConstants.STMT_BLOCK);
+      writeBlockStatement(stmt);
+    } else if (stmt is IfStmt) {
+      writeByte(BinaryConstants.STMT_IF);
+      writeIfStatement(stmt);
+    } else if (stmt is ForStmt) {
+      writeByte(BinaryConstants.STMT_FOR);
+      writeForStatement(stmt);
+    } else if (stmt is ForEachStmt) {
+      writeByte(BinaryConstants.STMT_FOR_EACH);
+      writeForEachStatement(stmt);
+    } else if (stmt is WhileStmt) {
+      writeByte(BinaryConstants.STMT_WHILE);
+      writeWhileStatement(stmt);
+    } else if (stmt is DoWhileStmt) {
+      writeByte(BinaryConstants.STMT_DO_WHILE);
+      writeDoWhileStatement(stmt);
+    } else if (stmt is SwitchStmt) {
+      writeByte(BinaryConstants.STMT_SWITCH);
+      writeSwitchStatement(stmt);
+    } else if (stmt is TryStmt) {
+      writeByte(BinaryConstants.STMT_TRY);
+      writeTryStatement(stmt);
+    } else if (stmt is LabeledStatementIR) {
+      writeByte(BinaryConstants.STMT_LABELED);
+      writeLabeledStatement(stmt);
+    } else if (stmt is YieldStatementIR) {
+      writeByte(BinaryConstants.STMT_YIELD);
+      writeYieldStatement(stmt);
+    } else if (stmt is FunctionDeclarationStatementIR) {
+      writeByte(BinaryConstants.STMT_FUNCTION_DECL);
+      writeFunctionDeclarationStatement(stmt);
+    } else {
+      writeByte(BinaryConstants.STMT_UNKNOWN);
+    }
+  }
+
+  @override
+  void writeFunctionDecl(FunctionDecl func) {
+    printlog(
+      '[WRITE FUNCTION] START - ${func.name} at offset ${buffer.length}',
+    );
+
+    writeUint32(getStringRef(func.id));
+    writeUint32(getStringRef(func.name));
+    writeUint32(getStringRef(func.returnType.displayName()));
+
+    int flags = 0;
+    if (func.isAsync) flags |= 0x01;
+    if (func.isGenerator) flags |= 0x02;
+    if (func.isSyncGenerator) flags |= 0x04;
+    if (func.isStatic) flags |= 0x08;
+    if (func.isAbstract) flags |= 0x10;
+    if (func.isGetter) flags |= 0x20;
+    if (func.isSetter) flags |= 0x40;
+    if (func.isOperator) flags |= 0x80;
+    writeByte(flags);
+
+    int flags2 = 0;
+    if (func.isFactory) flags2 |= 0x01;
+    if (func.isConst) flags2 |= 0x02;
+    if (func.isExternal) flags2 |= 0x04;
+    if (func.isLate) flags2 |= 0x08;
+    if (func.documentation != null) flags2 |= 0x10;
+    if (func is MethodDecl && func.markedOverride) flags2 |= 0x20;
+    writeByte(flags2);
+
+    final visibilityValue = func.visibility == VisibilityModifier.private
+        ? 1
+        : 0;
+    writeByte(visibilityValue);
+
+    printlog('[WRITE FUNCTION] After flags: ${buffer.length}');
+
+    writeType(func.returnType);
+
+    if (func.documentation != null) {
+      writeUint32(getStringRef(func.documentation!));
+    }
+
+    writeUint32(func.annotations.length);
+    for (final ann in func.annotations) {
+      writeAnnotation(ann);
+    }
+    printlog('[WRITE FUNCTION] After annotations: ${buffer.length}');
+
+    writeUint32(func.typeParameters.length);
+    for (final tp in func.typeParameters) {
+      writeUint32(getStringRef(tp.name));
+      writeByte(tp.bound != null ? 1 : 0);
+      if (tp.bound != null) {
+        writeType(tp.bound!);
+      }
+    }
+    printlog('[WRITE FUNCTION] After type params: ${buffer.length}');
+
+    writeUint32(func.parameters.length);
+    for (final param in func.parameters) {
+      writeParameterDecl(param);
+    }
+    printlog('[WRITE FUNCTION] After parameters: ${buffer.length}');
+
+    writeSourceLocation(func.sourceLocation);
+
+    if (func is ConstructorDecl) {
+      writeByte(1);
+      writeUint32(getStringRef(func.constructorClass ?? ''));
+      writeByte(func.constructorName != null ? 1 : 0);
+      if (func.constructorName != null) {
+        writeUint32(getStringRef(func.constructorName!));
+      }
+
+      writeUint32(func.initializers.length);
+      for (final init in func.initializers) {
+        writeUint32(getStringRef(init.fieldName));
+        writeByte(init.isThisField ? 1 : 0);
+        writeExpression(init.value);
+        writeSourceLocation(init.sourceLocation);
+      }
+
+      writeByte(func.superCall != null ? 1 : 0);
+      if (func.superCall != null) {
+        writeByte(func.superCall!.constructorName != null ? 1 : 0);
+        if (func.superCall!.constructorName != null) {
+          writeUint32(getStringRef(func.superCall!.constructorName!));
+        }
+        writeUint32(func.superCall!.arguments.length);
+        for (final arg in func.superCall!.arguments) {
+          writeExpression(arg);
+        }
+        writeUint32(func.superCall!.namedArguments.length);
+        for (final entry in func.superCall!.namedArguments.entries) {
+          writeUint32(getStringRef(entry.key));
+          writeExpression(entry.value);
+        }
+        writeSourceLocation(func.superCall!.sourceLocation);
+      }
+
+      writeByte(func.redirectedCall != null ? 1 : 0);
+      if (func.redirectedCall != null) {
+        writeByte(func.redirectedCall!.constructorName != null ? 1 : 0);
+        if (func.redirectedCall!.constructorName != null) {
+          writeUint32(getStringRef(func.redirectedCall!.constructorName!));
+        }
+        writeUint32(func.redirectedCall!.arguments.length);
+        for (final arg in func.redirectedCall!.arguments) {
+          writeExpression(arg);
+        }
+        writeUint32(func.redirectedCall!.namedArguments.length);
+        for (final entry in func.redirectedCall!.namedArguments.entries) {
+          writeUint32(getStringRef(entry.key));
+          writeExpression(entry.value);
+        }
+        writeSourceLocation(func.redirectedCall!.sourceLocation);
+      }
+
+      printlog('[WRITE FUNCTION] Constructor-specific data written');
+    } else {
+      writeByte(0);
+    }
+
+    if (func is MethodDecl) {
+      writeByte(1);
+      writeByte(func.className != null ? 1 : 0);
+      if (func.className != null) {
+        writeUint32(getStringRef(func.className!));
+      }
+      writeByte(func.overriddenSignature != null ? 1 : 0);
+      if (func.overriddenSignature != null) {
+        writeUint32(getStringRef(func.overriddenSignature!));
+      }
+      printlog('[WRITE FUNCTION] Method-specific data written');
+    } else {
+      writeByte(0);
+    }
+
+    // ✅ FIXED: body is always List<StatementIR>?, no type check needed
+    if (func is! ConstructorDecl && func is! MethodDecl) {
+      writeByte(func.body != null ? 1 : 0);
+      if (func.body != null) {
+        writeUint32(func.body!.length);
+        for (final stmt in func.body!) {
+          writeStatement(stmt);
+        }
+        printlog(
+          '[WRITE FUNCTION] Body statements written: ${func.body!.length}',
+        );
+      }
+    }
+
+    printlog('[WRITE FUNCTION] END - ${func.name} at offset ${buffer.length}');
+  }
+
+  @override
+  void collectStringsFromExpression(ExpressionIR? expr) {
+    if (expr == null) return;
+
+    if (expr is LiteralExpressionIR) {
+      if (expr.literalType == LiteralType.stringValue) {
+        addString(expr.value as String);
+      }
+    } else if (expr is IdentifierExpressionIR) {
+      addString(expr.name);
+    } else if (expr is BinaryExpressionIR) {
+      collectStringsFromExpression(expr.left);
+      collectStringsFromExpression(expr.right);
+    } else if (expr is MethodCallExpressionIR) {
+      collectStringsFromExpression(expr.target);
+      addString(expr.methodName);
+      for (final arg in expr.arguments) {
+        collectStringsFromExpression(arg);
+      }
+      for (final arg in expr.namedArguments.values) {
+        collectStringsFromExpression(arg);
+      }
+    } else if (expr is PropertyAccessExpressionIR) {
+      collectStringsFromExpression(expr.target);
+      addString(expr.propertyName);
+    } else if (expr is ConditionalExpressionIR) {
+      collectStringsFromExpression(expr.condition);
+      collectStringsFromExpression(expr.thenExpression);
+      collectStringsFromExpression(expr.elseExpression);
+    } else if (expr is ListExpressionIR) {
+      for (final elem in expr.elements) {
+        collectStringsFromExpression(elem);
+      }
+    } else if (expr is MapExpressionIR) {
+      for (final entry in expr.entries) {
+        collectStringsFromExpression(entry.key);
+        collectStringsFromExpression(entry.value);
+      }
+    } else if (expr is SetExpressionIR) {
+      for (final elem in expr.elements) {
+        collectStringsFromExpression(elem);
+      }
+    } else if (expr is IndexAccessExpressionIR) {
+      collectStringsFromExpression(expr.target);
+      collectStringsFromExpression(expr.index);
+    } else if (expr is UnaryExpressionIR) {
+      collectStringsFromExpression(expr.operand);
+    } else if (expr is AssignmentExpressionIR) {
+      collectStringsFromExpression(expr.target);
+      collectStringsFromExpression(expr.value);
+    } else if (expr is CastExpressionIR) {
+      collectStringsFromExpression(expr.expression);
+      addString(expr.targetType.displayName());
+    } else if (expr is TypeCheckExpr) {
+      collectStringsFromExpression(expr.expression);
+      addString(expr.typeToCheck.displayName());
+    } else if (expr is AwaitExpr) {
+      collectStringsFromExpression(expr.futureExpression);
+    } else if (expr is ThrowExpr) {
+      collectStringsFromExpression(expr.exceptionExpression);
+    } else if (expr is NullAwareAccessExpressionIR) {
+      collectStringsFromExpression(expr.target);
+      if (expr.operationData != null) {
+        addString(expr.operationData!);
+      }
+    } else if (expr is NullCoalescingExpressionIR) {
+      collectStringsFromExpression(expr.left);
+      collectStringsFromExpression(expr.right);
+    } else if (expr is FunctionCallExpr) {
+      addString(expr.functionName);
+      for (final arg in expr.arguments) {
+        collectStringsFromExpression(arg);
+      }
+      for (final arg in expr.namedArguments.values) {
+        collectStringsFromExpression(arg);
+      }
+    } else if (expr is InstanceCreationExpressionIR) {
+      // ✓ NEW: Add widget class name
+      addString(expr.type.displayName());
+
+      if (expr.constructorName != null) {
+        addString(expr.constructorName!);
+      }
+
+      // ✓ NEW: Add named parameter names (child, children, etc.)
+      for (final argName in expr.namedArguments.keys) {
+        addString(argName);
+      }
+
+      // Recursively collect from arguments
+      for (final arg in expr.arguments) {
+        collectStringsFromExpression(arg);
+      }
+      for (final arg in expr.namedArguments.values) {
+        collectStringsFromExpression(arg);
+      }
+    } else if (expr is LambdaExpr) {
+      for (final param in expr.parameters) {
+        addString(param.id);
+        addString(param.name);
+        addString(param.type.displayName());
+        if (param.defaultValue != null) {
+          collectStringsFromExpression(param.defaultValue);
+        }
+        addString(param.sourceLocation.file);
+      }
+      if (expr.body != null) {
+        collectStringsFromExpression(expr.body);
+      }
+    } else if (expr is StringInterpolationExpressionIR) {
+      for (final part in expr.parts) {
+        if (part.isExpression) {
+          collectStringsFromExpression(part.expression);
+        } else {
+          addString(part.text!);
+        }
+      }
+    } else if (expr is ThisExpressionIR) {
+      // No strings to collect
+    } else if (expr is SuperExpressionIR) {
+      // No strings to collect
+    } else if (expr is ParenthesizedExpressionIR) {
+      collectStringsFromExpression(expr.innerExpression);
+    } else if (expr is CompoundAssignmentExpressionIR) {
+      collectStringsFromExpression(expr.target);
+      collectStringsFromExpression(expr.value);
+    } else if (expr is CascadeExpressionIR) {
+      collectStringsFromExpression(expr.target);
+      for (final section in expr.cascadeSections) {
+        collectStringsFromExpression(section);
+      }
+    }
+  }
+
+  @override
+  void collectStringsFromVariable(VariableDecl variable) {
+    addString(variable.id);
+    addString(variable.name);
+    addString(variable.type.displayName());
+    addString(variable.sourceLocation.file);
+    if (variable.initializer != null) {
+      collectStringsFromExpression(variable.initializer);
+    }
+  }
+
+  @override
+  void collectStringsFromClass(ClassDecl classDecl) {
+    addString(classDecl.id);
+    addString(classDecl.name);
+    addString(classDecl.sourceLocation.file);
+    if (classDecl.documentation != null) addString(classDecl.documentation!);
+    if (classDecl.superclass != null) {
+      addString(classDecl.superclass!.displayName());
+    }
+
+    for (final iface in classDecl.interfaces) {
+      addString(iface.displayName());
+    }
+
+    for (final mixin in classDecl.mixins) {
+      addString(mixin.displayName());
+    }
+
+    for (final field in classDecl.fields) {
+      addString(field.id);
+      addString(field.name);
+      addString(field.type.displayName());
+      addString(field.sourceLocation.file);
+      if (field.initializer != null) {
+        collectStringsFromExpression(field.initializer);
+      }
+    }
+
+    for (final method in classDecl.methods) {
+      addString(method.id);
+      addString(method.name);
+      addString(method.returnType.displayName());
+      addString(method.sourceLocation.file);
+      for (final param in method.parameters) {
+        addString(param.id);
+        addString(param.name);
+        addString(param.type.displayName());
+        addString(param.sourceLocation.file);
+        if (param.defaultValue != null) {
+          collectStringsFromExpression(param.defaultValue);
+        }
+      }
+      if (method.body != null) {
+        collectStringsFromStatements(method.body!);
+      }
+    }
+
+    for (final constructor in classDecl.constructors) {
+      addString(constructor.id);
+      addString(constructor.name);
+      addString(constructor.constructorClass ?? "<unknown>");
+      if (constructor.constructorName != null) {
+        addString(constructor.constructorName!);
+      }
+      addString(constructor.sourceLocation.file);
+
+      for (final param in constructor.parameters) {
+        addString(param.id);
+        addString(param.name);
+        addString(param.type.displayName());
+        addString(param.sourceLocation.file);
+        if (param.defaultValue != null) {
+          collectStringsFromExpression(param.defaultValue);
+        }
+      }
+      for (final init in constructor.initializers) {
+        addString(init.fieldName);
+        collectStringsFromExpression(init.value);
+      }
+
+      if (constructor.body != null) {
+        collectStringsFromStatements(constructor.body!);
+      }
+    }
+  }
+
+  @override
+  void collectStringsFromAnalysisIssues(DartFile fileIR) {
+    for (final issue in fileIR.analysisIssues) {
+      addString(issue.id);
+      addString(issue.code);
+      addString(issue.message);
+      if (issue.suggestion != null) {
+        addString(issue.suggestion!);
+      }
+      addString(issue.sourceLocation.file);
+    }
+  }
+
+  @override
+  void collectStringsFromFunction(FunctionDecl func) {
+    printlog('[COLLECT FUNCTION] ${func.name}');
+
+    addString(func.id);
+    addString(func.name);
+    addString(func.returnType.displayName());
+    addString(func.sourceLocation.file);
+
+    if (func.documentation != null) {
+      addString(func.documentation!);
+    }
+
+    for (final param in func.parameters) {
+      addString(param.id);
+      addString(param.name);
+      addString(param.type.displayName());
+      addString(param.sourceLocation.file);
+      if (param.defaultValue != null) {
+        collectStringsFromExpression(param.defaultValue);
+      }
+    }
+
+    for (final ann in func.annotations) {
+      addString(ann.name);
+    }
+
+    for (final tp in func.typeParameters) {
+      addString(tp.name);
+      if (tp.bound != null) {
+        addString(tp.bound!.displayName());
+      }
+    }
+
+    if (func is ConstructorDecl) {
+      if (func.constructorClass != null) {
+        addString(func.constructorClass!);
+      }
+      if (func.constructorName != null) {
+        addString(func.constructorName!);
+      }
+      for (final init in func.initializers) {
+        addString(init.fieldName);
+        collectStringsFromExpression(init.value);
+      }
+
+      if (func.superCall != null) {
+        for (final arg in func.superCall!.arguments) {
+          collectStringsFromExpression(arg);
+        }
+        for (final arg in func.superCall!.namedArguments.values) {
+          collectStringsFromExpression(arg);
+        }
+      }
+
+      if (func.redirectedCall != null) {
+        for (final arg in func.redirectedCall!.arguments) {
+          collectStringsFromExpression(arg);
+        }
+        for (final arg in func.redirectedCall!.namedArguments.values) {
+          collectStringsFromExpression(arg);
+        }
+      }
+
+      if (func.body != null) {
+        collectStringsFromStatements(func.body!);
+      }
+    }
+
+    if (func is MethodDecl) {
+      if (func.className != null) {
+        addString(func.className!);
+      }
+      if (func.overriddenSignature != null) {
+        addString(func.overriddenSignature!);
+      }
+      if (func.body != null) {
+        collectStringsFromStatements(func.body!);
+      }
+    }
+    if (func.body != null && func is! ConstructorDecl && func is! MethodDecl) {
+      collectStringsFromStatements(func.body!);
+    }
   }
 }
 

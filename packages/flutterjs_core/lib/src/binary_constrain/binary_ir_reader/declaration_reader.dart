@@ -11,8 +11,8 @@ mixin DeclarationReader {
   TypeIR readType();
   ExpressionIR readExpression();
   StatementIR readStatement(); // ✅ Need this for reading function bodies
-
-  int get _offset;
+ParameterDecl readParameterDecl();
+ MethodDecl readMethodDecl();
 
   ImportStmt readImportStmt() {
     final uri = readStringRef();
@@ -77,114 +77,9 @@ mixin DeclarationReader {
     );
   }
 
-  VariableDecl readVariableDecl() {
-    final id = readStringRef();
-    final name = readStringRef();
-    final type = readType();
-
-    final isFinal = readByte() != 0;
-    final isConst = readByte() != 0;
-    final isStatic = readByte() != 0;
-    final isLate = readByte() != 0;
-    final isPrivate = readByte() != 0;
-
-    final hasInitializer = readByte() != 0;
-    ExpressionIR? initializer;
-    if (hasInitializer) {
-      initializer = readExpression();
-    }
-
-    final sourceLocation = readSourceLocation();
-
-    return VariableDecl(
-      id: id,
-      name: name,
-      type: type,
-      isFinal: isFinal,
-      isConst: isConst,
-      isStatic: isStatic,
-      isLate: isLate,
-      initializer: initializer,
-      visibility: isPrivate
-          ? VisibilityModifier.private
-          : VisibilityModifier.public,
-      isPrivate: isPrivate,
-      sourceLocation: sourceLocation,
-    );
-  }
 
   // ✅ FIXED: Read function body statements
-  FunctionDecl readFunctionDecl() {
-    final id = readStringRef();
 
-    final name = readStringRef();
-
-    final returnType = readType();
-
-    final isAsync = readByte() != 0;
-
-    final isGenerator = readByte() != 0;
-
-    final paramCount = readUint32();
-
-    final parameters = <ParameterDecl>[];
-    for (int i = 0; i < paramCount; i++) {
-      parameters.add(readParameterDecl());
-    }
-
-    final sourceLocation = readSourceLocation();
-
-    // ✅ NEW: Read function body statements
-    final hasBody = readByte() != 0;
-    List<StatementIR>? body;
-    if (hasBody) {
-      final stmtCount = readUint32();
-      body = <StatementIR>[];
-      for (int i = 0; i < stmtCount; i++) {
-        body.add(readStatement());
-      }
-    }
-
-    return FunctionDecl(
-      id: id,
-      name: name,
-      returnType: returnType,
-      parameters: parameters,
-      isAsync: isAsync,
-      isGenerator: isGenerator,
-      sourceLocation: sourceLocation,
-      body: body, // ✅ NOW INCLUDED
-    );
-  }
-
-  ParameterDecl readParameterDecl() {
-    final id = readStringRef();
-    final name = readStringRef();
-    final type = readType();
-
-    final isRequired = readByte() != 0;
-    final isNamed = readByte() != 0;
-    final isPositional = readByte() != 0;
-
-    final hasDefaultValue = readByte() != 0;
-    ExpressionIR? defaultValue;
-    if (hasDefaultValue) {
-      defaultValue = readExpression();
-    }
-
-    final sourceLocation = readSourceLocation();
-
-    return ParameterDecl(
-      id: id,
-      name: name,
-      type: type,
-      isRequired: isRequired,
-      isNamed: isNamed,
-      isPositional: isPositional,
-      defaultValue: defaultValue,
-      sourceLocation: sourceLocation,
-    );
-  }
 
   ClassDecl readClassDecl() {
     final id = readStringRef();
@@ -290,71 +185,6 @@ mixin DeclarationReader {
     );
   }
 
-  // ✅ FIXED: Read method body statements
-  MethodDecl readMethodDecl() {
-    final id = readStringRef();
-
-    final name = readStringRef();
-
-    final returnType = readType();
-
-    final isAsync = readByte() != 0;
-
-    final isGenerator = readByte() != 0;
-
-    final isStatic = readByte() != 0;
-
-    final isAbstract = readByte() != 0;
-
-    final isGetter = readByte() != 0;
-
-    final isSetter = readByte() != 0;
-
-    // CRITICAL: Read parameter count
-    final paramCount = readUint32();
-
-    // CRITICAL: Validate paramCount
-    if (paramCount > 100) {
-      throw SerializationException(
-        'Invalid parameter count: $paramCount (likely misaligned bytes)',
-        offset: _offset - 4,
-      );
-    }
-
-    // CRITICAL: Read parameters in loop
-    final parameters = <ParameterDecl>[];
-    for (int i = 0; i < paramCount; i++) {
-      parameters.add(readParameterDecl());
-    }
-
-    final sourceLocation = readSourceLocation();
-
-    // ✅ NEW: Read method body statements
-    final hasBody = readByte() != 0;
-    List<StatementIR>? body;
-    if (hasBody) {
-      final stmtCount = readUint32();
-      body = <StatementIR>[];
-      for (int i = 0; i < stmtCount; i++) {
-        body.add(readStatement());
-      }
-    }
-
-    return MethodDecl(
-      id: id,
-      name: name,
-      returnType: returnType,
-      parameters: parameters,
-      isAsync: isAsync,
-      isGenerator: isGenerator,
-      isStatic: isStatic,
-      isAbstract: isAbstract,
-      isGetter: isGetter,
-      isSetter: isSetter,
-      sourceLocation: sourceLocation,
-      body: body, // ✅ NOW INCLUDED
-    );
-  }
 
   // ✅ FIXED: Read constructor body statements and initializers
   ConstructorDecl readConstructorDecl() {

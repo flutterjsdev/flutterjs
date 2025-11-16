@@ -1,10 +1,15 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
 
 mixin StringCollectionPhase {
-  List<String> get _stringTable;
-  bool get _verbose;
+  // âœ… Abstract getters that must be provided by implementing class
+  List<String> get stringTable;
+  bool get isVerbose;
+  // âœ… FIXED: Use getter to access verbose flag
+  bool get _verbose => isVerbose;
+  List<String> get _stringTable => stringTable;
+
   void printlog(String str);
-  void _addString(String str);
+  void addString(String str);
   void collectStringsFromImport(ImportStmt stm);
   void collectStringsFromExpression(ExpressionIR? expr);
   void collectStringsFromVariable(VariableDecl ver);
@@ -12,7 +17,6 @@ mixin StringCollectionPhase {
   void collectStringsFromAnalysisIssues(DartFile fileIr);
   void collectStringsFromFunction(FunctionDecl func);
 
-  // ✅ FIXED: Match signature exactly with nullable parameter
   void collectStringsFromStatements(List<StatementIR>? stmts) {
     if (stmts == null) return;
     for (final stmt in stmts) {
@@ -21,9 +25,9 @@ mixin StringCollectionPhase {
   }
 
   void collectStrings(DartFile fileIR) {
-    _addString(fileIR.filePath);
-    _addString(fileIR.contentHash);
-    _addString(fileIR.library ?? "<unknown>");
+    addString(fileIR.filePath);
+    addString(fileIR.contentHash);
+    addString(fileIR.library ?? "<unknown>");
 
     printlog('[COLLECT] File: ${fileIR.filePath}');
     printlog('[COLLECT] Imports: ${fileIR.imports.length}');
@@ -33,27 +37,27 @@ mixin StringCollectionPhase {
 
     // Collect from imports
     for (final import in fileIR.imports) {
-      _addString(import.uri);
-      _addString(import.sourceLocation.file);
-      if (import.prefix != null) _addString(import.prefix!);
+      addString(import.uri);
+      addString(import.sourceLocation.file);
+      if (import.prefix != null) addString(import.prefix!);
       for (final show in import.showList) {
-        _addString(show);
+        addString(show);
       }
       for (final hide in import.hideList) {
-        _addString(hide);
+        addString(hide);
       }
       collectStringsFromImport(import);
     }
 
     // Collect from exports
     for (final export in fileIR.exports) {
-      _addString(export.uri);
-      _addString(export.sourceLocation.file);
+      addString(export.uri);
+      addString(export.sourceLocation.file);
       for (final show in export.showList) {
-        _addString(show);
+        addString(show);
       }
       for (final hide in export.hideList) {
-        _addString(hide);
+        addString(hide);
       }
     }
 
@@ -78,22 +82,22 @@ mixin StringCollectionPhase {
     // Collect from analysis issues
     collectStringsFromAnalysisIssues(fileIR);
 
-    printlog('[COLLECT] String table size: ${_stringTable.length}');
+    printlog('[COLLECT] String table size: ${stringTable.length}');
     if (_verbose) {
       debugPrintStringTable();
     }
   }
 
-  // ✅ Core statement string collection - Parameter is nullable
+  // âœ… Core statement string collection - Parameter is nullable
   void collectStringsFromStatement(StatementIR? stmt) {
     if (stmt == null) return;
 
     if (stmt is ExpressionStmt) {
       collectStringsFromExpression(stmt.expression);
     } else if (stmt is VariableDeclarationStmt) {
-      _addString(stmt.name);
+      addString(stmt.name);
       if (stmt.type != null) {
-        _addString(stmt.type!.displayName());
+        addString(stmt.type!.displayName());
       }
       if (stmt.initializer != null) {
         collectStringsFromExpression(stmt.initializer);
@@ -105,7 +109,6 @@ mixin StringCollectionPhase {
     } else if (stmt is IfStmt) {
       collectStringsFromExpression(stmt.condition);
       collectStringsFromStatement(stmt.thenBranch);
-      // ✅ FIXED: elseBranch is nullable, pass without force unwrap
       collectStringsFromStatement(stmt.elseBranch);
     } else if (stmt is ForStmt) {
       if (stmt.initialization is VariableDeclarationStmt) {
@@ -123,9 +126,9 @@ mixin StringCollectionPhase {
       }
       collectStringsFromStatement(stmt.body);
     } else if (stmt is ForEachStmt) {
-      _addString(stmt.loopVariable);
+      addString(stmt.loopVariable);
       if (stmt.loopVariableType != null) {
-        _addString(stmt.loopVariableType!.displayName());
+        addString(stmt.loopVariableType!.displayName());
       }
       collectStringsFromExpression(stmt.iterable);
       collectStringsFromStatement(stmt.body);
@@ -156,17 +159,16 @@ mixin StringCollectionPhase {
       collectStringsFromStatement(stmt.tryBlock);
       for (final catchClause in stmt.catchClauses) {
         if (catchClause.exceptionType != null) {
-          _addString(catchClause.exceptionType!.displayName());
+          addString(catchClause.exceptionType!.displayName());
         }
         if (catchClause.exceptionParameter != null) {
-          _addString(catchClause.exceptionParameter!);
+          addString(catchClause.exceptionParameter!);
         }
         if (catchClause.stackTraceParameter != null) {
-          _addString(catchClause.stackTraceParameter!);
+          addString(catchClause.stackTraceParameter!);
         }
         collectStringsFromStatement(catchClause.body);
       }
-      // ✅ FIXED: finallyBlock is nullable, pass without force unwrap
       collectStringsFromStatement(stmt.finallyBlock);
     } else if (stmt is ReturnStmt) {
       if (stmt.expression != null) {
@@ -176,14 +178,14 @@ mixin StringCollectionPhase {
       collectStringsFromExpression(stmt.exceptionExpression);
     } else if (stmt is BreakStmt) {
       if (stmt.label != null) {
-        _addString(stmt.label!);
+        addString(stmt.label!);
       }
     } else if (stmt is ContinueStmt) {
       if (stmt.label != null) {
-        _addString(stmt.label!);
+        addString(stmt.label!);
       }
     } else if (stmt is LabeledStatementIR) {
-      _addString(stmt.label);
+      addString(stmt.label);
       collectStringsFromStatement(stmt.statement);
     } else if (stmt is YieldStatementIR) {
       collectStringsFromExpression(stmt.value);
@@ -197,14 +199,14 @@ mixin StringCollectionPhase {
     }
 
     // Always collect source location
-    _addString(stmt.sourceLocation.file);
+    addString(stmt.sourceLocation.file);
   }
 
   void debugPrintStringTable() {
     print('\n=== STRING TABLE DEBUG ===');
-    print('Total strings: ${_stringTable.length}');
-    for (int i = 0; i < _stringTable.length; i++) {
-      print('  [$i] "${_stringTable[i]}"');
+    print('Total strings: ${stringTable.length}');
+    for (int i = 0; i < stringTable.length; i++) {
+      print('  [$i] "${stringTable[i]}"');
     }
     print('=== END STRING TABLE ===\n');
   }

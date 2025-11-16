@@ -125,6 +125,8 @@ class DartFile {
   /// When this file was last analyzed
   final DateTime? lastAnalyzedAt;
 
+  
+
   const DartFile({
     required this.filePath,
     this.package,

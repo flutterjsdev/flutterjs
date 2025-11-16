@@ -1,8 +1,7 @@
 // ============================================================================
-// PHASE 3.3: BUILD METHOD CODE GENERATOR
+// PHASE 3.3: BUILD METHOD CODE GENERATOR (FIXED)
 // ============================================================================
 // Converts Flutter build() methods to JavaScript render functions
-// Handles widget tree extraction, conditional rendering, and state access
 // ============================================================================
 
 import 'package:collection/collection.dart';
@@ -15,26 +14,13 @@ import 'statement_code_generator.dart';
 import 'utils/indenter.dart';
 import 'widget_instantiation_code_gen.dart';
 
-// ============================================================================
-// CONFIGURATION
-// ============================================================================
-
-/// Configuration for build method generation
 class BuildMethodGenConfig {
-  /// Whether to generate JSDoc for build method
   final bool generateJSDoc;
-
-  /// Whether to optimize widget tree
   final bool optimizeWidgetTree;
-
-  /// Whether to extract local widget builders
   final bool extractLocalBuilders;
-
-  /// Whether to validate all widgets in tree
   final bool validateWidgets;
-
-  /// Indentation string
   final String indent;
+  final bool verbose;
 
   const BuildMethodGenConfig({
     this.generateJSDoc = true,
@@ -42,12 +28,9 @@ class BuildMethodGenConfig {
     this.extractLocalBuilders = true,
     this.validateWidgets = true,
     this.indent = '  ',
+    this.verbose = false,
   });
 }
-
-// ============================================================================
-// MAIN BUILD METHOD CODE GENERATOR
-// ============================================================================
 
 class BuildMethodCodeGen {
   final BuildMethodGenConfig config;
@@ -58,12 +41,8 @@ class BuildMethodCodeGen {
   final List<CodeGenWarning> warnings = [];
   final List<CodeGenError> errors = [];
 
-  /// Track extracted local builders
   final Map<String, String> localBuilders = {};
-
-  /// Track widget tree structure
   final WidgetTree? widgetTree;
-
   final FlutterPropConverter propConverter;
 
   BuildMethodCodeGen({
@@ -81,6 +60,12 @@ class BuildMethodCodeGen {
     indenter = Indenter(this.config.indent);
   }
 
+  void printDebug(String msg) {
+    if (config.verbose) {
+      print('[BuildMethodGen] $msg');
+    }
+  }
+
   // =========================================================================
   // PUBLIC API
   // =========================================================================
@@ -89,21 +74,27 @@ class BuildMethodCodeGen {
   String generateBuild(MethodDecl buildMethod) {
     try {
       localBuilders.clear();
+      warnings.clear();
+      errors.clear();
 
-      // Generate JSDoc if enabled
+      printDebug('Generating build method: ${buildMethod.name}');
+      printDebug('Body type: ${buildMethod.body.runtimeType}');
+      printDebug('Body null: ${buildMethod.body == null}');
+
       final jsDoc = config.generateJSDoc ? _generateJSDoc(buildMethod) : '';
-
-      // Generate method signature
       final methodBody = _generateBuildBody(buildMethod);
 
-      return '$jsDoc$methodBody';
-    } catch (e) {
+      final result = '$jsDoc$methodBody';
+      printDebug('Generated code length: ${result.length}');
+      return result;
+    } catch (e, st) {
       final error = CodeGenError(
         message: 'Failed to generate build method: $e',
         expressionType: buildMethod.runtimeType.toString(),
         suggestion: 'Check build method body structure',
       );
       errors.add(error);
+      printDebug('❌ Error: $e\n$st');
       rethrow;
     }
   }
@@ -114,129 +105,244 @@ class BuildMethodCodeGen {
 
   String _generateJSDoc(MethodDecl method) {
     final buffer = StringBuffer();
-
     buffer.writeln('/**');
     buffer.writeln(' * Build method - renders the widget tree');
     buffer.writeln(' * @param {any} context - Build context');
     buffer.writeln(' * @returns {Widget} - Root widget of the tree');
     buffer.writeln(' */');
-
     return buffer.toString();
   }
 
   // =========================================================================
-  // BUILD METHOD BODY GENERATION
+  // BUILD METHOD BODY GENERATION (FIXED)
   // =========================================================================
+
   String _generateBuildBody(MethodDecl buildMethod) {
     final buffer = StringBuffer();
     buffer.writeln('build(context) {');
     indenter.indent();
 
-    if (buildMethod.body == null) {
-      buffer.writeln(indenter.line('// TODO: Implement build method'));
+    try {
+      // ✓ FIXED: Check if body is null first
+      if (buildMethod.body == null) {
+        printDebug('⚠️  Body is null');
+        buffer.writeln(indenter.line('// TODO: Implement build method'));
+        indenter.dedent();
+        buffer.write(indenter.line('}'));
+        return buffer.toString();
+      }
+
+      printDebug('Body statements count: ${buildMethod.body}');
+
+      // ✓ FIXED: Handle empty body
+      if (buildMethod.body is List<StatementIR>) {
+        final stmts = buildMethod.body as List<StatementIR>;
+        if (stmts.isEmpty) {
+          printDebug('⚠️  Empty body');
+          buffer.writeln(indenter.line('// Empty build method'));
+          indenter.dedent();
+          buffer.write(indenter.line('}'));
+          return buffer.toString();
+        }
+      }
+
+      // ✓ FIXED: Extract return statement properly
+      final returnStmt = _extractReturnStatement(buildMethod.body);
+
+      if (returnStmt == null) {
+        printDebug('⚠️  No return statement found');
+        buffer.writeln(indenter.line('// Build method has no return'));
+        buffer.writeln(indenter.line('return null;'));
+        warnings.add(CodeGenWarning(
+          severity: WarningSeverity.warning,
+          message: 'No return statement in build method',
+          suggestion: 'Add: return <widget>;',
+        ));
+        indenter.dedent();
+        buffer.write(indenter.line('}'));
+        return buffer.toString();
+      }
+
+      if (returnStmt.expression == null) {
+        printDebug('⚠️  Return statement has no expression');
+        buffer.writeln(indenter.line('return null; // Empty return'));
+        indenter.dedent();
+        buffer.write(indenter.line('}'));
+        return buffer.toString();
+      }
+
+      printDebug('✓ Return expression type: ${returnStmt.expression.runtimeType}');
+
+      // ✓ FIXED: Generate the widget tree
+      final widgetCode = _generateReturnWidget(returnStmt.expression!);
+      buffer.writeln(indenter.line('return $widgetCode;'));
+
+      indenter.dedent();
+      buffer.write(indenter.line('}'));
+      return buffer.toString();
+    } catch (e, st) {
+      printDebug('❌ Error in _generateBuildBody: $e\n$st');
       indenter.dedent();
       buffer.write(indenter.line('}'));
       return buffer.toString();
     }
+  }
 
-    // ✅ FIXED: body is now List<StatementIR>
-    // Process all statements directly
-    if (buildMethod.body!.isEmpty) {
-      buffer.writeln(indenter.line('// Empty build method'));
-    } else {
-      // Look for return statement
-      ReturnStmt? returnStmt;
+  // =========================================================================
+  // RETURN STATEMENT EXTRACTION (FIXED)
+  // =========================================================================
 
-      for (int i = 0; i < buildMethod.body!.length; i++) {
-        final stmt = buildMethod.body![i];
+  /// ✓ NEW: Safely extract return statement from body
+  ReturnStmt? _extractReturnStatement(dynamic body) {
+    if (body == null) {
+      printDebug('Body is null');
+      return null;
+    }
 
-        if (stmt is ReturnStmt && i == buildMethod.body!.length - 1) {
-          // Last statement is return - save it for end
-          returnStmt = stmt;
-        } else {
-          // Generate regular statements
-          buffer.writeln(stmtGen.generate(stmt));
+    // Case 1: body is a List<StatementIR>
+    if (body is List<StatementIR>) {
+      printDebug('Body is List, length: ${body.length}');
+      return _findReturnInStatements(body);
+    }
+
+    // Case 2: body is a single BlockStmt
+    if (body is BlockStmt) {
+      printDebug('Body is BlockStmt');
+      return _findReturnInStatements(body.statements);
+    }
+
+    // Case 3: body is a single ReturnStmt
+    if (body is ReturnStmt) {
+      printDebug('Body is ReturnStmt directly');
+      return body;
+    }
+
+    // Case 4: body is some other statement
+    if (body is StatementIR) {
+      printDebug('Body is ${body.runtimeType}');
+      return null;
+    }
+
+    printDebug('Unknown body type: ${body.runtimeType}');
+    return null;
+  }
+
+  /// ✓ NEW: Find return statement in statement list
+  ReturnStmt? _findReturnInStatements(List<StatementIR> statements) {
+    // Search backwards for the last return statement
+    for (int i = statements.length - 1; i >= 0; i--) {
+      final stmt = statements[i];
+      
+      if (stmt is ReturnStmt) {
+        printDebug('Found ReturnStmt at index $i');
+        return stmt;
+      }
+
+      // Handle nested blocks
+      if (stmt is BlockStmt) {
+        final nested = _findReturnInStatements(stmt.statements);
+        if (nested != null) {
+          printDebug('Found ReturnStmt in nested BlockStmt at index $i');
+          return nested;
         }
       }
 
-      // Handle final return
-      if (returnStmt != null && returnStmt.expression != null) {
-        final widgetCode = _generateReturnWidget(returnStmt.expression!);
-        buffer.writeln(indenter.line('return $widgetCode;'));
-      } else {
-        buffer.writeln(indenter.line('return null; // No return in build'));
-        warnings.add(
-          CodeGenWarning(
-            severity: WarningSeverity.warning,
-            message: 'No explicit return statement found in build method',
-            suggestion: 'Add: return <widget>;',
-          ),
-        );
+      // Handle if statements
+      if (stmt is IfStmt) {
+        // Check then branch
+        if (stmt.thenBranch is ReturnStmt) {
+          return stmt.thenBranch as ReturnStmt;
+        }
+        // Check else branch
+        if (stmt.elseBranch is ReturnStmt) {
+          return stmt.elseBranch as ReturnStmt;
+        }
       }
     }
 
-    indenter.dedent();
-    buffer.write(indenter.line('}'));
-    return buffer.toString();
+    printDebug('No return statement found in list of ${statements.length} statements');
+    return null;
   }
 
+  // =========================================================================
+  // WIDGET TREE GENERATION (FIXED)
+  // =========================================================================
 
-  // =========================================================================
-  // WIDGET TREE GENERATION
-  // =========================================================================
-  String _generateReturnWidget(ExpressionIR expr) {
+  String _generateReturnWidget(ExpressionIR? expr) {
     try {
-      // Handle widget instantiation
+      printDebug('Generating widget for: ${expr.runtimeType}');
+
+      // Handle null
+      if (expr == null) {
+        printDebug('❌ Expression is null');
+        warnings.add(CodeGenWarning(
+          severity: WarningSeverity.error,
+          message: 'Return expression is null',
+        ));
+        return 'null';
+      }
+
+      // ✓ PRIMARY: Widget instantiation
       if (expr is InstanceCreationExpressionIR) {
+        printDebug('✓ InstanceCreationExpressionIR');
+        printDebug('  Widget type: ${expr.type}');
+        printDebug('  Named args: ${expr.namedArguments.length}');
         return widgetInstanGen.generateWidgetInstantiation(expr);
       }
 
-      // Handle conditional (ternary) rendering
+      // Conditional rendering
       if (expr is ConditionalExpressionIR) {
+        printDebug('✓ ConditionalExpressionIR');
         return _generateConditionalWidget(expr);
       }
 
-      // Handle null coalescing
+      // Null coalescing
       if (expr is NullCoalescingExpressionIR) {
+        printDebug('✓ NullCoalescingExpressionIR');
         return _generateNullCoalescingWidget(expr);
       }
 
-      // Handle variable references
+      // Variable references
       if (expr is IdentifierExpressionIR) {
+        printDebug('✓ IdentifierExpressionIR: ${expr.name}');
         return _validateWidgetVariable(expr.name);
       }
 
-      // Handle method calls (helper methods)
+      // Method calls (helpers)
       if (expr is MethodCallExpressionIR) {
+        printDebug('✓ MethodCallExpressionIR: ${expr.methodName}');
         return _generateMethodCallWidget(expr);
       }
 
-      // Handle null-aware access
+      // Null-aware access
       if (expr is NullAwareAccessExpressionIR) {
+        printDebug('✓ NullAwareAccessExpressionIR');
         return _generateNullAwareWidget(expr);
       }
 
-      // Handle function calls
+      // Function calls
       if (expr is FunctionCallExpr) {
+        printDebug('✓ FunctionCallExpr: ${expr.functionName}');
         return _generateFunctionCallWidget(expr);
       }
 
-      // Handle cascade expressions
+      // Cascade expressions
       if (expr is CascadeExpressionIR) {
+        printDebug('✓ CascadeExpressionIR');
         return exprGen.generate(expr, parenthesize: false);
       }
 
-      // IMPORTANT: Don't silently fall through - report it
-      final warning = CodeGenWarning(
+      // Fallback
+      printDebug('⚠️  Unsupported expression type: ${expr.runtimeType}');
+      warnings.add(CodeGenWarning(
         severity: WarningSeverity.warning,
         message: 'Non-standard widget expression: ${expr.runtimeType}',
-        details: 'Attempting generic expression generation',
         suggestion: 'Consider wrapping in a widget class',
-      );
-      warnings.add(warning);
+      ));
 
       return exprGen.generate(expr, parenthesize: false);
-    } catch (e) {
+    } catch (e, st) {
+      printDebug('❌ Error generating widget: $e\n$st');
       final error = CodeGenError(
         message: 'Failed to generate return widget: $e',
         expressionType: expr.runtimeType.toString(),
@@ -248,35 +354,28 @@ class BuildMethodCodeGen {
   }
 
   String _generateConditionalWidget(ConditionalExpressionIR expr) {
-    // condition ? trueWidget : falseWidget
     final cond = exprGen.generate(expr.condition, parenthesize: true);
     final trueWidget = _generateReturnWidget(expr.thenExpression);
     final falseWidget = _generateReturnWidget(expr.elseExpression);
-
     return '$cond ? $trueWidget : $falseWidget';
   }
 
   String _generateNullCoalescingWidget(NullCoalescingExpressionIR expr) {
-    // primaryWidget ?? fallbackWidget
     final primary = _generateReturnWidget(expr.left);
     final fallback = _generateReturnWidget(expr.right);
-
     return '$primary ?? $fallback';
   }
 
   String _validateWidgetVariable(String varName) {
-    // Variable should be a widget instance or method
     return varName;
   }
 
   String _generateMethodCallWidget(MethodCallExpressionIR expr) {
-    // Helper method returning widget
     if (expr.target != null) {
       final target = exprGen.generate(expr.target!, parenthesize: true);
       final args = _generateArgumentList(expr.arguments, expr.namedArguments);
       return '$target.${expr.methodName}($args)';
     } else {
-      // Top-level helper function
       final args = _generateArgumentList(expr.arguments, expr.namedArguments);
       return '${expr.methodName}($args)';
     }
@@ -284,7 +383,6 @@ class BuildMethodCodeGen {
 
   String _generateNullAwareWidget(NullAwareAccessExpressionIR expr) {
     final target = exprGen.generate(expr.target, parenthesize: true);
-
     switch (expr.operationType) {
       case NullAwareOperationType.methodCall:
         return '$target?.${expr.operationData}()';
@@ -301,7 +399,7 @@ class BuildMethodCodeGen {
   }
 
   // =========================================================================
-  // HELPER METHODS
+  // HELPERS
   // =========================================================================
 
   String _generateArgumentList(
@@ -309,50 +407,32 @@ class BuildMethodCodeGen {
     Map<String, ExpressionIR> named,
   ) {
     final parts = <String>[];
-
     parts.addAll(
       positional.map((e) => exprGen.generate(e, parenthesize: false)),
     );
-
     if (named.isNotEmpty) {
       final namedStr = named.entries
-          .map(
-            (e) =>
-                '${e.key}: ${exprGen.generate(e.value, parenthesize: false)}',
-          )
+          .map((e) => '${e.key}: ${exprGen.generate(e.value, parenthesize: false)}')
           .join(', ');
       parts.add('{$namedStr}');
     }
-
     return parts.join(', ');
   }
 
-  /// Extract common widget patterns into helper methods
   String _extractLocalBuilder(String pattern, ExpressionIR expr) {
     final key = 'builder_${pattern}_${expr.id}';
-
     if (!localBuilders.containsKey(key)) {
-      final builderName =
-          '_build${pattern[0].toUpperCase()}${pattern.substring(1)}';
+      final builderName = '_build${pattern[0].toUpperCase()}${pattern.substring(1)}';
       final builderCode = _generateReturnWidget(expr);
-
-      localBuilders[key] =
-          '''
-  $builderName() {
-    return $builderCode;
-  }
-''';
+      localBuilders[key] = '  $builderName() {\n    return $builderCode;\n  }';
     }
-
     return 'this._build${pattern[0].toUpperCase()}${pattern.substring(1)}()';
   }
 
-  /// Get all extracted builders
   String getAllLocalBuilders() {
     return localBuilders.values.join('\n');
   }
 
-  /// Analyze build method for issues
   void analyzeBuild(MethodDecl buildMethod) {
     if (buildMethod.body == null) {
       final error = CodeGenError(
@@ -363,17 +443,8 @@ class BuildMethodCodeGen {
       return;
     }
 
-    // Check for return statement
-    bool hasReturn = false;
-
-    if (buildMethod.body is ReturnStmt) {
-      hasReturn = (buildMethod.body as ReturnStmt).expression != null;
-    } else if (buildMethod.body is BlockStmt) {
-      final block = buildMethod.body as BlockStmt;
-      hasReturn = block.statements.whereType<ReturnStmt>().isNotEmpty;
-    }
-
-    if (!hasReturn) {
+    final returnStmt = _extractReturnStatement(buildMethod.body);
+    if (returnStmt == null) {
       final warning = CodeGenWarning(
         severity: WarningSeverity.warning,
         message: 'Build method does not return a widget',
@@ -383,19 +454,14 @@ class BuildMethodCodeGen {
     }
   }
 
-  /// Get all warnings
   List<CodeGenWarning> getWarnings() => List.unmodifiable(warnings);
-
-  /// Get all errors
   List<CodeGenError> getErrors() => List.unmodifiable(errors);
 
-  /// Generate analysis report
   String generateReport() {
     final buffer = StringBuffer();
-
-    buffer.writeln('\n╔════════════════════════════════════════════════════╗');
-    buffer.writeln('║        BUILD METHOD ANALYSIS REPORT                ║');
-    buffer.writeln('╚════════════════════════════════════════════════════╝\n');
+    buffer.writeln('\n╔════════════════════════════════════════════════╗');
+    buffer.writeln('║   BUILD METHOD ANALYSIS REPORT                 ║');
+    buffer.writeln('╚════════════════════════════════════════════════╝\n');
 
     if (errors.isEmpty && warnings.isEmpty) {
       buffer.writeln('✅ No issues found!\n');
@@ -430,22 +496,10 @@ class BuildMethodCodeGen {
   }
 }
 
-// ============================================================================
-// WIDGET TREE STRUCTURE (for analysis)
-// ============================================================================
-
-/// Represents the structure of a Flutter widget tree
 class WidgetTree {
-  /// Root widget in the tree
   final String rootWidget;
-
-  /// All widgets in the tree
   final List<String> allWidgets;
-
-  /// Depth of the tree
   final int depth;
-
-  /// Conditional branches (widgets with conditional rendering)
   final List<String> conditionalWidgets;
 
   WidgetTree({
@@ -459,142 +513,3 @@ class WidgetTree {
   String toString() =>
       'WidgetTree(root: $rootWidget, depth: $depth, widgets: ${allWidgets.length})';
 }
-
-// ============================================================================
-// WARNING & ERROR TYPES
-// ============================================================================
-
-// ============================================================================
-// EXAMPLE CONVERSIONS
-// ============================================================================
-
-/*
-EXAMPLE 1: Simple Widget Return
-────────────────────────────────
-Dart:
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      child: Text('Hello'),
-      color: Colors.blue,
-    );
-  }
-
-JavaScript:
-  build(context) {
-    return new Container({
-      child: new Text({
-        data: 'Hello'
-      }),
-      color: 'blue'
-    });
-  }
-
-
-EXAMPLE 2: Conditional Rendering
-──────────────────────────────────
-Dart:
-  @override
-  Widget build(BuildContext context) {
-    return isLoading 
-      ? Center(child: CircularProgressIndicator())
-      : ListView(...);
-  }
-
-JavaScript:
-  build(context) {
-    return isLoading 
-      ? new Center({
-          child: new CircularProgressIndicator({})
-        })
-      : new ListView({...});
-  }
-
-
-EXAMPLE 3: Complex Widget Tree
-───────────────────────────────
-Dart:
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('My App')),
-      body: Column(
-        children: [
-          Text('Title'),
-          Expanded(child: ListView(...)),
-        ],
-      ),
-    );
-  }
-
-JavaScript:
-  build(context) {
-    return new Scaffold({
-      appBar: new AppBar({
-        title: new Text({data: 'My App'})
-      }),
-      body: new Column({
-        children: [
-          new Text({data: 'Title'}),
-          new Expanded({
-            child: new ListView({...})
-          })
-        ]
-      })
-    });
-  }
-
-
-EXAMPLE 4: With Local Variables
-────────────────────────────────
-Dart:
-  @override
-  Widget build(BuildContext context) {
-    final title = state.title ?? 'Default';
-    final isVisible = state.show;
-    
-    return Container(
-      child: isVisible ? Text(title) : SizedBox(),
-    );
-  }
-
-JavaScript:
-  build(context) {
-    const title = state.title ?? 'Default';
-    const isVisible = state.show;
-    
-    return new Container({
-      child: isVisible 
-        ? new Text({data: title})
-        : new SizedBox({})
-    });
-  }
-
-
-EXAMPLE 5: Helper Methods
-─────────────────────────
-Dart:
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: _buildContent(),
-    );
-  }
-  
-  Widget _buildContent() {
-    return Column(children: [...]);
-  }
-
-JavaScript:
-  build(context) {
-    return new Scaffold({
-      body: this._buildContent()
-    });
-  }
-  
-  _buildContent() {
-    return new Column({
-      children: [...]
-    });
-  }
-*/

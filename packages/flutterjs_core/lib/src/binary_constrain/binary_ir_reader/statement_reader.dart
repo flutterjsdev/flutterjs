@@ -2,7 +2,7 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 
 mixin StatementReader {
   int readByte();
-  int get _offset;
+
   ExpressionIR readExpression();
   VariableDecl readVariableDecl();
   int readUint32();
@@ -12,55 +12,7 @@ mixin StatementReader {
 
   FunctionDecl readFunctionDecl();
 
-  StatementIR readStatement() {
-    final stmtType = readByte();
-
-    switch (stmtType) {
-      case BinaryConstants.STMT_EXPRESSION:
-        return readExpressionStatement();
-      case BinaryConstants.STMT_VAR_DECL:
-        return _readVariableDeclarationStatement();
-      case BinaryConstants.STMT_RETURN:
-        return _readReturnStatement();
-      case BinaryConstants.STMT_BREAK:
-        return _readBreakStatement();
-      case BinaryConstants.STMT_CONTINUE:
-        return _readContinueStatement();
-      case BinaryConstants.STMT_THROW:
-        return _readThrowStatement();
-      case BinaryConstants.STMT_ASSERT:
-        return _readAssertStatement();
-      case BinaryConstants.STMT_EMPTY:
-        return _readEmptyStatement();
-      case BinaryConstants.STMT_BLOCK:
-        return _readBlockStatement();
-      case BinaryConstants.STMT_IF:
-        return _readIfStatement();
-      case BinaryConstants.STMT_FOR:
-        return _readForStatement();
-      case BinaryConstants.STMT_FOR_EACH:
-        return _readForEachStatement();
-      case BinaryConstants.STMT_WHILE:
-        return _readWhileStatement();
-      case BinaryConstants.STMT_DO_WHILE:
-        return _readDoWhileStatement();
-      case BinaryConstants.STMT_SWITCH:
-        return _readSwitchStatement();
-      case BinaryConstants.STMT_TRY:
-        return _readTryStatement();
-      case BinaryConstants.STMT_LABELED:
-        return _readLabeledStatement();
-      case BinaryConstants.STMT_YIELD:
-        return _readYieldStatement();
-      case BinaryConstants.STMT_FUNCTION_DECL:
-        return _readFunctionDeclarationStatement();
-      default:
-        throw SerializationException(
-          'Unknown statement type: 0x${stmtType.toRadixString(16)}',
-          offset: _offset - 1,
-        );
-    }
-  }
+  StatementIR readStatement();
 
   // --- Simple Statements ---
 
@@ -74,7 +26,7 @@ mixin StatementReader {
     );
   }
 
-  VariableDeclarationStmt _readVariableDeclarationStatement() {
+  VariableDeclarationStmt readVariableDeclarationStatement() {
     final varCount = readUint32();
     final sourceLocation = readSourceLocation();
     final resultType = readType();
@@ -109,7 +61,7 @@ mixin StatementReader {
     );
   }
 
-  ReturnStmt _readReturnStatement() {
+  ReturnStmt readReturnStatement() {
     final hasValue = readByte() != 0;
     ExpressionIR? value;
     if (hasValue) {
@@ -123,7 +75,7 @@ mixin StatementReader {
     );
   }
 
-  BreakStmt _readBreakStatement() {
+  BreakStmt readBreakStatement() {
     final hasLabel = readByte() != 0;
     final label = hasLabel ? readStringRef() : null;
     final sourceLocation = readSourceLocation();
@@ -134,7 +86,7 @@ mixin StatementReader {
     );
   }
 
-  ContinueStmt _readContinueStatement() {
+  ContinueStmt readContinueStatement() {
     final hasLabel = readByte() != 0;
     final label = hasLabel ? readStringRef() : null;
     final sourceLocation = readSourceLocation();
@@ -145,7 +97,7 @@ mixin StatementReader {
     );
   }
 
-  ThrowStmt _readThrowStatement() {
+  ThrowStmt readThrowStatement() {
     final exception = readExpression();
     final sourceLocation = readSourceLocation();
     return ThrowStmt(
@@ -157,7 +109,7 @@ mixin StatementReader {
     );
   }
 
-  AssertStatementIR _readAssertStatement() {
+  AssertStatementIR readAssertStatement() {
     final condition = readExpression();
     final hasMessage = readByte() != 0;
     ExpressionIR? message;
@@ -173,14 +125,14 @@ mixin StatementReader {
     );
   }
 
-  EmptyStatementIR _readEmptyStatement() {
+  EmptyStatementIR readEmptyStatement() {
     final sourceLocation = readSourceLocation();
     return EmptyStatementIR(id: 'stmt_empty', sourceLocation: sourceLocation);
   }
 
   // --- Compound Statements ---
 
-  BlockStmt _readBlockStatement() {
+  BlockStmt readBlockStatement() {
     final stmtCount = readUint32();
     final statements = <StatementIR>[];
     for (int i = 0; i < stmtCount; i++) {
@@ -194,7 +146,7 @@ mixin StatementReader {
     );
   }
 
-  IfStmt _readIfStatement() {
+  IfStmt readIfStatement() {
     final condition = readExpression();
     final thenBranch = readStatement();
     final hasElse = readByte() != 0;
@@ -212,13 +164,13 @@ mixin StatementReader {
     );
   }
 
-  ForStmt _readForStatement() {
+  ForStmt readForStatement() {
     dynamic init;
     final hasInit = readByte() != 0;
     if (hasInit) {
       final initType = readByte();
       if (initType == 0) {
-        init = _readVariableDeclarationStatement();
+        init = readVariableDeclarationStatement();
       } else {
         init = readExpression();
       }
@@ -251,7 +203,7 @@ mixin StatementReader {
     );
   }
 
-  ForEachStmt _readForEachStatement() {
+  ForEachStmt readForEachStatement() {
     final variable = readStringRef();
 
     final hasLoopVariableType = readByte() != 0;
@@ -276,7 +228,7 @@ mixin StatementReader {
     );
   }
 
-  WhileStmt _readWhileStatement() {
+  WhileStmt readWhileStatement() {
     final condition = readExpression();
     final body = readStatement();
     final sourceLocation = readSourceLocation();
@@ -289,7 +241,7 @@ mixin StatementReader {
     );
   }
 
-  DoWhileStmt _readDoWhileStatement() {
+  DoWhileStmt readDoWhileStatement() {
     final body = readStatement();
     final condition = readExpression();
     final sourceLocation = readSourceLocation();
@@ -302,12 +254,12 @@ mixin StatementReader {
     );
   }
 
-  SwitchStmt _readSwitchStatement() {
+  SwitchStmt readSwitchStatement() {
     final expression = readExpression();
     final caseCount = readUint32();
     final cases = <SwitchCaseStmt>[];
     for (int i = 0; i < caseCount; i++) {
-      cases.add(_readSwitchCase());
+      cases.add(readSwitchCase());
     }
 
     final hasDefault = readByte() != 0;
@@ -338,7 +290,7 @@ mixin StatementReader {
     );
   }
 
-  SwitchCaseStmt _readSwitchCase() {
+  SwitchCaseStmt readSwitchCase() {
     final labelCount = readUint32();
     final sourceLocation = readSourceLocation();
     final labels = <ExpressionIR>[];
@@ -360,13 +312,13 @@ mixin StatementReader {
     );
   }
 
-  TryStmt _readTryStatement() {
+  TryStmt readTryStatement() {
     final tryBlock = readStatement();
 
     final catchCount = readUint32();
     final catchClauses = <CatchClauseStmt>[];
     for (int i = 0; i < catchCount; i++) {
-      catchClauses.add(_readCatchClause());
+      catchClauses.add(readCatchClause());
     }
 
     final hasFinally = readByte() != 0;
@@ -386,7 +338,7 @@ mixin StatementReader {
     );
   }
 
-  CatchClauseStmt _readCatchClause() {
+  CatchClauseStmt readCatchClause() {
     final exceptionType = readType();
 
     final hasExceptionVar = readByte() != 0;
@@ -408,7 +360,7 @@ mixin StatementReader {
     );
   }
 
-  LabeledStatementIR _readLabeledStatement() {
+  LabeledStatementIR readLabeledStatement() {
     final label = readStringRef();
     final statement = readStatement();
     final sourceLocation = readSourceLocation();
@@ -421,7 +373,7 @@ mixin StatementReader {
     );
   }
 
-  YieldStatementIR _readYieldStatement() {
+  YieldStatementIR readYieldStatement() {
     final value = readExpression();
     final isYieldEach = readByte() != 0;
     final sourceLocation = readSourceLocation();
@@ -434,7 +386,7 @@ mixin StatementReader {
     );
   }
 
-  FunctionDeclarationStatementIR _readFunctionDeclarationStatement() {
+  FunctionDeclarationStatementIR readFunctionDeclarationStatement() {
     final function = readFunctionDecl();
     final sourceLocation = readSourceLocation();
 

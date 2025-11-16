@@ -18,10 +18,24 @@ class IRRelationshipRegistry {
   final Map<String, String> classHierarchy = {};
   final Map<String, Set<String>> interfaceImplementers = {};
   final Map<String, String> methodOverrides = {};
+  // ✓ NEW: Track what widgets each class builds
+  final Map<String, String> classBuildOutputs = {};
+
+  // ✓ NEW: Track widget composition
+  final Map<String, List<String>> widgetComposition =
+      {}; // Scaffold -> [AppBar, FloatingActionButton, ...]
 
   // =========================================================================
   // REGISTRATION METHODS
   // =========================================================================
+
+  void registerClassBuildOutput(String classId, String widgetName) {
+    classBuildOutputs[classId] = widgetName;
+  }
+
+  void registerWidgetChild(String parentWidget, String childWidget) {
+    widgetComposition.putIfAbsent(parentWidget, () => []).add(childWidget);
+  }
 
   void registerMethodToClass(String methodId, String classId) {
     methodToClass[methodId] = classId;
@@ -41,7 +55,10 @@ class IRRelationshipRegistry {
     fieldAccesses.putIfAbsent(fromMethodId, () => {}).add(fieldId);
   }
 
-  void registerWidgetStateConnection(String widgetClassId, String stateClassId) {
+  void registerWidgetStateConnection(
+    String widgetClassId,
+    String stateClassId,
+  ) {
     widgetToStateClass[widgetClassId] = stateClassId;
   }
 
@@ -66,11 +83,15 @@ class IRRelationshipRegistry {
     String interfaceTypeName,
     String implementingClassId,
   ) {
-    interfaceImplementers.putIfAbsent(interfaceTypeName, () => {})
+    interfaceImplementers
+        .putIfAbsent(interfaceTypeName, () => {})
         .add(implementingClassId);
   }
 
-  void registerMethodOverride(String overrideMethodId, String overriddenMethodId) {
+  void registerMethodOverride(
+    String overrideMethodId,
+    String overriddenMethodId,
+  ) {
     methodOverrides[overrideMethodId] = overriddenMethodId;
   }
 
@@ -86,8 +107,8 @@ class IRRelationshipRegistry {
   String? getStateClassForWidget(String widgetClassId) =>
       widgetToStateClass[widgetClassId];
   Map<StateLifecycleMethod, String> getStateLifecycleMethods(
-          String stateClassId) =>
-      stateLifecycleMethods[stateClassId] ?? {};
+    String stateClassId,
+  ) => stateLifecycleMethods[stateClassId] ?? {};
   String? getStateBuildMethod(String stateClassId) =>
       stateBuildMethods[stateClassId];
   String? getSuperclass(String classId) => classHierarchy[classId];
@@ -152,7 +173,9 @@ class IRRelationshipRegistry {
     // Validate build methods
     for (final entry in stateBuildMethods.entries) {
       if (!validMethodIds.contains(entry.value)) {
-        errors.add('Unknown build method for state ${entry.key}: ${entry.value}');
+        errors.add(
+          'Unknown build method for state ${entry.key}: ${entry.value}',
+        );
       }
     }
 
@@ -185,9 +208,15 @@ class IRRelationshipRegistry {
       buffer.writeln('  State ${entry.key}: ${entry.value.length} methods');
     }
 
-    buffer.writeln('\nMETHOD CALL GRAPH: ${methodCalls.length} methods with calls');
-    buffer.writeln('\nFIELD ACCESS GRAPH: ${fieldAccesses.length} methods accessing fields');
-    buffer.writeln('\nCLASS HIERARCHY: ${classHierarchy.length} inheritance relationships');
+    buffer.writeln(
+      '\nMETHOD CALL GRAPH: ${methodCalls.length} methods with calls',
+    );
+    buffer.writeln(
+      '\nFIELD ACCESS GRAPH: ${fieldAccesses.length} methods accessing fields',
+    );
+    buffer.writeln(
+      '\nCLASS HIERARCHY: ${classHierarchy.length} inheritance relationships',
+    );
     buffer.writeln(
       '\nINTERFACE IMPLEMENTATIONS: ${interfaceImplementers.length} interfaces',
     );
@@ -251,8 +280,6 @@ enum StateLifecycleMethod {
   deactivate,
   activate,
 }
-
-
 
 // =========================================================================
 // VERIFICATION CHECKLIST FOR IRRelationshipRegistry
@@ -568,7 +595,9 @@ extension IRRelationshipQueries on IRRelationshipRegistry {
     buffer.writeln('  State Classes: ${stats['stateClasses']}');
     buffer.writeln('  Build Methods: ${stats['buildMethods']}');
     buffer.writeln('  Inheritance: ${stats['inheritanceLinks']}');
-    buffer.writeln('  Interface Implementations: ${stats['interfaceImplementations']}');
+    buffer.writeln(
+      '  Interface Implementations: ${stats['interfaceImplementations']}',
+    );
     buffer.writeln('  Method Overrides: ${stats['methodOverrides']}\n');
 
     buffer.writeln('🔗 CLASS STRUCTURE:');
@@ -612,8 +641,12 @@ extension IRRelationshipQueries on IRRelationshipRegistry {
 
     buffer.writeln('\n🔍 INTEGRITY CHECK:');
     final circularDeps = hasCircularDependencies();
-    buffer.writeln('  Circular Dependencies: ${circularDeps ? '⚠️  YES' : '✅ NO'}');
-    buffer.writeln('  Estimated Section Size: ${estimateRelationshipsSectionSize()} bytes');
+    buffer.writeln(
+      '  Circular Dependencies: ${circularDeps ? '⚠️  YES' : '✅ NO'}',
+    );
+    buffer.writeln(
+      '  Estimated Section Size: ${estimateRelationshipsSectionSize()} bytes',
+    );
 
     buffer.writeln('\n╚════════════════════════════════════════════╝\n');
     return buffer.toString();

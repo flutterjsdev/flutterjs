@@ -19,6 +19,8 @@ import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 
+import '../cleaner/clean_command.dart';
+
 class RunCommand extends Command<void> {
   RunCommand({required this.verbose, required this.verboseHelp}) {
     argParser
@@ -660,8 +662,8 @@ class RunCommand extends Command<void> {
           final sizeKb = (binaryBytes.length / 1024).toStringAsFixed(2);
           print('    ✓ ${path.basename(entry.key)} ($sizeKb KB)');
         }
-      } catch (e) {
-        if (verbose) print('    ✗ ${path.basename(entry.key)}: $e');
+      } catch (e,stackTrace) {
+        if (verbose) print('    ✗ ${path.basename(entry.key)}: $e $stackTrace');
       }
     }
 
