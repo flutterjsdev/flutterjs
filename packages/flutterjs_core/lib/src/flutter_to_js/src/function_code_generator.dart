@@ -36,6 +36,31 @@ class FunctionGenConfig {
 }
 
 // ============================================================================
+// BODY TYPE ENUMERATION
+// ============================================================================
+
+/// Represents the type of function body
+enum FunctionBodyType {
+  /// No body (abstract or stub)
+  none,
+
+  /// Single return statement (can be arrow function)
+  singleReturn,
+
+  /// Single expression statement (can be arrow function)
+  singleExpression,
+
+  /// Multiple statements (must be regular function)
+  multipleStatements,
+
+  /// Empty body
+  empty,
+
+  /// Unknown or unsupported
+  unknown,
+}
+
+// ============================================================================
 // MAIN FUNCTION CODE GENERATOR
 // ============================================================================
 
@@ -46,6 +71,7 @@ class FunctionCodeGen {
   late Indenter indenter;
   final List<CodeGenError> errors = [];
   final FlutterPropConverter propConverter;
+
   FunctionCodeGen({
     FunctionGenConfig? config,
     StatementCodeGen? stmtGen,
@@ -109,13 +135,16 @@ class FunctionCodeGen {
     // Generate JSDoc if enabled
     final jsDoc = config.generateJSDoc ? _generateJSDoc(func) : '';
 
+    // ✅ FIXED: Check body type to determine if arrow function is possible
+    final bodyType = _analyzeBodyType(func.body);
+
     // Check if this is a simple arrow function candidate
-    // (single expression, not async, not generator)
+    // (single expression/return, not async, not generator)
     if (config.useArrowFunctions &&
         !func.isAsync &&
         !func.isGenerator &&
-        _isSimpleExpression(func)) {
-      return _generateArrowFunction(func, jsDoc);
+        _canBeArrowFunction(bodyType, func.body)) {
+      return _generateArrowFunction(func, jsDoc, bodyType);
     }
 
     // Otherwise generate as regular function
@@ -146,22 +175,15 @@ class FunctionCodeGen {
     buffer.writeln('$header ${func.name}($params) {');
     indenter.indent();
 
-    // Function body
-    if (func.body != null) {
-      if (func.body is BlockStmt) {
-        for (final stmt in (func.body as BlockStmt).statements) {
-          buffer.writeln(stmtGen.generate(stmt));
-        }
-      } else {
-        // Expression body - wrap in return
-        final expr = exprGen.generate(
-          func.body as ExpressionIR,
-          parenthesize: false,
-        );
-        buffer.writeln(indenter.line('return $expr;'));
-      }
-    } else {
+    // ✅ FIXED: body is now List<StatementIR>?
+    if (func.body == null) {
       buffer.writeln(indenter.line('// TODO: Implement ${func.name}'));
+    } else if (func.body!.isEmpty) {
+      buffer.writeln(indenter.line('// Empty function body'));
+    } else {
+      for (final stmt in func.body!) {
+        buffer.writeln(stmtGen.generate(stmt));
+      }
     }
 
     indenter.dedent();
@@ -170,17 +192,18 @@ class FunctionCodeGen {
     return buffer.toString().trim();
   }
 
-  String _generateArrowFunction(FunctionDecl func, String jsDoc) {
+  String _generateArrowFunction(
+    FunctionDecl func,
+    String jsDoc,
+    FunctionBodyType bodyType,
+  ) {
     final params = _generateParameterList(func.parameters);
 
-    // Get expression body
-    ExpressionIR? exprBody;
-    if (func.body is ExpressionIR) {
-      exprBody = func.body as ExpressionIR;
-    }
+    // Extract the expression from body
+    ExpressionIR? exprBody = _extractExpressionFromBody(func.body, bodyType);
 
     if (exprBody == null) {
-      // Fall back to regular function if no expression body
+      // Fall back to regular function if can't extract expression
       return _generateRegularFunction(func, jsDoc);
     }
 
@@ -222,22 +245,17 @@ class FunctionCodeGen {
 
     indenter.indent();
 
-    // Method body
-    if (method.body != null) {
-      if (method.body is BlockStmt) {
-        for (final stmt in (method.body as BlockStmt).statements) {
-          buffer.writeln(stmtGen.generate(stmt));
-        }
-      } else {
-        // Expression body
-        final expr = exprGen.generate(
-          method.body as ExpressionIR,
-          parenthesize: false,
-        );
-        buffer.writeln(indenter.line('return $expr;'));
+    // ✅ FIXED: body is now List<StatementIR>?
+    if (method.body == null) {
+      if (!method.isAbstract) {
+        buffer.writeln(indenter.line('// TODO: Implement ${method.name}'));
       }
-    } else if (!method.isAbstract) {
-      buffer.writeln(indenter.line('// TODO: Implement ${method.name}'));
+    } else if (method.body!.isEmpty) {
+      buffer.writeln(indenter.line('// Empty method body'));
+    } else {
+      for (final stmt in method.body!) {
+        buffer.writeln(stmtGen.generate(stmt));
+      }
     }
 
     indenter.dedent();
@@ -268,15 +286,101 @@ class FunctionCodeGen {
       buffer.writeln(indenter.line('this.${param.name} = ${param.name};'));
     }
 
-    // Constructor body (if any)
-    // TODO: Parse and generate constructor body from IR
-
-    buffer.writeln(indenter.line('// TODO: Constructor body'));
+    // ✅ FIXED: body is now List<StatementIR>?
+    if (ctor.body == null) {
+      buffer.writeln(indenter.line('// TODO: Constructor body'));
+    } else if (ctor.body!.isEmpty) {
+      buffer.writeln(indenter.line('// Empty constructor body'));
+    } else {
+      for (final stmt in ctor.body!) {
+        buffer.writeln(stmtGen.generate(stmt));
+      }
+    }
 
     indenter.dedent();
     buffer.write(indenter.line('}'));
 
     return buffer.toString().trim();
+  }
+
+  // =========================================================================
+  // BODY ANALYSIS - DETERMINE TYPE AND EXTRACT EXPRESSIONS
+  // =========================================================================
+
+  /// ✅ FIXED: Analyze body to determine its type
+  FunctionBodyType _analyzeBodyType(List<StatementIR>? body) {
+    if (body == null) {
+      return FunctionBodyType.none;
+    }
+
+    if (body.isEmpty) {
+      return FunctionBodyType.empty;
+    }
+
+    if (body.length == 1) {
+      final stmt = body.first;
+
+      // Single return statement
+      if (stmt is ReturnStmt) {
+        return FunctionBodyType.singleReturn;
+      }
+
+      // Single expression statement
+      if (stmt is ExpressionStmt) {
+        return FunctionBodyType.singleExpression;
+      }
+    }
+
+    // Multiple statements
+    if (body.length > 1) {
+      return FunctionBodyType.multipleStatements;
+    }
+
+    return FunctionBodyType.unknown;
+  }
+
+  /// ✅ FIXED: Check if body can be converted to arrow function
+  bool _canBeArrowFunction(
+    FunctionBodyType bodyType,
+    List<StatementIR>? body,
+  ) {
+    // Only singleReturn or singleExpression can be arrow functions
+    if (bodyType == FunctionBodyType.singleReturn ||
+        bodyType == FunctionBodyType.singleExpression) {
+      // Verify we can actually extract an expression
+      return _extractExpressionFromBody(body, bodyType) != null;
+    }
+
+    return false;
+  }
+
+  /// ✅ FIXED: Extract expression from single-statement body
+  ExpressionIR? _extractExpressionFromBody(
+    List<StatementIR>? body,
+    FunctionBodyType bodyType,
+  ) {
+    if (body == null || body.isEmpty) {
+      return null;
+    }
+
+    try {
+      if (bodyType == FunctionBodyType.singleReturn) {
+        final stmt = body.first;
+        if (stmt is ReturnStmt) {
+          return stmt.expression;
+        }
+      } else if (bodyType == FunctionBodyType.singleExpression) {
+        final stmt = body.first;
+        if (stmt is ExpressionStmt) {
+          return stmt.expression;
+        }
+      }
+    } catch (e) {
+      // If extraction fails, return null to fall back to regular function
+      return null;
+    }
+
+    return null;
   }
 
   // =========================================================================
@@ -415,10 +519,10 @@ class FunctionCodeGen {
   // UTILITY METHODS
   // =========================================================================
 
-  /// Check if function body is a simple expression
+  /// ✅ FIXED: Properly check if function body is simple expression
   bool _isSimpleExpression(FunctionDecl func) {
-    if (func.body == null) return false;
-    return func.body is ExpressionIR && func.body is! MethodCallExpressionIR;
+    final bodyType = _analyzeBodyType(func.body);
+    return _canBeArrowFunction(bodyType, func.body);
   }
 
   /// Determine if function should use const keyword
@@ -439,167 +543,3 @@ class FunctionCodeGen {
     return '${param.name} $typeHint';
   }
 }
-
-// ============================================================================
-// HELPER: INDENTER (shared with StatementCodeGen)
-// ============================================================================
-
-
-// ============================================================================
-// EXAMPLE CONVERSIONS
-// ============================================================================
-
-/*
-EXAMPLE 1: Simple Arrow Function
-──────────────────────────────────
-Dart:
-  int add(int a, int b) => a + b;
-
-JavaScript:
-  const add = (a, b) => a + b;
-
-
-EXAMPLE 2: Function with Named Parameters
-──────────────────────────────────────────
-Dart:
-  void configure({String host = 'localhost', int port = 8080}) {
-    print('$host:$port');
-  }
-
-JavaScript:
-  function configure({host = 'localhost', port = 8080} = {}) {
-    console.log(`${host}:${port}`);
-  }
-
-
-EXAMPLE 3: Async Function
-─────────────────────────
-Dart:
-  Future<String> fetchData() async {
-    return await http.get('/api/data');
-  }
-
-JavaScript:
-  async function fetchData() {
-    return await http.get('/api/data');
-  }
-
-
-EXAMPLE 4: Generator Function
-─────────────────────────────
-Dart:
-  Iterable<int> count(int max) sync* {
-    for (int i = 0; i < max; i++) {
-      yield i;
-    }
-  }
-
-JavaScript:
-  function* count(max) {
-    for (let i = 0; i < max; i++) {
-      yield i;
-    }
-  }
-
-
-EXAMPLE 5: Async Generator
-──────────────────────────
-Dart:
-  Stream<String> fetchLines() async* {
-    for await (String line in input) {
-      yield line;
-    }
-  }
-
-JavaScript:
-  async function* fetchLines() {
-    for await (const line of input) {
-      yield line;
-    }
-  }
-
-
-EXAMPLE 6: Method with JSDoc
-────────────────────────────
-Dart:
-  String greet(String name) => 'Hello, $name!';
-
-JavaScript:
-  /**
-   * @param {string} name
-   * @returns {string}
-   */
-  greet(name) {
-    return `Hello, ${name}!`;
-  }
-
-
-EXAMPLE 7: Constructor
-─────────────────────
-Dart:
-  class Point {
-    int x, y;
-    Point(this.x, this.y);
-  }
-
-JavaScript:
-  class Point {
-    constructor(x, y) {
-      this.x = x;
-      this.y = y;
-    }
-  }
-
-
-EXAMPLE 8: Getter/Setter
-───────────────────────
-Dart:
-  class Rectangle {
-    int _width;
-    int get width => _width;
-    set width(int w) => _width = w;
-  }
-
-JavaScript:
-  class Rectangle {
-    constructor(width) {
-      this._width = width;
-    }
-    
-    get width() {
-      return this._width;
-    }
-    
-    set width(w) {
-      this._width = w;
-    }
-  }
-
-
-EXAMPLE 9: Static Method
-───────────────────────
-Dart:
-  class Math {
-    static int abs(int x) => x < 0 ? -x : x;
-  }
-
-JavaScript:
-  class Math {
-    static abs(x) {
-      return x < 0 ? -x : x;
-    }
-  }
-
-
-EXAMPLE 10: Method with Optional Parameters
-────────────────────────────────────────────
-Dart:
-  String format(String str, {int width = 10, bool uppercase = false}) {
-    return uppercase ? str.toUpperCase() : str;
-  }
-
-JavaScript:
-  function format(str, {width = 10, uppercase = false} = {}) {
-    return uppercase ? str.toUpperCase() : str;
-  }
-*/

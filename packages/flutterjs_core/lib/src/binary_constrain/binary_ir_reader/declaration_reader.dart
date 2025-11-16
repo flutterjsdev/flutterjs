@@ -10,9 +10,9 @@ mixin DeclarationReader {
 
   TypeIR readType();
   ExpressionIR readExpression();
+  StatementIR readStatement(); // ✅ Need this for reading function bodies
 
   int get _offset;
-  // set _offset(int value);
 
   ImportStmt readImportStmt() {
     final uri = readStringRef();
@@ -113,6 +113,7 @@ mixin DeclarationReader {
     );
   }
 
+  // ✅ FIXED: Read function body statements
   FunctionDecl readFunctionDecl() {
     final id = readStringRef();
 
@@ -133,6 +134,17 @@ mixin DeclarationReader {
 
     final sourceLocation = readSourceLocation();
 
+    // ✅ NEW: Read function body statements
+    final hasBody = readByte() != 0;
+    List<StatementIR>? body;
+    if (hasBody) {
+      final stmtCount = readUint32();
+      body = <StatementIR>[];
+      for (int i = 0; i < stmtCount; i++) {
+        body.add(readStatement());
+      }
+    }
+
     return FunctionDecl(
       id: id,
       name: name,
@@ -141,6 +153,7 @@ mixin DeclarationReader {
       isAsync: isAsync,
       isGenerator: isGenerator,
       sourceLocation: sourceLocation,
+      body: body, // ✅ NOW INCLUDED
     );
   }
 
@@ -277,6 +290,7 @@ mixin DeclarationReader {
     );
   }
 
+  // ✅ FIXED: Read method body statements
   MethodDecl readMethodDecl() {
     final id = readStringRef();
 
@@ -315,6 +329,17 @@ mixin DeclarationReader {
 
     final sourceLocation = readSourceLocation();
 
+    // ✅ NEW: Read method body statements
+    final hasBody = readByte() != 0;
+    List<StatementIR>? body;
+    if (hasBody) {
+      final stmtCount = readUint32();
+      body = <StatementIR>[];
+      for (int i = 0; i < stmtCount; i++) {
+        body.add(readStatement());
+      }
+    }
+
     return MethodDecl(
       id: id,
       name: name,
@@ -327,9 +352,11 @@ mixin DeclarationReader {
       isGetter: isGetter,
       isSetter: isSetter,
       sourceLocation: sourceLocation,
+      body: body, // ✅ NOW INCLUDED
     );
   }
 
+  // ✅ FIXED: Read constructor body statements and initializers
   ConstructorDecl readConstructorDecl() {
     final id = readStringRef();
     final constructorClass = readStringRef();
@@ -348,6 +375,35 @@ mixin DeclarationReader {
 
     final sourceLocation = readSourceLocation();
 
+    // ✅ NEW: Read constructor initializers
+    final initCount = readUint32();
+    final initializers = <ConstructorInitializer>[];
+    for (int i = 0; i < initCount; i++) {
+      final fieldName = readStringRef();
+      final isThisField = readByte() != 0;
+      final value = readExpression();
+      final initSourceLocation = readSourceLocation();
+      initializers.add(
+        ConstructorInitializer(
+          fieldName: fieldName,
+          value: value,
+          isThisField: isThisField,
+          sourceLocation: initSourceLocation,
+        ),
+      );
+    }
+
+    // ✅ NEW: Read constructor body statements
+    final hasBody = readByte() != 0;
+    List<StatementIR>? body;
+    if (hasBody) {
+      final stmtCount = readUint32();
+      body = <StatementIR>[];
+      for (int i = 0; i < stmtCount; i++) {
+        body.add(readStatement());
+      }
+    }
+
     return ConstructorDecl(
       id: id,
       name: constructorName ?? '',
@@ -357,6 +413,8 @@ mixin DeclarationReader {
       isConst: isConst,
       isFactory: isFactory,
       sourceLocation: sourceLocation,
+      body: body, // ✅ NOW INCLUDED
+      initializers: initializers, // ✅ NOW INCLUDED
     );
   }
 }

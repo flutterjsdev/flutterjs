@@ -1,9 +1,6 @@
 import 'package:meta/meta.dart';
-
 import '../../../ast_it.dart';
-import '../../expression_ir.dart';
-import '../../ir_node.dart';
-import '../../type_ir.dart';
+
 
 @immutable
 class IntLiteralExpr extends ExpressionIR {
@@ -157,7 +154,7 @@ class MapEntryIR extends IRNode {
       'sourceLocation': sourceLocation.toJson(),
       'key': key.toJson(),
       'value': value.toJson(),
-      if (metadata != null) 'metadata': metadata,
+      if (metadata.isNotEmpty) 'metadata': metadata,
     };
   }
 

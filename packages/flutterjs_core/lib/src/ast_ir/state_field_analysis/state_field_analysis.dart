@@ -1,5 +1,4 @@
 import 'package:meta/meta.dart';
-import '../class_decl.dart';
 import '../diagnostics/analysis_issue.dart';
 import '../diagnostics/source_location.dart';
 import '../ir/expression_ir.dart';
@@ -577,7 +576,7 @@ class CircularDependencyIR {
   CircularDependencyIR({required this.fieldChain});
 
   @override
-  String toString() => fieldChain.join(' → ') + ' → ' + fieldChain.first;
+  String toString() => '${fieldChain.join(' → ')} → ${fieldChain.first}';
 }
 
 /// Redundant state modification

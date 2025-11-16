@@ -13,6 +13,7 @@ import '../flutter_to_js.dart';
 import 'build_method_code_gen.dart';
 import 'flutter_prop_converters.dart';
 import 'function_code_generator.dart';
+import 'stateless_widget_js_code_gen.dart';
 
 // ============================================================================
 // CONFIGURATION
@@ -144,6 +145,25 @@ class StateModel {
   @override
   String toString() =>
       'StateModel(reactive: ${reactiveFields.length}, non-reactive: ${nonReactiveFields.length})';
+}
+
+// ============================================================================
+// LIFECYCLE BODY ANALYSIS
+// ============================================================================
+
+/// Represents the type of lifecycle method body
+enum LifecycleBodyType {
+  /// No body (abstract or stub)
+  none,
+
+  /// Empty body
+  empty,
+
+  /// Contains statements
+  hasStatements,
+
+  /// Unknown
+  unknown,
 }
 
 // ============================================================================
@@ -482,8 +502,7 @@ class StatefulWidgetJSCodeGen {
     }
   }
 
-
- void _generateInitState(StringBuffer buffer) {
+  void _generateInitState(StringBuffer buffer) {
     buffer.writeln(indenter.line('initState() {'));
     indenter.indent();
 
@@ -492,16 +511,19 @@ class StatefulWidgetJSCodeGen {
     }
 
     if (lifecycleMapping.initState != null) {
-      // ✅ FIXED: methodBody is now List<StatementIR>?
+      // ✅ FIXED: Analyze and handle List<StatementIR>? properly
+      final bodyType = _analyzeLifecycleBody(lifecycleMapping.initState!.body);
+
       try {
         final methodBody = lifecycleMapping.initState!.body;
-        if (methodBody != null && methodBody.isNotEmpty) {
-          // methodBody is already a List<StatementIR>
+        if (bodyType == LifecycleBodyType.hasStatements && methodBody != null) {
           for (final stmt in methodBody) {
             buffer.writeln(stmtCodeGen.generate(stmt));
           }
+        } else if (bodyType == LifecycleBodyType.empty) {
+          buffer.writeln(indenter.line('// initState body is empty'));
         } else {
-          buffer.writeln(indenter.line('// initState body not available'));
+          buffer.writeln(indenter.line('// TODO: Initialize state'));
         }
       } catch (e) {
         warnings.add(
@@ -535,11 +557,12 @@ class StatefulWidgetJSCodeGen {
     }
 
     if (lifecycleMapping.dispose != null) {
-      // ✅ FIXED: methodBody is now List<StatementIR>?
+      // ✅ FIXED: Analyze and handle List<StatementIR>? properly
+      final bodyType = _analyzeLifecycleBody(lifecycleMapping.dispose!.body);
+
       try {
         final methodBody = lifecycleMapping.dispose!.body;
-        if (methodBody != null && methodBody.isNotEmpty) {
-          // methodBody is already a List<StatementIR>
+        if (bodyType == LifecycleBodyType.hasStatements && methodBody != null) {
           for (final stmt in methodBody) {
             // Skip super.dispose() if already present
             if (stmt is! ExpressionStmt ||
@@ -576,11 +599,12 @@ class StatefulWidgetJSCodeGen {
       buffer.writeln(indenter.line('super.didUpdateWidget(oldWidget);'));
     }
 
+    // ✅ FIXED: Analyze and handle List<StatementIR>? properly
+    final bodyType = _analyzeLifecycleBody(lifecycleMapping.didUpdateWidget!.body);
+
     try {
       final methodBody = lifecycleMapping.didUpdateWidget!.body;
-      // ✅ FIXED: methodBody is now List<StatementIR>?
-      if (methodBody != null && methodBody.isNotEmpty) {
-        // methodBody is already a List<StatementIR>
+      if (bodyType == LifecycleBodyType.hasStatements && methodBody != null) {
         for (final stmt in methodBody) {
           if (stmt is! ExpressionStmt ||
               !_isSuperCall(stmt.expression, 'didUpdateWidget')) {
@@ -612,18 +636,19 @@ class StatefulWidgetJSCodeGen {
       buffer.writeln(indenter.line('super.didChangeDependencies();'));
     }
 
-    // ✅ FIXED: methodBody is now List<StatementIR>?
+    // ✅ FIXED: Analyze and handle List<StatementIR>? properly
+    final bodyType = _analyzeLifecycleBody(lifecycleMapping.didChangeDependencies!.body);
+
     try {
       final methodBody = lifecycleMapping.didChangeDependencies!.body;
-      if (methodBody != null && methodBody.isNotEmpty) {
-        // methodBody is already a List<StatementIR>
+      if (bodyType == LifecycleBodyType.hasStatements && methodBody != null) {
         for (final stmt in methodBody) {
           if (stmt is! ExpressionStmt ||
               !_isSuperCall(stmt.expression, 'didChangeDependencies')) {
             buffer.writeln(stmtCodeGen.generate(stmt));
           }
         }
-      } else {
+      } else if (bodyType == LifecycleBodyType.none) {
         buffer.writeln(
           indenter.line('// TODO: Convert didChangeDependencies body'),
         );
@@ -644,7 +669,6 @@ class StatefulWidgetJSCodeGen {
     buffer.writeln(indenter.line('}'));
     buffer.writeln();
   }
- 
 
   void _generateSetStateWrapper(StringBuffer buffer) {
     buffer.writeln(indenter.line('setState(callback) {'));
@@ -671,9 +695,6 @@ class StatefulWidgetJSCodeGen {
     buffer.writeln(indenter.line('}'));
     buffer.writeln();
   }
-
-
-
 
   void _generateCustomMethods(StringBuffer buffer) {
     final customMethods = stateClass.declaration.instanceMethods
@@ -717,6 +738,52 @@ class StatefulWidgetJSCodeGen {
 
     if (customMethods.isNotEmpty) {
       buffer.writeln();
+    }
+  }
+
+  // =========================================================================
+  // LIFECYCLE BODY ANALYSIS
+  // =========================================================================
+
+  /// ✅ FIXED: Analyze lifecycle method body type
+  LifecycleBodyType _analyzeLifecycleBody(List<StatementIR>? body) {
+    if (body == null) {
+      return LifecycleBodyType.none;
+    }
+
+    if (body.isEmpty) {
+      return LifecycleBodyType.empty;
+    }
+
+    if (body.isNotEmpty) {
+      return LifecycleBodyType.hasStatements;
+    }
+
+    return LifecycleBodyType.unknown;
+  }
+
+  /// ✅ FIXED: Get statement count from lifecycle body
+  int _getLifecycleStatementCount(List<StatementIR>? body) {
+    return body?.length ?? 0;
+  }
+
+  /// ✅ FIXED: Check if lifecycle body contains specific statement type
+  bool _lifecycleHasStatementType<T extends StatementIR>(List<StatementIR>? body) {
+    if (body == null || body.isEmpty) return false;
+    return body.any((stmt) => stmt is T);
+  }
+
+  /// ✅ FIXED: Get description of lifecycle body type
+  String _describeLifecycleBodyType(LifecycleBodyType type) {
+    switch (type) {
+      case LifecycleBodyType.none:
+        return 'none';
+      case LifecycleBodyType.empty:
+        return 'empty';
+      case LifecycleBodyType.hasStatements:
+        return 'hasStatements';
+      case LifecycleBodyType.unknown:
+        return 'unknown';
     }
   }
 
@@ -863,138 +930,3 @@ class CodeGenError {
       '${suggestion != null ? '\n  Suggestion: $suggestion' : ''}';
 }
 
-// ============================================================================
-// HELPER: INDENTER
-// ============================================================================
-
-
-
-// ============================================================================
-// EXAMPLE CONVERSIONS
-// ============================================================================
-
-/*
-EXAMPLE 1: Simple Counter
-──────────────────────────
-Dart:
-  class MyCounter extends StatefulWidget {
-    @override
-    State<MyCounter> createState() => _MyCounterState();
-  }
-  
-  class _MyCounterState extends State<MyCounter> {
-    int count = 0;
-    
-    @override
-    void initState() {
-      super.initState();
-    }
-    
-    @override
-    Widget build(BuildContext context) {
-      return Container(child: Text('$count'));
-    }
-  }
-
-JavaScript:
-  class MyCounter extends StatefulWidget {
-    constructor() {
-      super();
-    }
-    
-    createState() {
-      return new _MyCounterState();
-    }
-  }
-  
-  class _MyCounterState extends State {
-    constructor() {
-      super();
-    }
-    
-    count = 0; // int
-    
-    initState() {
-      super.initState();
-      // TODO: Initialize state
-    }
-    
-    dispose() {
-      super.dispose();
-    }
-    
-    setState(callback) {
-      callback.call(this);
-      super.setState();
-    }
-    
-    build(context) {
-      return new Container({
-        child: new Text({
-          data: `${this.count}`
-        })
-      });
-    }
-  }
-
-
-EXAMPLE 2: With Lifecycle & State
-──────────────────────────────────
-Dart:
-  class _MyWidgetState extends State<MyWidget> {
-    late TextEditingController _controller;
-    
-    @override
-    void initState() {
-      super.initState();
-      _controller = TextEditingController();
-    }
-    
-    @override
-    void dispose() {
-      _controller.dispose();
-      super.dispose();
-    }
-    
-    @override
-    Widget build(BuildContext context) {
-      return Column(children: [...]);
-    }
-  }
-
-JavaScript:
-  class _MyWidgetState extends State {
-    _controller = null; // Resource
-    
-    initState() {
-      super.initState();
-      this._controller = new TextEditingController();
-    }
-    
-    dispose() {
-      this._controller?.dispose();
-      super.dispose();
-    }
-    
-    setState(callback) {
-      callback.call(this);
-      super.setState();
-    }
-    
-    build(context) {
-      return new Column({
-        children: [...]
-      });
-    }
-  }
-*/
-
-extension ListX<T> on List<T> {
-  T? firstWhereOrNull(bool Function(T) test) {
-    try {
-      return firstWhere(test);
-    } catch (e) {
-      return null;
-    }
-  }
-}

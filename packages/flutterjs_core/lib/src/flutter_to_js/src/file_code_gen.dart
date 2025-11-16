@@ -5,6 +5,7 @@
 import 'package:flutterjs_core/src/ast_ir/ir/expression_types/cascade_expression_ir.dart';
 import '../../../flutterjs_core.dart';
 import 'js_optimizer.dart';
+import 'stateless_widget_js_code_gen.dart';
 import 'utils/indenter.dart';
 
 class FileCodeGen {

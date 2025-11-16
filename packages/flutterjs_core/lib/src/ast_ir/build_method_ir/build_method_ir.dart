@@ -4,9 +4,7 @@ import '../diagnostics/source_location.dart';
 import '../function_decl.dart';
 import '../ir/expression_ir.dart';
 import '../ir/ir_node.dart';
-import '../ir/statement/statement_ir.dart';
 import '../ir/type_ir.dart';
-import '../parameter_decl.dart';
 import 'key_type_ir.dart';
 import 'widget_node_ir.dart';
 import 'widget_tree_ir.dart';
@@ -117,13 +115,13 @@ class BuildMethodIR extends MethodDecl {
   final List<BuildMethodIssueIR> issues;
 
   BuildMethodIR({
-    required String id,
-    required String name,
-    required String? className,
-    required SourceLocationIR sourceLocation,
-    String? documentation,
-    List<ParameterDecl> parameters = const [],
-    List<StatementIR>? body,
+    required super.id,
+    required super.name,
+    required super.className,
+    required super.sourceLocation,
+    super.documentation,
+    super.parameters = const [],
+    super.body,
     this.rootWidget,
     this.widgetTree,
     this.instantiatedWidgets = const [],
@@ -143,17 +141,7 @@ class BuildMethodIR extends MethodDecl {
     this.animationUsages = const [],
     this.gestureHandlers = const [],
     this.issues = const [],
-  }) : super(
-         id: id,
-         name: name,
-         returnType: TypeIR.widget(),
-         className: className,
-         parameters: parameters,
-         body: body,
-         sourceLocation: sourceLocation,
-         documentation: documentation,
-         isGetter: false,
-       );
+  }) : super(returnType: TypeIR.widget(), isGetter: false);
 
   /// Total number of widgets instantiated in this build
   int get totalWidgetCount => instantiatedWidgets.length;
@@ -212,7 +200,7 @@ class BuildMethodIR extends MethodDecl {
     // Very deep nesting can cause performance issues
     if (maxNestingDepth > 20) {
       issues.add(
-        'Widget tree nesting depth (${maxNestingDepth}) exceeds recommended maximum (20)',
+        'Widget tree nesting depth ($maxNestingDepth) exceeds recommended maximum (20)',
       );
     }
 
@@ -243,7 +231,7 @@ class BuildMethodIR extends MethodDecl {
           sourceLocation: sourceLocation,
           type: OptimizationType.addConstKeyword,
           description:
-              'Add const keyword to ${nonConstWidgetCount} widgets to prevent unnecessary rebuilds',
+              'Add const keyword to $nonConstWidgetCount widgets to prevent unnecessary rebuilds',
           impact: OptimizationImpact.high,
           widgets: instantiatedWidgets
               .where((w) => !w.isConst)
@@ -316,7 +304,7 @@ class BuildMethodIR extends MethodDecl {
 
   @override
   String toString() =>
-      'BuildMethod($className.$name) [${totalWidgetCount} widgets, depth: $maxNestingDepth]';
+      'BuildMethod($className.$name) [$totalWidgetCount widgets, depth: $maxNestingDepth]';
 }
 
 /// Represents a single widget instantiation in the build method
@@ -353,8 +341,8 @@ class WidgetInstantiationIR extends IRNode {
   final KeyTypeIR? keyType;
 
   WidgetInstantiationIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.widgetType,
     this.constructorName,
     this.arguments = const [],
@@ -365,7 +353,7 @@ class WidgetInstantiationIR extends IRNode {
     this.treeDepth = 0,
     this.hasKey = false,
     this.keyType,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() =>
@@ -388,8 +376,8 @@ class ConditionalWidgetIR extends IRNode {
   final ConditionalPatternType patternType;
 
   ConditionalWidgetIR({
-    required super. id,
-    required super. sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.condition,
     this.thenWidget,
     this.elseWidget,
@@ -423,15 +411,15 @@ class LoopWidgetIR extends IRNode {
   final int? expectedItemCount;
 
   LoopWidgetIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.loopType,
     required this.iterable,
     required this.loopVariableName,
     required this.widget,
     this.hasKey = false,
     this.expectedItemCount,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() =>
@@ -451,12 +439,12 @@ class AncestorAccessIR extends IRNode {
   final String usage;
 
   AncestorAccessIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.accessType,
     this.property,
     required this.usage,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() =>
@@ -479,13 +467,13 @@ class ProviderReadIR extends IRNode {
   final bool triggersRebuild;
 
   ProviderReadIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.accessType,
     required this.providerType,
     this.genericType,
     this.triggersRebuild = false,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() =>
@@ -514,15 +502,15 @@ class BuildControlFlowIR extends IRNode {
   final int complexityScore;
 
   BuildControlFlowIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     this.ifStatements = const [],
     this.loops = const [],
     this.hasUnreachableCode = false,
     this.maxControlFlowDepth = 0,
     this.tryCatchCount = 0,
     this.complexityScore = 0,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() =>
@@ -554,8 +542,8 @@ class BuildPerformanceIR extends IRNode {
   final int jankRisk;
 
   BuildPerformanceIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     this.estimatedBuildTimeMs = 0,
     this.widgetsRebuildOnStateChange = 0,
     this.constWidgetCount = 0,
@@ -563,7 +551,7 @@ class BuildPerformanceIR extends IRNode {
     this.isExpensive = false,
     this.suggestedFrameRateCap = 60,
     this.jankRisk = 0,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() =>
@@ -583,12 +571,12 @@ class StylingOperationIR extends IRNode {
   final bool isHardcoded;
 
   StylingOperationIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.styleType,
     required this.targetWidgetType,
     this.isHardcoded = true,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 }
 
 /// Animation usage in this build method
@@ -604,12 +592,12 @@ class AnimationUsageIR extends IRNode {
   final String property;
 
   AnimationUsageIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.animationType,
     required this.targetWidgetType,
     required this.property,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 }
 
 /// Gesture handling in this build method
@@ -628,13 +616,13 @@ class GestureHandlerIR extends IRNode {
   final bool triggersNavigation;
 
   GestureHandlerIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.gestureType,
     required this.targetWidgetType,
     this.triggersStateChange = false,
     this.triggersNavigation = false,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 }
 
 /// State field dependency information
@@ -653,13 +641,13 @@ class StateFieldDependencyIR extends IRNode {
   final List<SourceLocationIR> accessLocations;
 
   StateFieldDependencyIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.fieldName,
     required this.usageType,
     this.alwaysTriggers = true,
     this.accessLocations = const [],
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 }
 
 /// Issue found in build method analysis
@@ -681,14 +669,14 @@ class BuildMethodIssueIR extends IRNode {
   final List<String> relatedItems;
 
   BuildMethodIssueIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.severity,
     required this.issueType,
     required this.message,
     this.suggestion,
     this.relatedItems = const [],
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 }
 
 /// Optimization suggestion for build method
@@ -710,14 +698,14 @@ class BuildOptimizationSuggestionIR extends IRNode {
   final List<String> widgets;
 
   BuildOptimizationSuggestionIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.type,
     required this.description,
     required this.impact,
     this.reason,
     this.widgets = const [],
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 }
 
 // =============================================================================

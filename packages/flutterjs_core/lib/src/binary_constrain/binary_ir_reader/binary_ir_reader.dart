@@ -19,8 +19,7 @@ import 'statement_reader.dart';
 /// - Checksum validation
 /// - Full IR reconstruction
 class BinaryIRReader with Reader, StatementReader, SourceLocation,ExpressionReader , TypeReader, DeclarationReader{
-  int _entryIdCounter = 0;
-  int _exprIdCounter = 0;
+ 
   late ByteData _data;
   late List<String> _stringTable;
   int _offset = 0;

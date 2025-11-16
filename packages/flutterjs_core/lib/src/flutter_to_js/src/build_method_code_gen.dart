@@ -127,10 +127,8 @@ class BuildMethodCodeGen {
   // =========================================================================
   // BUILD METHOD BODY GENERATION
   // =========================================================================
-
   String _generateBuildBody(MethodDecl buildMethod) {
     final buffer = StringBuffer();
-
     buffer.writeln('build(context) {');
     indenter.indent();
 
@@ -141,71 +139,47 @@ class BuildMethodCodeGen {
       return buffer.toString();
     }
 
-    // Handle different body types
-    if (buildMethod.body is ReturnStmt) {
-      final returnStmt = buildMethod.body as ReturnStmt;
-      if (returnStmt.expression != null) {
+    // ✅ FIXED: body is now List<StatementIR>
+    // Process all statements directly
+    if (buildMethod.body!.isEmpty) {
+      buffer.writeln(indenter.line('// Empty build method'));
+    } else {
+      // Look for return statement
+      ReturnStmt? returnStmt;
+
+      for (int i = 0; i < buildMethod.body!.length; i++) {
+        final stmt = buildMethod.body![i];
+
+        if (stmt is ReturnStmt && i == buildMethod.body!.length - 1) {
+          // Last statement is return - save it for end
+          returnStmt = stmt;
+        } else {
+          // Generate regular statements
+          buffer.writeln(stmtGen.generate(stmt));
+        }
+      }
+
+      // Handle final return
+      if (returnStmt != null && returnStmt.expression != null) {
         final widgetCode = _generateReturnWidget(returnStmt.expression!);
         buffer.writeln(indenter.line('return $widgetCode;'));
       } else {
-        buffer.writeln(indenter.line('return null;'));
+        buffer.writeln(indenter.line('return null; // No return in build'));
+        warnings.add(
+          CodeGenWarning(
+            severity: WarningSeverity.warning,
+            message: 'No explicit return statement found in build method',
+            suggestion: 'Add: return <widget>;',
+          ),
+        );
       }
-    } else if (buildMethod.body is BlockStmt) {
-      final block = buildMethod.body as BlockStmt;
-      _generateBlockBody(buffer, block);
-    } else {
-      // Expression body - wrap in return
-      final expr = exprGen.generate(
-        buildMethod.body as ExpressionIR,
-        parenthesize: false,
-      );
-      buffer.writeln(indenter.line('return $expr;'));
     }
 
     indenter.dedent();
     buffer.write(indenter.line('}'));
-
     return buffer.toString();
   }
 
-  void _generateBlockBody(StringBuffer buffer, BlockStmt block) {
-    // Process statements in build method body
-    ReturnStmt? returnStmt;
-
-    for (final stmt in block.statements) {
-      if (stmt is ReturnStmt) {
-        // Capture return statement for end of method
-        returnStmt = stmt;
-      } else if (stmt is VariableDeclarationStmt) {
-        // Local variable declarations
-        buffer.writeln(stmtGen.generate(stmt));
-      } else if (stmt is IfStmt) {
-        // Conditional logic
-        buffer.writeln(stmtGen.generate(stmt));
-      } else if (stmt is ExpressionStmt) {
-        // Expression statements (e.g., setState calls)
-        buffer.writeln(stmtGen.generate(stmt));
-      } else {
-        // Other statements
-        buffer.writeln(stmtGen.generate(stmt));
-      }
-    }
-
-    // Generate return at end
-    if (returnStmt != null && returnStmt.expression != null) {
-      final widgetCode = _generateReturnWidget(returnStmt.expression!);
-      buffer.writeln(indenter.line('return $widgetCode;'));
-    } else {
-      buffer.writeln(indenter.line('return null; // No return in build'));
-
-      final warning = CodeGenWarning(
-        severity: WarningSeverity.warning,
-        message: 'No explicit return statement found in build method',
-        suggestion: 'Add: return <widget>;',
-      );
-      warnings.add(warning);
-    }
-  }
 
   // =========================================================================
   // WIDGET TREE GENERATION
@@ -489,11 +463,6 @@ class WidgetTree {
 // ============================================================================
 // WARNING & ERROR TYPES
 // ============================================================================
-
-
-
-
-
 
 // ============================================================================
 // EXAMPLE CONVERSIONS

@@ -71,7 +71,7 @@ class LifecycleMethodDecl extends MethodDecl {
   }
 
   @override
-  String toString() => '${lifecycleType.name}() [${statementCount} statements]';
+  String toString() => '${lifecycleType.name}() [$statementCount statements]';
 }
 
 /// Enum for lifecycle method types
@@ -352,7 +352,7 @@ class BuildMethodDecl extends MethodDecl {
 
   @override
   String toString() =>
-      'build() [${estimatedNodeCount} nodes, depth: $maxTreeDepth, complexity: ${complexity.name}]';
+      'build() [$estimatedNodeCount nodes, depth: $maxTreeDepth, complexity: ${complexity.name}]';
 }
 
 enum BuildMethodComplexity { low, medium, high, veryHigh }

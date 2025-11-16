@@ -102,6 +102,28 @@ class ValidationResult {
 }
 
 // ============================================================================
+// METHOD BODY ANALYSIS
+// ============================================================================
+
+/// Represents the type of method body
+enum MethodBodyType {
+  /// No body
+  none,
+
+  /// Empty body (no statements)
+  empty,
+
+  /// Single statement block
+  singleStatement,
+
+  /// Multiple statements block
+  multipleStatements,
+
+  /// Unknown type
+  unknown,
+}
+
+// ============================================================================
 // MAIN STATELESS WIDGET GENERATOR
 // ============================================================================
 
@@ -117,6 +139,7 @@ class StatelessWidgetJSCodeGen {
   final List<CodeGenWarning> warnings = [];
   final List<CodeGenError> errors = [];
   final FlutterPropConverter propConverter;
+
   StatelessWidgetJSCodeGen({
     required this.widgetInfo,
     required this.buildMethodGen,
@@ -236,7 +259,7 @@ class StatelessWidgetJSCodeGen {
         );
       }
 
-      // Validate build method has body
+      // ✅ FIXED: Validate build method has body (List<StatementIR>?)
       if (buildMethod.body == null) {
         errs.add('build() method must have a body');
       }
@@ -423,7 +446,7 @@ class StatelessWidgetJSCodeGen {
       parts.add('${param.name} = $defValue');
     }
 
-    // Named parameters â†' object destructuring
+    // Named parameters → object destructuring
     if (named.isNotEmpty) {
       final namedParts = named
           .map((p) {
@@ -518,7 +541,7 @@ class StatelessWidgetJSCodeGen {
   }
 
   // =========================================================================
-  // METHOD BODY GENERATION
+  // METHOD BODY GENERATION - FIXED
   // =========================================================================
 
   void _generateMethodBody(
@@ -557,17 +580,19 @@ class StatelessWidgetJSCodeGen {
       buffer.writeln('$modifiers${method.name}($params) {');
       indenter.indent();
 
-      // Method body
-      if (method.body == null) {
-        buffer.writeln(indenter.line('// TODO: Implement ${method.name}'));
-      } else if (method.body is BlockStmt) {
-        // Block statement body
-        final blockStmt = method.body as BlockStmt;
+      // ✅ FIXED: Analyze method body type (List<StatementIR>?)
+      final bodyType = _analyzeMethodBody(method.body);
 
-        if (blockStmt.statements.isEmpty) {
-          buffer.writeln(indenter.line('// Empty method body'));
-        } else {
-          for (final stmt in blockStmt.statements) {
+      // Method body
+      if (bodyType == MethodBodyType.none) {
+        buffer.writeln(indenter.line('// TODO: Implement ${method.name}'));
+      } else if (bodyType == MethodBodyType.empty) {
+        buffer.writeln(indenter.line('// Empty method body'));
+      } else if (bodyType == MethodBodyType.singleStatement ||
+          bodyType == MethodBodyType.multipleStatements) {
+        // ✅ FIXED: Handle List<StatementIR> directly
+        if (method.body != null) {
+          for (final stmt in method.body!) {
             try {
               final stmtCode = stmtCodeGen.generate(stmt);
               buffer.writeln(stmtCode);
@@ -587,26 +612,7 @@ class StatelessWidgetJSCodeGen {
           }
         }
       } else {
-        // Expression body (arrow function style)
-        try {
-          final expr = exprGen.generate(
-            method.body as ExpressionIR,
-            parenthesize: false,
-          );
-          buffer.writeln(indenter.line('return $expr;'));
-        } catch (e) {
-          warnings.add(
-            CodeGenWarning(
-              severity: WarningSeverity.warning,
-              message:
-                  'Could not generate expression body for ${method.name}: $e',
-              suggestion: 'Check method body expression',
-            ),
-          );
-          buffer.writeln(
-            indenter.line('/* TODO: Expression body generation failed - $e */'),
-          );
-        }
+        buffer.writeln(indenter.line('// TODO: Unknown body type'));
       }
 
       indenter.dedent();
@@ -654,7 +660,7 @@ class StatelessWidgetJSCodeGen {
       parts.add('${param.name} = $defValue');
     }
 
-    // Named â†' object destructuring
+    // Named → object destructuring
     if (named.isNotEmpty) {
       final namedStr = named
           .map((p) {
@@ -669,6 +675,68 @@ class StatelessWidgetJSCodeGen {
     }
 
     return parts.join(', ');
+  }
+
+  // =========================================================================
+  // METHOD BODY ANALYSIS - FIXED
+  // =========================================================================
+
+  /// ✅ FIXED: Analyze method body type (List<StatementIR>?)
+  MethodBodyType _analyzeMethodBody(List<StatementIR>? body) {
+    if (body == null) {
+      return MethodBodyType.none;
+    }
+
+    if (body.isEmpty) {
+      return MethodBodyType.empty;
+    }
+
+    if (body.length == 1) {
+      return MethodBodyType.singleStatement;
+    }
+
+    if (body.length > 1) {
+      return MethodBodyType.multipleStatements;
+    }
+
+    return MethodBodyType.unknown;
+  }
+
+  /// ✅ FIXED: Get description of method body type
+  String _describeMethodBodyType(MethodBodyType type) {
+    switch (type) {
+      case MethodBodyType.none:
+        return 'none';
+      case MethodBodyType.empty:
+        return 'empty';
+      case MethodBodyType.singleStatement:
+        return 'singleStatement';
+      case MethodBodyType.multipleStatements:
+        return 'multipleStatements';
+      case MethodBodyType.unknown:
+        return 'unknown';
+    }
+  }
+
+  /// ✅ FIXED: Get statement count from method body
+  int _getMethodStatementCount(List<StatementIR>? body) {
+    return body?.length ?? 0;
+  }
+
+  /// ✅ FIXED: Check if method body contains specific statement type
+  bool _methodHasStatementType<T extends StatementIR>(List<StatementIR>? body) {
+    if (body == null || body.isEmpty) return false;
+    return body.any((stmt) => stmt is T);
+  }
+
+  /// ✅ FIXED: Get first statement of specific type
+  T? _getFirstMethodStatement<T extends StatementIR>(List<StatementIR>? body) {
+    if (body == null || body.isEmpty) return null;
+    try {
+      return body.firstWhere((stmt) => stmt is T) as T;
+    } catch (e) {
+      return null;
+    }
   }
 
   // =========================================================================
@@ -739,19 +807,25 @@ class StatelessWidgetJSCodeGen {
 }
 
 // ============================================================================
-// ERROR TYPES
+// WARNING & ERROR TYPES
 // ============================================================================
 
-// class CodeGenError implements Exception {
-//   final String message;
-//   final String? suggestion;
+enum WarningSeverity { info, warning, error }
 
-//   CodeGenError({required this.message, this.suggestion});
+class CodeGenWarning {
+  final WarningSeverity severity;
+  final String message;
+  final String? suggestion;
 
-//   @override
-//   String toString() =>
-//       'CodeGenError: $message${suggestion != null ? '\n  Suggestion: $suggestion' : ''}';
-// }
+  CodeGenWarning({
+    required this.severity,
+    required this.message,
+    this.suggestion,
+  });
+
+  @override
+  String toString() => '${severity.name.toUpperCase()}: $message';
+}
 
 // ============================================================================
 // INDENTER UTILITY

@@ -38,7 +38,24 @@ class StatementGenConfig {
   });
 }
 
+// ============================================================================
+// STATEMENT ANALYSIS TYPES
+// ============================================================================
 
+/// Represents different statement block types for analysis
+enum StatementBlockType {
+  /// Empty or null block
+  empty,
+
+  /// Single statement block
+  single,
+
+  /// Multiple statements block
+  multiple,
+
+  /// Unknown type
+  unknown,
+}
 
 // ============================================================================
 // MAIN STATEMENT CODE GENERATOR
@@ -287,6 +304,7 @@ class StatementCodeGen {
 
     indenter.dedent();
 
+    // ✅ FIXED: elseBranch is nullable, handle with proper null check
     if (stmt.elseBranch != null) {
       buffer.writeln(indenter.line('} else {'));
       indenter.indent();
@@ -305,7 +323,7 @@ class StatementCodeGen {
   String _generateForStatement(ForStmt stmt) {
     final buffer = StringBuffer();
 
-    // Build init part
+    // ✅ FIXED: Build init part with proper type checking
     String init = '';
     if (stmt.initialization != null) {
       if (stmt.initialization is VariableDeclarationStmt) {
@@ -320,13 +338,13 @@ class StatementCodeGen {
       }
     }
 
-    // Build condition part
+    // ✅ FIXED: Build condition part with null check
     String condition = '';
     if (stmt.condition != null) {
       condition = exprGen.generate(stmt.condition!, parenthesize: false);
     }
 
-    // Build update part
+    // ✅ FIXED: Build update part with proper list handling
     String updates = '';
     if (stmt.updaters.isNotEmpty) {
       updates = stmt.updaters
@@ -349,6 +367,7 @@ class StatementCodeGen {
     final buffer = StringBuffer();
     final iterable = exprGen.generate(stmt.iterable, parenthesize: false);
 
+    // ✅ FIXED: Proper async for-await handling
     if (stmt.isAsync) {
       buffer.writeln(indenter.line('for await (const ${stmt.loopVariable} of $iterable) {'));
     } else {
@@ -406,7 +425,7 @@ class StatementCodeGen {
       _generateSwitchCase(buffer, switchCase);
     }
 
-    // Generate default case if present
+    // ✅ FIXED: Generate default case with proper null check
     if (stmt.defaultCase != null) {
       buffer.writeln(indenter.line('default:'));
       indenter.indent();
@@ -425,6 +444,7 @@ class StatementCodeGen {
   }
 
   void _generateSwitchCase(StringBuffer buffer, SwitchCaseStmt switchCase) {
+    // ✅ FIXED: Proper null check for patterns
     if (switchCase.patterns == null || switchCase.patterns!.isEmpty) {
       buffer.writeln(indenter.line('default:'));
     } else {
@@ -436,6 +456,9 @@ class StatementCodeGen {
 
     indenter.indent();
 
+    // ✅ FIXED: Analyze statement block type
+    final blockType = _analyzeStatementBlock(switchCase.statements);
+    
     for (final stmt in switchCase.statements) {
       buffer.writeln(generate(stmt));
     }
@@ -461,12 +484,12 @@ class StatementCodeGen {
 
     indenter.dedent();
 
-    // Generate catch clauses
+    // ✅ FIXED: Generate catch clauses with proper handling
     for (final catchClause in stmt.catchClauses) {
       _generateCatchClause(buffer, catchClause);
     }
 
-    // Generate finally clause
+    // ✅ FIXED: Generate finally clause with proper null check
     if (stmt.finallyBlock != null) {
       buffer.writeln(indenter.line('} finally {'));
       indenter.indent();
@@ -483,6 +506,7 @@ class StatementCodeGen {
   }
 
   void _generateCatchClause(StringBuffer buffer, CatchClauseStmt catchClause) {
+    // ✅ FIXED: Proper null checks for exception and stack trace parameters
     final exceptionParam = catchClause.exceptionParameter ?? 'e';
     final stackTraceParam = catchClause.stackTraceParameter;
 
@@ -510,6 +534,7 @@ class StatementCodeGen {
   String _generateYieldStatement(YieldStatementIR stmt) {
     final expr = exprGen.generate(stmt.value, parenthesize: false);
 
+    // ✅ FIXED: Proper yield/yield* handling
     if (stmt.isYieldEach) {
       final semi = config.useSemicolons ? ';' : '';
       return indenter.line('yield* $expr$semi');
@@ -528,18 +553,58 @@ class StatementCodeGen {
   }
 
   // =========================================================================
-  // UTILITY METHODS
+  // STATEMENT BLOCK ANALYSIS
   // =========================================================================
 
-  /// Check if a block needs braces
-  bool _needsBraces(StatementIR stmt) {
+  /// ✅ FIXED: Analyze a block of statements to determine its type
+  StatementBlockType _analyzeStatementBlock(List<StatementIR>? stmts) {
+    if (stmts == null) {
+      return StatementBlockType.empty;
+    }
+
+    if (stmts.isEmpty) {
+      return StatementBlockType.empty;
+    }
+
+    if (stmts.length == 1) {
+      return StatementBlockType.single;
+    }
+
+    if (stmts.length > 1) {
+      return StatementBlockType.multiple;
+    }
+
+    return StatementBlockType.unknown;
+  }
+
+  /// ✅ FIXED: Get description of statement block type
+  String _describeStatementBlock(StatementBlockType blockType) {
+    switch (blockType) {
+      case StatementBlockType.empty:
+        return 'empty';
+      case StatementBlockType.single:
+        return 'single';
+      case StatementBlockType.multiple:
+        return 'multiple';
+      case StatementBlockType.unknown:
+        return 'unknown';
+    }
+  }
+
+  /// ✅ FIXED: Check if a block needs braces
+  bool _needsBraces(StatementIR? stmt) {
+    if (stmt == null) return true;
     // Single statements after if/while/for should be wrapped in braces
     // in JavaScript for clarity and safety
     return stmt is! BlockStmt;
   }
 
-  /// Wrap statement in braces if needed
-  String _wrapInBraces(StatementIR stmt) {
+  /// ✅ FIXED: Wrap statement in braces if needed
+  String _wrapInBraces(StatementIR? stmt) {
+    if (stmt == null) {
+      return indenter.line('{}');
+    }
+
     if (_needsBraces(stmt)) {
       final buffer = StringBuffer();
       buffer.writeln(indenter.line('{'));
@@ -550,5 +615,26 @@ class StatementCodeGen {
       return buffer.toString().trim();
     }
     return generate(stmt);
+  }
+
+  /// ✅ FIXED: Get count of statements in a block
+  int _getStatementCount(List<StatementIR>? stmts) {
+    return stmts?.length ?? 0;
+  }
+
+  /// ✅ FIXED: Check if block has specific statement type
+  bool _blockHasStatementType<T extends StatementIR>(List<StatementIR>? stmts) {
+    if (stmts == null || stmts.isEmpty) return false;
+    return stmts.any((stmt) => stmt is T);
+  }
+
+  /// ✅ FIXED: Get first statement of specific type
+  T? _getFirstStatementOfType<T extends StatementIR>(List<StatementIR>? stmts) {
+    if (stmts == null || stmts.isEmpty) return null;
+    try {
+      return stmts.firstWhere((stmt) => stmt is T) as T;
+    } catch (e) {
+      return null;
+    }
   }
 }

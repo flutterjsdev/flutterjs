@@ -7,6 +7,9 @@ import '../expression_ir.dart';
 import '../ir_node.dart';
 import '../type_ir.dart';
 
+
+
+
 /// Base class for all statement IR nodes
 @immutable
 abstract class StatementIR extends IRNode {
@@ -473,3 +476,5 @@ class FunctionDeclarationStatementIR extends StatementIR {
   @override
   String toShortString() => 'function ${function.name}() { ... }';
 }
+
+

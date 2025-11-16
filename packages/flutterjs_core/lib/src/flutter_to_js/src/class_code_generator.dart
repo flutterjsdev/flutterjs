@@ -295,40 +295,25 @@ class ClassCodeGen {
         }
       }
 
-      // Constructor body statements
-      if (ctor.body != null) {
+      if (ctor.body != null && ctor.body!.isNotEmpty) {
         try {
-          if (ctor.body is BlockStmt) {
-            // Block body: { statement1; statement2; ... }
-            final blockBody = ctor.body as BlockStmt;
-
-            if (blockBody.statements.isNotEmpty) {
-              for (final stmt in blockBody.statements) {
-                try {
-                  final stmtCode = stmtGen.generate(stmt);
-                  buffer.writeln(stmtCode);
-                } catch (e) {
-                  warnings.add(
-                    CodeGenWarning(
-                      severity: WarningSeverity.warning,
-                      message: 'Could not generate constructor statement: $e',
-                      suggestion:
-                          'Check statement structure in constructor body',
-                    ),
-                  );
-                  buffer.writeln(
-                    indenter.line('/* TODO: Statement failed - $e */'),
-                  );
-                }
-              }
+          // body is already a List<StatementIR>
+          for (final stmt in ctor.body!) {
+            try {
+              final stmtCode = stmtGen.generate(stmt);
+              buffer.writeln(stmtCode);
+            } catch (e) {
+              warnings.add(
+                CodeGenWarning(
+                  severity: WarningSeverity.warning,
+                  message: 'Could not generate constructor statement: $e',
+                  suggestion: 'Check statement structure in constructor body',
+                ),
+              );
+              buffer.writeln(
+                indenter.line('/* TODO: Statement failed - $e */'),
+              );
             }
-          } else if (ctor.body is ExpressionIR) {
-            // Expression body (rare for constructors, but handle it)
-            final expr = exprGen.generate(
-              ctor.body as ExpressionIR,
-              parenthesize: false,
-            );
-            buffer.writeln(indenter.line('$expr;'));
           }
         } catch (e) {
           warnings.add(
@@ -343,7 +328,6 @@ class ClassCodeGen {
           );
         }
       }
-
       indenter.dedent();
       buffer.write(indenter.line('}'));
 
@@ -399,20 +383,10 @@ class ClassCodeGen {
 
     indenter.indent();
 
-    // Method body
-    if (method.body != null) {
-      if (method.body is BlockStmt) {
-        final blockStmt = method.body as BlockStmt;
-        for (final stmt in blockStmt.statements) {
-          buffer.writeln(stmtGen.generate(stmt));
-        }
-      } else {
-        // Expression body - wrap in return
-        final expr = exprGen.generate(
-          method.body as ExpressionIR,
-          parenthesize: false,
-        );
-        buffer.writeln(indenter.line('return $expr;'));
+    // ✅ FIXED: body is now List<StatementIR>?
+    if (method.body != null && method.body!.isNotEmpty) {
+      for (final stmt in method.body!) {
+        buffer.writeln(stmtGen.generate(stmt));
       }
     } else {
       buffer.writeln(indenter.line('// TODO: Implement ${method.name}'));
@@ -420,7 +394,6 @@ class ClassCodeGen {
 
     indenter.dedent();
     buffer.write(indenter.line('}'));
-
     return buffer.toString().trim();
   }
 
@@ -444,19 +417,11 @@ class ClassCodeGen {
 
     indenter.indent();
 
-    // Method body
-    if (method.body != null) {
-      if (method.body is BlockStmt) {
-        final blockStmt = method.body as BlockStmt;
-        for (final stmt in blockStmt.statements) {
-          buffer.writeln(stmtGen.generate(stmt));
-        }
-      } else {
-        final expr = exprGen.generate(
-          method.body as ExpressionIR,
-          parenthesize: false,
-        );
-        buffer.writeln(indenter.line('return $expr;'));
+    // ✅ FIXED: body is now List<StatementIR>? - iterate directly
+    if (method.body != null && method.body!.isNotEmpty) {
+      // body is already a List<StatementIR> - no type casting needed
+      for (final stmt in method.body!) {
+        buffer.writeln(stmtGen.generate(stmt));
       }
     } else {
       buffer.writeln(indenter.line('// TODO: Implement ${method.name}'));
@@ -467,7 +432,6 @@ class ClassCodeGen {
 
     return buffer.toString().trim();
   }
-
   // =========================================================================
   // PARAMETER & UTILITY METHODS
   // =========================================================================
@@ -593,7 +557,6 @@ class ClassCodeGen {
 // ============================================================================
 // HELPER: INDENTER (shared with other generators)
 // ============================================================================
-
 
 // ============================================================================
 // EXAMPLE CONVERSIONS
