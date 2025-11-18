@@ -576,9 +576,7 @@ class FileCodeGen {
     DartFile dartFile,
   ) async {
     final validator = outputValidator ?? OutputValidator(jsCode);
-    print("before validate ${jsCode}");
     validationReport = await validator.validate();
-    print("after validate ${jsCode}");
     if (validationReport!.hasCriticalIssues) {
       generationWarnings.add(
         '⚠️  CRITICAL VALIDATION ISSUES FOUND: ${validationReport!.errorCount} errors',

@@ -3,6 +3,6 @@
 /// More dartdocs go here.
 library;
 
-export 'src/ir_viewer.dart' hide main;
-
+export 'src/html_generator.dart';
+export 'src/ir_server.dart';
 // TODO: Export any libraries intended for clients of this package.

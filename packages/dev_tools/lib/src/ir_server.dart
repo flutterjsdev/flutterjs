@@ -18,16 +18,16 @@ class BinaryIRServer {
   final bool verbose;
   final String watchDirectory;
   late HttpServer _server;
-  
+
   // ✅ CACHING: Store parsed results
   final Map<String, Uint8List> _uploadedFiles = {};
   final Map<String, ProgressiveAnalysisResult> _analyses = {};
   final Map<String, String> _fileHashes = {}; // Prevent re-analysis
   final List<IRFileInfo> _availableFiles = [];
-  
+
   // ✅ PERFORMANCE METRICS
   final Map<String, AnalysisMetrics> _metrics = {};
-  
+
   // ✅ ERROR TRACKING
   final List<AnalysisError> _errorLog = [];
   final int maxErrorLogSize = 100;
@@ -52,505 +52,589 @@ class BinaryIRServer {
     await _server.close();
   }
 
-  
-Future<Response> _handleUpload(Request request) async {
-  try {
-    // ✅ VALIDATION: Check content-type
-    final contentType = request.headers['content-type'] ?? '';
-    if (!contentType.contains('octet-stream') && !contentType.isEmpty) {
-      return _errorResponse('Invalid content type. Expected binary file', 400);
-    }
-
-    // ✅ VALIDATION: Read file with size limit
-    final bytes = await request.read()
-        .expand((chunk) => chunk)
-        .take(100 * 1024 * 1024) // 100MB limit
-        .toList();
-    
-    final bytesData = Uint8List.fromList(bytes);
-
-    if (bytesData.isEmpty) {
-      _logError('UPLOAD_EMPTY', 'Empty file uploaded', '', 'api/upload');
-      return _errorResponse('Empty file uploaded', 400);
-    }
-
-    // ✅ VALIDATION: Check magic number
-    if (bytesData.length < 4) {
-      _logError('UPLOAD_TOO_SMALL', 'File too small', '', 'api/upload');
-      return _errorResponse('File too small to be valid IR file', 400);
-    }
-
-    final fileId = DateTime.now().millisecondsSinceEpoch.toString();
-    _uploadedFiles[fileId] = bytesData;
-    
-    // ✅ PERFORMANCE: Create metrics tracker
-    final metrics = AnalysisMetrics(fileId: fileId);
-    _metrics[fileId] = metrics;
-    
-    metrics.recordPhase('READ_FILE', bytesData.length);
-
-    // ✅ FIX: WAIT FOR STREAM TO COMPLETE BEFORE CHECKING RESULTS
+  Future<Response> _handleUpload(Request request) async {
     try {
-      await _analyzeFileStream(fileId, bytesData, 'uploaded_${fileId}.ir')
-          .drain(); // ✅ Wait until all items are streamed
-      
-      // ✅ NOW the analysis should be stored
-      await Future.delayed(Duration(milliseconds: 100)); // Small delay to ensure storage
-    } catch (e) {
-      _logError('STREAM_ERROR', e.toString(), '', 'api/upload');
-      return _errorResponse('Stream analysis failed: ${e.toString()}', 500);
+      // ✅ VALIDATION: Check content-type
+      final contentType = request.headers['content-type'] ?? '';
+      if (!contentType.contains('octet-stream') && !contentType.isEmpty) {
+        return _errorResponse(
+          'Invalid content type. Expected binary file',
+          400,
+        );
+      }
+
+      // ✅ VALIDATION: Read file with size limit
+      final bytes = await request
+          .read()
+          .expand((chunk) => chunk)
+          .take(100 * 1024 * 1024) // 100MB limit
+          .toList();
+
+      final bytesData = Uint8List.fromList(bytes);
+
+      if (bytesData.isEmpty) {
+        _logError('UPLOAD_EMPTY', 'Empty file uploaded', '', 'api/upload');
+        return _errorResponse('Empty file uploaded', 400);
+      }
+
+      // ✅ VALIDATION: Check magic number
+      if (bytesData.length < 4) {
+        _logError('UPLOAD_TOO_SMALL', 'File too small', '', 'api/upload');
+        return _errorResponse('File too small to be valid IR file', 400);
+      }
+
+      final fileId = DateTime.now().millisecondsSinceEpoch.toString();
+      _uploadedFiles[fileId] = bytesData;
+
+      // ✅ PERFORMANCE: Create metrics tracker
+      final metrics = AnalysisMetrics(fileId: fileId);
+      _metrics[fileId] = metrics;
+
+      metrics.recordPhase('READ_FILE', bytesData.length);
+
+      // ✅ FIX: WAIT FOR STREAM TO COMPLETE BEFORE CHECKING RESULTS
+      try {
+        await _analyzeFileStream(
+          fileId,
+          bytesData,
+          'uploaded_${fileId}.ir',
+        ).drain(); // ✅ Wait until all items are streamed
+
+        // ✅ NOW the analysis should be stored
+        await Future.delayed(
+          Duration(milliseconds: 100),
+        ); // Small delay to ensure storage
+      } catch (e) {
+        _logError('STREAM_ERROR', e.toString(), '', 'api/upload');
+        return _errorResponse('Stream analysis failed: ${e.toString()}', 500);
+      }
+
+      // ✅ NOW it's safe to check
+      final analysis = _analyses[fileId];
+      if (analysis == null) {
+        _logError(
+          'ANALYSIS_NOT_FOUND',
+          'Analysis result missing after stream',
+          '',
+          'api/upload',
+        );
+        return _errorResponse('Analysis result not found', 500);
+      }
+
+      if (!analysis.success) {
+        _logError(
+          'ANALYSIS_FAILED',
+          analysis.error ?? 'Unknown',
+          '',
+          'api/upload',
+        );
+        return _errorResponse(analysis.error ?? 'Unknown analysis error', 400);
+      }
+
+      metrics.recordPhase('COMPLETE', analysis.totalLines);
+      metrics.recordSuccess();
+
+      return Response.ok(
+        jsonEncode({
+          'success': true,
+          'fileId': fileId,
+          'size': bytesData.length,
+          'analysis': analysis.toJson(),
+          'metrics': metrics.toJson(),
+        }),
+        headers: {'content-type': 'application/json'},
+      );
+    } catch (e, st) {
+      _logError('UPLOAD_ERROR', e.toString(), st.toString(), 'api/upload');
+      return _errorResponse('Upload failed: ${e.toString()}', 400);
     }
-
-    // ✅ NOW it's safe to check
-    final analysis = _analyses[fileId];
-    if (analysis == null) {
-      _logError('ANALYSIS_NOT_FOUND', 'Analysis result missing after stream', '', 'api/upload');
-      return _errorResponse('Analysis result not found', 500);
-    }
-
-    if (!analysis.success) {
-      _logError('ANALYSIS_FAILED', analysis.error ?? 'Unknown', '', 'api/upload');
-      return _errorResponse(analysis.error ?? 'Unknown analysis error', 400);
-    }
-
-    metrics.recordPhase('COMPLETE', analysis.totalLines);
-    metrics.recordSuccess();
-
-    return Response.ok(
-      jsonEncode({
-        'success': true,
-        'fileId': fileId,
-        'size': bytesData.length,
-        'analysis': analysis.toJson(),
-        'metrics': metrics.toJson(),
-      }),
-      headers: {'content-type': 'application/json'},
-    );
-  } catch (e, st) {
-    _logError('UPLOAD_ERROR', e.toString(), st.toString(), 'api/upload');
-    return _errorResponse('Upload failed: ${e.toString()}', 400);
   }
-}
 
-Future<Response> _handleLoadFromPath(Request request) async {
-  try {
-    final bodyBytes = await request.read().expand((chunk) => chunk).toList();
-    final body = utf8.decode(bodyBytes);
-    final data = jsonDecode(body) as Map<String, dynamic>;
-    final filePath = data['path'] as String?;
-
-    if (filePath == null || filePath.isEmpty) {
-      return _errorResponse('Path parameter is required', 400);
-    }
-
-    final file = File(filePath);
-    if (!await file.exists()) {
-      _logError('FILE_NOT_FOUND', 'Path: $filePath', '', 'api/load-path');
-      return _errorResponse('File not found: $filePath', 404);
-    }
-
-    final bytes = await file.readAsBytes();
-    if (bytes.isEmpty) {
-      _logError('FILE_EMPTY', 'Path: $filePath', '', 'api/load-path');
-      return _errorResponse('File is empty: $filePath', 400);
-    }
-
-    final fileId = filePath.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
-    _uploadedFiles[fileId] = bytes;
-
-    // ✅ PERFORMANCE: Create metrics tracker
-    final metrics = AnalysisMetrics(fileId: fileId);
-    _metrics[fileId] = metrics;
-    
-    metrics.recordPhase('READ_FILE', bytes.length);
-
-    // ✅ FIX: WAIT FOR STREAM TO COMPLETE BEFORE CHECKING RESULTS
+  Future<Response> _handleLoadFromPath(Request request) async {
     try {
-      await _analyzeFileStream(fileId, bytes, file.uri.pathSegments.last)
-          .drain(); // ✅ Wait until all items are streamed
-      
-      // ✅ NOW the analysis should be stored
-      await Future.delayed(Duration(milliseconds: 100)); // Small delay to ensure storage
-    } catch (e) {
-      _logError('STREAM_ERROR', e.toString(), '', 'api/load-path');
-      return _errorResponse('Stream analysis failed: ${e.toString()}', 500);
+      final bodyBytes = await request.read().expand((chunk) => chunk).toList();
+      final body = utf8.decode(bodyBytes);
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final filePath = data['path'] as String?;
+
+      if (filePath == null || filePath.isEmpty) {
+        return _errorResponse('Path parameter is required', 400);
+      }
+
+      final file = File(filePath);
+      if (!await file.exists()) {
+        _logError('FILE_NOT_FOUND', 'Path: $filePath', '', 'api/load-path');
+        return _errorResponse('File not found: $filePath', 404);
+      }
+
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) {
+        _logError('FILE_EMPTY', 'Path: $filePath', '', 'api/load-path');
+        return _errorResponse('File is empty: $filePath', 400);
+      }
+
+      final fileId = filePath.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+      _uploadedFiles[fileId] = bytes;
+
+      // ✅ PERFORMANCE: Create metrics tracker
+      final metrics = AnalysisMetrics(fileId: fileId);
+      _metrics[fileId] = metrics;
+
+      metrics.recordPhase('READ_FILE', bytes.length);
+
+      // ✅ FIX: WAIT FOR STREAM TO COMPLETE BEFORE CHECKING RESULTS
+      try {
+        await _analyzeFileStream(
+          fileId,
+          bytes,
+          file.uri.pathSegments.last,
+        ).drain(); // ✅ Wait until all items are streamed
+
+        // ✅ NOW the analysis should be stored
+        await Future.delayed(
+          Duration(milliseconds: 100),
+        ); // Small delay to ensure storage
+      } catch (e) {
+        _logError('STREAM_ERROR', e.toString(), '', 'api/load-path');
+        return _errorResponse('Stream analysis failed: ${e.toString()}', 500);
+      }
+
+      // ✅ NOW it's safe to check
+      final analysis = _analyses[fileId];
+      if (analysis == null) {
+        _logError(
+          'ANALYSIS_NOT_FOUND',
+          'Analysis result missing after stream',
+          '',
+          'api/load-path',
+        );
+        return _errorResponse('Analysis result not found', 500);
+      }
+
+      if (!analysis.success) {
+        _logError(
+          'ANALYSIS_FAILED',
+          analysis.error ?? 'Unknown',
+          '',
+          'api/load-path',
+        );
+        return _errorResponse(analysis.error ?? 'Unknown analysis error', 400);
+      }
+
+      metrics.recordPhase('COMPLETE', analysis.totalLines);
+      metrics.recordSuccess();
+
+      return Response.ok(
+        jsonEncode({
+          'success': true,
+          'fileId': fileId,
+          'path': filePath,
+          'size': bytes.length,
+          'analysis': analysis.toJson(),
+          'metrics': metrics.toJson(),
+        }),
+        headers: {'content-type': 'application/json'},
+      );
+    } catch (e, st) {
+      _logError(
+        'LOAD_PATH_ERROR',
+        e.toString(),
+        st.toString(),
+        'api/load-path',
+      );
+      return _errorResponse('Load failed: ${e.toString()}', 400);
     }
-
-    // ✅ NOW it's safe to check
-    final analysis = _analyses[fileId];
-    if (analysis == null) {
-      _logError('ANALYSIS_NOT_FOUND', 'Analysis result missing after stream', '', 'api/load-path');
-      return _errorResponse('Analysis result not found', 500);
-    }
-
-    if (!analysis.success) {
-      _logError('ANALYSIS_FAILED', analysis.error ?? 'Unknown', '', 'api/load-path');
-      return _errorResponse(analysis.error ?? 'Unknown analysis error', 400);
-    }
-
-    metrics.recordPhase('COMPLETE', analysis.totalLines);
-    metrics.recordSuccess();
-
-    return Response.ok(
-      jsonEncode({
-        'success': true,
-        'fileId': fileId,
-        'path': filePath,
-        'size': bytes.length,
-        'analysis': analysis.toJson(),
-        'metrics': metrics.toJson(),
-      }),
-      headers: {'content-type': 'application/json'},
-    );
-  } catch (e, st) {
-    _logError('LOAD_PATH_ERROR', e.toString(), st.toString(), 'api/load-path');
-    return _errorResponse('Load failed: ${e.toString()}', 400);
   }
-}
 
-// ============================================================================
-// IMPROVED: Stream analysis with better error handling
-// ============================================================================
+  // ============================================================================
+  // IMPROVED: Stream analysis with better error handling
+  // ============================================================================
 
-Stream<AnalysisLine> _analyzeFileStream(
-  String fileId,
-  Uint8List bytes,
-  String fileName,
-) async* {
-  ProgressiveAnalysisResult? result;
-  
-  try {
-    if (verbose) print('🔍 Starting stream analysis: $fileName');
+  Stream<AnalysisLine> _analyzeFileStream(
+    String fileId,
+    Uint8List bytes,
+    String fileName,
+  ) async* {
+    ProgressiveAnalysisResult? result;
 
-    final reader = BinaryIRReader();
-    final dartFile = reader.readFileIR(bytes, verbose: verbose);
+    try {
+      if (verbose) print('🔍 Starting stream analysis: $fileName');
 
-    result = ProgressiveAnalysisResult(
-      fileId: fileId,
-      fileName: fileName,
-      startTime: DateTime.now(),
-    );
+      final reader = BinaryIRReader();
+      final dartFile = reader.readFileIR(bytes, verbose: verbose);
 
-    var lineNum = 1;
-
-    // ========== FILE INFORMATION SECTION ==========
-    yield AnalysisLine(
-      lineNum: lineNum++,
-      text: '📄 FILE INFORMATION',
-      status: 'ok',
-      section: 'FILE_INFO',
-      details: {'type': 'header'},
-    );
-
-    yield AnalysisLine(
-      lineNum: lineNum++,
-      text: 'Library: ${dartFile.library ?? 'unknown'}',
-      status: 'ok',
-      section: 'FILE_INFO',
-      details: {'library': dartFile.library},
-    );
-
-    yield AnalysisLine(
-      lineNum: lineNum++,
-      text: 'File Path: ${dartFile.filePath ?? 'unknown'}',
-      status: 'ok',
-      section: 'FILE_INFO',
-      details: {'path': dartFile.filePath},
-    );
-
-    yield AnalysisLine(
-      lineNum: lineNum++,
-      text: 'Size: ${(bytes.length / 1024).toStringAsFixed(1)} KB | Hash: ${(dartFile.contentHash ?? 'N/A').substring(0, 16)}...',
-      status: 'ok',
-      section: 'FILE_INFO',
-      details: {
-        'size': bytes.length,
-        'hash': dartFile.contentHash,
-      },
-    );
-
-    result.addPhase('FILE_INFO', 'ok', {
-      'filePath': dartFile.filePath ?? 'unknown',
-      'contentHash': dartFile.contentHash ?? 'N/A',
-      'library': dartFile.library ?? '<unknown>',
-      'totalBytes': bytes.length,
-    });
-
-    // ========== STATISTICS SECTION ==========
-    yield AnalysisLine(
-      lineNum: lineNum++,
-      text: '📊 STATISTICS',
-      status: 'pending',
-      section: 'STATISTICS',
-      details: {'type': 'header'},
-    );
-
-    final stats = {
-      'imports': dartFile.imports?.length ?? 0,
-      'exports': dartFile.exports?.length ?? 0,
-      'variables': dartFile.variableDeclarations?.length ?? 0,
-      'functions': dartFile.functionDeclarations?.length ?? 0,
-      'classes': dartFile.classDeclarations?.length ?? 0,
-      'analysisIssues': dartFile.analysisIssues?.length ?? 0,
-      'totalMethods': (dartFile.classDeclarations ?? [])
-          .fold(0, (sum, c) => sum + (c.methods?.length ?? 0)),
-      'totalFields': (dartFile.classDeclarations ?? [])
-          .fold(0, (sum, c) => sum + (c.fields?.length ?? 0)),
-    };
-
-    yield AnalysisLine(
-      lineNum: lineNum++,
-      text: 'Classes: ${stats['classes']} | Methods: ${stats['totalMethods']} | Fields: ${stats['totalFields']}',
-      status: 'ok',
-      section: 'STATISTICS',
-      details: stats,
-    );
-
-    yield AnalysisLine(
-      lineNum: lineNum++,
-      text: 'Functions: ${stats['functions']} | Variables: ${stats['variables']}',
-      status: 'ok',
-      section: 'STATISTICS',
-      details: {'functions': stats['functions'], 'variables': stats['variables']},
-    );
-
-    yield AnalysisLine(
-      lineNum: lineNum++,
-      text: 'Imports: ${stats['imports']} | Exports: ${stats['exports']} | Issues: ${stats['analysisIssues']}',
-      status: stats['analysisIssues'] == 0 ? 'ok' : 'warning',
-      section: 'STATISTICS',
-      details: {'imports': stats['imports'], 'issues': stats['analysisIssues']},
-    );
-
-    result.addPhase('STATISTICS', 'ok', stats);
-
-    // ========== IMPORTS SECTION ==========
-    final imports = dartFile.imports ?? [];
-    if (imports.isNotEmpty) {
-      yield AnalysisLine(
-        lineNum: lineNum++,
-        text: '📦 IMPORTS (${imports.length})',
-        status: 'pending',
-        section: 'IMPORTS',
-        details: {'count': imports.length, 'type': 'header'},
+      result = ProgressiveAnalysisResult(
+        fileId: fileId,
+        fileName: fileName,
+        startTime: DateTime.now(),
       );
 
-      for (int i = 0; i < imports.length && i < 15; i++) {
-        final imp = imports[i];
-        yield AnalysisLine(
-          lineNum: lineNum++,
-          text: '├─ ${imp.uri ?? 'unknown'} ${imp.prefix != null ? '(as ${imp.prefix})' : ''} ${imp.isDeferred == true ? '[deferred]' : ''}',
-          status: 'ok',
-          section: 'IMPORTS',
-          details: {
-            'uri': imp.uri,
-            'prefix': imp.prefix,
-            'deferred': imp.isDeferred,
-          },
-        );
-      }
+      var lineNum = 1;
 
-      if (imports.length > 15) {
-        yield AnalysisLine(
-          lineNum: lineNum++,
-          text: '└─ ... and ${imports.length - 15} more imports',
-          status: 'ok',
-          section: 'IMPORTS',
-          details: {'remaining': imports.length - 15},
-        );
-      }
-
-      result.addPhase('IMPORTS', 'ok', imports
-          .map((i) => {
-                'uri': i.uri ?? 'unknown',
-                'prefix': i.prefix ?? 'none',
-                'isDeferred': i.isDeferred ?? false,
-              })
-          .toList());
-    }
-
-    // ========== CLASSES SECTION ==========
-    final classes = dartFile.classDeclarations ?? [];
-    if (classes.isNotEmpty) {
+      // ========== FILE INFORMATION SECTION ==========
       yield AnalysisLine(
         lineNum: lineNum++,
-        text: '🗿 CLASSES (${classes.length})',
-        status: 'pending',
-        section: 'CLASSES',
-        details: {'count': classes.length, 'type': 'header'},
+        text: '📄 FILE INFORMATION',
+        status: 'ok',
+        section: 'FILE_INFO',
+        details: {'type': 'header'},
       );
 
-      for (int i = 0; i < classes.length && i < 15; i++) {
-        final cls = classes[i];
-        final abstractFlag = cls.isAbstract == true ? '[abstract] ' : '';
-        yield AnalysisLine(
-          lineNum: lineNum++,
-          text: '├─ $abstractFlag${cls.name ?? 'unknown'} [${cls.methods?.length ?? 0} methods | ${cls.fields?.length ?? 0} fields]',
-          status: 'ok',
-          section: 'CLASSES',
-          details: {
-            'name': cls.name,
-            'methods': cls.methods?.length ?? 0,
-            'fields': cls.fields?.length ?? 0,
-          },
-        );
-      }
-
-      if (classes.length > 15) {
-        yield AnalysisLine(
-          lineNum: lineNum++,
-          text: '└─ ... and ${classes.length - 15} more classes',
-          status: 'ok',
-          section: 'CLASSES',
-          details: {'remaining': classes.length - 15},
-        );
-      }
-
-      result.addPhase('CLASSES', 'ok', classes
-          .map((c) => {
-                'name': c.name ?? 'unknown',
-                'methods': c.methods?.length ?? 0,
-                'fields': c.fields?.length ?? 0,
-              })
-          .toList());
-    }
-
-    // ========== FUNCTIONS SECTION ==========
-    final functions = dartFile.functionDeclarations ?? [];
-    if (functions.isNotEmpty) {
       yield AnalysisLine(
         lineNum: lineNum++,
-        text: '⚙️ FUNCTIONS (${functions.length})',
-        status: 'pending',
-        section: 'FUNCTIONS',
-        details: {'count': functions.length, 'type': 'header'},
+        text: 'Library: ${dartFile.library ?? 'unknown'}',
+        status: 'ok',
+        section: 'FILE_INFO',
+        details: {'library': dartFile.library},
       );
 
-      for (int i = 0; i < functions.length && i < 15; i++) {
-        final func = functions[i];
-        final asyncFlag = func.isAsync == true ? '[async] ' : '';
-        yield AnalysisLine(
-          lineNum: lineNum++,
-          text: '├─ $asyncFlag${func.name ?? 'unknown'}(${func.parameters?.length ?? 0} params) → ${func.returnType?.displayName() ?? 'dynamic'}',
-          status: 'ok',
-          section: 'FUNCTIONS',
-          details: {
-            'name': func.name,
-            'parameters': func.parameters?.length ?? 0,
-            'returnType': func.returnType?.displayName(),
-          },
-        );
-      }
-
-      if (functions.length > 15) {
-        yield AnalysisLine(
-          lineNum: lineNum++,
-          text: '└─ ... and ${functions.length - 15} more functions',
-          status: 'ok',
-          section: 'FUNCTIONS',
-          details: {'remaining': functions.length - 15},
-        );
-      }
-
-      result.addPhase('FUNCTIONS', 'ok', functions
-          .map((f) => {
-                'name': f.name ?? 'unknown',
-                'parameters': f.parameters?.length ?? 0,
-              })
-          .toList());
-    }
-
-    // ========== VARIABLES SECTION ==========
-    final variables = dartFile.variableDeclarations ?? [];
-    if (variables.isNotEmpty) {
       yield AnalysisLine(
         lineNum: lineNum++,
-        text: '📝 VARIABLES (${variables.length})',
-        status: 'pending',
-        section: 'VARIABLES',
-        details: {'count': variables.length, 'type': 'header'},
+        text: 'File Path: ${dartFile.filePath ?? 'unknown'}',
+        status: 'ok',
+        section: 'FILE_INFO',
+        details: {'path': dartFile.filePath},
       );
 
-      for (int i = 0; i < variables.length && i < 15; i++) {
-        final variable = variables[i];
-        yield AnalysisLine(
-          lineNum: lineNum++,
-          text: '├─ ${variable.name ?? 'unknown'}: ${variable.type?.displayName() ?? 'dynamic'}',
-          status: 'ok',
-          section: 'VARIABLES',
-          details: {
-            'name': variable.name,
-            'type': variable.type?.displayName(),
-          },
-        );
-      }
+      yield AnalysisLine(
+        lineNum: lineNum++,
+        text:
+            'Size: ${(bytes.length / 1024).toStringAsFixed(1)} KB | Hash: ${(dartFile.contentHash ?? 'N/A').substring(0, 16)}...',
+        status: 'ok',
+        section: 'FILE_INFO',
+        details: {'size': bytes.length, 'hash': dartFile.contentHash},
+      );
 
-      if (variables.length > 15) {
-        yield AnalysisLine(
-          lineNum: lineNum++,
-          text: '└─ ... and ${variables.length - 15} more variables',
-          status: 'ok',
-          section: 'VARIABLES',
-          details: {'remaining': variables.length - 15},
-        );
-      }
-
-      result.addPhase('VARIABLES', 'ok', variables
-          .map((v) => {
-                'name': v.name ?? 'unknown',
-                'type': v.type?.displayName() ?? 'dynamic',
-              })
-          .toList());
-    }
-
-    // ========== FINAL LINE ==========
-    yield AnalysisLine(
-      lineNum: lineNum++,
-      text: '✅ ANALYSIS COMPLETE - ${lineNum - 1} lines analyzed',
-      status: 'ok',
-      section: 'COMPLETE',
-      details: {'totalLines': lineNum - 1},
-    );
-
-    result.markComplete();
-    result.totalLines = lineNum - 1;
-    result.setFinalAnalysis(
-      fileInfo: {
+      result.addPhase('FILE_INFO', 'ok', {
         'filePath': dartFile.filePath ?? 'unknown',
         'contentHash': dartFile.contentHash ?? 'N/A',
         'library': dartFile.library ?? '<unknown>',
         'totalBytes': bytes.length,
-      },
-      statistics: stats,
-      imports: imports.map((i) => {'uri': i.uri, 'prefix': i.prefix}).toList(),
-      variables: variables.map((v) => {'name': v.name, 'type': v.type?.displayName()}).toList(),
-      functions: functions.map((f) => {'name': f.name, 'params': f.parameters?.length}).toList(),
-      classes: classes.map((c) => {'name': c.name, 'methods': c.methods?.length}).toList(),
-    );
+      });
 
-    // ✅ STORE RESULT BEFORE STREAM ENDS
-    _analyses[fileId] = result;
-    if (verbose) print('✅ Analysis stored successfully: $fileId');
-    
-  } catch (e, st) {
-    _logError('ANALYSIS_ERROR', e.toString(), st.toString(), fileId);
-    
-    // ✅ Even on error, store the failed result
-    if (result != null) {
-      result.success = false;
-      result.error = 'Analysis error: ${e.toString()}';
+      // ========== STATISTICS SECTION ==========
+      yield AnalysisLine(
+        lineNum: lineNum++,
+        text: '📊 STATISTICS',
+        status: 'pending',
+        section: 'STATISTICS',
+        details: {'type': 'header'},
+      );
+
+      final stats = {
+        'imports': dartFile.imports?.length ?? 0,
+        'exports': dartFile.exports?.length ?? 0,
+        'variables': dartFile.variableDeclarations?.length ?? 0,
+        'functions': dartFile.functionDeclarations?.length ?? 0,
+        'classes': dartFile.classDeclarations?.length ?? 0,
+        'analysisIssues': dartFile.analysisIssues?.length ?? 0,
+        'totalMethods': (dartFile.classDeclarations ?? []).fold(
+          0,
+          (sum, c) => sum + (c.methods?.length ?? 0),
+        ),
+        'totalFields': (dartFile.classDeclarations ?? []).fold(
+          0,
+          (sum, c) => sum + (c.fields?.length ?? 0),
+        ),
+      };
+
+      yield AnalysisLine(
+        lineNum: lineNum++,
+        text:
+            'Classes: ${stats['classes']} | Methods: ${stats['totalMethods']} | Fields: ${stats['totalFields']}',
+        status: 'ok',
+        section: 'STATISTICS',
+        details: stats,
+      );
+
+      yield AnalysisLine(
+        lineNum: lineNum++,
+        text:
+            'Functions: ${stats['functions']} | Variables: ${stats['variables']}',
+        status: 'ok',
+        section: 'STATISTICS',
+        details: {
+          'functions': stats['functions'],
+          'variables': stats['variables'],
+        },
+      );
+
+      yield AnalysisLine(
+        lineNum: lineNum++,
+        text:
+            'Imports: ${stats['imports']} | Exports: ${stats['exports']} | Issues: ${stats['analysisIssues']}',
+        status: stats['analysisIssues'] == 0 ? 'ok' : 'warning',
+        section: 'STATISTICS',
+        details: {
+          'imports': stats['imports'],
+          'issues': stats['analysisIssues'],
+        },
+      );
+
+      result.addPhase('STATISTICS', 'ok', stats);
+
+      // ========== IMPORTS SECTION ==========
+      final imports = dartFile.imports ?? [];
+      if (imports.isNotEmpty) {
+        yield AnalysisLine(
+          lineNum: lineNum++,
+          text: '📦 IMPORTS (${imports.length})',
+          status: 'pending',
+          section: 'IMPORTS',
+          details: {'count': imports.length, 'type': 'header'},
+        );
+
+        for (int i = 0; i < imports.length && i < 15; i++) {
+          final imp = imports[i];
+          yield AnalysisLine(
+            lineNum: lineNum++,
+            text:
+                '├─ ${imp.uri ?? 'unknown'} ${imp.prefix != null ? '(as ${imp.prefix})' : ''} ${imp.isDeferred == true ? '[deferred]' : ''}',
+            status: 'ok',
+            section: 'IMPORTS',
+            details: {
+              'uri': imp.uri,
+              'prefix': imp.prefix,
+              'deferred': imp.isDeferred,
+            },
+          );
+        }
+
+        if (imports.length > 15) {
+          yield AnalysisLine(
+            lineNum: lineNum++,
+            text: '└─ ... and ${imports.length - 15} more imports',
+            status: 'ok',
+            section: 'IMPORTS',
+            details: {'remaining': imports.length - 15},
+          );
+        }
+
+        result.addPhase(
+          'IMPORTS',
+          'ok',
+          imports
+              .map(
+                (i) => {
+                  'uri': i.uri ?? 'unknown',
+                  'prefix': i.prefix ?? 'none',
+                  'isDeferred': i.isDeferred ?? false,
+                },
+              )
+              .toList(),
+        );
+      }
+
+      // ========== CLASSES SECTION ==========
+      final classes = dartFile.classDeclarations ?? [];
+      if (classes.isNotEmpty) {
+        yield AnalysisLine(
+          lineNum: lineNum++,
+          text: '🗿 CLASSES (${classes.length})',
+          status: 'pending',
+          section: 'CLASSES',
+          details: {'count': classes.length, 'type': 'header'},
+        );
+
+        for (int i = 0; i < classes.length && i < 15; i++) {
+          final cls = classes[i];
+          final abstractFlag = cls.isAbstract == true ? '[abstract] ' : '';
+          yield AnalysisLine(
+            lineNum: lineNum++,
+            text:
+                '├─ $abstractFlag${cls.name ?? 'unknown'} [${cls.methods?.length ?? 0} methods | ${cls.fields?.length ?? 0} fields]',
+            status: 'ok',
+            section: 'CLASSES',
+            details: {
+              'name': cls.name,
+              'methods': cls.methods?.length ?? 0,
+              'fields': cls.fields?.length ?? 0,
+            },
+          );
+        }
+
+        if (classes.length > 15) {
+          yield AnalysisLine(
+            lineNum: lineNum++,
+            text: '└─ ... and ${classes.length - 15} more classes',
+            status: 'ok',
+            section: 'CLASSES',
+            details: {'remaining': classes.length - 15},
+          );
+        }
+
+        result.addPhase(
+          'CLASSES',
+          'ok',
+          classes
+              .map(
+                (c) => {
+                  'name': c.name ?? 'unknown',
+                  'methods': c.methods?.length ?? 0,
+                  'fields': c.fields?.length ?? 0,
+                },
+              )
+              .toList(),
+        );
+      }
+
+      // ========== FUNCTIONS SECTION ==========
+      final functions = dartFile.functionDeclarations ?? [];
+      if (functions.isNotEmpty) {
+        yield AnalysisLine(
+          lineNum: lineNum++,
+          text: '⚙️ FUNCTIONS (${functions.length})',
+          status: 'pending',
+          section: 'FUNCTIONS',
+          details: {'count': functions.length, 'type': 'header'},
+        );
+
+        for (int i = 0; i < functions.length && i < 15; i++) {
+          final func = functions[i];
+          final asyncFlag = func.isAsync == true ? '[async] ' : '';
+          yield AnalysisLine(
+            lineNum: lineNum++,
+            text:
+                '├─ $asyncFlag${func.name ?? 'unknown'}(${func.parameters?.length ?? 0} params) → ${func.returnType?.displayName() ?? 'dynamic'}',
+            status: 'ok',
+            section: 'FUNCTIONS',
+            details: {
+              'name': func.name,
+              'parameters': func.parameters?.length ?? 0,
+              'returnType': func.returnType?.displayName(),
+            },
+          );
+        }
+
+        if (functions.length > 15) {
+          yield AnalysisLine(
+            lineNum: lineNum++,
+            text: '└─ ... and ${functions.length - 15} more functions',
+            status: 'ok',
+            section: 'FUNCTIONS',
+            details: {'remaining': functions.length - 15},
+          );
+        }
+
+        result.addPhase(
+          'FUNCTIONS',
+          'ok',
+          functions
+              .map(
+                (f) => {
+                  'name': f.name ?? 'unknown',
+                  'parameters': f.parameters?.length ?? 0,
+                },
+              )
+              .toList(),
+        );
+      }
+
+      // ========== VARIABLES SECTION ==========
+      final variables = dartFile.variableDeclarations ?? [];
+      if (variables.isNotEmpty) {
+        yield AnalysisLine(
+          lineNum: lineNum++,
+          text: '📝 VARIABLES (${variables.length})',
+          status: 'pending',
+          section: 'VARIABLES',
+          details: {'count': variables.length, 'type': 'header'},
+        );
+
+        for (int i = 0; i < variables.length && i < 15; i++) {
+          final variable = variables[i];
+          yield AnalysisLine(
+            lineNum: lineNum++,
+            text:
+                '├─ ${variable.name ?? 'unknown'}: ${variable.type?.displayName() ?? 'dynamic'}',
+            status: 'ok',
+            section: 'VARIABLES',
+            details: {
+              'name': variable.name,
+              'type': variable.type?.displayName(),
+            },
+          );
+        }
+
+        if (variables.length > 15) {
+          yield AnalysisLine(
+            lineNum: lineNum++,
+            text: '└─ ... and ${variables.length - 15} more variables',
+            status: 'ok',
+            section: 'VARIABLES',
+            details: {'remaining': variables.length - 15},
+          );
+        }
+
+        result.addPhase(
+          'VARIABLES',
+          'ok',
+          variables
+              .map(
+                (v) => {
+                  'name': v.name ?? 'unknown',
+                  'type': v.type?.displayName() ?? 'dynamic',
+                },
+              )
+              .toList(),
+        );
+      }
+
+      // ========== FINAL LINE ==========
+      yield AnalysisLine(
+        lineNum: lineNum++,
+        text: '✅ ANALYSIS COMPLETE - ${lineNum - 1} lines analyzed',
+        status: 'ok',
+        section: 'COMPLETE',
+        details: {'totalLines': lineNum - 1},
+      );
+
+      result.markComplete();
+      result.totalLines = lineNum - 1;
+      result.setFinalAnalysis(
+        fileInfo: {
+          'filePath': dartFile.filePath ?? 'unknown',
+          'contentHash': dartFile.contentHash ?? 'N/A',
+          'library': dartFile.library ?? '<unknown>',
+          'totalBytes': bytes.length,
+        },
+        statistics: stats,
+        imports: imports
+            .map((i) => {'uri': i.uri, 'prefix': i.prefix})
+            .toList(),
+        variables: variables
+            .map((v) => {'name': v.name, 'type': v.type?.displayName()})
+            .toList(),
+        functions: functions
+            .map((f) => {'name': f.name, 'params': f.parameters?.length})
+            .toList(),
+        classes: classes
+            .map((c) => {'name': c.name, 'methods': c.methods?.length})
+            .toList(),
+      );
+
+      // ✅ STORE RESULT BEFORE STREAM ENDS
       _analyses[fileId] = result;
+      if (verbose) print('✅ Analysis stored successfully: $fileId');
+    } catch (e, st) {
+      _logError('ANALYSIS_ERROR', e.toString(), st.toString(), fileId);
+
+      // ✅ Even on error, store the failed result
+      if (result != null) {
+        result.success = false;
+        result.error = 'Analysis error: ${e.toString()}';
+        _analyses[fileId] = result;
+      }
+
+      yield AnalysisLine(
+        lineNum: -1,
+        text: '❌ ERROR: ${e.toString()}',
+        status: 'error',
+        section: 'ERROR',
+        details: {'exception': e.toString()},
+      );
     }
-    
-    yield AnalysisLine(
-      lineNum: -1,
-      text: '❌ ERROR: ${e.toString()}',
-      status: 'error',
-      section: 'ERROR',
-      details: {'exception': e.toString()},
-    );
   }
-}
 
   void _scanForIRFiles() {
     try {
@@ -566,12 +650,14 @@ Stream<AnalysisLine> _analyzeFileStream(
       for (final file in files) {
         if (file is File && file.path.endsWith('.ir')) {
           try {
-            _availableFiles.add(IRFileInfo(
-              path: file.path,
-              name: file.uri.pathSegments.last,
-              size: file.lengthSync(),
-              modified: file.statSync().modified,
-            ));
+            _availableFiles.add(
+              IRFileInfo(
+                path: file.path,
+                name: file.uri.pathSegments.last,
+                size: file.lengthSync(),
+                modified: file.statSync().modified,
+              ),
+            );
             if (verbose) print('📄 Found: ${file.path}');
           } catch (e) {
             if (verbose) print('⚠️  Could not stat file ${file.path}: $e');
@@ -591,7 +677,12 @@ Stream<AnalysisLine> _analyzeFileStream(
       try {
         return await innerHandler(request);
       } catch (e, st) {
-        _logError('MIDDLEWARE_ERROR', e.toString(), st.toString(), request.url.path);
+        _logError(
+          'MIDDLEWARE_ERROR',
+          e.toString(),
+          st.toString(),
+          request.url.path,
+        );
         return _errorResponse('Internal server error: $e', 500);
       }
     };
@@ -602,16 +693,20 @@ Stream<AnalysisLine> _analyzeFileStream(
     return (request) async {
       final startTime = DateTime.now();
       if (verbose) {
-        print('🔨 [${request.method}] ${request.url} at ${startTime.toIso8601String()}');
+        print(
+          '🔨 [${request.method}] ${request.url} at ${startTime.toIso8601String()}',
+        );
       }
-      
+
       final response = await innerHandler(request);
-      
+
       final duration = DateTime.now().difference(startTime);
       if (verbose) {
-        print('✅ Response: ${response.statusCode} in ${duration.inMilliseconds}ms\n');
+        print(
+          '✅ Response: ${response.statusCode} in ${duration.inMilliseconds}ms\n',
+        );
       }
-      
+
       return response;
     };
   }
@@ -626,8 +721,10 @@ Stream<AnalysisLine> _analyzeFileStream(
 
     try {
       if ((path.isEmpty || path == '/') && method == 'GET') {
-        return Response.ok(_getHtmlUI(),
-            headers: {'content-type': 'text/html; charset=utf-8'});
+        return Response.ok(
+          _getHtmlUI(),
+          headers: {'content-type': 'text/html; charset=utf-8'},
+        );
       }
 
       if (path == 'api/files' && method == 'GET') {
@@ -671,14 +768,16 @@ Stream<AnalysisLine> _analyzeFileStream(
           'success': true,
           'count': _availableFiles.length,
           'files': _availableFiles
-              .map((f) => {
-                    'path': f.path,
-                    'name': f.name,
-                    'size': f.size,
-                    'sizeKB': (f.size / 1024).toStringAsFixed(2),
-                    'modified': f.modified.toIso8601String(),
-                    'cached': _fileHashes.containsKey(f.path), // ✅ Show if cached
-                  })
+              .map(
+                (f) => {
+                  'path': f.path,
+                  'name': f.name,
+                  'size': f.size,
+                  'sizeKB': (f.size / 1024).toStringAsFixed(2),
+                  'modified': f.modified.toIso8601String(),
+                  'cached': _fileHashes.containsKey(f.path), // ✅ Show if cached
+                },
+              )
               .toList(),
         }),
         headers: {'content-type': 'application/json'},
@@ -688,7 +787,6 @@ Stream<AnalysisLine> _analyzeFileStream(
       return _errorResponse('Failed to list files: $e', 500);
     }
   }
-
 
   // ✅ NEW: Metrics endpoint
   Response _handleMetrics() {
@@ -749,7 +847,12 @@ Stream<AnalysisLine> _analyzeFileStream(
   }
 
   // ✅ NEW: Error logging
-  void _logError(String code, String message, String stackTrace, String context) {
+  void _logError(
+    String code,
+    String message,
+    String stackTrace,
+    String context,
+  ) {
     final error = AnalysisError(
       code: code,
       message: message,
@@ -782,13 +885,15 @@ Stream<AnalysisLine> _analyzeFileStream(
   }
 
   Response _errorResponse(String message, int statusCode) {
-    return Response(statusCode,
-        body: jsonEncode({
-          'success': false,
-          'error': message,
-          'timestamp': DateTime.now().toIso8601String(),
-        }),
-        headers: {'content-type': 'application/json'});
+    return Response(
+      statusCode,
+      body: jsonEncode({
+        'success': false,
+        'error': message,
+        'timestamp': DateTime.now().toIso8601String(),
+      }),
+      headers: {'content-type': 'application/json'},
+    );
   }
 
   String _getHtmlUI() => HtmlGenerator.generate();
@@ -842,12 +947,14 @@ class ProgressiveAnalysisResult {
   });
 
   void addPhase(String phase, String status, dynamic data) {
-    phases.add(AnalysisPhase(
-      phase: phase,
-      status: status,
-      data: data,
-      timestamp: DateTime.now(),
-    ));
+    phases.add(
+      AnalysisPhase(
+        phase: phase,
+        status: status,
+        data: data,
+        timestamp: DateTime.now(),
+      ),
+    );
   }
 
   void markComplete() {
@@ -880,11 +987,12 @@ class ProgressiveAnalysisResult {
   }
 
   Map<String, dynamic> toJson() {
-    return finalAnalysis ?? {
-      'success': success,
-      'error': error,
-      'phases': phases.map((p) => p.toJson()).toList(),
-    };
+    return finalAnalysis ??
+        {
+          'success': success,
+          'error': error,
+          'phases': phases.map((p) => p.toJson()).toList(),
+        };
   }
 }
 

@@ -64,17 +64,12 @@ class BinaryIRWriter
 
   /// Serialize a DartFile IR to binary format
   Uint8List writeFileIR(DartFile fileIR, {bool verbose = false}) {
-    // CRITICAL: Initialize _verbose FIRST
     _verbose = verbose;
     _relationships = IRRelationshipRegistry();
 
     printlog('[INIT] Serialization started with verbose=$_verbose');
 
-    // try {
-    // =====================================================================
-    // STEP 1: Validate before doing any work
-    // =====================================================================
-    printlog('[STEP 1] Validating FileIR...');
+    // STEP 1: Validate
     final validationErrors = validateFileIR(fileIR);
     if (validationErrors.isNotEmpty) {
       throw SerializationException(
@@ -83,78 +78,56 @@ class BinaryIRWriter
         context: 'validation',
       );
     }
-    printlog('[STEP 1] ✓ Validation passed');
 
     _buffer.clear();
     _stringTable.clear();
     _stringIndices.clear();
 
-    // ===================================================================
-    // STEP 2: Build relationship map before collecting strings
-    // ===================================================================
-    printlog('[STEP 2] Building relationships...');
+    // STEP 2: Build relationships
     buildRelationships(fileIR);
-    printlog('[STEP 2] ✓ Relationships built');
 
-    // STEP 3: Collect all strings for deduplication
-    printlog('[STEP 3] Collecting strings...');
+    // STEP 3: Collect strings
     collectStrings(fileIR);
     collectStringsFromRelationships();
-    printlog('[STEP 3] ✓ Collected ${_stringTable.length} unique strings');
+
+    // ✅ NEW DEBUG: Print all collected strings
+    printlog('\n[DEBUG] String table after collection:');
+    printlog('Total strings: ${_stringTable.length}');
+    for (int i = 0; i < _stringTable.length; i++) {
+      printlog('  [$i] "${_stringTable[i]}"');
+    }
+    printlog('');
 
     // STEP 4: Write header
-    printlog('[STEP 4] Writing header...');
     _writeHeader();
-    printlog('[STEP 4] ✓ Header written');
 
     // STEP 5: Write string table
-    printlog('[STEP 5] Writing string table...');
     _writeStringTable();
-    printlog('[STEP 5] ✓ String table written');
 
-    // ===================================================================
-    // STEP 6: WRITE RELATIONSHIP SECTION
-    // ===================================================================
-    printlog('[STEP 6] Writing relationships section...');
+    // ✅ NEW DEBUG: Verify string table is finalized
+    printlog('[DEBUG] String table finalized - no more additions allowed');
+    printlog('[DEBUG] Valid indices: 0-${_stringTable.length - 1}');
+    printlog('[DEBUG] String table offset range: 8-${_buffer.length}');
+
+    // STEP 6: Write relationships
     _relationshipsStartOffset = _buffer.length;
     _writeRelationshipsSection();
-    printlog(
-      '[STEP 6] ✓ Relationships written at offset $_relationshipsStartOffset',
-    );
 
     // STEP 7: Write IR data
-    printlog('[STEP 7] Writing IR data...');
     _writeFileIRData(fileIR);
-    printlog('[STEP 7] ✓ IR data written');
 
-    // ===================================================================
-    // STEP 8: Write checksum if enabled
-    // ===================================================================
+    // STEP 8: Write checksum
     if (_shouldWriteChecksum) {
-      printlog('[STEP 8] Writing checksum...');
       final dataBeforeChecksum = _buffer.toBytes();
       writeChecksum(dataBeforeChecksum);
-      printlog('[STEP 8] ✓ Checksum written');
     }
 
     if (_verbose) {
       _debugPrintStructure();
     }
 
-    printlog('[✓ COMPLETE] Serialization successful: ${_buffer.length} bytes');
+    printlog('[✅ COMPLETE] Serialization successful: ${_buffer.length} bytes');
     return _buffer.toBytes();
-    // } catch (e, stackTrace) {
-    //   if (e is SerializationException) {
-    //     printlog('[✗ ERROR] ${e.toString()} $stackTrace');
-    //     rethrow;
-    //   }
-    //   printlog('[✗ ERROR] Unexpected error: $e $stackTrace');
-    //   throw SerializationException(
-    //     'Serialization failed: $e $stackTrace',
-    //     offset: _buffer.length,
-    //     context: 'writeFileIR',
-    //   );
-    // }
   }
 
   void _debugPrintStructure() {
@@ -224,8 +197,13 @@ class BinaryIRWriter
     if (str.isEmpty) return;
 
     if (!_stringIndices.containsKey(str)) {
-      _stringIndices[str] = _stringTable.length;
+      final newIndex = _stringTable.length;
+      _stringIndices[str] = newIndex;
       _stringTable.add(str);
+
+      if (_verbose) {
+        printlog('[ADD STRING] [$newIndex] "$str"');
+      }
     }
   }
 
@@ -422,52 +400,58 @@ class BinaryIRWriter
       printlog('[WRITE FILE IR DATA] START');
 
       writeUint32(getStringRef(fileIR.filePath));
-      printlog('[WRITE FILE IR] After filePath: ${_buffer.length}');
-
       writeUint32(getStringRef(fileIR.contentHash));
-      printlog('[WRITE FILE IR] After contentHash: ${_buffer.length}');
-
       writeUint32(getStringRef(fileIR.library ?? "<unknown>"));
-      printlog('[WRITE FILE IR] After library: ${_buffer.length}');
-
       writeUint64(DateTime.now().millisecondsSinceEpoch);
-      printlog('[WRITE FILE IR] After analyzedAt: ${_buffer.length}');
 
       writeUint32(fileIR.imports.length);
-      printlog(
-        '[WRITE FILE IR] After importCount: ${_buffer.length}, count: ${fileIR.imports.length}',
-      );
-
       for (final import in fileIR.imports) {
         writeImportStmt(import);
       }
-      printlog('[WRITE FILE IR] After imports loop: ${_buffer.length}');
 
       writeUint32(fileIR.exports.length);
-      printlog(
-        '[WRITE FILE IR] After exportCount: ${_buffer.length}, count: ${fileIR.exports.length}',
-      );
-
       for (final export in fileIR.exports) {
         writeExportStmt(export);
       }
-      printlog('[WRITE FILE IR] After exports loop: ${_buffer.length}');
 
       writeUint32(fileIR.variableDeclarations.length);
-      printlog('[WRITE FILE IR] After varCount: ${_buffer.length}');
-
       for (final variable in fileIR.variableDeclarations) {
         writeVariableDecl(variable);
       }
-      printlog('[WRITE FILE IR] After variables: ${_buffer.length}');
 
       writeUint32(fileIR.functionDeclarations.length);
-      printlog('[WRITE FILE IR] After funcCount: ${_buffer.length}');
-
       for (final func in fileIR.functionDeclarations) {
         writeFunctionDecl(func);
       }
-      printlog('[WRITE FILE IR] After functions: ${_buffer.length}');
+
+      // ✅ NEW DEBUG: Before writing classes
+      printlog('\n[DEBUG] Before writing classes:');
+      printlog('Classes to write: ${fileIR.classDeclarations.length}');
+      printlog('String table size: ${_stringTable.length}');
+      printlog('Valid indices: 0-${_stringTable.length - 1}');
+
+      // ✅ VERIFY each class ID is in the string table
+      for (int i = 0; i < fileIR.classDeclarations.length; i++) {
+        final classDecl = fileIR.classDeclarations[i];
+
+        if (!_stringIndices.containsKey(classDecl.id)) {
+          printlog('\n❌ CLASS ID NOT IN STRING TABLE:');
+          printlog('   Class: ${classDecl.name}');
+          printlog('   ID: "${classDecl.id}"');
+          printlog('   Problem: This ID was never added to string table!');
+
+          throw SerializationException(
+            'Class ID "${classDecl.id}" not in string table. '
+            'This should have been collected in collectStringsFromClass(). '
+            'String table has ${_stringTable.length} strings.',
+            offset: _buffer.length,
+            context: 'class_id_missing',
+          );
+        }
+
+        final idx = _stringIndices[classDecl.id]!;
+        printlog('[Class $i] ID index: $idx, name: ${classDecl.name}');
+      }
 
       writeUint32(fileIR.classDeclarations.length);
       printlog('[WRITE FILE IR] After classCount: ${_buffer.length}');
@@ -478,19 +462,14 @@ class BinaryIRWriter
       printlog('[WRITE FILE IR] After classes: ${_buffer.length}');
 
       writeUint32(fileIR.analysisIssues.length);
-      printlog('[WRITE FILE IR] After issueCount: ${_buffer.length}');
-
       for (final issue in fileIR.analysisIssues) {
         writeAnalysisIssue(issue);
       }
       printlog('[WRITE FILE IR] After issues: ${_buffer.length}');
       printlog('[WRITE FILE IR DATA] END');
     } catch (e) {
-      throw SerializationException(
-        'Failed to write file IR data: $e',
-        offset: _buffer.length,
-        context: 'file_ir_data',
-      );
+      printlog('[WRITE FILE IR ERROR] $e');
+      rethrow;
     }
   }
 
@@ -552,9 +531,9 @@ class BinaryIRWriter
 
   @override
   void printlog(String message) {
-    if (isVerbose) {
-      print(message);
-    }
+    // if (isVerbose) {
+    print(message);
+    // }
   }
 
   @override
@@ -772,55 +751,30 @@ class BinaryIRWriter
     }
   }
 
+  // ============================================================================
+  // FUNCTION DECLARATION WRITER - CLEAN & SYNCHRONIZED
+  // ============================================================================
   @override
+  // ============================================================================
+  // FUNCTION DECLARATION WRITER - CLEAN & SYNCHRONIZED
+  // ============================================================================
   void writeFunctionDecl(FunctionDecl func) {
     printlog(
       '[WRITE FUNCTION] START - ${func.name} at offset ${buffer.length}',
     );
 
+    // ========== SECTION 1: Basic Metadata ==========
     writeUint32(getStringRef(func.id));
     writeUint32(getStringRef(func.name));
     writeUint32(getStringRef(func.returnType.displayName()));
 
-    int flags = 0;
-    if (func.isAsync) flags |= 0x01;
-    if (func.isGenerator) flags |= 0x02;
-    if (func.isSyncGenerator) flags |= 0x04;
-    if (func.isStatic) flags |= 0x08;
-    if (func.isAbstract) flags |= 0x10;
-    if (func.isGetter) flags |= 0x20;
-    if (func.isSetter) flags |= 0x40;
-    if (func.isOperator) flags |= 0x80;
-    writeByte(flags);
-
-    int flags2 = 0;
-    if (func.isFactory) flags2 |= 0x01;
-    if (func.isConst) flags2 |= 0x02;
-    if (func.isExternal) flags2 |= 0x04;
-    if (func.isLate) flags2 |= 0x08;
-    if (func.documentation != null) flags2 |= 0x10;
-    if (func is MethodDecl && func.markedOverride) flags2 |= 0x20;
-    writeByte(flags2);
-
-    final visibilityValue = func.visibility == VisibilityModifier.private
-        ? 1
-        : 0;
-    writeByte(visibilityValue);
-
-    printlog('[WRITE FUNCTION] After flags: ${buffer.length}');
-
-    writeType(func.returnType);
-
+    // ========== SECTION 2: Documentation ==========
+    writeByte(func.documentation != null ? 1 : 0);
     if (func.documentation != null) {
       writeUint32(getStringRef(func.documentation!));
     }
 
-    writeUint32(func.annotations.length);
-    for (final ann in func.annotations) {
-      writeAnnotation(ann);
-    }
-    printlog('[WRITE FUNCTION] After annotations: ${buffer.length}');
-
+    // ========== SECTION 3: Type Parameters ==========
     writeUint32(func.typeParameters.length);
     for (final tp in func.typeParameters) {
       writeUint32(getStringRef(tp.name));
@@ -829,24 +783,30 @@ class BinaryIRWriter
         writeType(tp.bound!);
       }
     }
-    printlog('[WRITE FUNCTION] After type params: ${buffer.length}');
 
+    // ========== SECTION 4: Parameters ==========
     writeUint32(func.parameters.length);
     for (final param in func.parameters) {
       writeParameterDecl(param);
     }
-    printlog('[WRITE FUNCTION] After parameters: ${buffer.length}');
 
+    // ========== SECTION 5: Source Location ==========
     writeSourceLocation(func.sourceLocation);
 
+    // ========== SECTION 6: Type-Specific Data ==========
     if (func is ConstructorDecl) {
-      writeByte(1);
+      writeByte(1); // isConstructor flag
+
       writeUint32(getStringRef(func.constructorClass ?? ''));
       writeByte(func.constructorName != null ? 1 : 0);
       if (func.constructorName != null) {
         writeUint32(getStringRef(func.constructorName!));
       }
 
+      writeByte(func.isConst ? 1 : 0);
+      writeByte(func.isFactory ? 1 : 0);
+
+      // Initializers
       writeUint32(func.initializers.length);
       for (final init in func.initializers) {
         writeUint32(getStringRef(init.fieldName));
@@ -855,6 +815,7 @@ class BinaryIRWriter
         writeSourceLocation(init.sourceLocation);
       }
 
+      // Super call
       writeByte(func.superCall != null ? 1 : 0);
       if (func.superCall != null) {
         writeByte(func.superCall!.constructorName != null ? 1 : 0);
@@ -873,6 +834,7 @@ class BinaryIRWriter
         writeSourceLocation(func.superCall!.sourceLocation);
       }
 
+      // Redirected call
       writeByte(func.redirectedCall != null ? 1 : 0);
       if (func.redirectedCall != null) {
         writeByte(func.redirectedCall!.constructorName != null ? 1 : 0);
@@ -892,37 +854,37 @@ class BinaryIRWriter
       }
 
       printlog('[WRITE FUNCTION] Constructor-specific data written');
-    } else {
-      writeByte(0);
-    }
+    } else if (func is MethodDecl) {
+      writeByte(2); // isMethod flag (2 instead of 1 to avoid confusion)
 
-    if (func is MethodDecl) {
-      writeByte(1);
       writeByte(func.className != null ? 1 : 0);
       if (func.className != null) {
         writeUint32(getStringRef(func.className!));
       }
+
       writeByte(func.overriddenSignature != null ? 1 : 0);
       if (func.overriddenSignature != null) {
         writeUint32(getStringRef(func.overriddenSignature!));
       }
+
+      writeByte(func.isAsync ? 1 : 0);
+      writeByte(func.isGenerator ? 1 : 0);
+
       printlog('[WRITE FUNCTION] Method-specific data written');
     } else {
-      writeByte(0);
+      writeByte(0); // Regular function
     }
 
-    // ✅ FIXED: body is always List<StatementIR>?, no type check needed
-    if (func is! ConstructorDecl && func is! MethodDecl) {
-      writeByte(func.body != null ? 1 : 0);
-      if (func.body != null) {
-        writeUint32(func.body!.length);
-        for (final stmt in func.body!) {
-          writeStatement(stmt);
-        }
-        printlog(
-          '[WRITE FUNCTION] Body statements written: ${func.body!.length}',
-        );
+    // ========== SECTION 7: Function Body ==========
+    writeByte(func.body != null ? 1 : 0);
+    if (func.body != null) {
+      writeUint32(func.body!.length);
+      for (final stmt in func.body!) {
+        writeStatement(stmt);
       }
+      printlog(
+        '[WRITE FUNCTION] Body statements written: ${func.body!.length}',
+      );
     }
 
     printlog('[WRITE FUNCTION] END - ${func.name} at offset ${buffer.length}');
@@ -1074,25 +1036,31 @@ class BinaryIRWriter
   }
 
   @override
+  @override
   void collectStringsFromClass(ClassDecl classDecl) {
+    // ✅ MUST collect class ID and name FIRST
     addString(classDecl.id);
     addString(classDecl.name);
     addString(classDecl.sourceLocation.file);
     if (classDecl.documentation != null) addString(classDecl.documentation!);
+
     if (classDecl.superclass != null) {
       addString(classDecl.superclass!.displayName());
     }
 
+    // ✅ Interfaces
     for (final iface in classDecl.interfaces) {
       addString(iface.displayName());
     }
 
+    // ✅ Mixins
     for (final mixin in classDecl.mixins) {
       addString(mixin.displayName());
     }
 
+    // ✅ Fields - COLLECT FIELD ID!
     for (final field in classDecl.fields) {
-      addString(field.id);
+      addString(field.id); // ← CRITICAL! This must be collected
       addString(field.name);
       addString(field.type.displayName());
       addString(field.sourceLocation.file);
@@ -1101,11 +1069,18 @@ class BinaryIRWriter
       }
     }
 
+    // ✅ Methods - COLLECT METHOD ID!
     for (final method in classDecl.methods) {
-      addString(method.id);
+      addString(method.id); // ← CRITICAL! This must be collected
       addString(method.name);
       addString(method.returnType.displayName());
       addString(method.sourceLocation.file);
+
+      // Collect from annotations
+      for (final ann in method.annotations) {
+        addString(ann.name);
+      }
+
       for (final param in method.parameters) {
         addString(param.id);
         addString(param.name);
@@ -1115,13 +1090,16 @@ class BinaryIRWriter
           collectStringsFromExpression(param.defaultValue);
         }
       }
+
+      // ✅ MUST collect from method body
       if (method.body != null) {
         collectStringsFromStatements(method.body!);
       }
     }
 
+    // ✅ Constructors - COLLECT CONSTRUCTOR ID!
     for (final constructor in classDecl.constructors) {
-      addString(constructor.id);
+      addString(constructor.id); // ← CRITICAL! This must be collected
       addString(constructor.name);
       addString(constructor.constructorClass ?? "<unknown>");
       if (constructor.constructorName != null) {
@@ -1138,11 +1116,14 @@ class BinaryIRWriter
           collectStringsFromExpression(param.defaultValue);
         }
       }
+
+      // ✅ MUST collect from initializers
       for (final init in constructor.initializers) {
         addString(init.fieldName);
         collectStringsFromExpression(init.value);
       }
 
+      // ✅ MUST collect from constructor body
       if (constructor.body != null) {
         collectStringsFromStatements(constructor.body!);
       }
@@ -1160,6 +1141,158 @@ class BinaryIRWriter
       }
       addString(issue.sourceLocation.file);
     }
+  }
+
+  @override
+  void writeClassDecl(ClassDecl classDecl) {
+    final startOffset = _buffer.length;
+    printlog('\n[WRITE CLASS START] ${classDecl.name} at offset: $startOffset');
+    printlog('[CLASS] id: ${classDecl.id}');
+    printlog('[CLASS] name: ${classDecl.name}');
+
+    // STEP 1: Write class ID
+    try {
+      final idRef = getStringRef(classDecl.id);
+      printlog(
+        '[CLASS] id stringRef: $idRef (table size: ${_stringTable.length})',
+      );
+      writeUint32(idRef);
+    } catch (e) {
+      printlog('[CLASS ERROR] Failed to write id: $e');
+      rethrow;
+    }
+    printlog('[CLASS] After id: ${_buffer.length}');
+
+    // STEP 2: Write class name
+    try {
+      final nameRef = getStringRef(classDecl.name);
+      printlog(
+        '[CLASS] name stringRef: $nameRef (table size: ${_stringTable.length})',
+      );
+      writeUint32(nameRef);
+    } catch (e) {
+      printlog('[CLASS ERROR] Failed to write name: $e');
+      rethrow;
+    }
+    printlog('[CLASS] After name: ${_buffer.length}');
+
+    // STEP 3: Write flags
+    writeByte(classDecl.isAbstract ? 1 : 0);
+    writeByte(classDecl.isFinal ? 1 : 0);
+    printlog('[CLASS] After flags: ${_buffer.length}');
+
+    // STEP 4: Write superclass
+    writeByte(classDecl.superclass != null ? 1 : 0);
+    if (classDecl.superclass != null) {
+      writeType(classDecl.superclass!);
+    }
+    printlog('[CLASS] After superclass: ${_buffer.length}');
+
+    // STEP 5: Write interfaces
+    printlog('[CLASS] interfaces count: ${classDecl.interfaces.length}');
+    writeUint32(classDecl.interfaces.length);
+    for (int i = 0; i < classDecl.interfaces.length; i++) {
+      try {
+        writeType(classDecl.interfaces[i]);
+        printlog('[CLASS] Interface $i written');
+      } catch (e) {
+        printlog('[CLASS ERROR] Failed to write interface $i: $e');
+        rethrow;
+      }
+    }
+    printlog('[CLASS] After interfaces: ${_buffer.length}');
+
+    // STEP 6: Write mixins
+    printlog('[CLASS] mixins count: ${classDecl.mixins.length}');
+    writeUint32(classDecl.mixins.length);
+    for (int i = 0; i < classDecl.mixins.length; i++) {
+      try {
+        writeType(classDecl.mixins[i]);
+        printlog('[CLASS] Mixin $i written');
+      } catch (e) {
+        printlog('[CLASS ERROR] Failed to write mixin $i: $e');
+        rethrow;
+      }
+    }
+    printlog('[CLASS] After mixins: ${_buffer.length}');
+
+    // STEP 7: Write fields
+    printlog('[CLASS] fields count: ${classDecl.fields.length}');
+    writeUint32(classDecl.fields.length);
+    for (int i = 0; i < classDecl.fields.length; i++) {
+      try {
+        printlog('[CLASS] Writing field $i/${classDecl.fields.length}');
+        final fieldStartOffset = _buffer.length;
+        writeFieldDecl(classDecl.fields[i]);
+        final fieldEndOffset = _buffer.length;
+        printlog(
+          '[CLASS] Field $i: ${fieldEndOffset - fieldStartOffset} bytes',
+        );
+      } catch (e) {
+        printlog('[CLASS ERROR] Failed to write field $i: $e');
+        rethrow;
+      }
+    }
+    printlog('[CLASS] After fields: ${_buffer.length}');
+
+    // STEP 8: Write methods
+    printlog('[CLASS] methods count: ${classDecl.methods.length}');
+    writeUint32(classDecl.methods.length);
+    for (int i = 0; i < classDecl.methods.length; i++) {
+      try {
+        printlog(
+          '[CLASS] Writing method $i/${classDecl.methods.length}: ${classDecl.methods[i].name}',
+        );
+        final methodStartOffset = _buffer.length;
+        writeMethodDecl(classDecl.methods[i]);
+        final methodEndOffset = _buffer.length;
+        printlog(
+          '[CLASS] Method $i: ${methodEndOffset - methodStartOffset} bytes',
+        );
+      } catch (e) {
+        printlog(
+          '[CLASS ERROR] Failed to write method $i/${classDecl.methods.length}: $e',
+        );
+        rethrow;
+      }
+    }
+    printlog('[CLASS] After methods: ${_buffer.length}');
+
+    // STEP 9: Write constructors
+    printlog('[CLASS] constructors count: ${classDecl.constructors.length}');
+    writeUint32(classDecl.constructors.length);
+    for (int i = 0; i < classDecl.constructors.length; i++) {
+      try {
+        printlog(
+          '[CLASS] Writing constructor $i/${classDecl.constructors.length}',
+        );
+        final ctorStartOffset = _buffer.length;
+        writeConstructorDecl(classDecl.constructors[i]);
+        final ctorEndOffset = _buffer.length;
+        printlog(
+          '[CLASS] Constructor $i: ${ctorEndOffset - ctorStartOffset} bytes',
+        );
+      } catch (e) {
+        printlog('[CLASS ERROR] Failed to write constructor $i: $e');
+        rethrow;
+      }
+    }
+    printlog('[CLASS] After constructors: ${_buffer.length}');
+
+    // STEP 10: Write source location
+    try {
+      printlog('[CLASS] sourceLocation file: ${classDecl.sourceLocation.file}');
+      writeSourceLocation(classDecl.sourceLocation);
+    } catch (e) {
+      printlog('[CLASS ERROR] Failed to write sourceLocation: $e');
+      rethrow;
+    }
+
+    final endOffset = _buffer.length;
+    final totalBytes = endOffset - startOffset;
+    printlog(
+      '[WRITE CLASS END] ${classDecl.name}: $totalBytes bytes ($startOffset-$endOffset)\n',
+    );
   }
 
   @override

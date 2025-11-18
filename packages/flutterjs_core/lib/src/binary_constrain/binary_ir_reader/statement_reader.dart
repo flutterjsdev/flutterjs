@@ -27,36 +27,36 @@ mixin StatementReader {
   }
 
   VariableDeclarationStmt readVariableDeclarationStatement() {
-    final varCount = readUint32();
+    // Match the write order from statement_writer.dart exactly
+    final name = readStringRef(); // ✅ READ NAME, not varCount
+
+    final hasType = readByte() != 0;
+    TypeIR? type;
+    if (hasType) {
+      type = readType();
+    }
+  
+    final hasInitializer = readByte() != 0;
+    ExpressionIR? initializer;
+    if (hasInitializer) {
+      initializer = readExpression();
+    }
+
+    final isFinal = readByte() != 0;
+    final isConst = readByte() != 0;
+    final isLate = readByte() != 0;
+
     final sourceLocation = readSourceLocation();
-    final resultType = readType();
-    // If multiple variables, just use the first one
-    // (or you could return a BlockStmt with multiple VariableDeclarationStmt)
-    if (varCount == 0) {
-      return VariableDeclarationStmt(
-        id: 'stmt_var_decl',
-        name: '<empty>',
-        resultType: resultType,
-        sourceLocation: sourceLocation,
-      );
-    }
-
-    final firstVar = readVariableDecl();
-
-    // Read remaining variables (if any)
-    for (int i = 1; i < varCount; i++) {
-      readVariableDecl(); // Skip or handle separately
-    }
 
     return VariableDeclarationStmt(
       id: 'stmt_var_decl',
-      name: firstVar.name,
-      type: firstVar.type,
-      resultType: resultType,
-      initializer: firstVar.initializer,
-      isFinal: firstVar.isFinal,
-      isConst: firstVar.isConst,
-      isLate: firstVar.isLate,
+      name: name,
+      type: type,
+     
+      initializer: initializer,
+      isFinal: isFinal,
+      isConst: isConst,
+      isLate: isLate,
       sourceLocation: sourceLocation,
     );
   }
@@ -291,11 +291,23 @@ mixin StatementReader {
   }
 
   SwitchCaseStmt readSwitchCase() {
-    final labelCount = readUint32();
-    final sourceLocation = readSourceLocation();
-    final labels = <ExpressionIR>[];
-    for (int i = 0; i < labelCount; i++) {
-      labels.add(readExpression());
+    // The current code reads labelCount first, but writeStatement writes differently
+    // Check what writeSwitchStatement does:
+
+    // From statement_writer.dart:
+    // writeSwitchCase writes: patterns/statements only
+    // NOT a separate labelCount
+
+    final isDefault = readByte() != 0;
+    final hasPatterns = readByte() != 0;
+
+    List<ExpressionIR>? patterns;
+    if (hasPatterns) {
+      final patternCount = readUint32();
+      patterns = <ExpressionIR>[];
+      for (int i = 0; i < patternCount; i++) {
+        patterns.add(readExpression());
+      }
     }
 
     final stmtCount = readUint32();
@@ -304,11 +316,14 @@ mixin StatementReader {
       statements.add(readStatement());
     }
 
+    final sourceLocation = readSourceLocation();
+
     return SwitchCaseStmt(
       id: 'stmt_switch_case',
       sourceLocation: sourceLocation,
-      patterns: labels,
+      patterns: patterns,
       statements: statements,
+      isDefault: isDefault,
     );
   }
 

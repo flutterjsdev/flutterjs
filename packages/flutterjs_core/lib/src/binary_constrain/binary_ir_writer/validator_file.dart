@@ -4,6 +4,7 @@ mixin ValidatorFile {
   // =========================================================================
   // VALIDATION (PRIORITY 2)
   // =========================================================================
+  void printlog(String str);
 
   /// Enhanced validation before serialization
   List<String> validateFileIR(DartFile fileIR) {
@@ -89,4 +90,33 @@ mixin ValidatorFile {
 
     return errors;
   }
+
+  //   void validateBeforeWrite(String section, int expectedCount, String itemName) {
+  //   printlog('[VALIDATE] Writing $expectedCount $itemName in [$section]');
+  //   printlog('[VALIDATE] String table size: ${_stringTable.length}');
+  //   printlog('[VALIDATE] Buffer offset: ${_buffer.length}');
+  //   if (_verbose) {
+  //     printlog('[VALIDATE] Last 5 strings in table:');
+  //     for (int i = Math.max(0, _stringTable.length - 5); i < _stringTable.length; i++) {
+  //       printlog('  [$i] "${_stringTable[i]}"');
+  //     }
+  //   }
+  // }
+
+  // // ✅ CALL THIS before writing classes
+  // void debugBeforeClassesWrite(List<ClassDecl> classes) {
+  //   printlog('\n[DEBUG PRE-CLASS WRITE]');
+  //   printlog('Total classes to write: ${classes.length}');
+  //   printlog('String table size: ${_stringTable.length}');
+  //   printlog('Buffer offset: ${_buffer.length}');
+
+  //   for (int i = 0; i < classes.length; i++) {
+  //     final cls = classes[i];
+  //     printlog('Class $i: ${cls.name}');
+  //     printlog('  - id: ${cls.id}');
+  //     printlog('  - fields: ${cls.fields.length}');
+  //     printlog('  - methods: ${cls.methods.length}');
+  //     printlog('  - constructors: ${cls.constructors.length}');
+  //   }
+  // }
 }

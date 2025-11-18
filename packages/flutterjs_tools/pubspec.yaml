@@ -17,6 +17,10 @@ dependencies:
     path: ../flutterjs_analyzer  
   dev_utils:
     path: ../dev_utils
+  dev_tools:
+    path: ../dev_tools
+  args: ^2.7.0
+  analyzer: ^8.4.1
 
 dev_dependencies:
   lints: ^6.0.0

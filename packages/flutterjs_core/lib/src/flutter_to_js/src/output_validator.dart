@@ -129,13 +129,10 @@ class OutputValidator {
 
     // Run all validations
     _syntaxValidation();
-    print("jatpal code1 ${jsCode}");
+  
     _semanticValidation();
-    print("jatpal code2 ${jsCode}");
     _runtimeValidation();
-    print("jatpal code3 ${jsCode}");
     _styleValidation();
-    print("jatpal code4 ${jsCode}");
 
     stopwatch.stop();
 

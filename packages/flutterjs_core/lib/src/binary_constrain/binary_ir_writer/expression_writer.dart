@@ -19,7 +19,7 @@ mixin ExpressionWriter {
 
   // ✓ NEW: Access to relationship registry and string collection
 
-  void addString(String str);
+
 
   void writeExpression(ExpressionIR expr);
 
@@ -27,9 +27,7 @@ mixin ExpressionWriter {
   void writeInstanceCreationExpression(InstanceCreationExpressionIR expr) {
     writeType(expr.type);
 
-    // ✓ TRACK: Capture widget class name
-    final widgetClassName = expr.type.displayName();
-    addString(widgetClassName);
+  
 
     writeByte(expr.constructorName != null ? 1 : 0);
     if (expr.constructorName != null) {
@@ -45,8 +43,7 @@ mixin ExpressionWriter {
 
     writeUint32(expr.namedArguments.length);
     for (final entry in expr.namedArguments.entries) {
-      // ✓ TRACK: Named parameters like "child", "children", "body"
-      addString(entry.key);
+
       writeUint32(getStringRef(entry.key));
       writeExpression(entry.value);
     }

@@ -53,7 +53,6 @@ class VariableDeclarationStmt extends StatementIR {
     required super.id,
     required super.sourceLocation,
     required this.name,
-    required TypeIR resultType,
     this.type,
     this.initializer,
     this.isFinal = false,

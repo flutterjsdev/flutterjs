@@ -21,7 +21,7 @@ mixin DeclarationWriter {
   BytesBuilder get _buffer => buffer;
 
   // ✅ Abstract method signatures that must be implemented by mixins
-  void collectStringsFromExpression(ExpressionIR? expr) ;
+  void collectStringsFromExpression(ExpressionIR? expr);
   void collectStringsFromStatements(
     List<StatementIR>? stmts,
   ); // ✅ Nullable parameter
@@ -140,73 +140,7 @@ mixin DeclarationWriter {
     addString(stmt.sourceLocation.file);
   }
 
-  void writeClassDecl(ClassDecl classDecl) {
-    printlog('[WRITE CLASS] START - buffer: ${buffer.length}');
-
-    writeUint32(getStringRef(classDecl.id));
-    printlog('[WRITE CLASS] After id: ${buffer.length}');
-
-    writeUint32(getStringRef(classDecl.name));
-    printlog('[WRITE CLASS] After name: ${buffer.length}');
-
-    writeByte(classDecl.isAbstract ? 1 : 0);
-    printlog('[WRITE CLASS] After isAbstract: ${buffer.length}');
-
-    writeByte(classDecl.isFinal ? 1 : 0);
-    printlog('[WRITE CLASS] After isFinal: ${buffer.length}');
-
-    writeByte(classDecl.superclass != null ? 1 : 0);
-    printlog('[WRITE CLASS] After hasSuperclass: ${buffer.length}');
-
-    if (classDecl.superclass != null) {
-      writeType(classDecl.superclass!);
-    }
-    printlog('[WRITE CLASS] After superclass: ${buffer.length}');
-
-    writeUint32(classDecl.interfaces.length);
-    printlog('[WRITE CLASS] After interfaceCount: ${buffer.length}');
-
-    for (final iface in classDecl.interfaces) {
-      writeType(iface);
-    }
-    printlog('[WRITE CLASS] After interfaces: ${buffer.length}');
-
-    writeUint32(classDecl.mixins.length);
-    printlog('[WRITE CLASS] After mixinCount: ${buffer.length}');
-
-    for (final mixin in classDecl.mixins) {
-      writeType(mixin);
-    }
-    printlog('[WRITE CLASS] After mixins: ${buffer.length}');
-
-    writeUint32(classDecl.fields.length);
-    printlog('[WRITE CLASS] After fieldCount: ${buffer.length}');
-
-    for (final field in classDecl.fields) {
-      writeFieldDecl(field);
-    }
-    printlog('[WRITE CLASS] After fields: ${buffer.length}');
-
-    writeUint32(classDecl.methods.length);
-    printlog('[WRITE CLASS] After methodCount: ${buffer.length}');
-
-    for (final method in classDecl.methods) {
-      writeMethodDecl(method);
-    }
-    printlog('[WRITE CLASS] After methods: ${buffer.length}');
-
-    writeUint32(classDecl.constructors.length);
-    printlog('[WRITE CLASS] After constructorCount: ${buffer.length}');
-
-    for (final constructor in classDecl.constructors) {
-      writeConstructorDecl(constructor);
-    }
-    printlog('[WRITE CLASS] After constructors: ${buffer.length}');
-
-    writeSourceLocation(classDecl.sourceLocation);
-    printlog('[WRITE CLASS] After sourceLocation: ${buffer.length}');
-    printlog('[WRITE CLASS] END');
-  }
+  void writeClassDecl(ClassDecl classDecl);
 
   void writeFieldDecl(FieldDecl field) {
     writeUint32(getStringRef(field.id));
@@ -227,64 +161,72 @@ mixin DeclarationWriter {
     writeSourceLocation(field.sourceLocation);
   }
 
+  @override
   void writeMethodDecl(MethodDecl method) {
-    printlog('[WRITE CLASS Method] Start: ${buffer.length}');
+    final startOffset = _buffer.length;
+    printlog('  [METHOD START] ${method.name} at offset: $startOffset');
 
-    writeUint32(getStringRef(method.id));
-    printlog('[WRITE CLASS Method] after id: ${buffer.length}');
+    try {
+      // ID
+      final idRef = getStringRef(method.id);
+      writeUint32(idRef);
+      printlog('  [METHOD] After id ($idRef): ${_buffer.length}');
 
-    writeUint32(getStringRef(method.name));
-    printlog('[WRITE CLASS Method] after name: ${buffer.length}');
+      // Name
+      final nameRef = getStringRef(method.name);
+      writeUint32(nameRef);
+      printlog('  [METHOD] After name ($nameRef): ${_buffer.length}');
 
-    writeType(method.returnType);
-    printlog('[WRITE CLASS Method] after returnType: ${buffer.length}');
+      // Return type
+      writeType(method.returnType);
+      printlog('  [METHOD] After returnType: ${_buffer.length}');
 
-    writeByte(method.isAsync ? 1 : 0);
-    printlog('[WRITE CLASS Method] after isAsync: ${buffer.length}');
+      // Flags
+      writeByte(method.isAsync ? 1 : 0);
+      writeByte(method.isGenerator ? 1 : 0);
+      writeByte(method.isStatic ? 1 : 0);
+      writeByte(method.isAbstract ? 1 : 0);
+      writeByte(method.isGetter ? 1 : 0);
+      writeByte(method.isSetter ? 1 : 0);
+      printlog('  [METHOD] After flags: ${_buffer.length}');
 
-    writeByte(method.isGenerator ? 1 : 0);
-    printlog('[WRITE CLASS Method] after isGenerator: ${buffer.length}');
+      // Parameters
+      printlog('  [METHOD] params count: ${method.parameters.length}');
+      writeUint32(method.parameters.length);
+      printlog('  [METHOD] After paramCount write: ${_buffer.length}');
 
-    writeByte(method.isStatic ? 1 : 0);
-    printlog('[WRITE CLASS Method] after isStatic: ${buffer.length}');
-
-    writeByte(method.isAbstract ? 1 : 0);
-    printlog('[WRITE CLASS Method] after isAbstract: ${buffer.length}');
-
-    writeByte(method.isGetter ? 1 : 0);
-    printlog('[WRITE CLASS Method] after isGetter: ${buffer.length}');
-
-    writeByte(method.isSetter ? 1 : 0);
-    printlog('[WRITE CLASS Method] after isSetter: ${buffer.length}');
-
-    writeUint32(method.parameters.length);
-    printlog(
-      '[WRITE CLASS Method] after paramCount: ${buffer.length} (count: ${method.parameters.length})',
-    );
-
-    for (final param in method.parameters) {
-      writeParameterDecl(param);
-    }
-    printlog('[WRITE CLASS Method] after parameters loop: ${buffer.length}');
-
-    writeSourceLocation(method.sourceLocation);
-    printlog('[WRITE CLASS Method] after sourceLocation: ${buffer.length}');
-
-    writeByte(method.body != null ? 1 : 0);
-    printlog('[WRITE CLASS Method] after hasBody: ${buffer.length}');
-
-    if (method.body != null) {
-      writeUint32(method.body!.length);
-      printlog(
-        '[WRITE CLASS Method] after bodyStmtCount: ${buffer.length} (count: ${method.body!.length})',
-      );
-      for (final stmt in method.body!) {
-        writeStatement(stmt);
+      for (int i = 0; i < method.parameters.length; i++) {
+        final paramStartOffset = _buffer.length;
+        writeParameterDecl(method.parameters[i]);
+        final paramEndOffset = _buffer.length;
+        printlog(
+          '  [METHOD] Param $i: ${paramEndOffset - paramStartOffset} bytes',
+        );
       }
-      printlog('[WRITE CLASS Method] after bodyStatements: ${buffer.length}');
-    }
+      printlog('  [METHOD] After parameters loop: ${_buffer.length}');
 
-    printlog('[WRITE CLASS Method] END\n');
+      // Source location
+      writeSourceLocation(method.sourceLocation);
+      printlog('  [METHOD] After sourceLocation: ${_buffer.length}');
+
+      // Body
+      writeByte(method.body != null ? 1 : 0);
+      if (method.body != null) {
+        writeUint32(method.body!.length);
+        printlog('  [METHOD] Body has ${method.body!.length} statements');
+        for (final stmt in method.body!) {
+          writeStatement(stmt);
+        }
+      }
+
+      final endOffset = _buffer.length;
+      printlog(
+        '  [METHOD END] ${method.name}: ${endOffset - startOffset} bytes\n',
+      );
+    } catch (e) {
+      printlog('  [METHOD ERROR] ${method.name}: $e');
+      rethrow;
+    }
   }
 
   void writeAnnotation(AnnotationIR ann) {
@@ -305,7 +247,6 @@ mixin DeclarationWriter {
   }
 
   void writeFunctionDecl(FunctionDecl func);
-
 
   void writeConstructorDecl(ConstructorDecl constructor) {
     writeUint32(getStringRef(constructor.id));
@@ -376,8 +317,6 @@ mixin DeclarationWriter {
     writeSourceLocation(issue.sourceLocation);
   }
 
-
-
   void writeVariableDecl(VariableDecl variable) {
     printlog('[WRITE Variable] START - buffer offset: ${buffer.length}');
     writeUint32(getStringRef(variable.id));
@@ -410,7 +349,6 @@ mixin DeclarationWriter {
   }
 
   void collectStringsFromImport(ImportStmt import);
-
 
   void collectStringsFromFunction(FunctionDecl func);
 }

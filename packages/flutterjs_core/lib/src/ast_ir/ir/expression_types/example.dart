@@ -65,12 +65,6 @@ VariableDeclarationStmt buildFinalStringDeclaration(
     id: '${id}_var_decl',
     sourceLocation: sourceLoc,
     name: 'name',
-    resultType: PrimitiveTypeIR(
-      kind: PrimitiveKind.string,
-      id: '${id}_string_type',
-      sourceLocation: sourceLoc,
-      name: 'String',
-    ),
     type: PrimitiveTypeIR(
       kind: PrimitiveKind.string,
       id: '${id}_string_type_explicit',

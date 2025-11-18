@@ -29,13 +29,9 @@ mixin StringCollectionPhase {
     addString(fileIR.contentHash);
     addString(fileIR.library ?? "<unknown>");
 
-    printlog('[COLLECT] File: ${fileIR.filePath}');
+    printlog('[COLLECT] Starting string collection');
     printlog('[COLLECT] Imports: ${fileIR.imports.length}');
-    printlog('[COLLECT] Exports: ${fileIR.exports.length}');
-    printlog('[COLLECT] Classes: ${fileIR.classDeclarations.length}');
-    printlog('[COLLECT] Functions: ${fileIR.functionDeclarations.length}');
 
-    // Collect from imports
     for (final import in fileIR.imports) {
       addString(import.uri);
       addString(import.sourceLocation.file);
@@ -49,7 +45,7 @@ mixin StringCollectionPhase {
       collectStringsFromImport(import);
     }
 
-    // Collect from exports
+    printlog('[COLLECT] Exports: ${fileIR.exports.length}');
     for (final export in fileIR.exports) {
       addString(export.uri);
       addString(export.sourceLocation.file);
@@ -61,28 +57,28 @@ mixin StringCollectionPhase {
       }
     }
 
-    // Collect from functions
+    printlog('[COLLECT] Functions: ${fileIR.functionDeclarations.length}');
     for (final func in fileIR.functionDeclarations) {
       collectStringsFromFunction(func);
     }
 
-    // Collect from variables
+    printlog('[COLLECT] Variables: ${fileIR.variableDeclarations.length}');
     for (final variable in fileIR.variableDeclarations) {
       collectStringsFromVariable(variable);
     }
 
-    // Collect from classes
-    for (final classDecl in fileIR.classDeclarations) {
-      collectStringsFromClass(classDecl);
+    // ✅ THIS MUST BE CALLED
+    printlog('[COLLECT] Classes: ${fileIR.classDeclarations.length}');
+    for (int i = 0; i < fileIR.classDeclarations.length; i++) {
+      final cls = fileIR.classDeclarations[i];
+      printlog('[COLLECT CLASS $i] ${cls.name} (id="${cls.id}")');
+      collectStringsFromClass(cls);
     }
 
-    // NOTE: DartFile doesn't have topLevelStatements field
-    // Statements are typically inside function/method bodies, not at file level
-
-    // Collect from analysis issues
+    printlog('[COLLECT] Issues: ${fileIR.analysisIssues.length}');
     collectStringsFromAnalysisIssues(fileIR);
 
-    printlog('[COLLECT] String table size: ${stringTable.length}');
+    printlog('[COLLECT] ✅ String table size: ${stringTable.length}');
     if (_verbose) {
       debugPrintStringTable();
     }

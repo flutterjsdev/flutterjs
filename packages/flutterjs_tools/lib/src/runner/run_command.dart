@@ -1,25 +1,17 @@
 // ============================================================================
 // UNIFIED COMMAND - Complete Analysis → IR Generation → JS Conversion Pipeline
-// ============================================================================
-// Integrates ALL phases: 0-6
-// Phase 0: Pre-Analysis (Validation, Type System, Scope, Control Flow, Flutter)
-// Phase 1: IR Normalization & Enhancement
-// Phase 2: Core Language Code Generation
-// Phase 3: Flutter-Specific Code Generation
-// Phase 4: File-Level Generation
-// Phase 5: Output Validation & Optimization
-// Phase 6: Reporting & Output
+// WITH INTEGRATED DEVTOOLS IR VIEWER SERVER
 // ============================================================================
 
+import 'dart:async';
 import 'dart:io';
+import 'package:dev_tools/dev_tools.dart';
 import 'package:args/command_runner.dart';
 import 'package:flutterjs_tools/src/runner/helper.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:analyzer/dart/ast/ast.dart';
-
-import '../cleaner/clean_command.dart';
 
 class RunCommand extends Command<void> {
   RunCommand({required this.verbose, required this.verboseHelp}) {
@@ -102,11 +94,24 @@ class RunCommand extends Command<void> {
         'generate-reports',
         help: 'Generate detailed conversion reports.',
         defaultsTo: true,
+      )
+      ..addOption(
+        'devtools-port',
+        help: 'Port for DevTools server (default: 8765).',
+        defaultsTo: '8765',
+      )
+      ..addFlag(
+        'devtools-no-open',
+        help: 'Do not auto-open browser for DevTools (DevTools runs by default).',
+        negatable: false,
       );
   }
 
   final bool verbose;
   final bool verboseHelp;
+
+  // ✅ NEW: DevTools server instance
+  BinaryIRServer? _devToolsServer;
 
   @override
   String get name => 'run';
@@ -120,7 +125,8 @@ class RunCommand extends Command<void> {
       'Phase 3: Flutter Code Generation\n'
       'Phase 4: File-Level Generation\n'
       'Phase 5: Validation & Optimization\n'
-      'Phase 6: Reporting';
+      'Phase 6: Reporting\n'
+      '\nWith integrated DevTools IR Viewer (--devtools flag)';
 
   @override
   Future<void> run() async {
@@ -139,6 +145,11 @@ class RunCommand extends Command<void> {
     final validateOutput = argResults!['validate-output'] as bool;
     final clearCache = argResults!['clear-cache'] as bool;
     final generateReports = argResults!['generate-reports'] as bool;
+
+          // ✅ NEW: DevTools options (enabled by default)
+    final devToolsPort = int.tryParse(argResults!['devtools-port'] as String) ?? 8765;
+    final devToolsNoOpen = argResults!['devtools-no-open'] as bool;
+    final enableDevTools = !devToolsNoOpen; // Enabled by default unless explicitly disabled
 
     if (analyzeAll) enableIncremental = false;
 
@@ -160,7 +171,13 @@ class RunCommand extends Command<void> {
     final reportsPath = path.join(flutterJsDir, 'reports');
 
     if (!jsonOutput) {
-      _printHeader(absoluteProjectPath, absoluteSourcePath, flutterJsDir, toJs);
+      _printHeader(
+        absoluteProjectPath,
+        absoluteSourcePath,
+        flutterJsDir,
+        toJs,
+        devToolsPort,
+      );
     }
 
     int jsFileCount = 0;
@@ -168,6 +185,17 @@ class RunCommand extends Command<void> {
     final allErrors = <String>[];
 
     try {
+      // ✅ NEW: Start DevTools server if enabled
+      if (enableDevTools) {
+        _devToolsServer = await _startDevToolsServer(
+          port: devToolsPort,
+          watchDirectory: irOutputPath,
+          verbose: verbose,
+          jsonOutput: jsonOutput,
+          openBrowser: !devToolsNoOpen,
+        );
+      }
+
       // Create directories
       await Directory(irOutputPath).create(recursive: true);
       if (toJs) await Directory(jsOutputPath).create(recursive: true);
@@ -255,6 +283,11 @@ class RunCommand extends Command<void> {
 
       if (!jsonOutput) print('  Serialized: $irFileCount files\n');
 
+      // ✅ NEW: Refresh DevTools if server is running
+      if (enableDevTools && _devToolsServer != null) {
+        if (!jsonOutput) print('  DevTools: IR files ready for analysis\n');
+      }
+
       // ===== PHASE 4-6: IR TO JAVASCRIPT (with validation & optimization) =====
       if (toJs && irResults.dartFiles.isNotEmpty) {
         if (!jsonOutput) {
@@ -300,6 +333,7 @@ class RunCommand extends Command<void> {
           flutterJsDir,
           allWarnings,
           allErrors,
+          enableDevTools ? 'http://localhost:$devToolsPort' : null,
         );
       } else {
         _printJsonResults(
@@ -318,6 +352,68 @@ class RunCommand extends Command<void> {
       print('\nFatal error: $e');
       if (verbose) print('Stack trace:\n$stackTrace');
       exit(1);
+    } finally {
+      // ✅ NEW: Keep DevTools running or shutdown gracefully
+      if (enableDevTools && _devToolsServer != null) {
+        if (!jsonOutput) {
+          print('\n⏳ DevTools server is running. Press Ctrl+C to stop.\n');
+        }
+        // Don't stop the server - keep it running for analysis
+      }
+    }
+  }
+
+  // ✅ NEW: Start DevTools Server
+  Future<BinaryIRServer?> _startDevToolsServer({
+    required int port,
+    required String watchDirectory,
+    required bool verbose,
+    required bool jsonOutput,
+    required bool openBrowser,
+  }) async {
+    try {
+      if (!jsonOutput) print('🔧 Starting DevTools IR Viewer...');
+
+      // Ensure watch directory exists
+      await Directory(watchDirectory).create(recursive: true);
+
+      final server = BinaryIRServer(
+        port: port,
+        host: 'localhost',
+        verbose: verbose,
+        watchDirectory: watchDirectory,
+      );
+
+      await server.start();
+
+      if (!jsonOutput) {
+        print('✅ DevTools started on http://localhost:$port');
+      }
+
+      // Auto-open browser if not suppressed
+      if (openBrowser) {
+        await _openBrowserAsync('http://localhost:$port');
+      }
+
+      return server;
+    } catch (e) {
+      print('⚠️  Failed to start DevTools: $e');
+      return null;
+    }
+  }
+
+  // ✅ NEW: Open browser without blocking
+  Future<void> _openBrowserAsync(String url) async {
+    try {
+      if (Platform.isWindows) {
+        await Process.run('start', [url]);
+      } else if (Platform.isMacOS) {
+        await Process.run('open', [url]);
+      } else if (Platform.isLinux) {
+        await Process.run('xdg-open', [url]);
+      }
+    } catch (e) {
+      // Silently fail - not critical
     }
   }
 
@@ -481,7 +577,7 @@ class RunCommand extends Command<void> {
   // PHASE 4-6: IR TO JAVASCRIPT WITH VALIDATION & OPTIMIZATION
   // =========================================================================
 
-   Future<int> _convertIRToJavaScriptWithValidation({
+  Future<int> _convertIRToJavaScriptWithValidation({
     required IRGenerationResults irResults,
     required String sourceBasePath,
     required String jsOutputPath,
@@ -532,7 +628,6 @@ class RunCommand extends Command<void> {
           runtimeRequirements: RuntimeRequirements(),
         );
 
-        // ✅ FIXED: Properly await and store result
         var jsCode = await fileCodeGen.generate(
           dartFile,
           validate: validateOutput,
@@ -544,44 +639,9 @@ class RunCommand extends Command<void> {
           print('    Phase 4: ${path.basename(dartFilePath)} - Generated (${jsCode.length} bytes)');
         }
 
-        // // // ===== PHASE 5: VALIDATION & OPTIMIZATION =====
-        // if (validateOutput) {
-        //   final validator = OutputValidator(jsCode);
-        //   final validationReport = await validator.validate();
-
-        //   if (validationReport.hasCriticalIssues) {
-        //     for (final error in validationReport.errors) {
-        //       if (error.severity == ErrorSeverity.error ||
-        //           error.severity == ErrorSeverity.fatal) {
-        //         errors.add(
-        //           '${path.basename(dartFilePath)}: ${error.message}',
-        //         );
-        //       }
-        //     }
-        //     if (verbose) {
-        //       print('    Phase 5: ${path.basename(dartFilePath)} - ❌ Validation FAILED');
-        //     }
-        //     continue;
-        //   }
-
-        //   for (final error in validationReport.errors) {
-        //     if (error.severity == ErrorSeverity.warning) {
-        //       warnings.add(
-        //         '${path.basename(dartFilePath)}: ${error.message}',
-        //       );
-        //     }
-        //   }
-
-        //   if (verbose) {
-        //     print('    Phase 5: ${path.basename(dartFilePath)} - ✅ Validated');
-        //   }
-        // }
-
         // ===== PHASE 6: OUTPUT & REPORTING =====
         await jsOutputFile.parent.create(recursive: true);
-        print("output ${jsCode}");
         await jsOutputFile.writeAsString(jsCode);
-        print("output1 ${jsOutputFile.readAsString()}");
         filesGenerated++;
 
         if (verbose) {
@@ -611,7 +671,7 @@ class RunCommand extends Command<void> {
         }
       } catch (e, stackTrace) {
         if (verbose) {
-          print('    ❌ Error processing ${path.basename(entry.key)}: $e');
+          print('    ✗ Error processing ${path.basename(entry.key)}: $e');
           if (verbose) print('       Stack: $stackTrace');
         }
         errors.add('${path.basename(entry.key)}: $e');
@@ -662,7 +722,7 @@ class RunCommand extends Command<void> {
           final sizeKb = (binaryBytes.length / 1024).toStringAsFixed(2);
           print('    ✓ ${path.basename(entry.key)} ($sizeKb KB)');
         }
-      } catch (e,stackTrace) {
+      } catch (e, stackTrace) {
         if (verbose) print('    ✗ ${path.basename(entry.key)}: $e $stackTrace');
       }
     }
@@ -693,11 +753,12 @@ class RunCommand extends Command<void> {
     String sourcePath,
     String outputPath,
     bool toJs,
+    int devToolsPort,
   ) {
     print('');
-    print('┌────────────────────────────────────────────────────────────────┐');
-    print('│    FLUTTER IR TO JAVASCRIPT CONVERSION PIPELINE (Phases 0-6)   │');
-    print('└────────────────────────────────────────────────────────────────┘');
+    print('┌──────────────────────────────────────────────────────────────────────┐');
+    print('│    FLUTTER IR TO JAVASCRIPT CONVERSION PIPELINE (Phases 0-6)        │');
+    print('└──────────────────────────────────────────────────────────────────────┘');
     print('Project:  $projectPath');
     print('Source:   $sourcePath');
     print('Build:    $outputPath');
@@ -706,6 +767,7 @@ class RunCommand extends Command<void> {
       print('  ├─ JS output:  ${path.join(outputPath, 'js')}');
       print('  └─ Reports:    ${path.join(outputPath, 'reports')}');
     }
+    print('DevTools: http://localhost:$devToolsPort (opening automatically...)');
     print('');
   }
 
@@ -727,18 +789,25 @@ class RunCommand extends Command<void> {
     String buildPath,
     List<String> warnings,
     List<String> errors,
+    String? devToolsUrl,
   ) {
-    print('\n┌────────────────────────────────────────────────────────────────┐');
-    print('│              CONVERSION COMPLETE                               │');
-    print('└────────────────────────────────────────────────────────────────┘');
+    print('\n┌──────────────────────────────────────────────────────────────────────┐');
+    print('│              CONVERSION COMPLETE                                     │');
+    print('└──────────────────────────────────────────────────────────────────────┘');
     print('Files analyzed:    $filesAnalyzed');
     print('IR files:          $irFiles');
     print('JS files:          $jsFiles');
     print('Total declarations: ${_countDeclarations(results)}');
     print('Build output:      $buildPath');
 
+    if (devToolsUrl != null) {
+      print('\n✅ DevTools IR Viewer is running:');
+      print('   🌐 $devToolsUrl');
+      print('   All IR files are ready for analysis in the viewer');
+    }
+
     if (errors.isNotEmpty) {
-      print('\n⚠ Errors (${errors.length}):');
+      print('\n⚠  Errors (${errors.length}):');
       for (final error in errors.take(5)) {
         print('  • $error');
       }
@@ -746,7 +815,7 @@ class RunCommand extends Command<void> {
     }
 
     if (warnings.isNotEmpty) {
-      print('\n⚠ Warnings (${warnings.length}):');
+      print('\n⚠  Warnings (${warnings.length}):');
       for (final warning in warnings.take(5)) {
         print('  • $warning');
       }
