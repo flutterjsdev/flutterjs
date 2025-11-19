@@ -56,7 +56,7 @@ class BinaryIRServer {
     try {
       // ✅ VALIDATION: Check content-type
       final contentType = request.headers['content-type'] ?? '';
-      if (!contentType.contains('octet-stream') && !contentType.isEmpty) {
+      if (!contentType.contains('octet-stream') && contentType.isNotEmpty) {
         return _errorResponse(
           'Invalid content type. Expected binary file',
           400,
@@ -97,7 +97,7 @@ class BinaryIRServer {
         await _analyzeFileStream(
           fileId,
           bytesData,
-          'uploaded_${fileId}.ir',
+          'uploaded_$fileId.ir',
         ).drain(); // ✅ Wait until all items are streamed
 
         // ✅ NOW the analysis should be stored
@@ -124,7 +124,7 @@ class BinaryIRServer {
       if (!analysis.success) {
         _logError(
           'ANALYSIS_FAILED',
-          analysis.error ?? 'Unknown',
+          analysis.error ?? '<unknown>',
           '',
           'api/upload',
         );
@@ -214,7 +214,7 @@ class BinaryIRServer {
       if (!analysis.success) {
         _logError(
           'ANALYSIS_FAILED',
-          analysis.error ?? 'Unknown',
+          analysis.error ?? '<unknown>',
           '',
           'api/load-path',
         );
@@ -282,7 +282,7 @@ class BinaryIRServer {
 
       yield AnalysisLine(
         lineNum: lineNum++,
-        text: 'Library: ${dartFile.library ?? 'unknown'}',
+        text: 'Library: ${dartFile.library}',
         status: 'ok',
         section: 'FILE_INFO',
         details: {'library': dartFile.library},
@@ -290,7 +290,7 @@ class BinaryIRServer {
 
       yield AnalysisLine(
         lineNum: lineNum++,
-        text: 'File Path: ${dartFile.filePath ?? 'unknown'}',
+        text: 'File Path: ${dartFile.filePath}',
         status: 'ok',
         section: 'FILE_INFO',
         details: {'path': dartFile.filePath},
@@ -299,15 +299,15 @@ class BinaryIRServer {
       yield AnalysisLine(
         lineNum: lineNum++,
         text:
-            'Size: ${(bytes.length / 1024).toStringAsFixed(1)} KB | Hash: ${(dartFile.contentHash ?? 'N/A').substring(0, 16)}...',
+            'Size: ${(bytes.length / 1024).toStringAsFixed(1)} KB | Hash: ${(dartFile.contentHash).substring(0, 16)}...',
         status: 'ok',
         section: 'FILE_INFO',
         details: {'size': bytes.length, 'hash': dartFile.contentHash},
       );
 
       result.addPhase('FILE_INFO', 'ok', {
-        'filePath': dartFile.filePath ?? 'unknown',
-        'contentHash': dartFile.contentHash ?? 'N/A',
+        'filePath': dartFile.filePath,
+        'contentHash': dartFile.contentHash,
         'library': dartFile.library ?? '<unknown>',
         'totalBytes': bytes.length,
       });
@@ -322,19 +322,19 @@ class BinaryIRServer {
       );
 
       final stats = {
-        'imports': dartFile.imports?.length ?? 0,
-        'exports': dartFile.exports?.length ?? 0,
-        'variables': dartFile.variableDeclarations?.length ?? 0,
-        'functions': dartFile.functionDeclarations?.length ?? 0,
-        'classes': dartFile.classDeclarations?.length ?? 0,
-        'analysisIssues': dartFile.analysisIssues?.length ?? 0,
-        'totalMethods': (dartFile.classDeclarations ?? []).fold(
+        'imports': dartFile.imports.length,
+        'exports': dartFile.exports.length,
+        'variables': dartFile.variableDeclarations.length,
+        'functions': dartFile.functionDeclarations.length,
+        'classes': dartFile.classDeclarations.length,
+        'analysisIssues': dartFile.analysisIssues.length,
+        'totalMethods': (dartFile.classDeclarations).fold(
           0,
-          (sum, c) => sum + (c.methods?.length ?? 0),
+          (sum, c) => sum + (c.methods.length),
         ),
-        'totalFields': (dartFile.classDeclarations ?? []).fold(
+        'totalFields': (dartFile.classDeclarations).fold(
           0,
-          (sum, c) => sum + (c.fields?.length ?? 0),
+          (sum, c) => sum + (c.fields.length),
         ),
       };
 
@@ -374,7 +374,7 @@ class BinaryIRServer {
       result.addPhase('STATISTICS', 'ok', stats);
 
       // ========== IMPORTS SECTION ==========
-      final imports = dartFile.imports ?? [];
+      final imports = dartFile.imports;
       if (imports.isNotEmpty) {
         yield AnalysisLine(
           lineNum: lineNum++,
@@ -389,7 +389,7 @@ class BinaryIRServer {
           yield AnalysisLine(
             lineNum: lineNum++,
             text:
-                '├─ ${imp.uri ?? 'unknown'} ${imp.prefix != null ? '(as ${imp.prefix})' : ''} ${imp.isDeferred == true ? '[deferred]' : ''}',
+                '├─ ${imp.uri} ${imp.prefix != null ? '(as ${imp.prefix})' : ''} ${imp.isDeferred == true ? '[deferred]' : ''}',
             status: 'ok',
             section: 'IMPORTS',
             details: {
@@ -416,9 +416,9 @@ class BinaryIRServer {
           imports
               .map(
                 (i) => {
-                  'uri': i.uri ?? 'unknown',
+                  'uri': i.uri,
                   'prefix': i.prefix ?? 'none',
-                  'isDeferred': i.isDeferred ?? false,
+                  'isDeferred': i.isDeferred,
                 },
               )
               .toList(),
@@ -426,7 +426,7 @@ class BinaryIRServer {
       }
 
       // ========== CLASSES SECTION ==========
-      final classes = dartFile.classDeclarations ?? [];
+      final classes = dartFile.classDeclarations;
       if (classes.isNotEmpty) {
         yield AnalysisLine(
           lineNum: lineNum++,
@@ -442,13 +442,13 @@ class BinaryIRServer {
           yield AnalysisLine(
             lineNum: lineNum++,
             text:
-                '├─ $abstractFlag${cls.name ?? 'unknown'} [${cls.methods?.length ?? 0} methods | ${cls.fields?.length ?? 0} fields]',
+                '├─ $abstractFlag${cls.name} [${cls.methods.length} methods | ${cls.fields.length} fields]',
             status: 'ok',
             section: 'CLASSES',
             details: {
               'name': cls.name,
-              'methods': cls.methods?.length ?? 0,
-              'fields': cls.fields?.length ?? 0,
+              'methods': cls.methods.length,
+              'fields': cls.fields.length,
             },
           );
         }
@@ -469,9 +469,9 @@ class BinaryIRServer {
           classes
               .map(
                 (c) => {
-                  'name': c.name ?? 'unknown',
-                  'methods': c.methods?.length ?? 0,
-                  'fields': c.fields?.length ?? 0,
+                  'name': c.name,
+                  'methods': c.methods.length,
+                  'fields': c.fields.length,
                 },
               )
               .toList(),
@@ -479,7 +479,7 @@ class BinaryIRServer {
       }
 
       // ========== FUNCTIONS SECTION ==========
-      final functions = dartFile.functionDeclarations ?? [];
+      final functions = dartFile.functionDeclarations;
       if (functions.isNotEmpty) {
         yield AnalysisLine(
           lineNum: lineNum++,
@@ -495,13 +495,13 @@ class BinaryIRServer {
           yield AnalysisLine(
             lineNum: lineNum++,
             text:
-                '├─ $asyncFlag${func.name ?? 'unknown'}(${func.parameters?.length ?? 0} params) → ${func.returnType?.displayName() ?? 'dynamic'}',
+                '├─ $asyncFlag${func.name}(${func.parameters.length} params) → ${func.returnType.displayName()}',
             status: 'ok',
             section: 'FUNCTIONS',
             details: {
               'name': func.name,
-              'parameters': func.parameters?.length ?? 0,
-              'returnType': func.returnType?.displayName(),
+              'parameters': func.parameters.length,
+              'returnType': func.returnType.displayName(),
             },
           );
         }
@@ -520,18 +520,13 @@ class BinaryIRServer {
           'FUNCTIONS',
           'ok',
           functions
-              .map(
-                (f) => {
-                  'name': f.name ?? 'unknown',
-                  'parameters': f.parameters?.length ?? 0,
-                },
-              )
+              .map((f) => {'name': f.name, 'parameters': f.parameters.length})
               .toList(),
         );
       }
 
       // ========== VARIABLES SECTION ==========
-      final variables = dartFile.variableDeclarations ?? [];
+      final variables = dartFile.variableDeclarations;
       if (variables.isNotEmpty) {
         yield AnalysisLine(
           lineNum: lineNum++,
@@ -545,13 +540,12 @@ class BinaryIRServer {
           final variable = variables[i];
           yield AnalysisLine(
             lineNum: lineNum++,
-            text:
-                '├─ ${variable.name ?? 'unknown'}: ${variable.type?.displayName() ?? 'dynamic'}',
+            text: '├─ ${variable.name}: ${variable.type.displayName()}',
             status: 'ok',
             section: 'VARIABLES',
             details: {
               'name': variable.name,
-              'type': variable.type?.displayName(),
+              'type': variable.type.displayName(),
             },
           );
         }
@@ -570,12 +564,7 @@ class BinaryIRServer {
           'VARIABLES',
           'ok',
           variables
-              .map(
-                (v) => {
-                  'name': v.name ?? 'unknown',
-                  'type': v.type?.displayName() ?? 'dynamic',
-                },
-              )
+              .map((v) => {'name': v.name, 'type': v.type.displayName()})
               .toList(),
         );
       }
@@ -593,8 +582,8 @@ class BinaryIRServer {
       result.totalLines = lineNum - 1;
       result.setFinalAnalysis(
         fileInfo: {
-          'filePath': dartFile.filePath ?? 'unknown',
-          'contentHash': dartFile.contentHash ?? 'N/A',
+          'filePath': dartFile.filePath,
+          'contentHash': dartFile.contentHash,
           'library': dartFile.library ?? '<unknown>',
           'totalBytes': bytes.length,
         },
@@ -603,13 +592,13 @@ class BinaryIRServer {
             .map((i) => {'uri': i.uri, 'prefix': i.prefix})
             .toList(),
         variables: variables
-            .map((v) => {'name': v.name, 'type': v.type?.displayName()})
+            .map((v) => {'name': v.name, 'type': v.type.displayName()})
             .toList(),
         functions: functions
-            .map((f) => {'name': f.name, 'params': f.parameters?.length})
+            .map((f) => {'name': f.name, 'params': f.parameters.length})
             .toList(),
         classes: classes
-            .map((c) => {'name': c.name, 'methods': c.methods?.length})
+            .map((c) => {'name': c.name, 'methods': c.methods.length})
             .toList(),
       );
 
@@ -872,16 +861,6 @@ class BinaryIRServer {
       print('❌ ERROR [$code]: $message in $context');
       if (stackTrace.isNotEmpty) print('Stack: $stackTrace');
     }
-  }
-
-  // ✅ NEW: Simple hash generation
-  String _generateHash(Uint8List bytes) {
-    int hash = 0;
-    for (int i = 0; i < bytes.length; i++) {
-      hash = ((hash << 5) - hash) + bytes[i];
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    return hash.toRadixString(16);
   }
 
   Response _errorResponse(String message, int statusCode) {
