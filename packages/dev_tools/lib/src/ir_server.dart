@@ -11,6 +11,7 @@ import 'package:dev_tools/src/html_generator.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'package:shelf_multipart/shelf_multipart.dart' as shelf_multipart;
 
 class BinaryIRServer {
   final int port;
@@ -51,103 +52,185 @@ class BinaryIRServer {
   Future<void> stop() async {
     await _server.close();
   }
+  // ✅ REPLACE the _handleUpload method in ir_server.dart with this:
 
-  Future<Response> _handleUpload(Request request) async {
-    try {
-      // ✅ VALIDATION: Check content-type
-      final contentType = request.headers['content-type'] ?? '';
-      if (!contentType.contains('octet-stream') && contentType.isNotEmpty) {
-        return _errorResponse(
-          'Invalid content type. Expected binary file',
-          400,
-        );
-      }
+ // ============================================================================
+// CORRECTED: _handleUpload method with proper shelf_multipart API
+// ============================================================================
 
-      // ✅ VALIDATION: Read file with size limit
-      final bytes = await request
-          .read()
-          .expand((chunk) => chunk)
-          .take(100 * 1024 * 1024) // 100MB limit
-          .toList();
 
-      final bytesData = Uint8List.fromList(bytes);
-
-      if (bytesData.isEmpty) {
-        _logError('UPLOAD_EMPTY', 'Empty file uploaded', '', 'api/upload');
-        return _errorResponse('Empty file uploaded', 400);
-      }
-
-      // ✅ VALIDATION: Check magic number
-      if (bytesData.length < 4) {
-        _logError('UPLOAD_TOO_SMALL', 'File too small', '', 'api/upload');
-        return _errorResponse('File too small to be valid IR file', 400);
-      }
-
-      final fileId = DateTime.now().millisecondsSinceEpoch.toString();
-      _uploadedFiles[fileId] = bytesData;
-
-      // ✅ PERFORMANCE: Create metrics tracker
-      final metrics = AnalysisMetrics(fileId: fileId);
-      _metrics[fileId] = metrics;
-
-      metrics.recordPhase('READ_FILE', bytesData.length);
-
-      // ✅ FIX: WAIT FOR STREAM TO COMPLETE BEFORE CHECKING RESULTS
-      try {
-        await _analyzeFileStream(
-          fileId,
-          bytesData,
-          'uploaded_$fileId.ir',
-        ).drain(); // ✅ Wait until all items are streamed
-
-        // ✅ NOW the analysis should be stored
-        await Future.delayed(
-          Duration(milliseconds: 100),
-        ); // Small delay to ensure storage
-      } catch (e) {
-        _logError('STREAM_ERROR', e.toString(), '', 'api/upload');
-        return _errorResponse('Stream analysis failed: ${e.toString()}', 500);
-      }
-
-      // ✅ NOW it's safe to check
-      final analysis = _analyses[fileId];
-      if (analysis == null) {
-        _logError(
-          'ANALYSIS_NOT_FOUND',
-          'Analysis result missing after stream',
-          '',
-          'api/upload',
-        );
-        return _errorResponse('Analysis result not found', 500);
-      }
-
-      if (!analysis.success) {
-        _logError(
-          'ANALYSIS_FAILED',
-          analysis.error ?? '<unknown>',
-          '',
-          'api/upload',
-        );
-        return _errorResponse(analysis.error ?? 'Unknown analysis error', 400);
-      }
-
-      metrics.recordPhase('COMPLETE', analysis.totalLines);
-      metrics.recordSuccess();
-
-      return Response.ok(
-        jsonEncode({
-          'success': true,
-          'fileId': fileId,
-          'size': bytesData.length,
-          'analysis': analysis.toJson(),
-          'metrics': metrics.toJson(),
-        }),
-        headers: {'content-type': 'application/json'},
+Future<Response> _handleUpload(Request request) async {
+  try {
+    // ✅ FIX 1: Properly check for multipart form-data
+    final contentType = request.headers['content-type'] ?? '';
+    if (!contentType.contains('multipart/form-data')) {
+      print('❌ Invalid content-type: $contentType');
+      return _errorResponse(
+        'Expected multipart/form-data, got: $contentType',
+        400,
       );
-    } catch (e, st) {
-      _logError('UPLOAD_ERROR', e.toString(), st.toString(), 'api/upload');
-      return _errorResponse('Upload failed: ${e.toString()}', 400);
     }
+
+    if (verbose) print('📤 Handling multipart upload...');
+
+    // ✅ FIX 2: Use request.formData() correctly
+    // formData() returns a FormDataRequest? object
+    final formDataRequest = request.formData();
+    if (formDataRequest == null) {
+      print('❌ Not a valid multipart form request');
+      return _errorResponse('Not a multipart form request', 400);
+    }
+
+    Uint8List? fileBytes;
+    String fileName = 'unknown';
+
+    try {
+      // ✅ Iterate through the form fields
+      await for (final formField in formDataRequest.formData) {
+        if (formField.name == 'file') {
+          // Read the entire file bytes from the part
+          fileBytes = await formField.part.readBytes();
+
+          // Extract filename from the FormField
+          // The filename is already parsed for us!
+          fileName = formField.filename ?? 'unknown';
+
+          if (verbose) {
+            print('📄 File received: $fileName');
+            print('📊 File size: ${fileBytes.length} bytes');
+          }
+          break;
+        }
+      }
+    } catch (e, st) {
+      print('❌ Multipart parsing error: $e');
+      _logError('MULTIPART_PARSE_ERROR', e.toString(), st.toString(),
+          'api/upload');
+      return _errorResponse('Invalid multipart request: ${e.toString()}', 400);
+    }
+
+    if (fileBytes == null || fileBytes.isEmpty) {
+      print('❌ No file data received');
+      _logError(
+        'UPLOAD_EMPTY',
+        'No file data in multipart request',
+        '',
+        'api/upload',
+      );
+      return _errorResponse('No file data received', 400);
+    }
+
+    // ✅ FIX 3: Validate file extension
+    final isIRFile = fileName.toLowerCase().endsWith('.ir');
+    if (!isIRFile) {
+      final errorMsg = 'Invalid file type. Only .ir files are allowed.';
+      print('❌ $errorMsg');
+      _logError('UPLOAD_INVALID_TYPE', errorMsg, '', 'api/upload');
+      return _errorResponse(errorMsg, 400);
+    }
+
+    // ✅ FIX 4: Validate file size (max 100MB)
+    const maxSize = 100 * 1024 * 1024;
+    if (fileBytes.length > maxSize) {
+      final errorMsg =
+          'File too large. Max size: ${(maxSize / 1024 / 1024).toStringAsFixed(0)}MB';
+      print('❌ $errorMsg');
+      _logError('UPLOAD_TOO_LARGE', errorMsg, '', 'api/upload');
+      return _errorResponse(errorMsg, 413);
+    }
+
+    final fileId = DateTime.now().millisecondsSinceEpoch.toString();
+    _uploadedFiles[fileId] = fileBytes;
+
+    // ✅ FIX 5: Create metrics tracker
+    final metrics = AnalysisMetrics(fileId: fileId);
+    _metrics[fileId] = metrics;
+    metrics.recordPhase('READ_FILE', fileBytes.length);
+
+    if (verbose) print('🔍 Starting analysis for: $fileId');
+
+    // ✅ FIX 6: Wait for stream analysis to complete
+    try {
+      await _analyzeFileStream(fileId, fileBytes, fileName).drain();
+
+      // ✅ Small delay to ensure storage completion
+      await Future.delayed(Duration(milliseconds: 100));
+
+      if (verbose) print('✅ Analysis stream complete');
+    } catch (e, st) {
+      _logError('STREAM_ERROR', e.toString(), st.toString(), 'api/upload');
+      return _errorResponse('Stream analysis failed: ${e.toString()}', 500);
+    }
+
+    // ✅ FIX 7: Verify analysis was stored
+    final analysis = _analyses[fileId];
+    if (analysis == null) {
+      _logError(
+        'ANALYSIS_NOT_FOUND',
+        'Analysis result missing after stream',
+        '',
+        'api/upload',
+      );
+      if (verbose) print('❌ Analysis not found in storage after stream!');
+      return _errorResponse('Analysis result not found', 500);
+    }
+
+    if (verbose) print('✅ Analysis found: success=${analysis.success}');
+
+    // ✅ FIX 8: Check analysis success
+    if (!analysis.success) {
+      final errorMsg = analysis.error ?? '<unknown>';
+      _logError('ANALYSIS_FAILED', errorMsg, '', 'api/upload');
+      if (verbose) print('❌ Analysis failed: $errorMsg');
+      return _errorResponse(errorMsg, 400);
+    }
+
+    metrics.recordPhase('COMPLETE', analysis.totalLines);
+    metrics.recordSuccess();
+
+    // ✅ FIX 9: Build proper JSON response
+    final responseData = {
+      'success': true,
+      'fileId': fileId,
+      'fileName': fileName,
+      'size': fileBytes.length,
+      'analysis': analysis.toJson(),
+      'metrics': metrics.toJson(),
+    };
+
+    if (verbose) print('📤 Sending JSON response...');
+
+    // ✅ CRITICAL: Set correct headers and encode as JSON
+    return Response.ok(
+      jsonEncode(responseData),
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'access-control-allow-origin': '*',
+      },
+    );
+  } catch (e, st) {
+    _logError('UPLOAD_ERROR', e.toString(), st.toString(), 'api/upload');
+    if (verbose) print('❌ Upload error: $e\n$st');
+    return _errorResponse('Upload failed: ${e.toString()}', 500);
+  }
+}
+  // ✅ ALSO UPDATE Response error helper
+  Response _errorResponse(String message, int statusCode) {
+    final response = {
+      'success': false,
+      'error': message,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+
+    if (verbose) {
+      print('⚠️ Error response [$statusCode]: $message');
+    }
+
+    return Response(
+      statusCode,
+      body: jsonEncode(response),
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    );
   }
 
   Future<Response> _handleLoadFromPath(Request request) async {
@@ -600,6 +683,13 @@ class BinaryIRServer {
         classes: classes
             .map((c) => {'name': c.name, 'methods': c.methods.length})
             .toList(),
+
+        importsRaw: imports, // Full ImportStmt objects
+        variablesRaw: variables, // Full VariableDecl objects
+        functionsRaw: functions, // Full FunctionDecl objects
+        classesRaw: classes, // Full ClassDecl objects
+        exportsRaw: dartFile.exports, // Add exports too!
+        issuesRaw: dartFile.analysisIssues, // Add analysis issues!
       );
 
       // ✅ STORE RESULT BEFORE STREAM ENDS
@@ -863,19 +953,117 @@ class BinaryIRServer {
     }
   }
 
-  Response _errorResponse(String message, int statusCode) {
-    return Response(
-      statusCode,
-      body: jsonEncode({
-        'success': false,
-        'error': message,
-        'timestamp': DateTime.now().toIso8601String(),
-      }),
-      headers: {'content-type': 'application/json'},
-    );
+  String _getHtmlUI() => HtmlGenerator.generate();
+}
+
+Map<String, dynamic> _serializeObject(dynamic obj) {
+  if (obj == null) return {};
+
+  // Handle different IR types
+  if (obj is ImportStmt) {
+    return {
+      'type': 'ImportStmt',
+      'uri': obj.uri,
+      'prefix': obj.prefix,
+      'isDeferred': obj.isDeferred,
+      'showList': obj.showList,
+      'hideList': obj.hideList,
+    };
   }
 
-  String _getHtmlUI() => HtmlGenerator.generate();
+  if (obj is VariableDecl) {
+    return {
+      //'type': 'VariableDecl',
+      'id': obj.id,
+      'name': obj.name,
+      'type': obj.type.displayName(),
+      'isFinal': obj.isFinal,
+      'isConst': obj.isConst,
+      'isStatic': obj.isStatic,
+      'isLate': obj.isLate,
+      'hasInitializer': obj.initializer != null,
+    };
+  }
+
+  if (obj is FunctionDecl) {
+    return {
+      'type': 'FunctionDecl',
+      'id': obj.id,
+      'name': obj.name,
+      'returnType': obj.returnType.displayName(),
+      'parameterCount': obj.parameters.length,
+      'parameters': obj.parameters
+          .map(
+            (p) => {
+              'name': p.name,
+              'type': p.type.displayName(),
+              'isRequired': p.isRequired,
+              'isNamed': p.isNamed,
+            },
+          )
+          .toList(),
+      'isAsync': obj.isAsync,
+      'documentation': obj.documentation,
+    };
+  }
+
+  if (obj is ClassDecl) {
+    return {
+      'type': 'ClassDecl',
+      'id': obj.id,
+      'name': obj.name,
+      'isAbstract': obj.isAbstract,
+      'isFinal': obj.isFinal,
+      'methodCount': obj.methods.length,
+      'fieldCount': obj.fields.length,
+      'constructorCount': obj.constructors.length,
+      'methods': obj.methods
+          .map(
+            (m) => {
+              'name': m.name,
+              'returnType': m.returnType.displayName(),
+              'parameters': m.parameters.length,
+            },
+          )
+          .toList(),
+      'fields': obj.fields
+          .map(
+            (f) => {
+              'name': f.name,
+              'type': f.type.displayName(),
+              'isFinal': f.isFinal,
+            },
+          )
+          .toList(),
+    };
+  }
+
+  if (obj is ExportStmt) {
+    return {
+      'type': 'ExportStmt',
+      'uri': obj.uri,
+      'showList': obj.showList,
+      'hideList': obj.hideList,
+    };
+  }
+
+  if (obj is AnalysisIssue) {
+    return {
+      'type': 'AnalysisIssue',
+      'code': obj.code,
+      'message': obj.message,
+      'severity': obj.severity.toString(),
+      'category': obj.category.toString(),
+      'suggestion': obj.suggestion,
+    };
+  }
+
+  // Fallback: try to JSON encode
+  try {
+    return {'raw': obj.toString()};
+  } catch (e) {
+    return {'error': 'Could not serialize: ${e.toString()}'};
+  }
 }
 
 // ============================================================================
@@ -951,6 +1139,12 @@ class ProgressiveAnalysisResult {
     required List<dynamic> variables,
     required List<dynamic> functions,
     required List<dynamic> classes,
+    List<dynamic>? importsRaw,
+    List<dynamic>? variablesRaw,
+    List<dynamic>? functionsRaw,
+    List<dynamic>? classesRaw,
+    List<dynamic>? exportsRaw,
+    List<dynamic>? issuesRaw,
   }) {
     finalAnalysis = {
       'success': success,
@@ -962,6 +1156,16 @@ class ProgressiveAnalysisResult {
       'functions': functions,
       'classes': classes,
       'phases': phases.map((p) => p.toJson()).toList(),
+
+      // ✅ ADD: Raw converted data for verification
+      'rawData': {
+        'imports': importsRaw?.map(_serializeObject).toList() ?? [],
+        'variables': variablesRaw?.map(_serializeObject).toList() ?? [],
+        'functions': functionsRaw?.map(_serializeObject).toList() ?? [],
+        'classes': classesRaw?.map(_serializeObject).toList() ?? [],
+        'exports': exportsRaw?.map(_serializeObject).toList() ?? [],
+        'issues': issuesRaw?.map(_serializeObject).toList() ?? [],
+      },
     };
   }
 
@@ -1104,3 +1308,14 @@ class IRFileInfo {
     required this.modified,
   });
 }
+
+// Add extension method after the BinaryIRServer class definition:
+// extension FormDataRequest on Request {
+//   shelf_multipart.FormDataRequest? formData() {
+//     try {
+//       return shelf_multipart.FormDataRequest.of(this);
+//     } catch (e) {
+//       return null;
+//     }
+//   }
+// }
