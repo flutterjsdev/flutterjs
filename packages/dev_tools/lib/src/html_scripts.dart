@@ -18,6 +18,7 @@ const analysisContent = document.getElementById('analysisContent');
 let analysisLines = [];
 let currentLineIndex = 0;
 let errorList = [];
+let isProcessing = false;
 
 // ============================================================================
 // SETUP: Upload handlers initialization
@@ -31,7 +32,19 @@ function setupUploadHandlers() {
         return;
     }
 
-    uploadZone.addEventListener('click', () => fileInput.click());
+    // âœ… FIX: Prevent double click on nested elements
+    uploadZone.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isProcessing) {
+            fileInput.click();
+        }
+    });
+
+    // âœ… FIX: Prevent bubbling on file input
+    fileInput.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
 
     ['dragover', 'dragenter'].forEach(event => {
         uploadZone.addEventListener(event, e => {
@@ -50,13 +63,16 @@ function setupUploadHandlers() {
     });
 
     uploadZone.addEventListener('drop', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadZone.classList.remove('dragover');
         const files = e.dataTransfer?.files;
-        if (files?.length) uploadFile(files[0]);
+        if (files?.length && !isProcessing) uploadFile(files[0]);
     });
 
     fileInput.addEventListener('change', e => {
         const files = e.target.files;
-        if (files?.length) uploadFile(files[0]);
+        if (files?.length && !isProcessing) uploadFile(files[0]);
     });
 
     console.log('Upload handlers ready');
@@ -75,6 +91,14 @@ if (document.readyState === 'loading') {
 async function uploadFile(file) {
     console.log('uploadFile() called with:', file.name);
     
+    // âœ… FIX: Prevent duplicate uploads
+    if (isProcessing) {
+        console.warn('Upload already in progress');
+        return;
+    }
+    
+    isProcessing = true;
+    
     const isIRFile = file.name.toLowerCase().endsWith('.ir');
     console.log('File extension check:', isIRFile ? 'OK' : 'FAIL');
     
@@ -83,6 +107,8 @@ async function uploadFile(file) {
         console.error(errorMsg);
         showUploadMessage('ERROR: ' + errorMsg, 'error');
         addError('UPLOAD_INVALID_TYPE', errorMsg, { filename: file.name });
+        isProcessing = false;
+        fileInput.value = '';
         return;
     }
     
@@ -95,6 +121,8 @@ async function uploadFile(file) {
         console.error(errorMsg);
         showUploadMessage('ERROR: ' + errorMsg, 'error');
         addError('UPLOAD_TOO_LARGE', errorMsg, { size: file.size });
+        isProcessing = false;
+        fileInput.value = '';
         return;
     }
     
@@ -129,6 +157,8 @@ async function uploadFile(file) {
             console.error('Response text:', text.substring(0, 500));
             showUploadMessage('ERROR: Server returned invalid response', 'error');
             addError('UPLOAD_RESPONSE_ERROR', 'Server returned invalid JSON', { response: text.substring(0, 200) });
+            isProcessing = false;
+            fileInput.value = '';
             return;
         }
         
@@ -137,6 +167,8 @@ async function uploadFile(file) {
             console.error('HTTP Error:', res.status, errorMsg);
             showUploadMessage('ERROR: ' + errorMsg, 'error');
             addError('UPLOAD_HTTP_ERROR', errorMsg, { status: res.status });
+            isProcessing = false;
+            fileInput.value = '';
             return;
         }
         
@@ -145,6 +177,8 @@ async function uploadFile(file) {
             console.error('Upload failed:', errorMsg);
             showUploadMessage('ERROR: ' + errorMsg, 'error');
             addError('UPLOAD_FAILED', errorMsg, data);
+            isProcessing = false;
+            fileInput.value = '';
             return;
         }
         
@@ -152,6 +186,8 @@ async function uploadFile(file) {
             console.error('No analysis data in response');
             showUploadMessage('ERROR: No analysis data', 'error');
             addError('UPLOAD_NO_ANALYSIS', 'Server did not return analysis', data);
+            isProcessing = false;
+            fileInput.value = '';
             return;
         }
         
@@ -161,12 +197,15 @@ async function uploadFile(file) {
         showUploadMessage('SUCCESS: Analyzing ' + file.name, 'success');
         startProgressiveAnalysisWithLeftPanel(data.analysis);
         fileInput.value = '';
+        isProcessing = false;
         
     } catch (e) {
         console.error('Upload exception:', e);
         const errorMsg = 'Upload error: ' + e.message;
         showUploadMessage('ERROR: ' + errorMsg, 'error');
         addError('UPLOAD_EXCEPTION', errorMsg, { message: e.message });
+        isProcessing = false;
+        fileInput.value = '';
     }
 }
 
@@ -214,6 +253,7 @@ function showErrorPanel() {
 function clearErrorPanel() {
     errorPanel.classList.remove('show');
     errorList = [];
+    errorDetails.innerHTML = '';
 }
 
 function hideErrorPanel() {
