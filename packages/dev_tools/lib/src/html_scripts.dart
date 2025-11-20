@@ -13,6 +13,7 @@ const progressIndicator = document.getElementById('progressIndicator');
 const errorPanel = document.getElementById('errorPanel');
 const errorDetails = document.getElementById('errorDetails');
 const errorCount = document.getElementById('errorCount');
+const analysisContent = document.getElementById('analysisContent');
 
 let analysisLines = [];
 let currentLineIndex = 0;
@@ -61,7 +62,6 @@ function setupUploadHandlers() {
     console.log('Upload handlers ready');
 }
 
-// Initialize handlers
 setupUploadHandlers();
 
 if (document.readyState === 'loading') {
@@ -91,7 +91,7 @@ async function uploadFile(file) {
     console.log('File size: ' + (file.size / 1024 / 1024).toFixed(2) + 'MB');
     
     if (!isSizeOk) {
-        const errorMsg = `File too large. Max size: \${(MAX_SIZE / 1024 / 1024).toFixed(0)}MB`;
+        const errorMsg = 'File too large. Max size: ' + (MAX_SIZE / 1024 / 1024).toFixed(0) + 'MB';
         console.error(errorMsg);
         showUploadMessage('ERROR: ' + errorMsg, 'error');
         addError('UPLOAD_TOO_LARGE', errorMsg, { size: file.size });
@@ -133,7 +133,7 @@ async function uploadFile(file) {
         }
         
         if (!res.ok) {
-            const errorMsg = data.error || `Server error: \${res.status}`;
+            const errorMsg = data.error || 'Server error: ' + res.status;
             console.error('HTTP Error:', res.status, errorMsg);
             showUploadMessage('ERROR: ' + errorMsg, 'error');
             addError('UPLOAD_HTTP_ERROR', errorMsg, { status: res.status });
@@ -175,12 +175,10 @@ async function uploadFile(file) {
 // ============================================================================
 
 function showUploadMessage(message, type) {
-    uploadMessage.innerHTML = \`
-        <div class="message \${type}">
-            \${type === 'loading' ? '<div class="spinner"></div>' : ''}
-            <span>\${message}</span>
-        </div>
-    \`;
+    uploadMessage.innerHTML = '<div class="message ' + type + '">' +
+        (type === 'loading' ? '<div class="spinner"></div>' : '') +
+        '<span>' + message + '</span>' +
+        '</div>';
     if (type !== 'loading') {
         setTimeout(() => { uploadMessage.innerHTML = ''; }, 5000);
     }
@@ -202,15 +200,15 @@ function showErrorPanel() {
     errorPanel.classList.add('show');
     errorCount.textContent = errorList.length;
     
-    errorDetails.innerHTML = errorList.map((err) => \`
-        <div class="error-item">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                <span class="error-code">\${err.code}</span>
-                <span style="color: #999; font-size: 10px;">\${err.timestamp}</span>
-            </div>
-            <div class="error-message">\${err.message}</div>
-        </div>
-    \`).join('');
+    errorDetails.innerHTML = errorList.map((err) => {
+        return '<div class="error-item">' +
+            '<div style="display: flex; justify-content: space-between; margin-bottom: 8px;">' +
+            '<span class="error-code">' + err.code + '</span>' +
+            '<span style="color: #999; font-size: 10px;">' + err.timestamp + '</span>' +
+            '</div>' +
+            '<div class="error-message">' + err.message + '</div>' +
+            '</div>';
+    }).join('');
 }
 
 function clearErrorPanel() {
@@ -222,19 +220,14 @@ function hideErrorPanel() {
     errorPanel.classList.remove('show');
 }
 
-// ============================================================================
-// FIXED ICON FUNCTION (NO MORE â… ERRORS)
-// ============================================================================
-
 function getStatusIcon(status) {
     switch(status) {
-        case 'ok': return '✔️';
-        case 'error': return '❌';
-        case 'warning': return '⚠️';
+        case 'ok': return '✓';
+        case 'error': return '✕';
+        case 'warning': return '⚠';
         case 'pending': return '⏳';
         default: return '•';
     }
 }
-
 ''';
 }
