@@ -64,7 +64,7 @@ function showDiagnostics(analysis) {
         const ok = value !== null && value !== undefined;
         return '<div class="diagnostic-item">' +
             '<div class="diagnostic-status ' + (ok ? 'ok' : 'error') + '">' +
-            (ok ? 'âœ"' : 'âœ•') +
+            (ok ? '&#10004;' : '&#10006;') +
             '</div>' +
             '<div style="flex: 1; font-size: 11px;">' + escapeHtml(name) + '</div>' +
             '</div>';

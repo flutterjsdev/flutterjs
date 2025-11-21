@@ -1,8 +1,12 @@
+import 'package:dev_tools/src/html_styles_left_panel.dart';
+
 import 'html_styles.dart';
+import 'html_styles_right_pannel.dart';
 import 'html_scripts.dart';
-import 'html_scripts_left_panel.dart';
 import 'html_scripts_right_panel.dart';
+import 'html_scripts_left_panel.dart';
 import 'html_scripts_utilities.dart';
+import 'html_scripts_left_panel.dart';
 
 class HtmlGenerator {
   static String generate() => HtmlLayout.generate();
@@ -19,6 +23,8 @@ class HtmlLayout {
     <title>Binary IR Viewer - Progressive Analysis</title>
     <style>
         ${HtmlStyles.getStyles()}
+        ${HtmlStylesMaterial3.getMaterial3Styles()}
+        ${HtmlStylesRightPanelMaterial3.getRightPanelStyles()}
     </style>
 </head>
 <body>
@@ -61,7 +67,7 @@ class HtmlLayout {
                     <div id="diagnosticItems"></div>
                 </div>
                 
-                <!-- PROGRESSIVE ANALYSIS LINES (Image 3) -->
+                <!-- PROGRESSIVE ANALYSIS LINES -->
                 <div class="analysis-content" id="analysisContent">
                     <div class="empty-state">
                         <div style="font-size: 14px;">Waiting for analysis...</div>
@@ -70,7 +76,7 @@ class HtmlLayout {
             </div>
         </div>
         
-        <!-- RIGHT SECTION: Detail Cards (Image 2) -->
+        <!-- RIGHT SECTION: Detail Cards Material 3 -->
         <div class="section-right">
             <div class="panel-header">
                 <span>📄 FILE ANALYSIS</span>
