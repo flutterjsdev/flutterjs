@@ -19,21 +19,31 @@ let analysisLines = [];
 let currentLineIndex = 0;
 let errorList = [];
 let isProcessing = false;
+let uploadHandlersSetup = false; // ✅ Guard flag to prevent double setup
 
 // ============================================================================
 // SETUP: Upload handlers initialization
 // ============================================================================
 
+
 function setupUploadHandlers() {
     console.log('Setting up upload handlers...');
+
+    // ✅ FIX 1: Prevent duplicate setup
+    if (uploadHandlersSetup) {
+        console.warn('Upload handlers already setup, skipping...');
+        return;
+    }
+    uploadHandlersSetup = true;
 
     if (!uploadZone || !fileInput) {
         console.error('Upload zone or file input not found!');
         return;
     }
 
-    // âœ… FIX: Prevent double click on nested elements
+    // ✅ FIX 2: Single click handler on upload zone (not nested)
     uploadZone.addEventListener('click', (e) => {
+        console.log('Upload zone clicked');
         e.preventDefault();
         e.stopPropagation();
         if (!isProcessing) {
@@ -41,63 +51,87 @@ function setupUploadHandlers() {
         }
     });
 
-    // âœ… FIX: Prevent bubbling on file input
+    // ✅ FIX 3: Prevent file input click from bubbling up
     fileInput.addEventListener('click', (e) => {
+        console.log('File input clicked (internal)');
         e.stopPropagation();
     });
 
-    ['dragover', 'dragenter'].forEach(event => {
-        uploadZone.addEventListener(event, e => {
-            e.preventDefault();
-            e.stopPropagation();
-            uploadZone.classList.add('dragover');
-        });
+    // ✅ FIX 4: Drag events - combined similar handlers
+    uploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadZone.classList.add('dragover');
     });
 
-    ['dragleave', 'dragend', 'drop'].forEach(event => {
-        uploadZone.addEventListener(event, e => {
-            e.preventDefault();
-            e.stopPropagation();
-            uploadZone.classList.remove('dragover');
-        });
+    uploadZone.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadZone.classList.add('dragover');
     });
 
-    uploadZone.addEventListener('drop', e => {
+    uploadZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadZone.classList.remove('dragover');
+    });
+
+    uploadZone.addEventListener('dragend', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadZone.classList.remove('dragover');
+    });
+
+    uploadZone.addEventListener('drop', (e) => {
+        console.log('File dropped');
         e.preventDefault();
         e.stopPropagation();
         uploadZone.classList.remove('dragover');
         const files = e.dataTransfer?.files;
-        if (files?.length && !isProcessing) uploadFile(files[0]);
+        if (files?.length && !isProcessing) {
+            uploadFile(files[0]);
+        }
     });
 
-    fileInput.addEventListener('change', e => {
+    // ✅ FIX 5: File input change event
+    fileInput.addEventListener('change', (e) => {
+        console.log('File selected from picker');
         const files = e.target.files;
-        if (files?.length && !isProcessing) uploadFile(files[0]);
+        if (files?.length && !isProcessing) {
+            uploadFile(files[0]);
+        }
     });
 
-    console.log('Upload handlers ready');
+    console.log('✅ Upload handlers setup complete');
 }
 
-setupUploadHandlers();
-
+// ✅ FIX 6: Call setup only ONCE with proper timing
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', setupUploadHandlers);
+} else {
+    // Already loaded
+    setupUploadHandlers();
 }
 
+
+
+
+
 // ============================================================================
-// UPLOAD: File validation and submission
+// UPLOAD: File validation and submission (No changes needed)
 // ============================================================================
 
 async function uploadFile(file) {
     console.log('uploadFile() called with:', file.name);
     
-    // âœ… FIX: Prevent duplicate uploads
+    // ✅ Prevent duplicate uploads
     if (isProcessing) {
-        console.warn('Upload already in progress');
+        console.warn('Upload already in progress, ignoring duplicate request');
         return;
     }
     
     isProcessing = true;
+    console.log('isProcessing set to TRUE');
     
     const isIRFile = file.name.toLowerCase().endsWith('.ir');
     console.log('File extension check:', isIRFile ? 'OK' : 'FAIL');
@@ -197,15 +231,17 @@ async function uploadFile(file) {
         showUploadMessage('SUCCESS: Analyzing ' + file.name, 'success');
         startProgressiveAnalysisWithLeftPanel(data.analysis);
         fileInput.value = '';
-        isProcessing = false;
         
     } catch (e) {
         console.error('Upload exception:', e);
         const errorMsg = 'Upload error: ' + e.message;
         showUploadMessage('ERROR: ' + errorMsg, 'error');
         addError('UPLOAD_EXCEPTION', errorMsg, { message: e.message });
-        isProcessing = false;
         fileInput.value = '';
+    } finally {
+        // ✅ Always reset processing flag
+        isProcessing = false;
+        console.log('isProcessing set to FALSE');
     }
 }
 

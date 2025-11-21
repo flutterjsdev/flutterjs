@@ -1,16 +1,24 @@
-class HtmlScriptsLeftPanel {
-  static String getLeftPanelScript() => '''
+class HtmlScriptsRightPanel {
+  static String getRightPanelScript() => '''
 // ============================================================================
-// LEFT PANEL: Advanced Material 3 UI with Debug & Error Progress
+// LEFT PANEL: Premium Material 3 UI with Enhanced Visuals
 // ============================================================================
-
-const diagnosticItems = document.getElementById('diagnosticItems');
 
 const leftDetailsPanel = {
     container: null,
     currentExpanded: null,
+    expandedAfter: null,
     debugLogs: [],
     errorLogs: [],
+
+    iconMap: {
+        document: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>',
+        chart: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a1.5 1.5 0 0 0-1.5 1.5v12a1.5 1.5 0 0 0 1.5 1.5H17"/><path d="M3 12h4"/><path d="M20.5 12h.5"/></svg>',
+        import: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+        class: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>',
+        function: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+        variable: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6m3-3H9"/></svg>'
+    },
 
     init() {
         this.container = document.getElementById('leftDetailsPanel');
@@ -18,11 +26,14 @@ const leftDetailsPanel = {
             console.error('Left details panel container not found');
             return;
         }
+        this.container.style.display = 'flex';
+        this.container.style.flexDirection = 'column';
+        this.container.style.gap = '12px';
         console.log('Left panel initialized');
     },
 
     addFileInfoCard(fileInfo) {
-        const card = this.createCard('FILE INFORMATION', 'file-info', 'file');
+        const card = this.createCard('FILE INFORMATION', 'file-info', 'document');
         
         const summary = document.createElement('div');
         summary.className = 'card-summary';
@@ -31,7 +42,7 @@ const leftDetailsPanel = {
             '<span class="summary-label">Library</span>' +
             '<span class="summary-sublabel">Source Package</span>' +
             '</div>' +
-            '<span class="summary-value">' + escapeHtml((fileInfo.library || 'unknown').split('\\\\\\\\').pop()) + '</span>' +
+            '<span class="summary-value">' + escapeHtml((fileInfo.library || 'unknown').split('\\\\').pop()) + '</span>' +
             '</div>' +
             '<div class="summary-item">' +
             '<div class="summary-label-group">' +
@@ -44,21 +55,21 @@ const leftDetailsPanel = {
         
         card.querySelector('.card-header').addEventListener('click', (e) => {
             e.stopPropagation();
-            this.showDetailsPanel('FILE INFORMATION', {
+            this.toggleDetailsPanel(card, 'FILE INFORMATION', {
                 'Library': fileInfo.library || 'unknown',
                 'File Path': fileInfo.filePath || 'N/A',
                 'Size (Bytes)': fileInfo.totalBytes || 0,
                 'Size (KB)': ((fileInfo.totalBytes || 0) / 1024).toFixed(1),
                 'Content Hash': fileInfo.contentHash || 'N/A',
                 'Last Modified': new Date().toLocaleString()
-            }, 'file');
+            }, 'document');
         });
         
         this.container.appendChild(card);
     },
 
     addStatisticsCard(stats) {
-        const card = this.createCard('STATISTICS', 'statistics', 'stats');
+        const card = this.createCard('STATISTICS', 'statistics', 'chart');
         
         const summary = document.createElement('div');
         summary.className = 'card-summary';
@@ -66,18 +77,22 @@ const leftDetailsPanel = {
         const statsGrid = document.createElement('div');
         statsGrid.className = 'stats-grid';
         statsGrid.innerHTML = '<div class="stat-item">' +
+            '<span class="stat-icon">📦</span>' +
             '<span class="stat-value">' + (stats.classes || 0) + '</span>' +
             '<span class="stat-label">Classes</span>' +
             '</div>' +
             '<div class="stat-item">' +
+            '<span class="stat-icon">⚙️</span>' +
             '<span class="stat-value">' + (stats.functions || 0) + '</span>' +
             '<span class="stat-label">Functions</span>' +
             '</div>' +
             '<div class="stat-item">' +
+            '<span class="stat-icon">📋</span>' +
             '<span class="stat-value">' + (stats.variables || 0) + '</span>' +
             '<span class="stat-label">Variables</span>' +
             '</div>' +
             '<div class="stat-item">' +
+            '<span class="stat-icon">📥</span>' +
             '<span class="stat-value">' + (stats.imports || 0) + '</span>' +
             '<span class="stat-label">Imports</span>' +
             '</div>';
@@ -87,7 +102,7 @@ const leftDetailsPanel = {
         if (issueCount > 0) {
             const issueAlert = document.createElement('div');
             issueAlert.className = 'issue-alert';
-            issueAlert.innerHTML = '<span class="alert-icon">⚠</span>' +
+            issueAlert.innerHTML = '<span class="alert-icon">⚠️</span>' +
                 '<span class="alert-text">' + issueCount + ' Analysis Issue' + (issueCount > 1 ? 's' : '') + ' Found</span>';
             summary.appendChild(issueAlert);
         }
@@ -96,7 +111,7 @@ const leftDetailsPanel = {
         
         card.querySelector('.card-header').addEventListener('click', (e) => {
             e.stopPropagation();
-            this.showDetailsPanel('STATISTICS', {
+            this.toggleDetailsPanel(card, 'STATISTICS', {
                 'Classes': stats.classes || 0,
                 'Total Methods': stats.totalMethods || 0,
                 'Total Fields': stats.totalFields || 0,
@@ -105,7 +120,7 @@ const leftDetailsPanel = {
                 'Imports': stats.imports || 0,
                 'Exports': stats.exports || 0,
                 'Analysis Issues': stats.analysisIssues || 0
-            }, 'stats');
+            }, 'chart');
         });
         
         this.container.appendChild(card);
@@ -125,8 +140,8 @@ const leftDetailsPanel = {
             '<span>Total Imports</span>' +
             '</div>' +
             '<div class="import-indicators">' +
-            (imports.filter(i => i.isDeferred).length > 0 ? '<div class="indicator deferred"><span>⏱</span> Deferred</div>' : '') +
-            (imports.filter(i => i.prefix).length > 0 ? '<div class="indicator prefixed"><span>→</span> Prefixed</div>' : '') +
+            (imports.filter(i => i.isDeferred).length > 0 ? '<div class="indicator deferred">⏱️ Deferred</div>' : '') +
+            (imports.filter(i => i.prefix).length > 0 ? '<div class="indicator prefixed">🏷️ Prefixed</div>' : '') +
             '</div>';
         summary.appendChild(importSummary);
         card.appendChild(summary);
@@ -139,7 +154,7 @@ const leftDetailsPanel = {
                 const deferred = imp.isDeferred ? ' [deferred]' : '';
                 importsData['[' + (idx + 1) + '] ' + imp.uri + prefix + deferred] = imp;
             });
-            this.showDetailsPanel('IMPORTS (' + imports.length + ')', importsData, 'import');
+            this.toggleDetailsPanel(card, 'IMPORTS (' + imports.length + ')', importsData, 'import');
         });
         
         this.container.appendChild(card);
@@ -160,7 +175,7 @@ const leftDetailsPanel = {
             '<span class="stat-badge">' + classes.length + '</span>' +
             '<span>Total Classes</span>' +
             '</div>' +
-            (abstractCount > 0 ? '<div class="indicator abstract"><span>◆</span> ' + abstractCount + ' Abstract</div>' : '');
+            (abstractCount > 0 ? '<div class="indicator abstract">◇ ' + abstractCount + ' Abstract</div>' : '');
         summary.appendChild(classSummary);
         card.appendChild(summary);
         
@@ -171,7 +186,7 @@ const leftDetailsPanel = {
                 const abstract = cls.isAbstract ? '[abstract] ' : '';
                 classesData['[' + (idx + 1) + '] ' + abstract + cls.name] = cls;
             });
-            this.showDetailsPanel('CLASSES (' + classes.length + ')', classesData, 'class');
+            this.toggleDetailsPanel(card, 'CLASSES (' + classes.length + ')', classesData, 'class');
         });
         
         this.container.appendChild(card);
@@ -200,7 +215,7 @@ const leftDetailsPanel = {
             functions.forEach((func, idx) => {
                 functionsData['[' + (idx + 1) + '] ' + func.name] = func;
             });
-            this.showDetailsPanel('FUNCTIONS (' + functions.length + ')', functionsData, 'function');
+            this.toggleDetailsPanel(card, 'FUNCTIONS (' + functions.length + ')', functionsData, 'function');
         });
         
         this.container.appendChild(card);
@@ -229,7 +244,7 @@ const leftDetailsPanel = {
             variables.forEach((v, idx) => {
                 variablesData['[' + (idx + 1) + '] ' + v.name] = v;
             });
-            this.showDetailsPanel('VARIABLES (' + variables.length + ')', variablesData, 'variable');
+            this.toggleDetailsPanel(card, 'VARIABLES (' + variables.length + ')', variablesData, 'variable');
         });
         
         this.container.appendChild(card);
@@ -239,30 +254,26 @@ const leftDetailsPanel = {
         const card = document.createElement('div');
         card.className = 'left-detail-card material-card';
         card.id = 'card-' + id;
+        card.setAttribute('data-expanded', 'false');
         
         const header = document.createElement('div');
         header.className = 'card-header material-header';
-        const iconMap = {
-            'file': '📄',
-            'stats': '📊',
-            'import': '📥',
-            'class': '🏛',
-            'function': '⚙',
-            'variable': '📝'
-        };
+        
+        const iconSvg = this.iconMap[icon] || this.iconMap.document;
         
         header.innerHTML = '<div class="header-left">' +
-            '<span class="card-icon">' + (iconMap[icon] || '▶') + '</span>' +
+            '<div class="card-icon">' + iconSvg + '</div>' +
             '<div class="header-content">' +
             '<span class="card-title">' + escapeHtml(title) + '</span>' +
             '</div>' +
             '</div>' +
-            '<span class="card-toggle">▶</span>';
+            '<span class="card-toggle">›</span>';
 
         header.addEventListener('click', () => {
             const toggle = header.querySelector('.card-toggle');
-            const isExpanded = toggle.textContent === '▼';
-            toggle.textContent = isExpanded ? '▶' : '▼';
+            const isExpanded = card.getAttribute('data-expanded') === 'true';
+            toggle.textContent = isExpanded ? '›' : '∨';
+            card.setAttribute('data-expanded', !isExpanded);
             card.classList.toggle('expanded');
         });
 
@@ -270,26 +281,32 @@ const leftDetailsPanel = {
         return card;
     },
 
-    showDetailsPanel(title, data, type) {
-        if (this.currentExpanded) {
-            this.currentExpanded.remove();
-            this.currentExpanded = null;
+    toggleDetailsPanel(card, title, data, type) {
+        const cardId = card.id;
+        const isCurrentlyExpanded = this.expandedAfter && this.expandedAfter.getAttribute('data-for-card') === cardId;
+        
+        if (this.expandedAfter) {
+            const prevCardId = this.expandedAfter.getAttribute('data-for-card');
+            const prevCard = document.getElementById(prevCardId);
+            if (prevCard) {
+                prevCard.setAttribute('data-expanded', 'false');
+                prevCard.classList.remove('expanded');
+                prevCard.querySelector('.card-toggle').textContent = '›';
+            }
+            this.expandedAfter.remove();
+            this.expandedAfter = null;
         }
         
-        const allToggles = this.container.querySelectorAll('.card-toggle');
-        allToggles.forEach(t => (t.textContent = '▶'));
-
-        const cardTitles = this.container.querySelectorAll('.card-title');
-        for (const el of cardTitles) {
-            if (el.textContent === title) {
-                const toggle = el.closest('.card-header').querySelector('.card-toggle');
-                if (toggle) toggle.textContent = '▼';
-                break;
-            }
+        if (isCurrentlyExpanded) {
+            card.setAttribute('data-expanded', 'false');
+            card.classList.remove('expanded');
+            card.querySelector('.card-toggle').textContent = '›';
+            return;
         }
-
+        
         const panel = document.createElement('div');
         panel.className = 'left-expanded-panel material-panel';
+        panel.setAttribute('data-for-card', cardId);
         
         const header = document.createElement('div');
         header.className = 'expanded-header material-expanded-header';
@@ -297,7 +314,14 @@ const leftDetailsPanel = {
             '<span class="expanded-title">' + escapeHtml(title) + '</span>' +
             '<span class="expanded-type-badge">' + (type || 'info') + '</span>' +
             '</div>' +
-            '<button class="expanded-close material-close" onclick="leftDetailsPanel.closePanel()">✕</button>';
+            '<button class="expanded-close material-close">✕</button>';
+        
+        const closeBtn = header.querySelector('.expanded-close');
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.closePanel(cardId);
+        });
+        
         panel.appendChild(header);
         
         const content = document.createElement('div');
@@ -305,21 +329,33 @@ const leftDetailsPanel = {
         content.innerHTML = formatDetailsHTML(data);
         panel.appendChild(content);
         
-        this.container.appendChild(panel);
+        card.parentNode.insertBefore(panel, card.nextSibling);
+        this.expandedAfter = panel;
         this.currentExpanded = panel;
+        
+        card.setAttribute('data-expanded', 'true');
+        card.classList.add('expanded');
+        card.querySelector('.card-toggle').textContent = '∨';
         
         setTimeout(() => {
             panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 10);
+        }, 50);
     },
 
-    closePanel() {
-        if (this.currentExpanded) {
-            this.currentExpanded.remove();
-            this.currentExpanded = null;
+    closePanel(cardId) {
+        if (this.expandedAfter) {
+            if (cardId) {
+                const card = document.getElementById(cardId);
+                if (card) {
+                    card.setAttribute('data-expanded', 'false');
+                    card.classList.remove('expanded');
+                    card.querySelector('.card-toggle').textContent = '›';
+                }
+            }
+            this.expandedAfter.remove();
+            this.expandedAfter = null;
         }
-        const allToggles = this.container.querySelectorAll('.card-toggle');
-        allToggles.forEach(t => (t.textContent = '▶'));
+        this.currentExpanded = null;
     },
 
     clear() {
@@ -327,6 +363,7 @@ const leftDetailsPanel = {
             const allChildren = Array.from(this.container.children);
             allChildren.forEach(child => child.remove());
             this.currentExpanded = null;
+            this.expandedAfter = null;
         }
     }
 };

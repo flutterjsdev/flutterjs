@@ -1,5 +1,5 @@
-class HtmlScriptsRightPanel {
-  static String getRightPanelScript() => '''
+class HtmlScriptsLeftPanel {
+  static String getLeftPanelScript() => '''
 // ============================================================================
 // RIGHT PANEL: Progressive Analysis Display - Material 3 Advanced UI
 // ============================================================================
