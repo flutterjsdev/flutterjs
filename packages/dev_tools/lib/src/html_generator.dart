@@ -1,6 +1,8 @@
-import 'package:dev_tools/src/html_scripts_pannel.dart';
 import 'html_styles.dart';
 import 'html_scripts.dart';
+import 'html_scripts_left_panel.dart';
+import 'html_scripts_right_panel.dart';
+import 'html_scripts_utilities.dart';
 
 class HtmlGenerator {
   static String generate() => HtmlLayout.generate();
@@ -82,7 +84,9 @@ class HtmlLayout {
     
     <script>
         ${HtmlScripts.getScripts()}
-        ${HtmlScriptsPannel.getHtmlPannelScript()}
+        ${HtmlScriptsLeftPanel.getLeftPanelScript()}
+        ${HtmlScriptsRightPanel.getRightPanelScript()}
+        ${HtmlScriptsUtilities.getUtilitiesScript()}
     </script>
 </body>
 </html>
