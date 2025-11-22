@@ -1,5 +1,5 @@
-class HtmlStylesRightPanelMaterial3 {
-  static String getRightPanelStyles() => '''
+class HtmlStylesLeftPanel {
+  static String getHtmlStylesLeftPanel() => '''
 /* ============================================================================
    MATERIAL 3: Advanced Right Panel Analysis Display
    ============================================================================ */

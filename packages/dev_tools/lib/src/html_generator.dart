@@ -1,15 +1,10 @@
-
-
-
 import 'html_styles.dart';
-import 'html_styles_right_pannel.dart';
+import 'html_styles_right_panel.dart';
 import 'html_scripts.dart';
 import 'html_scripts_right_panel.dart';
 import 'html_scripts_left_panel.dart';
 import 'html_scripts_utilities.dart';
-import 'html_scripts_left_panel.dart';
 import 'html_styles_left_panel.dart';
-import 'html_scripts_left_panel.dart';
 
 class HtmlGenerator {
   static String generate() => HtmlLayout.generate();
@@ -26,8 +21,8 @@ class HtmlLayout {
     <title>Binary IR Viewer - Progressive Analysis</title>
     <style>
         ${HtmlStyles.getStyles()}
-        ${HtmlStylesRightPanelMaterial3.getRightPanelStyles()}
-        ${HtmlStylesMaterial3.getMaterial3Styles()}
+        ${HtmlStylesLeftPanel.getHtmlStylesLeftPanel()}
+        ${HtmlRightPannelStyles.getHtmlRightPannelStyles()}
     </style>
 </head>
 <body>
@@ -92,10 +87,10 @@ class HtmlLayout {
     </div>
     
     <script>
+        ${HtmlScriptsUtilities.getUtilitiesScript()}
+        ${HtmlScriptsRightPanel.getRightPanelScript()}
         ${HtmlScripts.getScripts()}
         ${HtmlScriptsLeftPanel.getLeftPanelScript()}
-        ${HtmlScriptsRightPanel.getRightPanelScript()}
-        ${HtmlScriptsUtilities.getUtilitiesScript()}
     </script>
 </body>
 </html>

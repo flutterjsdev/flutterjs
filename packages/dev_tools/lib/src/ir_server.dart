@@ -58,161 +58,208 @@ class BinaryIRServer {
 // CORRECTED: _handleUpload method with proper shelf_multipart API
 // ============================================================================
 
+// ============================================================================
+// PRODUCTION-READY: Robust multipart parsing with edge case handling
+// ============================================================================
 
 Future<Response> _handleUpload(Request request) async {
   try {
-    // ✅ FIX 1: Properly check for multipart form-data
+    print('📤 Upload started...');
+    
+    // ✅ STEP 1: Validate content-type
     final contentType = request.headers['content-type'] ?? '';
     if (!contentType.contains('multipart/form-data')) {
-      print('❌ Invalid content-type: $contentType');
-      return _errorResponse(
-        'Expected multipart/form-data, got: $contentType',
-        400,
-      );
+      return _errorResponseJson({
+        'success': false,
+        'error': 'Invalid content-type. Expected multipart/form-data',
+        'received': contentType,
+      }, 400);
     }
 
-    if (verbose) print('📤 Handling multipart upload...');
-
-    // ✅ FIX 2: Use request.formData() correctly
-    // formData() returns a FormDataRequest? object
-    final formDataRequest = request.formData();
-    if (formDataRequest == null) {
-      print('❌ Not a valid multipart form request');
-      return _errorResponse('Not a multipart form request', 400);
+    // ✅ STEP 2: Extract boundary safely
+    final boundaryMatch = RegExp(r'boundary=([^\s;]+)').firstMatch(contentType);
+    if (boundaryMatch == null) {
+      return _errorResponseJson({
+        'success': false,
+        'error': 'Missing boundary in multipart request',
+      }, 400);
     }
 
-    Uint8List? fileBytes;
-    String fileName = 'unknown';
+    String boundary = boundaryMatch.group(1)!.replaceAll('"', '');
+    if (boundary.isEmpty) {
+      return _errorResponseJson({
+        'success': false,
+        'error': 'Empty boundary value',
+      }, 400);
+    }
 
+    print('✅ Boundary extracted: $boundary');
+
+    // ✅ STEP 3: Read body with size limit
+    const maxRequestSize = 105 * 1024 * 1024; // 105MB to allow 100MB files + headers
+    final bodyBytes = <int>[];
+    
     try {
-      // ✅ Iterate through the form fields
-      await for (final formField in formDataRequest.formData) {
-        if (formField.name == 'file') {
-          // Read the entire file bytes from the part
-          fileBytes = await formField.part.readBytes();
-
-          // Extract filename from the FormField
-          // The filename is already parsed for us!
-          fileName = formField.filename ?? 'unknown';
-
-          if (verbose) {
-            print('📄 File received: $fileName');
-            print('📊 File size: ${fileBytes.length} bytes');
-          }
-          break;
+      await for (final chunk in request.read()) {
+        bodyBytes.addAll(chunk);
+        if (bodyBytes.length > maxRequestSize) {
+          return _errorResponseJson({
+            'success': false,
+            'error': 'Request body exceeds maximum size (100MB)',
+          }, 413);
         }
       }
-    } catch (e, st) {
-      print('❌ Multipart parsing error: $e');
-      _logError('MULTIPART_PARSE_ERROR', e.toString(), st.toString(),
-          'api/upload');
-      return _errorResponse('Invalid multipart request: ${e.toString()}', 400);
+    } catch (e) {
+      return _errorResponseJson({
+        'success': false,
+        'error': 'Failed to read request body: ${e.toString()}',
+      }, 400);
     }
 
-    if (fileBytes == null || fileBytes.isEmpty) {
-      print('❌ No file data received');
-      _logError(
-        'UPLOAD_EMPTY',
-        'No file data in multipart request',
-        '',
-        'api/upload',
-      );
-      return _errorResponse('No file data received', 400);
+    if (bodyBytes.isEmpty) {
+      return _errorResponseJson({
+        'success': false,
+        'error': 'Empty request body',
+      }, 400);
     }
 
-    // ✅ FIX 3: Validate file extension
-    final isIRFile = fileName.toLowerCase().endsWith('.ir');
-    if (!isIRFile) {
-      final errorMsg = 'Invalid file type. Only .ir files are allowed.';
-      print('❌ $errorMsg');
-      _logError('UPLOAD_INVALID_TYPE', errorMsg, '', 'api/upload');
-      return _errorResponse(errorMsg, 400);
+    print('📊 Body received: ${bodyBytes.length} bytes');
+
+    // ✅ STEP 4: Parse multipart with robust boundary detection
+    final parser = MultipartParser(
+      Uint8List.fromList(bodyBytes),
+      boundary,
+    );
+
+    final parseResult = parser.parse();
+    if (!parseResult['success']) {
+      return _errorResponseJson({
+        'success': false,
+        'error': parseResult['error'] ?? 'Multipart parsing failed',
+      }, 400);
     }
 
-    // ✅ FIX 4: Validate file size (max 100MB)
-    const maxSize = 100 * 1024 * 1024;
-    if (fileBytes.length > maxSize) {
-      final errorMsg =
-          'File too large. Max size: ${(maxSize / 1024 / 1024).toStringAsFixed(0)}MB';
-      print('❌ $errorMsg');
-      _logError('UPLOAD_TOO_LARGE', errorMsg, '', 'api/upload');
-      return _errorResponse(errorMsg, 413);
+    final fileNameExtracted = parseResult['filename'] as String?;
+    final fileDataExtracted = parseResult['data'] as Uint8List?;
+
+    if (fileNameExtracted == null || fileNameExtracted.isEmpty) {
+      return _errorResponseJson({
+        'success': false,
+        'error': 'No filename found in multipart upload',
+      }, 400);
     }
 
+    if (fileDataExtracted == null || fileDataExtracted.isEmpty) {
+      return _errorResponseJson({
+        'success': false,
+        'error': 'No file data found in multipart upload',
+      }, 400);
+    }
+
+    print('📄 File: $fileNameExtracted (${fileDataExtracted.length} bytes)');
+
+    // ✅ STEP 5: Validate file
+    if (!fileNameExtracted.toLowerCase().endsWith('.ir')) {
+      return _errorResponseJson({
+        'success': false,
+        'error': 'Invalid file type. Only .ir files are allowed',
+        'filename': fileNameExtracted,
+      }, 400);
+    }
+
+    const maxFileSize = 100 * 1024 * 1024; // 100MB
+    if (fileDataExtracted.length > maxFileSize) {
+      return _errorResponseJson({
+        'success': false,
+        'error': 'File exceeds maximum size (100MB)',
+        'size': fileDataExtracted.length,
+      }, 413);
+    }
+
+    // ✅ STEP 6: Store and analyze
     final fileId = DateTime.now().millisecondsSinceEpoch.toString();
-    _uploadedFiles[fileId] = fileBytes;
+    _uploadedFiles[fileId] = fileDataExtracted;
 
-    // ✅ FIX 5: Create metrics tracker
     final metrics = AnalysisMetrics(fileId: fileId);
     _metrics[fileId] = metrics;
-    metrics.recordPhase('READ_FILE', fileBytes.length);
+    metrics.recordPhase('READ_FILE', fileDataExtracted.length);
 
-    if (verbose) print('🔍 Starting analysis for: $fileId');
+    print('🔍 Starting analysis for: $fileId');
 
-    // ✅ FIX 6: Wait for stream analysis to complete
     try {
-      await _analyzeFileStream(fileId, fileBytes, fileName).drain();
-
-      // ✅ Small delay to ensure storage completion
-      await Future.delayed(Duration(milliseconds: 100));
-
-      if (verbose) print('✅ Analysis stream complete');
+      await _analyzeFileStream(fileId, fileDataExtracted, fileNameExtracted).drain();
+      await Future.delayed(Duration(milliseconds: 150));
     } catch (e, st) {
-      _logError('STREAM_ERROR', e.toString(), st.toString(), 'api/upload');
-      return _errorResponse('Stream analysis failed: ${e.toString()}', 500);
+      print('❌ Analysis error: $e');
+      _logError('ANALYSIS_ERROR', e.toString(), st.toString(), 'api/upload');
+      return _errorResponseJson({
+        'success': false,
+        'error': 'Analysis failed: ${e.toString()}',
+      }, 500);
     }
 
-    // ✅ FIX 7: Verify analysis was stored
+    // ✅ STEP 7: Retrieve and validate analysis
     final analysis = _analyses[fileId];
     if (analysis == null) {
-      _logError(
-        'ANALYSIS_NOT_FOUND',
-        'Analysis result missing after stream',
-        '',
-        'api/upload',
-      );
-      if (verbose) print('❌ Analysis not found in storage after stream!');
-      return _errorResponse('Analysis result not found', 500);
+      _logError('ANALYSIS_NOT_FOUND', 'No result after stream', '', 'api/upload');
+      return _errorResponseJson({
+        'success': false,
+        'error': 'Analysis result not found',
+      }, 500);
     }
 
-    if (verbose) print('✅ Analysis found: success=${analysis.success}');
-
-    // ✅ FIX 8: Check analysis success
     if (!analysis.success) {
-      final errorMsg = analysis.error ?? '<unknown>';
-      _logError('ANALYSIS_FAILED', errorMsg, '', 'api/upload');
-      if (verbose) print('❌ Analysis failed: $errorMsg');
-      return _errorResponse(errorMsg, 400);
+      return _errorResponseJson({
+        'success': false,
+        'error': analysis.error ?? 'Unknown analysis error',
+      }, 400);
     }
 
     metrics.recordPhase('COMPLETE', analysis.totalLines);
     metrics.recordSuccess();
 
-    // ✅ FIX 9: Build proper JSON response
-    final responseData = {
-      'success': true,
-      'fileId': fileId,
-      'fileName': fileName,
-      'size': fileBytes.length,
-      'analysis': analysis.toJson(),
-      'metrics': metrics.toJson(),
-    };
+    print('✅ Upload complete!');
 
-    if (verbose) print('📤 Sending JSON response...');
-
-    // ✅ CRITICAL: Set correct headers and encode as JSON
+    // ✅ STEP 8: Return success
     return Response.ok(
-      jsonEncode(responseData),
+      jsonEncode({
+        'success': true,
+        'fileId': fileId,
+        'fileName': fileNameExtracted,
+        'size': fileDataExtracted.length,
+        'analysis': analysis.toJson(),
+        'metrics': metrics.toJson(),
+      }),
       headers: {
         'content-type': 'application/json; charset=utf-8',
         'access-control-allow-origin': '*',
       },
     );
+
   } catch (e, st) {
-    _logError('UPLOAD_ERROR', e.toString(), st.toString(), 'api/upload');
-    if (verbose) print('❌ Upload error: $e\n$st');
-    return _errorResponse('Upload failed: ${e.toString()}', 500);
+    print('❌ FATAL: $e\n$st');
+    _logError('UPLOAD_FATAL', e.toString(), st.toString(), 'api/upload');
+    
+    return Response(
+      500,
+      body: jsonEncode({
+        'success': false,
+        'error': 'Internal server error',
+      }),
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    );
   }
+}
+
+
+
+/// Helper to send JSON error responses
+Response _errorResponseJson(Map<String, dynamic> json, int statusCode) {
+  return Response(
+    statusCode,
+    body: jsonEncode(json),
+    headers: {'content-type': 'application/json; charset=utf-8'},
+  );
 }
   // ✅ ALSO UPDATE Response error helper
   Response _errorResponse(String message, int statusCode) {
@@ -1309,13 +1356,170 @@ class IRFileInfo {
   });
 }
 
-// Add extension method after the BinaryIRServer class definition:
-// extension FormDataRequest on Request {
-//   shelf_multipart.FormDataRequest? formData() {
-//     try {
-//       return shelf_multipart.FormDataRequest.of(this);
-//     } catch (e) {
-//       return null;
-//     }
-//   }
-// }
+// ============================================================================
+// ROBUST MULTIPART PARSER - Handles edge cases
+// ============================================================================
+
+class MultipartParser {
+  final Uint8List data;
+  final String boundary;
+
+  MultipartParser(this.data, this.boundary);
+
+  /// Parse multipart data with comprehensive error handling
+  Map<String, dynamic> parse() {
+    try {
+      // Convert to bytes for binary-safe parsing
+      final boundaryBytes = utf8.encode('--$boundary');
+      final crlfBytes = utf8.encode('\r\n');
+      final doubleCrlfBytes = utf8.encode('\r\n\r\n');
+
+      // ✅ Find all boundary positions (robust to different line endings)
+      final boundaries = _findBoundaries(boundaryBytes);
+      if (boundaries.isEmpty) {
+        return {'success': false, 'error': 'No boundaries found in data'};
+      }
+
+      // ✅ Process each part
+      for (int i = 0; i < boundaries.length - 1; i++) {
+        final partStart = boundaries[i] + boundaryBytes.length;
+        final partEnd = boundaries[i + 1];
+
+        final part = data.sublist(partStart, partEnd);
+        final partString = _decodePartSafely(part);
+
+        if (!partString.contains('filename=')) {
+          continue;
+        }
+
+        // ✅ Extract filename safely
+        final filename = _extractFilename(partString);
+        if (filename == null || filename.isEmpty) {
+          continue;
+        }
+
+        // ✅ Extract file content (handle binary data)
+        final content = _extractFileContent(part, doubleCrlfBytes, crlfBytes);
+        if (content != null && content.isNotEmpty) {
+          return {
+            'success': true,
+            'filename': filename,
+            'data': content,
+          };
+        }
+      }
+
+      return {'success': false, 'error': 'No file part found in multipart data'};
+    } catch (e, st) {
+      print('Parse error: $e\n$st');
+      return {'success': false, 'error': 'Parsing error: ${e.toString()}'};
+    }
+  }
+
+  /// Find all boundary positions in binary data
+  List<int> _findBoundaries(Uint8List boundaryBytes) {
+    final positions = <int>[];
+    for (int i = 0; i <= data.length - boundaryBytes.length; i++) {
+      bool match = true;
+      for (int j = 0; j < boundaryBytes.length; j++) {
+        if (data[i + j] != boundaryBytes[j]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        positions.add(i);
+      }
+    }
+    return positions;
+  }
+
+  /// Safely decode part, falling back to latin1 if UTF-8 fails
+  String _decodePartSafely(Uint8List part) {
+    try {
+      return utf8.decode(part);
+    } catch (e) {
+      // Fallback: use latin1 for binary-heavy content
+      try {
+        return latin1.decode(part);
+      } catch (e2) {
+        // Last resort: lossy conversion
+        return String.fromCharCodes(part);
+      }
+    }
+  }
+
+  /// Extract filename from Content-Disposition header
+  String? _extractFilename(String partString) {
+    // Handle both: filename="name.ir" and filename=name.ir
+    final patterns = [
+      RegExp(r'filename="([^"]+)"'),
+      RegExp(r"filename='([^']+)'"),
+      RegExp(r'filename=([^\s;]+)'),
+    ];
+
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(partString);
+      if (match != null && match.group(1) != null) {
+        var filename = match.group(1)!;
+        // Sanitize filename
+        filename = filename.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '');
+        return filename.isNotEmpty ? filename : null;
+      }
+    }
+
+    return null;
+  }
+
+  /// Extract actual file content (binary-safe)
+  Uint8List? _extractFileContent(
+    Uint8List part,
+    Uint8List doubleCrlfBytes,
+    Uint8List crlfBytes,
+  ) {
+    // Find the double CRLF that separates headers from content
+    int headerEnd = -1;
+    for (int i = 0; i <= part.length - doubleCrlfBytes.length; i++) {
+      bool match = true;
+      for (int j = 0; j < doubleCrlfBytes.length; j++) {
+        if (part[i + j] != doubleCrlfBytes[j]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        headerEnd = i;
+        break;
+      }
+    }
+
+    if (headerEnd == -1) {
+      return null; // No header/content separator found
+    }
+
+    final contentStart = headerEnd + doubleCrlfBytes.length;
+    
+    // Find trailing CRLF (end of content before next boundary)
+    int contentEnd = part.length;
+    for (int i = part.length - crlfBytes.length; i >= contentStart; i--) {
+      bool match = true;
+      for (int j = 0; j < crlfBytes.length; j++) {
+        if (part[i + j] != crlfBytes[j]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        contentEnd = i;
+        break;
+      }
+    }
+
+    if (contentStart >= contentEnd) {
+      return null;
+    }
+
+    return part.sublist(contentStart, contentEnd);
+  }
+}
+
