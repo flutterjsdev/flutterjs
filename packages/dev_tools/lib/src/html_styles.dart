@@ -654,7 +654,9 @@ input[type="file"] {
     font-size: 10px;
     flex-shrink: 0;
 }
-
+.detail-toggle {
+    transition: transform 0.2s ease;
+}
 .detail-object {
     background: #1565c0;
     color: #42a5f5;
