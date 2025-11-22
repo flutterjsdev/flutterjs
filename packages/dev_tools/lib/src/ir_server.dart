@@ -11,7 +11,7 @@ import 'package:dev_tools/src/html_generator.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
-import 'package:shelf_multipart/shelf_multipart.dart' as shelf_multipart;
+
 
 class BinaryIRServer {
   final int port;

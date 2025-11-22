@@ -314,9 +314,17 @@ const leftDetailsPanel = {
             '<span class="expanded-title">' + escapeHtml(title) + '</span>' +
             '<span class="expanded-type-badge">' + (type || 'info') + '</span>' +
             '</div>' +
+            '<button class="expanded-copy material-copy" title="Copy to clipboard">📋</button>' +
             '<button class="expanded-close material-close">✕</button>';
         
+        const copyBtn = header.querySelector('.expanded-copy');
         const closeBtn = header.querySelector('.expanded-close');
+        
+        copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            copyToClipboard();
+        });
+        
         closeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.closePanel(cardId);

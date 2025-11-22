@@ -387,6 +387,110 @@ class HtmlRightPannelStyles {
 /* ============================================================================
    EXPANDED PANEL
    ============================================================================ */
+.detail-nested-expanded {
+    max-width: 100% !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    padding: 12px 0 12px 20px !important;
+}
+
+.detail-nested-expanded .detail-item {
+    min-width: 100% !important;
+    white-space: nowrap !important;
+}
+
+.detail-nested-expanded .detail-key {
+    min-width: auto !important;
+    max-width: 200px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+.detail-nested-expanded .detail-value-string {
+    flex: 1 !important;
+    word-break: break-word !important;
+    white-space: normal !important;
+}
+
+/* Prevent constraint on parent material-content */
+.material-content {
+    overflow-x: hidden !important;
+    min-width: 0 !important;
+}
+
+.details-tree {
+    width: 100% !important;
+    overflow-x: auto !important;
+}
+
+/* Make expanded items responsive */
+.detail-item {
+    flex-wrap: wrap !important;
+}
+
+.detail-key {
+    min-width: 100px !important;
+}
+
+/* ============================================================================
+   COPY BUTTON STYLING
+   ============================================================================ */
+
+.material-copy {
+    background: rgba(76, 175, 80, 0.15);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    color: #81c784;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 8px;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border-radius: 8px;
+    flex-shrink: 0;
+    font-weight: bold;
+}
+
+.material-copy:hover {
+    background: rgba(76, 175, 80, 0.3);
+    color: #a5d6a7;
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.25);
+}
+
+.material-copy:active {
+    transform: scale(0.95);
+}
+
+/* Copy Notification */
+@keyframes notificationSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes notificationSlideOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+}
+
+.copy-notification {
+    animation: notificationSlideIn 0.3s ease-out;
+}
 
 .material-panel {
     background: linear-gradient(135deg, #1a1a24 0%, #151520 100%);
