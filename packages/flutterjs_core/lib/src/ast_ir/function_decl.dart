@@ -130,6 +130,9 @@ class FunctionDecl extends IRNode {
   /// Example: `Point(int x, int y) : this.fromJson({'x': x, 'y': y})`
   final String? redirectsTo;
 
+
+  final bool isWidgetReturnType;
+
   FunctionDecl({
     required super.id,
     required this.name,
@@ -156,6 +159,7 @@ class FunctionDecl extends IRNode {
     this.constructorClass,
     this.constructorName,
     this.redirectsTo,
+    this.isWidgetReturnType = false,
   })  : assert(
           !(isAsync && isSyncGenerator),
           'Function cannot be both async and sync generator',
@@ -373,6 +377,36 @@ class FunctionDecl extends IRNode {
     return errors;
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'returnType': returnType.toJson(),
+      'parameters': parameters.map((p) => p.toJson()).toList(),
+      'isAsync': isAsync,
+      'isGenerator': isGenerator,
+      'isSyncGenerator': isSyncGenerator,
+      'typeParameters': typeParameters.map((tp) => tp.toJson()).toList(),
+      'sourceLocation': sourceLocation.toJson(),
+      if (documentation != null) 'documentation': documentation,
+      if (annotations.isNotEmpty)
+        'annotations': annotations.map((a) => a.toJson()).toList(),
+      'visibility': visibility.toString().split('.').last,
+      'isStatic': isStatic,
+      'isAbstract': isAbstract,
+      'isGetter': isGetter,
+      'isSetter': isSetter,
+      'isOperator': isOperator,
+      'isFactory': isFactory,
+      'isConst': isConst,
+      'isExternal': isExternal,
+      'isLate': isLate,
+      if (constructorClass != null) 'constructorClass': constructorClass,
+      if (constructorName != null) 'constructorName': constructorName,
+      if (redirectsTo != null) 'redirectsTo': redirectsTo,
+      'isWidgetReturnType': isWidgetReturnType,
+    };
+  }
+
   @override
   String toString() => signature;
 }
@@ -394,6 +428,7 @@ class MethodDecl extends FunctionDecl {
 
   /// For overridden methods: the method signature being overridden
   final String? overriddenSignature;
+  
 
   MethodDecl({
     required super.id,
@@ -421,10 +456,41 @@ class MethodDecl extends FunctionDecl {
     this.className,
     this.markedOverride = false,
     this.overriddenSignature,
+    super.isWidgetReturnType = false,
   });
 
   /// Full method name with class context
   String get fullQualifiedName => className != null ? '$className.$name' : name;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'className': className,
+      'name': name,
+      'returnType': returnType.toJson(),
+      'parameters': parameters.map((p) => p.toJson()).toList(),
+      'isAsync': isAsync,
+      'isGenerator': isGenerator,
+      'isSyncGenerator': isSyncGenerator,
+      'typeParameters': typeParameters.map((tp) => tp.toJson()).toList(),
+      'sourceLocation': sourceLocation.toJson(),
+      if (documentation != null) 'documentation': documentation,
+      if (annotations.isNotEmpty)
+        'annotations': annotations.map((a) => a.toJson()).toList(),
+      'visibility': visibility.toString().split('.').last,
+      'isStatic': isStatic,
+      'isAbstract': isAbstract,
+      'isGetter': isGetter,
+      'isSetter': isSetter,
+      'isOperator': isOperator,
+      'isFactory': isFactory,
+      'isConst': isConst,
+      'isExternal': isExternal,
+      'isLate': isLate,
+      'markedOverride': markedOverride,
+      if (overriddenSignature != null)
+        'overriddenSignature': overriddenSignature,
+    };
+  }
 }
 
 /// Specialized FunctionDecl for constructors
@@ -505,6 +571,28 @@ class ConstructorDecl extends FunctionDecl {
     }
 
     return '$sig : ${inits.join(", ")}';
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'constructorClass': constructorClass,
+      if (constructorName != null) 'constructorName': constructorName,
+      'parameters': parameters.map((p) => p.toJson()).toList(),
+      'isFactory': isFactory,
+      'isConst': isConst,
+      'isExternal': isExternal,
+      'typeParameters': typeParameters.map((tp) => tp.toJson()).toList(),
+      'initializers':
+          initializers.map((init) => init.toString()).toList(),
+      if (superCall != null) 'superCall': superCall.toString(),
+      if (redirectedCall != null)
+        'redirectedCall': redirectedCall.toString(),
+      'sourceLocation': sourceLocation.toJson(),
+      if (documentation != null) 'documentation': documentation,
+      if (annotations.isNotEmpty)
+        'annotations': annotations.map((a) => a.toJson()).toList(),
+    };
   }
 }
 

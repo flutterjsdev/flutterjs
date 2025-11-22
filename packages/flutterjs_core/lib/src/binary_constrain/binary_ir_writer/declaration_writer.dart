@@ -161,6 +161,15 @@ mixin DeclarationWriter {
     writeSourceLocation(field.sourceLocation);
   }
 
+  /// Helper method to check if return type is Widget or generic Widget variant
+  bool _isWidgetType(TypeIR returnType) {
+    final displayName = returnType.displayName();
+    return displayName == 'Widget' ||
+        displayName.startsWith('State<') ||
+        displayName == 'StatefulWidget' ||
+        displayName == 'StatelessWidget';
+  }
+
   @override
   void writeMethodDecl(MethodDecl method) {
     final startOffset = _buffer.length;
@@ -177,9 +186,14 @@ mixin DeclarationWriter {
       writeUint32(nameRef);
       printlog('  [METHOD] After name ($nameRef): ${_buffer.length}');
 
-      // Return type
+      // Return type - full type info including generics
       writeType(method.returnType);
       printlog('  [METHOD] After returnType: ${_buffer.length}');
+
+      // Widget type flag - indicates this is a Widget-returning method
+      final isWidgetReturn = _isWidgetType(method.returnType);
+      writeByte(isWidgetReturn ? 1 : 0);
+      printlog('  [METHOD] Is Widget type: $isWidgetReturn');
 
       // Flags
       writeByte(method.isAsync ? 1 : 0);
@@ -209,14 +223,31 @@ mixin DeclarationWriter {
       writeSourceLocation(method.sourceLocation);
       printlog('  [METHOD] After sourceLocation: ${_buffer.length}');
 
-      // Body
+      // Body - properly handle both Widget methods and regular methods
       writeByte(method.body != null ? 1 : 0);
+      printlog('  [METHOD] Body exists flag written');
+
       if (method.body != null) {
         writeUint32(method.body!.length);
-        printlog('  [METHOD] Body has ${method.body!.length} statements');
-        for (final stmt in method.body!) {
-          writeStatement(stmt);
+        printlog('  [METHOD] Body statement count: ${method.body!.length}');
+
+        if (method.body!.isEmpty && isWidgetReturn) {
+          printlog(
+            '  [METHOD] WARNING: Empty body for Widget-returning method: ${method.name}',
+          );
         }
+
+        for (int i = 0; i < method.body!.length; i++) {
+          final stmtStartOffset = _buffer.length;
+          writeStatement(method.body![i]);
+          final stmtEndOffset = _buffer.length;
+          printlog(
+            '  [METHOD] Statement $i written: ${stmtEndOffset - stmtStartOffset} bytes',
+          );
+        }
+        printlog('  [METHOD] All ${method.body!.length} statements written');
+      } else {
+        printlog('  [METHOD] ${method.name} has null body');
       }
 
       final endOffset = _buffer.length;

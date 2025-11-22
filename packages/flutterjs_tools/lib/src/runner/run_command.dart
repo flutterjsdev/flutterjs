@@ -71,7 +71,8 @@ class RunCommand extends Command<void> {
       )
       ..addFlag(
         'to-js',
-        help: 'Convert IR to JavaScript (includes all validation & optimization).',
+        help:
+            'Convert IR to JavaScript (includes all validation & optimization).',
         negatable: false,
       )
       ..addOption(
@@ -102,7 +103,8 @@ class RunCommand extends Command<void> {
       )
       ..addFlag(
         'devtools-no-open',
-        help: 'Do not auto-open browser for DevTools (DevTools runs by default).',
+        help:
+            'Do not auto-open browser for DevTools (DevTools runs by default).',
         negatable: false,
       );
   }
@@ -141,15 +143,19 @@ class RunCommand extends Command<void> {
     final strictMode = argResults!['strict'] as bool;
     final analyzeAll = argResults!['all'] as bool;
     final toJs = argResults!['to-js'] as bool;
-    final jsOptLevel = int.parse(argResults!['js-optimization-level'] as String);
+    final jsOptLevel = int.parse(
+      argResults!['js-optimization-level'] as String,
+    );
     final validateOutput = argResults!['validate-output'] as bool;
     final clearCache = argResults!['clear-cache'] as bool;
     final generateReports = argResults!['generate-reports'] as bool;
 
-          // ✅ NEW: DevTools options (enabled by default)
-    final devToolsPort = int.tryParse(argResults!['devtools-port'] as String) ?? 8765;
+    // ✅ NEW: DevTools options (enabled by default)
+    final devToolsPort =
+        int.tryParse(argResults!['devtools-port'] as String) ?? 8765;
     final devToolsNoOpen = argResults!['devtools-no-open'] as bool;
-    final enableDevTools = !devToolsNoOpen; // Enabled by default unless explicitly disabled
+    final enableDevTools =
+        !devToolsNoOpen; // Enabled by default unless explicitly disabled
 
     if (analyzeAll) enableIncremental = false;
 
@@ -270,6 +276,7 @@ class RunCommand extends Command<void> {
         verbose: verbose,
         jsonOutput: jsonOutput,
       );
+      print(" issues found during IR generation.\n${irResults.toJson()}");
 
       // ===== PHASE 3: SERIALIZATION =====
       if (!jsonOutput) print('PHASE 3: Serializing IR...\n');
@@ -287,6 +294,13 @@ class RunCommand extends Command<void> {
       if (enableDevTools && _devToolsServer != null) {
         if (!jsonOutput) print('  DevTools: IR files ready for analysis\n');
       }
+      final reportFile = File(path.join(reportsPath, 'conversion_report.json'));
+
+      await reportFile.parent.create(recursive: true);
+
+      await reportFile.writeAsString(
+        "____________________________________________\n--------------------below is json--------------------\n${irResults.toJson()}",
+      );
 
       // ===== PHASE 4-6: IR TO JAVASCRIPT (with validation & optimization) =====
       if (toJs && irResults.dartFiles.isNotEmpty) {
@@ -305,7 +319,7 @@ class RunCommand extends Command<void> {
             jsOutputPath: jsOutputPath,
             validateOutput: validateOutput,
             optimizationLevel: jsOptLevel,
-            generateReports: generateReports,
+            generateReports: true ?? generateReports,
             reportsPath: reportsPath,
             verbose: verbose,
             jsonOutput: jsonOutput,
@@ -321,6 +335,7 @@ class RunCommand extends Command<void> {
           if (verbose) print('Stack trace: $stackTrace');
           if (strictMode) exit(1);
         }
+        // Generate report if requested
       }
 
       // ===== FINAL REPORTING =====
@@ -477,7 +492,10 @@ class RunCommand extends Command<void> {
         if (!await file.exists()) continue;
 
         final content = await file.readAsString();
-        final builder = DartFileBuilder(filePath: filePath, projectRoot: projectRoot);
+        final builder = DartFileBuilder(
+          filePath: filePath,
+          projectRoot: projectRoot,
+        );
 
         CompilationUnit? unit;
         try {
@@ -500,7 +518,9 @@ class RunCommand extends Command<void> {
         filesProcessed++;
 
         if (verbose) {
-          print('    ${path.basename(filePath)} (${dartFile.declarationCount} decls)');
+          print(
+            '    ${path.basename(filePath)} (${dartFile.declarationCount} decls)',
+          );
         }
       } catch (e) {
         if (verbose) print('    Error: ${path.basename(filePath)}: $e');
@@ -514,14 +534,18 @@ class RunCommand extends Command<void> {
     required IRGenerationResults results,
     required bool verbose,
   }) async {
-    final pass = SymbolResolutionPass(dartFiles: results.dartFiles, projectRoot: '');
+    final pass = SymbolResolutionPass(
+      dartFiles: results.dartFiles,
+      projectRoot: '',
+    );
     pass.resolveAllSymbols();
 
     results.resolutionIssues.addAll(pass.resolutionIssues);
     results.widgetStateBindings.addAll(pass.widgetStateBindings);
     results.providerRegistry.addAll(pass.providerRegistry);
 
-    if (!verbose) print('    Resolved: ${pass.globalSymbolRegistry.length} symbols');
+    if (!verbose)
+      print('    Resolved: ${pass.globalSymbolRegistry.length} symbols');
   }
 
   Future<void> _runTypeInferencePass({
@@ -545,7 +569,10 @@ class RunCommand extends Command<void> {
     required IRGenerationResults results,
     required bool verbose,
   }) async {
-    final pass = FlowAnalysisPass(dartFiles: results.dartFiles, typeInferenceInfo: {});
+    final pass = FlowAnalysisPass(
+      dartFiles: results.dartFiles,
+      typeInferenceInfo: {},
+    );
     pass.analyzeAllFlows();
 
     results.flowIssues.addAll(pass.flowIssues);
@@ -559,7 +586,10 @@ class RunCommand extends Command<void> {
     required IRGenerationResults results,
     required bool verbose,
   }) async {
-    final pass = ValidationPass(dartFiles: results.dartFiles, flowAnalysisInfo: {});
+    final pass = ValidationPass(
+      dartFiles: results.dartFiles,
+      flowAnalysisInfo: {},
+    );
     pass.validateAll();
 
     results.validationIssues.addAll(pass.validationIssues);
@@ -595,7 +625,10 @@ class RunCommand extends Command<void> {
     final normalizedJsOutputPath = path.normalize(jsOutputPath);
 
     if (!jsonOutput) print('  Phase 4: File-Level Generation...');
-    if (!jsonOutput) print('  Phase 5: Validation & Optimization (Level $optimizationLevel)...');
+    if (!jsonOutput)
+      print(
+        '  Phase 5: Validation & Optimization (Level $optimizationLevel)...',
+      );
     if (!jsonOutput) print('  Phase 6: Reporting & Output...\n');
 
     for (final entry in irResults.dartFiles.entries) {
@@ -615,7 +648,9 @@ class RunCommand extends Command<void> {
         var relativeDir = path.dirname(relativePath);
         if (relativeDir == '.') relativeDir = '';
 
-        final fileNameWithoutExt = path.basenameWithoutExtension(normalizedDartPath);
+        final fileNameWithoutExt = path.basenameWithoutExtension(
+          normalizedDartPath,
+        );
         final jsFileName = '$fileNameWithoutExt.js';
 
         final jsOutputFile = relativeDir.isEmpty
@@ -636,7 +671,9 @@ class RunCommand extends Command<void> {
         );
 
         if (verbose) {
-          print('    Phase 4: ${path.basename(dartFilePath)} - Generated (${jsCode.length} bytes)');
+          print(
+            '    Phase 4: ${path.basename(dartFilePath)} - Generated (${jsCode.length} bytes)',
+          );
         }
 
         // ===== PHASE 6: OUTPUT & REPORTING =====
@@ -646,7 +683,9 @@ class RunCommand extends Command<void> {
 
         if (verbose) {
           final sizeKb = (jsCode.length / 1024).toStringAsFixed(2);
-          print('    Phase 6: ${path.basename(dartFilePath)} - Written ($sizeKb KB) ✓');
+          print(
+            '    Phase 6: ${path.basename(dartFilePath)} - Written ($sizeKb KB) ✓',
+          );
         }
 
         // Generate report if requested
@@ -659,14 +698,18 @@ class RunCommand extends Command<void> {
           );
 
           await reportFile.parent.create(recursive: true);
-          await reportFile.writeAsString(_generateConversionReport(
-            dartFile,
-            jsCode,
-            optimizationLevel,
-          ));
+          await reportFile.writeAsString(
+            _generateConversionReport(dartFile, jsCode, optimizationLevel),
+          );
+
+          await reportFile.writeAsString(
+            "____________________________________________\n--------------------below is json--------------------\n${irResults.toJson()}",
+          );
 
           if (verbose) {
-            print('    Reports: ${path.basename(dartFilePath)}_conversion_report.json ✓');
+            print(
+              '    Reports: ${path.basename(dartFilePath)}_conversion_report.json ✓',
+            );
           }
         }
       } catch (e, stackTrace) {
@@ -700,11 +743,16 @@ class RunCommand extends Command<void> {
         final normalizedPath = path.normalize(entry.key);
         if (!normalizedPath.startsWith(normalizedSourcePath)) continue;
 
-        final relativePath = path.relative(normalizedPath, from: normalizedSourcePath);
+        final relativePath = path.relative(
+          normalizedPath,
+          from: normalizedSourcePath,
+        );
         var relDir = path.dirname(relativePath);
         if (relDir == '.') relDir = '';
 
-        final fileNameWithoutExt = path.basenameWithoutExtension(normalizedPath);
+        final fileNameWithoutExt = path.basenameWithoutExtension(
+          normalizedPath,
+        );
         final outputFileName = '${fileNameWithoutExt}_ir.ir';
 
         final outputFile = relDir.isEmpty
@@ -712,7 +760,10 @@ class RunCommand extends Command<void> {
             : File(path.join(normalizedOutputPath, relDir, outputFileName));
 
         final binaryWriter = BinaryIRWriter();
-        final binaryBytes = binaryWriter.writeFileIR(entry.value, verbose: false);
+        final binaryBytes = binaryWriter.writeFileIR(
+          entry.value,
+          verbose: false,
+        );
 
         await outputFile.parent.create(recursive: true);
         await outputFile.writeAsBytes(binaryBytes);
@@ -756,9 +807,15 @@ class RunCommand extends Command<void> {
     int devToolsPort,
   ) {
     print('');
-    print('┌──────────────────────────────────────────────────────────────────────┐');
-    print('│    FLUTTER IR TO JAVASCRIPT CONVERSION PIPELINE (Phases 0-6)        │');
-    print('└──────────────────────────────────────────────────────────────────────┘');
+    print(
+      '┌──────────────────────────────────────────────────────────────────────┐',
+    );
+    print(
+      '│    FLUTTER IR TO JAVASCRIPT CONVERSION PIPELINE (Phases 0-6)        │',
+    );
+    print(
+      '└──────────────────────────────────────────────────────────────────────┘',
+    );
     print('Project:  $projectPath');
     print('Source:   $sourcePath');
     print('Build:    $outputPath');
@@ -767,7 +824,9 @@ class RunCommand extends Command<void> {
       print('  ├─ JS output:  ${path.join(outputPath, 'js')}');
       print('  └─ Reports:    ${path.join(outputPath, 'reports')}');
     }
-    print('DevTools: http://localhost:$devToolsPort (opening automatically...)');
+    print(
+      'DevTools: http://localhost:$devToolsPort (opening automatically...)',
+    );
     print('');
   }
 
@@ -791,9 +850,15 @@ class RunCommand extends Command<void> {
     List<String> errors,
     String? devToolsUrl,
   ) {
-    print('\n┌──────────────────────────────────────────────────────────────────────┐');
-    print('│              CONVERSION COMPLETE                                     │');
-    print('└──────────────────────────────────────────────────────────────────────┘');
+    print(
+      '\n┌──────────────────────────────────────────────────────────────────────┐',
+    );
+    print(
+      '│              CONVERSION COMPLETE                                     │',
+    );
+    print(
+      '└──────────────────────────────────────────────────────────────────────┘',
+    );
     print('Files analyzed:    $filesAnalyzed');
     print('IR files:          $irFiles');
     print('JS files:          $jsFiles');
@@ -935,6 +1000,31 @@ class IRGenerationResults {
 
   ValidationSummary? validationSummary;
   int totalDurationMs = 0;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'dart_files': dartFiles.map((k, v) => MapEntry(k, v.toJson())),
+      'resolution_issues': resolutionIssues,
+      'inference_issues': inferenceIssues,
+      'flow_issues': flowIssues,
+      'validation_issues': validationIssues,
+      'total_duration_ms': totalDurationMs,
+      'declaration_count': dartFiles.values.fold<int>(
+        0,
+        (sum, file) => sum + file.declarationCount,
+      ),
+      'validation_summary': validationSummary?.toJson(),
+      'widget_state_bindings': widgetStateBindings,
+      'provider_registry': providerRegistry.map(
+        (k, v) => MapEntry(k, v.toJson()),
+      ),
+      'type_cache_size': typeCache.length,
+      'control_flow_graphs_count': controlFlowGraphs.length,
+      'rebuild_triggers_count': rebuildTriggers.length,
+      'state_field_analysis_count': stateFieldAnalysis.length,
+      'lifecycle_analysis_count': lifecycleAnalysis.length,
+    };
+  }
 
   List<AnalysisIssue> getAllIssues() {
     return [

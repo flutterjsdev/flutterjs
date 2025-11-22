@@ -813,6 +813,15 @@ class ProviderInfo {
     required this.filePath,
     required this.declaration,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'className': className,
+      'type': type.name,
+      'filePath': filePath,
+      'declaration': declaration.toJson(),
+    };
+  }
 }
 
 class TypeInferenceInfo {

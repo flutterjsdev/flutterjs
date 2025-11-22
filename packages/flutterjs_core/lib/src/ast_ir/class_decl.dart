@@ -178,6 +178,36 @@ class ClassDecl extends IRNode {
 
     return '${modifiers.isNotEmpty ? '$modifiers ' : ''}class $name$typeParams$superStr$mixinStr$ifaceStr';
   }
+
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      if (superclass != null) 'superclass': superclass!.toJson(),
+      if (interfaces.isNotEmpty)
+        'interfaces': interfaces.map((i) => i.toJson()).toList(),
+      if (mixins.isNotEmpty)
+        'mixins': mixins.map((m) => m.toJson()).toList(),
+      if (typeParameters.isNotEmpty)
+        'typeParameters':
+            typeParameters.map((tp) => tp.toJson()).toList(),
+      if (fields.isNotEmpty)
+        'fields': fields.map((f) => f.toJson()).toList(),
+      if (methods.isNotEmpty)
+        'methods': methods.map((m) => m.toJson()).toList(),
+      if (constructors.isNotEmpty)
+        'constructors': constructors.map((c) => c.toJson()).toList(),
+      'isAbstract': isAbstract,
+      'isFinal': isFinal,
+      'isSealed': isSealed,
+      'isMixin': isMixin,
+      if (documentation != null) 'documentation': documentation,
+      if (annotations.isNotEmpty)
+        'annotations': annotations.map((a) => a.toJson()).toList(),
+      'sourceLocation': sourceLocation.toJson(),
+    };
+  }
 }
 
 // =============================================================================

@@ -58,6 +58,22 @@ class LibraryMetadata {
 
   @override
   String toString() => 'Library${libraryName != null ? ' $libraryName' : ''}';
+
+  Map<String, dynamic> toJson() {
+    return {
+      if (libraryName != null) 'libraryName': libraryName,
+      if (documentation != null) 'documentation': documentation,
+      'isDeprecated': isDeprecated,
+      if (deprecationMessage != null)
+        'deprecationMessage': deprecationMessage,
+      if (analyzerDirectives.isNotEmpty)
+        'analyzerDirectives': analyzerDirectives,
+      if (annotations.isNotEmpty) 'annotations': annotations,
+      if (analyzedAt != null) 'analyzedAt': analyzedAt!.toIso8601String(),
+      if (analyzerVersion != null) 'analyzerVersion': analyzerVersion,
+      if (environment.isNotEmpty) 'environment': environment,
+    };
+  } 
 }
 
 // =============================================================================
@@ -240,6 +256,32 @@ Issues: ${analysisIssues.length}
 
   @override
   String toString() => 'DartFile($filePath)';
+
+  Map<String, dynamic> toJson() {
+    return {
+      'filePath': filePath,
+      'package': package,
+      'library': library,
+      'imports': imports.map((i) => i.toJson()).toList(),
+      'exports': exports.map((e) => e.toJson()).toList(),
+      'parts': parts.map((p) => p.toJson()).toList(),
+      'partOf': partOf?.toString(),
+      'contentHash': contentHash,
+      'analysisIssues': analysisIssues.map((i) => i.toJson()).toList(),
+      'metadata': metadata.toJson(),
+      'classDeclarations': classDeclarations.map((c) => c.toJson()).toList(),
+      'functionDeclarations':
+          functionDeclarations.map((f) => f.toJson()).toList(),
+      'variableDeclarations':
+          variableDeclarations.map((v) => v.toJson()).toList(),
+      'enumDeclarations': enumDeclarations,
+      'mixinDeclarations': mixinDeclarations,
+      'typedefDeclarations': typedefDeclarations,
+      'extensionDeclarations': extensionDeclarations,
+      'createdAt': createdAt.toIso8601String(),
+      'lastAnalyzedAt': lastAnalyzedAt?.toIso8601String(),
+    };
+  }
 }
 
 // =============================================================================

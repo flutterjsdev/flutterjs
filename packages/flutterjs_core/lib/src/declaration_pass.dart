@@ -13,20 +13,27 @@ import 'ast_ir/function_decl.dart' as cd;
 import 'ast_ir/import_export_stmt.dart';
 import 'ast_ir/ir/expression_ir.dart';
 import 'ast_ir/ir/type_ir.dart';
+import 'ast_ir/ir/statement/statement_ir.dart';
 import 'ast_ir/parameter_decl.dart';
 import 'ast_ir/variable_decl.dart';
+import 'statement_extraction_pass.dart';
 
-/// Pass 1: Declaration Discovery
+/// Pass 1: Declaration Discovery with Statement Body Extraction
 ///
-/// Extracts all declarations from raw Dart AST without resolving references.
-/// This creates the basic structure - DartFile with all classes, functions,
-/// imports, variables, etc. populated.
+/// Extracts all declarations from raw Dart AST including:
+/// - Classes, functions, variables, imports/exports
+/// - Method/function bodies as List<StatementIR>
+/// - Variable declarations with initializers
+/// - Complete expression trees
 ///
-/// Later passes (Pass 2+) will resolve references, infer types, build graphs.
+/// Later passes will resolve references and infer types.
 class DeclarationPass extends RecursiveAstVisitor<void> {
   final String filePath;
   final String fileContent;
   final DartFileBuilder builder;
+  
+  // Statement extraction helper
+  late final StatementExtractionPass _statementExtractor;
 
   // Context tracking
   ClassDeclaration? _currentClass;
@@ -41,13 +48,18 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   final Map<String, VariableDecl> _topLevelVariables = {};
   final List<FunctionDecl> _topLevelFunctions = [];
   final List<ClassDecl> _classes = [];
-  final List<AnnotationIR> _annotations = [];
 
   DeclarationPass({
     required this.filePath,
     required this.fileContent,
     required this.builder,
-  });
+  }) {
+    _statementExtractor = StatementExtractionPass(
+      filePath: filePath,
+      fileContent: fileContent,
+      builder: builder,
+    );
+  }
 
   // =========================================================================
   // MAIN EXTRACTION METHOD
@@ -171,6 +183,12 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   void visitTopLevelVariableDeclaration(TopLevelVariableDeclaration node) {
     for (final variable in node.variables.variables) {
       final name = variable.name.lexeme;
+      
+      // Extract initializer expression if present
+      final initializer = variable.initializer != null
+          ? _statementExtractor.extractExpression(variable.initializer!)
+          : null;
+
       final varDecl = VariableDecl(
         id: builder.generateId('var', name),
         name: name,
@@ -178,9 +196,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           node.variables.type,
           variable.name.offset,
         ),
-        initializer: variable.initializer != null
-            ? _extractInitializerExpression(variable.initializer!)
-            : null,
+        initializer: initializer,
         isFinal: node.variables.isFinal,
         isConst: node.variables.isConst,
         isStatic: false,
@@ -201,18 +217,25 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
   @override
   void visitFunctionDeclaration(FunctionDeclaration node) {
-    // Skip if inside a class (method)
+    // Skip if inside a class (these are methods, not top-level functions)
     if (_currentClass != null) {
       super.visitFunctionDeclaration(node);
       return;
     }
 
     final funcName = node.name.lexeme;
+    
+    // Extract function body statements
+    final bodyStatements = _statementExtractor.extractBodyStatements(
+      node.functionExpression.body,
+    );
+
     final functionDecl = FunctionDecl(
       id: builder.generateId('func', funcName),
       name: funcName,
       returnType: _extractTypeFromAnnotation(node.returnType, node.name.offset),
       parameters: _extractParameters(node.functionExpression.parameters),
+      body: bodyStatements, // ✅ Add extracted body
       isAsync: node.functionExpression.body.isAsynchronous,
       isGenerator: node.functionExpression.body.isGenerator,
       typeParameters: _extractTypeParameters(
@@ -279,6 +302,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   // CLASS MEMBERS EXTRACTION
   // =========================================================================
 
+  /// Extract all fields from a class
   List<FieldDecl> _extractClassFields(ClassDeclaration node) {
     final fields = <FieldDecl>[];
 
@@ -286,6 +310,12 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       if (member is FieldDeclaration) {
         for (final variable in member.fields.variables) {
           final fieldName = variable.name.lexeme;
+          
+          // Extract initializer if present
+          final initializer = variable.initializer != null
+              ? _statementExtractor.extractExpression(variable.initializer!)
+              : null;
+
           final fieldDecl = FieldDecl(
             id: builder.generateId('field', fieldName),
             name: fieldName,
@@ -293,9 +323,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
               member.fields.type,
               variable.name.offset,
             ),
-            initializer: variable.initializer != null
-                ? _extractInitializerExpression(variable.initializer!)
-                : null,
+            initializer: initializer,
             isFinal: member.fields.isFinal,
             isConst: member.fields.isConst,
             isStatic: member.isStatic,
@@ -316,12 +344,19 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     return fields;
   }
 
+  /// Extract all constructors from a class
   List<ConstructorDecl> _extractConstructors(ClassDeclaration node) {
     final constructors = <ConstructorDecl>[];
 
     for (final member in node.members) {
       if (member is ConstructorDeclaration) {
         final constructorName = member.name?.lexeme;
+        
+        // Extract constructor body statements
+        final bodyStatements = _statementExtractor.extractBodyStatements(
+          member.body,
+        );
+
         final constructorDecl = ConstructorDecl(
           id: builder.generateId(
             'ctor',
@@ -337,6 +372,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           ),
           isConst: member.constKeyword != null,
           isFactory: member.factoryKeyword != null,
+          body: bodyStatements, // ✅ Add extracted body
           documentation: _extractDocumentation(member),
           annotations: _extractAnnotations(member.metadata),
           sourceLocation: _extractSourceLocation(
@@ -351,12 +387,19 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     return constructors;
   }
 
+  /// Extract all methods from a class
   List<MethodDecl> _extractMethods(ClassDeclaration node) {
     final methods = <MethodDecl>[];
 
     for (final member in node.members) {
       if (member is MethodDeclaration) {
         final methodName = member.name.lexeme;
+        
+        // Extract method body statements
+        final bodyStatements = _statementExtractor.extractBodyStatements(
+          member.body,
+        );
+
         final methodDecl = MethodDecl(
           id: builder.generateId('method', '${node.name.lexeme}.$methodName'),
           name: methodName,
@@ -372,6 +415,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           isGetter: member.isGetter,
           isSetter: member.isSetter,
           typeParameters: _extractTypeParameters(member.typeParameters),
+          body: bodyStatements, // ✅ Add extracted body
           documentation: _extractDocumentation(member),
           annotations: _extractAnnotations(member.metadata),
           sourceLocation: _extractSourceLocation(member, member.name.offset),
@@ -388,6 +432,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   // HELPER EXTRACTION METHODS
   // =========================================================================
 
+  /// Extract show combinators from import/export
   List<String> _extractShowCombinators(NamespaceDirective node) {
     return node.combinators
         .whereType<ShowCombinator>()
@@ -395,6 +440,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         .toList();
   }
 
+  /// Extract hide combinators from import/export
   List<String> _extractHideCombinators(NamespaceDirective node) {
     return node.combinators
         .whereType<HideCombinator>()
@@ -402,6 +448,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         .toList();
   }
 
+  /// Extract type information from type annotation
   TypeIR _extractTypeFromAnnotation(
     TypeAnnotation? typeAnnotation,
     int offset,
@@ -458,6 +505,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     );
   }
 
+  /// Extract parameters from a parameter list
   List<ParameterDecl> _extractParameters(FormalParameterList? paramList) {
     if (paramList == null) return [];
 
@@ -479,7 +527,9 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           param.offset,
         );
         if (param.defaultValue != null) {
-          defaultValue = _extractInitializerExpression(param.defaultValue!);
+          defaultValue = _statementExtractor.extractExpression(
+            param.defaultValue!,
+          );
         }
         isRequired = param.isRequired;
         isNamed = param.isNamed;
@@ -499,8 +549,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         final paramDecl = ParameterDecl(
           id: builder.generateId('param', name),
           name: name,
-          type:
-              type ??
+          type: type ??
               DynamicTypeIR(
                 id: builder.generateId('type'),
                 sourceLocation: _extractSourceLocation(param, param.offset),
@@ -519,6 +568,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     return parameters;
   }
 
+  /// Get parameter name from different parameter types
   String? _getParameterName(NormalFormalParameter param) {
     if (param is SimpleFormalParameter) {
       return param.name?.lexeme;
@@ -530,6 +580,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     return null;
   }
 
+  /// Get parameter type annotation from different parameter types
   TypeAnnotation? _getParameterType(NormalFormalParameter param) {
     if (param is SimpleFormalParameter) {
       return param.type;
@@ -541,6 +592,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     return null;
   }
 
+  /// Extract type parameters from generic type
   List<TypeParameterDecl> _extractTypeParameters(
     TypeParameterList? typeParams,
   ) {
@@ -556,6 +608,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     }).toList();
   }
 
+  /// Extract constructor initializers (field: value)
   List<cd.ConstructorInitializer> _extractConstructorInitializers(
     NodeList<ast.ConstructorInitializer> initializers,
     int offset,
@@ -567,7 +620,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         result.add(
           cd.ConstructorInitializer(
             fieldName: init.fieldName.name,
-            value: _extractInitializerExpression(init.expression),
+            value: _statementExtractor.extractExpression(init.expression),
             sourceLocation: _extractSourceLocation(init, init.offset),
           ),
         );
@@ -577,6 +630,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     return result;
   }
 
+  /// Extract superclass from extends clause
   TypeIR? _extractSuperclass(ClassDeclaration node) {
     if (node.extendsClause == null) return null;
 
@@ -584,6 +638,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     return _extractTypeFromAnnotation(superclass, superclass.offset);
   }
 
+  /// Extract interfaces from implements clause
   List<TypeIR> _extractInterfaces(ClassDeclaration node) {
     if (node.implementsClause == null) return [];
 
@@ -592,6 +647,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     }).toList();
   }
 
+  /// Extract mixins from with clause
   List<TypeIR> _extractMixins(ClassDeclaration node) {
     if (node.withClause == null) return [];
 
@@ -600,6 +656,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     }).toList();
   }
 
+  /// Extract annotations/metadata
   List<AnnotationIR> _extractAnnotations(NodeList<Annotation> metadata) {
     return metadata.map((ann) {
       final args = <ExpressionIR>[];
@@ -608,11 +665,10 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       if (ann.arguments != null) {
         for (final arg in ann.arguments!.arguments) {
           if (arg is NamedExpression) {
-            namedArgs[arg.name.label.name] = _extractInitializerExpression(
-              arg.expression,
-            );
+            namedArgs[arg.name.label.name] =
+                _statementExtractor.extractExpression(arg.expression);
           } else {
-            args.add(_extractInitializerExpression(arg));
+            args.add(_statementExtractor.extractExpression(arg));
           }
         }
       }
@@ -626,6 +682,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     }).toList();
   }
 
+  /// Extract documentation comments
   String? _extractDocumentation(AnnotatedNode node) {
     final docComment = node.documentationComment;
     if (docComment == null) return null;
@@ -633,31 +690,18 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     return docComment.tokens.map((t) => t.lexeme).join('\n');
   }
 
-  ExpressionIR _extractInitializerExpression(Expression expr) {
-    final sourceLoc = _extractSourceLocation(expr, expr.offset);
-    final typeId = builder.generateId('type');
-
-    // For now, create a simple literal with the string representation
-    // Pass 3 will parse this properly
-    return LiteralExpressionIR(
-      id: builder.generateId('expr'),
-      resultType: DynamicTypeIR(id: typeId, sourceLocation: sourceLoc),
-      sourceLocation: sourceLoc,
-      value: expr.toString(),
-      literalType: LiteralType.stringValue,
-    );
-  }
-
   // =========================================================================
   // UTILITY METHODS
   // =========================================================================
 
+  /// Determine visibility from name (private if starts with _)
   VisibilityModifier _getVisibility(String name) {
     return name.startsWith('_')
         ? VisibilityModifier.private
         : VisibilityModifier.public;
   }
 
+  /// Check if type is built-in
   bool _isBuiltInType(String typeName) {
     final builtIns = {
       'int',
@@ -684,19 +728,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     return builtIns.contains(typeName);
   }
 
-  // SourceLocationIR _extractSourceLocation(AstNode node, int startOffset) {
-  //   final lineInfo = node.root.lineInfo;
-  //   final location = lineInfo?.getLocation(startOffset);
-
-  //   return SourceLocationIR(
-  //     id: builder.generateId('loc'),
-  //     file: filePath,
-  //     line: location?.lineNumber ?? 0,
-  //     column: location?.columnNumber ?? 0,
-  //     offset: startOffset,
-  //     length: node.length,
-  //   );
-  // }
+  /// Extract source location with line and column
   SourceLocationIR _extractSourceLocation(AstNode node, int startOffset) {
     // Calculate line and column from offset and file content
     int line = 1;
@@ -721,22 +753,12 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     );
   }
 
-  String _computeContentHash(String content) {
-    // Normalize whitespace for consistent hashing
-    final normalized = content
-        .replaceAll('\r\n', '\n')
-        .split('\n')
-        .map((line) => line.trimRight())
-        .join('\n')
-        .trim();
-
-    return md5.convert(utf8.encode(normalized)).toString();
-  }
-
+  /// Push scope for tracking context
   void _pushScope(String type, String name) {
     _scopeStack.add('$type:$name');
   }
 
+  /// Pop scope
   void _popScope() {
     if (_scopeStack.isNotEmpty) {
       _scopeStack.removeLast();

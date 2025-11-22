@@ -1187,6 +1187,8 @@ class BinaryIRReader
   // ✅ FIXED: Read method body statements
 
   @override
+
+  
   MethodDecl readMethodDecl() {
     final id = readStringRef();
     final name = readStringRef();
@@ -1198,6 +1200,9 @@ class BinaryIRReader
     final isAbstract = readByte() != 0;
     final isGetter = readByte() != 0;
     final isSetter = readByte() != 0;
+
+     // ✅ NEW: Read Widget type flag
+    final isWidgetReturn = readByte() != 0;
 
     // CRITICAL: Read parameter count
     final paramCount = readUint32();
@@ -1243,7 +1248,8 @@ class BinaryIRReader
       isSetter: isSetter,
       sourceLocation: sourceLocation,
       body: body, // ✅ NOW INCLUDED
-    );
+      isWidgetReturnType: isWidgetReturn, // ✅ NEW FIELD
+    );  
   }
 }
 

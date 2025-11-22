@@ -84,6 +84,20 @@ class ParameterDecl extends IRNode {
 
     return '$bracket${modifiers.isNotEmpty ? '$modifiers ' : ''}$typeStr $name$defaultStr$closeBracket';
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'type': type.toJson(),
+      if (defaultValue != null) 'defaultValue': defaultValue!.toJson(),
+      'isRequired': isRequired,
+      'isPositional': isPositional,
+      'isNamed': isNamed,
+      if (annotations.isNotEmpty)
+        'annotations': annotations.map((a) => a.toJson()).toList(),
+      'sourceLocation': sourceLocation.toJson(),
+    };
+  }
 }
 
 /// Type parameter declaration (e.g., <T extends Comparable>)
@@ -121,4 +135,13 @@ class TypeParameterDecl {
 
   @override
   String toString() => declaration;
+
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      if (bound != null) 'bound': bound!.toJson(),
+      if (lowerBound != null) 'lowerBound': lowerBound!.toJson(),
+    };
+  } 
 }

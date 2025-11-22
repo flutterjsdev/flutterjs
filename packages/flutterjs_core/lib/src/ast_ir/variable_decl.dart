@@ -213,6 +213,29 @@ class VariableDecl extends IRNode {
     return errors;
   }
 
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'type': type.toJson(),
+      if (initializer != null) 'initializer': initializer!.toJson(),
+      'isFinal': isFinal,
+      'isConst': isConst,
+      'isLate': isLate,
+      'isStatic': isStatic,
+      'visibility': visibility.toString().split('.').last,
+      'sourceLocation': sourceLocation.toJson(),
+      if (documentation != null) 'documentation': documentation,
+      if (annotations.isNotEmpty)
+        'annotations': annotations.map((a) => a.toJson()).toList(),
+      'isRequired': isRequired,
+      'isNamed': isNamed,
+      'isPositional': isPositional,
+      'isPrivate': isPrivate,
+      
+    };
+  }
+
   @override
   String toString() => declaration;
 }
@@ -287,6 +310,27 @@ class FieldDecl extends VariableDecl {
 
   /// Whether this is a computed property (getter/setter, not a backing field)
   bool get isComputedProperty => isGetter || isSetter;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'type': type.toJson(),
+      if (initializer != null) 'initializer': initializer!.toJson(),
+      'isFinal': isFinal,
+      'isConst': isConst,
+      'isLate': isLate,
+      'isStatic': isStatic,
+      'isAbstract': isAbstract,
+      'isGetter': isGetter,
+      'isSetter': isSetter,
+      if (propertyType != null) 'propertyType': propertyType!.toJson(),
+      'visibility': visibility.toString().split('.').last,
+      'sourceLocation': sourceLocation.toJson(),
+      if (documentation != null) 'documentation': documentation,
+      if (annotations.isNotEmpty)
+        'annotations': annotations.map((a) => a.toJson()).toList(),
+    };
+  }
 }
 
 /// Represents a parameter in a function/method/constructor signature
@@ -358,5 +402,18 @@ class AnnotationIR {
         .join(', ');
     final allArgs = [args, named].where((s) => s.isNotEmpty).join(', ');
     return '@$name${allArgs.isNotEmpty ? '($allArgs)' : ''}';
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      if (arguments.isNotEmpty)
+        'arguments': arguments.map((a) => a.toJson()).toList(),
+      if (namedArguments.isNotEmpty)
+        'namedArguments': namedArguments.map(
+          (key, value) => MapEntry(key, value.toJson()),
+        ),
+      'sourceLocation': sourceLocation.toJson(),
+    };
   }
 }

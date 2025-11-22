@@ -78,6 +78,20 @@ class ImportStmt {
   /// Qualified name if prefix is set
   String qualifiedName(String name) => prefix != null ? '$prefix.$name' : name;
 
+  Map<String, dynamic> toJson() {
+    return {
+      'uri': uri,
+      if (prefix != null) 'prefix': prefix,
+      'isDeferred': isDeferred,
+      if (showList.isNotEmpty) 'showList': showList,
+      if (hideList.isNotEmpty) 'hideList': hideList,
+      'sourceLocation': sourceLocation.toJson(),
+      if (documentation != null) 'documentation': documentation,
+      if (annotations.isNotEmpty)
+        'annotations': annotations.map((a) => a.toJson()).toList(),
+    };
+  }
+
   @override
   String toString() {
     final prefix_ = prefix != null ? ' as $prefix' : '';
@@ -149,6 +163,16 @@ class ExportStmt {
     final hide = hideList.isNotEmpty ? ' hide ${hideList.join(", ")}' : '';
     return 'export \'$uri\'$show$hide';
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'uri': uri,
+      if (showList.isNotEmpty) 'showList': showList,
+      if (hideList.isNotEmpty) 'hideList': hideList,
+      'sourceLocation': sourceLocation.toJson(),
+      if (documentation != null) 'documentation': documentation,
+    };
+  }
 }
 
 /// Represents a library part directive
@@ -164,6 +188,13 @@ class PartStmt {
 
   @override
   String toString() => 'part \'$uri\'';
+
+  Map<String, dynamic> toJson() {
+    return {
+      'uri': uri,
+      'sourceLocation': sourceLocation.toJson(),
+    };
+  } 
 }
 
 /// Represents a "part of" directive

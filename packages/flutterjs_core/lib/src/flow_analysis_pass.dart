@@ -363,7 +363,7 @@ class FlowAnalysisPass {
       return allNodes;
     } else if (stmt is IfStmt) {
       final conditionNode = CFGNode(
-        id: '${contextId}_if_${nodeCounter}',
+        id: '${contextId}_if_$nodeCounter',
         type: CFGNodeType.decision,
         label: 'If Condition',
         sourceLocation: stmt.sourceLocation,
@@ -383,7 +383,7 @@ class FlowAnalysisPass {
         cfg.addEdge(conditionNode, elseNodes.first, 'else');
       } else if (stmt.elseBranch == null) {
         final skipNode = CFGNode(
-          id: '${contextId}_skip_${nodeCounter}',
+          id: '${contextId}_skip_$nodeCounter',
           type: CFGNodeType.join,
           label: 'Skip',
           sourceLocation: stmt.sourceLocation,
@@ -395,7 +395,7 @@ class FlowAnalysisPass {
       }
 
       final joinNode = CFGNode(
-        id: '${contextId}_join_${nodeCounter}',
+        id: '${contextId}_join_$nodeCounter',
         type: CFGNodeType.join,
         label: 'Join',
         sourceLocation: stmt.sourceLocation,
@@ -413,7 +413,7 @@ class FlowAnalysisPass {
       return [joinNode];
     } else if (stmt is ForStmt) {
       final loopNode = CFGNode(
-        id: '${contextId}_loop_${nodeCounter}',
+        id: '${contextId}_loop_$nodeCounter',
         type: CFGNodeType.loop,
         label: 'For Loop',
         sourceLocation: stmt.sourceLocation,
@@ -430,10 +430,17 @@ class FlowAnalysisPass {
       return [loopNode];
     } else {
       final stmtNode = CFGNode(
-        id: '${contextId}_stmt_${nodeCounter}',
+        id: '${contextId}_stmt_$nodeCounter',
         type: CFGNodeType.statement,
         label: 'Statement',
-        sourceLocation: stmt.sourceLocation,
+        sourceLocation: SourceLocationIR(
+          id: 'loc_${contextId}_stmt_$nodeCounter',
+          file: '',
+          line: 0,
+          column: 0,
+          offset: 0,
+          length: 0,
+        ),
       );
       cfg.addNode(stmtNode);
       cfg.nodeCounter++;

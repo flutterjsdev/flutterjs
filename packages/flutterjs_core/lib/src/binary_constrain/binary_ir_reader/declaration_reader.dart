@@ -11,8 +11,8 @@ mixin DeclarationReader {
   TypeIR readType();
   ExpressionIR readExpression();
   StatementIR readStatement(); // ✅ Need this for reading function bodies
-ParameterDecl readParameterDecl();
- MethodDecl readMethodDecl();
+  ParameterDecl readParameterDecl();
+  MethodDecl readMethodDecl();
 
   ImportStmt readImportStmt() {
     final uri = readStringRef();
@@ -77,9 +77,7 @@ ParameterDecl readParameterDecl();
     );
   }
 
-
-  // ✅ FIXED: Read function body statements
-
+  // ✅ FIXED: Read method declaration with Widget type support
 
   ClassDecl readClassDecl() {
     final id = readStringRef();
@@ -184,7 +182,6 @@ ParameterDecl readParameterDecl();
       isPrivate: isPrivate,
     );
   }
-
 
   // ✅ FIXED: Read constructor body statements and initializers
   ConstructorDecl readConstructorDecl() {
