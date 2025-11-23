@@ -31,8 +31,60 @@ class StatementExtractionPass {
     required this.builder,
   });
 
-  /// Extract all statements from a function/method body
-  /// FIXED: Only handles actual FunctionBody types from analyzer
+  void debugFunctionBodyType(FunctionBody? body) {
+    if (body == null) return;
+
+    print('=== DEBUG: FunctionBody Type Info ===');
+    print('runtimeType: ${body.runtimeType}');
+    print('toString(): ${body.toString()}');
+    print('Type name: ${body.runtimeType.toString()}');
+
+    // Check ALL possible is relationships
+    print('\n--- Is Checks ---');
+    print('is FunctionBody: ${body is FunctionBody}');
+    print('is BlockFunctionBody: ${body is BlockFunctionBody}');
+    print('is ExpressionFunctionBody: ${body is ExpressionFunctionBody}');
+
+    // Try to access properties
+    print('\n--- Property Access ---');
+    try {
+      if (body is BlockFunctionBody) {
+        print('✅ CAN access BlockFunctionBody.block');
+        print('   block.statements.length: ${body.block.statements.length}');
+      } else {
+        print('❌ CANNOT cast to BlockFunctionBody');
+      }
+    } catch (e) {
+      print('❌ ERROR: $e');
+    }
+
+    try {
+      if (body is ExpressionFunctionBody) {
+        print('✅ CAN access ExpressionFunctionBody.expression');
+      } else {
+        print('❌ CANNOT cast to ExpressionFunctionBody');
+      }
+    } catch (e) {
+      print('❌ ERROR: $e');
+    }
+
+    // Print class hierarchy using reflection
+    print('\n--- Class Hierarchy ---');
+    var type = body.runtimeType;
+    print('Type: $type');
+    print('Type string: ${type.toString()}');
+
+    // Manual check: does body have .block property?
+    print('\n--- Has Properties ---');
+    try {
+      final block = (body as dynamic).block;
+      print('✅ Has .block property: $block');
+    } catch (e) {
+      print('❌ No .block property: $e');
+    }
+  }
+
+  /// USAGE in your code
   List<StatementIR> extractBodyStatements(FunctionBody? body) {
     if (body == null) {
       print(
@@ -40,18 +92,17 @@ class StatementExtractionPass {
       );
       return [];
     }
-    final bodyType = body.runtimeType.toString();
+
     final statements = <StatementIR>[];
     print('📊 [extractBodyStatements] Type: ${body.runtimeType}');
 
-    // ✅ 1. BlockFunctionBody: { statements }
+    // ✅ TYPE 1: BlockFunctionBody - { statements }
     if (body is BlockFunctionBody) {
       final stmtCount = body.block.statements.length;
       print('   ✅ BlockFunctionBody - $stmtCount statements');
 
       if (stmtCount == 0) {
         print('   ⚠️  Empty block: { }');
-        // Still return empty list - it's valid
       } else {
         for (final stmt in body.block.statements) {
           final extracted = _extractStatement(stmt);
@@ -60,11 +111,14 @@ class StatementExtractionPass {
           }
         }
       }
+
+      print('   ✓ Extracted: ${statements.length} statements');
+      return statements; // ⬅️ RETURN HERE!
     }
-    // ✅ 2. ExpressionFunctionBody: => expression;
-    else if (body is ExpressionFunctionBody) {
+
+    // ✅ TYPE 2: ExpressionFunctionBody - => expression;
+    if (body is ExpressionFunctionBody) {
       print('   ✅ ExpressionFunctionBody (arrow syntax: =>)');
-      // Arrow functions always have exactly one statement: return expression
       statements.add(
         ReturnStmt(
           id: builder.generateId('stmt_return'),
@@ -73,17 +127,15 @@ class StatementExtractionPass {
           metadata: {},
         ),
       );
-    }
-    if (bodyType == 'EmptyFunctionBodyImpl' ||
-        bodyType.contains('EmptyFunctionBody')) {
-      print('   ℹ️  EmptyFunctionBody (abstract/external)');
-      return []; // No body to analyze
-    } else {
-      print('   ⚠️  Unknown FunctionBody type: ${body.runtimeType}');
+
+      print('   ✓ Extracted: ${statements.length} statements');
+      return statements; // ⬅️ RETURN HERE!
     }
 
-    print('   ✓ Extracted: ${statements.length} statements');
-    return statements;
+    // ✅ TYPE 3: EmptyFunctionBody (abstract/external/etc)
+    // If it's not BlockFunctionBody or ExpressionFunctionBody, it MUST be EmptyFunctionBody
+    print('   ℹ️  EmptyFunctionBody (abstract/external/no implementation)');
+    return []; // ⬅️ No statements to extract
   }
 
   /// Extract a single statement
