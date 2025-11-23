@@ -32,19 +32,39 @@ class StatementExtractionPass {
   });
 
   /// Extract all statements from a function/method body
+  /// FIXED: Only handles actual FunctionBody types from analyzer
   List<StatementIR> extractBodyStatements(FunctionBody? body) {
-    if (body == null) return [];
-
+    if (body == null) {
+      print(
+        '⚠️  [extractBodyStatements] FunctionBody is null (abstract/external)',
+      );
+      return [];
+    }
+    final bodyType = body.runtimeType.toString();
     final statements = <StatementIR>[];
+    print('📊 [extractBodyStatements] Type: ${body.runtimeType}');
 
+    // ✅ 1. BlockFunctionBody: { statements }
     if (body is BlockFunctionBody) {
-      for (final stmt in body.block.statements) {
-        final extracted = _extractStatement(stmt);
-        if (extracted != null) {
-          statements.add(extracted);
+      final stmtCount = body.block.statements.length;
+      print('   ✅ BlockFunctionBody - $stmtCount statements');
+
+      if (stmtCount == 0) {
+        print('   ⚠️  Empty block: { }');
+        // Still return empty list - it's valid
+      } else {
+        for (final stmt in body.block.statements) {
+          final extracted = _extractStatement(stmt);
+          if (extracted != null) {
+            statements.add(extracted);
+          }
         }
       }
-    } else if (body is ExpressionFunctionBody) {
+    }
+    // ✅ 2. ExpressionFunctionBody: => expression;
+    else if (body is ExpressionFunctionBody) {
+      print('   ✅ ExpressionFunctionBody (arrow syntax: =>)');
+      // Arrow functions always have exactly one statement: return expression
       statements.add(
         ReturnStmt(
           id: builder.generateId('stmt_return'),
@@ -54,7 +74,15 @@ class StatementExtractionPass {
         ),
       );
     }
+    if (bodyType == 'EmptyFunctionBodyImpl' ||
+        bodyType.contains('EmptyFunctionBody')) {
+      print('   ℹ️  EmptyFunctionBody (abstract/external)');
+      return []; // No body to analyze
+    } else {
+      print('   ⚠️  Unknown FunctionBody type: ${body.runtimeType}');
+    }
 
+    print('   ✓ Extracted: ${statements.length} statements');
     return statements;
   }
 

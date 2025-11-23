@@ -1,46 +1,84 @@
+// ============================================================================
+// declaration_pass.dart - COMPLETE & CONNECTED VERSION
+// ============================================================================
+// Connections:
+// ✅ analyzer_widget_detection_setup.dart → VerifiedWidgetDetection
+// ✅ statement_extraction_pass.dart → StatementExtractionPass
+// ✅ statement_widget_analyzer.dart → StatementWidgetAnalyzer
+// ✅ statement_ir.dart → StatementIR, WidgetUsageIR
+// ============================================================================
+
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:flutterjs_core/src/ast_ir/ir/statement/statement_widget_analyzer.dart';
 import 'package:path/path.dart' as path;
-import 'package:crypto/crypto.dart';
-import 'dart:convert';
 
-import 'ast_ir/class_decl.dart';
-import 'ast_ir/dart_file_builder.dart';
+// ============================================================================
+// IMPORTS: Connect to other components
+// ============================================================================
+
+import 'analyzer_widget_detection_setup.dart';
+
+import 'statement_extraction_pass.dart';
+
+import 'ast_ir/ir/expression_ir.dart';
+import 'ast_ir/ir/type_ir.dart';
 import 'ast_ir/diagnostics/source_location.dart';
+
+// 5️⃣ DECLARATIONS & BUILDERS
+import 'ast_ir/dart_file_builder.dart';
+import 'ast_ir/class_decl.dart';
 import 'ast_ir/function_decl.dart';
 import 'ast_ir/function_decl.dart' as cd;
 import 'ast_ir/import_export_stmt.dart';
-import 'ast_ir/ir/expression_ir.dart';
-import 'ast_ir/ir/type_ir.dart';
-import 'ast_ir/ir/statement/statement_ir.dart';
 import 'ast_ir/parameter_decl.dart';
 import 'ast_ir/variable_decl.dart';
-import 'statement_extraction_pass.dart';
 
-/// Pass 1: Declaration Discovery with Statement Body Extraction
+// ============================================================================
+// DECLARATION PASS: Main class connecting everything
+// ============================================================================
+
+/// 🔴 MAIN CLASS: Extracts declarations and detects widgets
 ///
-/// Extracts all declarations from raw Dart AST including:
-/// - Classes, functions, variables, imports/exports
-/// - Method/function bodies as List<StatementIR>
-/// - Variable declarations with initializers
-/// - Complete expression trees
-///
-/// Later passes will resolve references and infer types.
+/// FLOW:
+/// 1. Extract classes, functions, variables from AST
+/// 2. Call VerifiedWidgetDetection to identify widgets (via type resolution)
+/// 3. Call StatementExtractionPass to convert statements to IR
+/// 4. Call StatementWidgetAnalyzer to extract widget usages
+/// 5. Attach widget data to statements
 class DeclarationPass extends RecursiveAstVisitor<void> {
+  // =========================================================================
+  // CONFIGURATION
+  // =========================================================================
+
   final String filePath;
   final String fileContent;
   final DartFileBuilder builder;
-  
-  // Statement extraction helper
+
+  // ✅ OPTIONAL: Widget detection (can be null to skip detection)
+  final VerifiedWidgetDetection? widgetDetection;
+
+  // =========================================================================
+  // HELPER COMPONENTS (created in constructor)
+  // =========================================================================
+
+  /// ✅ COMPONENT 1: Statement extraction helper
   late final StatementExtractionPass _statementExtractor;
 
-  // Context tracking
+  // =========================================================================
+  // STATE TRACKING
+  // =========================================================================
+
   ClassDeclaration? _currentClass;
   String _currentLibraryName = '';
   final List<String> _scopeStack = [];
 
-  // Collections for extraction
+  // =========================================================================
+  // COLLECTIONS FOR EXTRACTION
+  // =========================================================================
+
   final List<ImportStmt> _imports = [];
   final List<ExportStmt> _exports = [];
   final List<PartStmt> _parts = [];
@@ -49,11 +87,17 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   final List<FunctionDecl> _topLevelFunctions = [];
   final List<ClassDecl> _classes = [];
 
+  // =========================================================================
+  // CONSTRUCTOR
+  // =========================================================================
+
   DeclarationPass({
     required this.filePath,
     required this.fileContent,
     required this.builder,
+    this.widgetDetection, // ✅ Optional widget detection
   }) {
+    // ✅ COMPONENT 1: Initialize statement extractor
     _statementExtractor = StatementExtractionPass(
       filePath: filePath,
       fileContent: fileContent,
@@ -65,12 +109,19 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   // MAIN EXTRACTION METHOD
   // =========================================================================
 
-  /// Extract all declarations from the compilation unit
+  /// 🎯 Main entry point: Extract all declarations from compilation unit
+  ///
+  /// PROCESS:
+  /// 1. Visit all AST nodes (triggering visitor methods)
+  /// 2. Collect all declarations
+  /// 3. Add to builder
   void extractDeclarations(CompilationUnit unit) {
-    // Visit the entire AST
+    print('📋 [DeclarationPass] Starting extraction for: $filePath');
+
+    // Visit entire AST
     unit.accept(this);
 
-    // Add all collected declarations to builder
+    // Configure builder with file metadata
     builder
       ..withLibrary(_currentLibraryName)
       ..withContentHash(fileContent);
@@ -109,6 +160,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     for (final classDecl in _classes) {
       builder.addClass(classDecl);
     }
+
+    print('✅ [DeclarationPass] Extraction complete for: $filePath');
   }
 
   // =========================================================================
@@ -119,6 +172,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   void visitLibraryDirective(LibraryDirective node) {
     _currentLibraryName =
         node.name2?.components.map((n) => n.name).join('.') ?? '';
+    print('📦 [LibraryDirective] Library: $_currentLibraryName');
     super.visitLibraryDirective(node);
   }
 
@@ -129,6 +183,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       sourceLocation: _extractSourceLocation(node, node.offset),
     );
     _parts.add(partStmt);
+    print('📄 [PartDirective] Part: ${node.uri.stringValue}');
     super.visitPartDirective(node);
   }
 
@@ -141,6 +196,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           '',
       sourceLocation: _extractSourceLocation(node, node.offset),
     );
+    print('📚 [PartOfDirective] Part of: ${_partOf!.libraryName}');
     super.visitPartOfDirective(node);
   }
 
@@ -160,6 +216,9 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       annotations: _extractAnnotations(node.metadata),
     );
     _imports.add(import);
+    print(
+      '📥 [Import] ${node.uri.stringValue}${node.prefix != null ? ' as ${node.prefix!.name}' : ''}',
+    );
     super.visitImportDirective(node);
   }
 
@@ -172,6 +231,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       sourceLocation: _extractSourceLocation(node, node.offset),
     );
     _exports.add(export);
+    print('📤 [Export] ${node.uri.stringValue}');
     super.visitExportDirective(node);
   }
 
@@ -183,8 +243,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   void visitTopLevelVariableDeclaration(TopLevelVariableDeclaration node) {
     for (final variable in node.variables.variables) {
       final name = variable.name.lexeme;
-      
-      // Extract initializer expression if present
+
+      // ✅ Use StatementExtractionPass to extract initializer expression
       final initializer = variable.initializer != null
           ? _statementExtractor.extractExpression(variable.initializer!)
           : null;
@@ -217,25 +277,73 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
   @override
   void visitFunctionDeclaration(FunctionDeclaration node) {
-    // Skip if inside a class (these are methods, not top-level functions)
+    // ✅ Skip if inside a class (these are methods, not top-level functions)
     if (_currentClass != null) {
       super.visitFunctionDeclaration(node);
       return;
     }
 
     final funcName = node.name.lexeme;
-    
-    // Extract function body statements
+    print('🔧 [Function] $funcName()');
+
+    // =========================================================================
+    // STEP 1: Determine if this is a widget function (BEFORE body analysis)
+    // =========================================================================
+    bool isWidgetFunc = false;
+    String? widgetKind;
+
+    if (widgetDetection != null) {
+      final execElement = node.declaredFragment?.element;
+
+      if (execElement != null) {
+        isWidgetFunc = VerifiedWidgetDetection.isWidgetFunction(execElement);
+
+        if (isWidgetFunc) {
+          widgetKind = VerifiedWidgetDetection.getWidgetKind(execElement);
+          print('   ✅ [WIDGET FUNCTION] - Kind: $widgetKind');
+        }
+      }
+    }
+
+    // =========================================================================
+    // STEP 2: Extract body statements
+    // =========================================================================
     final bodyStatements = _statementExtractor.extractBodyStatements(
       node.functionExpression.body,
     );
 
+    print('   📦 Body statements: ${bodyStatements.length}');
+
+    // =========================================================================
+    // STEP 3: Analyze for widgets if it's a widget function with content
+    // =========================================================================
+    if (isWidgetFunc && bodyStatements.isNotEmpty) {
+      print('   📊 [Analyzing widget function for widget usages]');
+
+      final analyzer = StatementWidgetAnalyzer(
+        filePath: filePath,
+        fileContent: fileContent,
+        builder: builder,
+      );
+
+      // This modifies bodyStatements in-place, adding widgetUsages
+      analyzer.analyzeStatementsForWidgets(bodyStatements);
+
+      print('   ✅ [Widgets analyzed and attached to statements]');
+    } else if (isWidgetFunc && bodyStatements.isEmpty) {
+      print('   ⚠️  Widget function with empty body (abstract/external?)');
+    }
+
+    // =========================================================================
+    // STEP 4: Create FunctionDecl with complete data
+    // =========================================================================
     final functionDecl = FunctionDecl(
       id: builder.generateId('func', funcName),
       name: funcName,
       returnType: _extractTypeFromAnnotation(node.returnType, node.name.offset),
       parameters: _extractParameters(node.functionExpression.parameters),
-      body: bodyStatements, // ✅ Add extracted body
+      body:
+          bodyStatements, // ✅ Now has widget data attached if it's a widget function
       isAsync: node.functionExpression.body.isAsynchronous,
       isGenerator: node.functionExpression.body.isGenerator,
       typeParameters: _extractTypeParameters(
@@ -245,8 +353,18 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       annotations: _extractAnnotations(node.metadata),
       sourceLocation: _extractSourceLocation(node, node.name.offset),
     );
-    _topLevelFunctions.add(functionDecl);
 
+    // =========================================================================
+    // STEP 5: Mark as widget function if detected
+    // =========================================================================
+    if (isWidgetFunc) {
+      functionDecl.markAsWidgetFunction(isWidgetFun: true);
+      if (widgetKind != null) {
+        print('   📍 Marked as widget function (kind: $widgetKind)');
+      }
+    }
+
+    _topLevelFunctions.add(functionDecl);
     super.visitFunctionDeclaration(node);
   }
 
@@ -261,14 +379,11 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
     try {
       final className = node.name.lexeme;
+      print('🏛️  [Class] $className');
 
-      // Extract fields
+      // Extract class members
       final fields = _extractClassFields(node);
-
-      // Extract constructors
       final constructors = _extractConstructors(node);
-
-      // Extract methods
       final methods = _extractMethods(node);
 
       // Create ClassDecl
@@ -290,6 +405,39 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         sourceLocation: _extractSourceLocation(node, node.name.offset),
       );
 
+      // ✅ COMPONENT 2: Check if this is a widget class (via VerifiedWidgetDetection)
+      if (widgetDetection != null) {
+        final classElement = node.declaredFragment?.element;
+        if (classElement != null &&
+            VerifiedWidgetDetection.isWidgetClass(classElement)) {
+          print('   ✅ [WIDGET CLASS] $className');
+
+          // Get inheritance chain
+          final chain = _getInheritanceChain(classElement);
+
+          // Determine widget category
+          String category = 'custom';
+          final superclassName = classElement.supertype?.element.name;
+          if (superclassName == 'StatelessWidget') {
+            category = 'stateless';
+          } else if (superclassName == 'StatefulWidget') {
+            category = 'stateful';
+          }
+
+          // Check if has valid build method
+          final hasBuild = classElement.methods.any(
+            (m) => m.name == 'build' && !m.isStatic,
+          );
+
+          // Mark as widget
+          classDecl.markAsWidget(
+            category: category,
+            chain: chain,
+            hasBuild: hasBuild,
+          );
+        }
+      }
+
       _classes.add(classDecl);
       super.visitClassDeclaration(node);
     } finally {
@@ -310,8 +458,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       if (member is FieldDeclaration) {
         for (final variable in member.fields.variables) {
           final fieldName = variable.name.lexeme;
-          
-          // Extract initializer if present
+
+          // ✅ Use StatementExtractionPass to extract initializer
           final initializer = variable.initializer != null
               ? _statementExtractor.extractExpression(variable.initializer!)
               : null;
@@ -351,8 +499,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     for (final member in node.members) {
       if (member is ConstructorDeclaration) {
         final constructorName = member.name?.lexeme;
-        
-        // Extract constructor body statements
+
+        // ✅ Use StatementExtractionPass to extract constructor body
         final bodyStatements = _statementExtractor.extractBodyStatements(
           member.body,
         );
@@ -372,7 +520,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           ),
           isConst: member.constKeyword != null,
           isFactory: member.factoryKeyword != null,
-          body: bodyStatements, // ✅ Add extracted body
+          body: bodyStatements,
           documentation: _extractDocumentation(member),
           annotations: _extractAnnotations(member.metadata),
           sourceLocation: _extractSourceLocation(
@@ -394,12 +542,73 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     for (final member in node.members) {
       if (member is MethodDeclaration) {
         final methodName = member.name.lexeme;
-        
-        // Extract method body statements
+
+        // =========================================================================
+        // STEP 1: Determine if this is a widget method (BEFORE body analysis)
+        // =========================================================================
+        bool isWidgetFunc = false;
+        String? widgetKind;
+
+        if (widgetDetection != null) {
+          final methodElement = member.declaredFragment?.element;
+
+          if (methodElement != null) {
+            isWidgetFunc = VerifiedWidgetDetection.isWidgetFunction(
+              methodElement,
+            );
+
+            if (isWidgetFunc) {
+              widgetKind = VerifiedWidgetDetection.getWidgetKind(methodElement);
+              print('   ✅ [WIDGET METHOD] $methodName - Kind: $widgetKind');
+            }
+          }
+        }
+
+        // =========================================================================
+        // STEP 2: Extract method body statements
+        // =========================================================================
         final bodyStatements = _statementExtractor.extractBodyStatements(
           member.body,
         );
 
+        print(
+          '   🔍 [Method] $methodName() - isWidget: $isWidgetFunc - statements: ${bodyStatements.length}',
+        );
+
+        // =========================================================================
+        // STEP 3: Analyze for widgets if it's a widget method with content
+        // =========================================================================
+        if (isWidgetFunc && bodyStatements.isNotEmpty) {
+          print('   📊 [Analyzing $methodName() for widget usages]');
+
+          final analyzer = StatementWidgetAnalyzer(
+            filePath: filePath,
+            fileContent: fileContent,
+            builder: builder,
+          );
+
+          // This modifies bodyStatements in-place, adding widgetUsages
+          analyzer.analyzeStatementsForWidgets(bodyStatements);
+
+          print('   ✅ [Widgets analyzed and attached]');
+        } else if (isWidgetFunc && bodyStatements.isEmpty) {
+          // Could be abstract method or method with no implementation
+          if (member.isAbstract) {
+            print('   ℹ️  Abstract widget method (no body to analyze)');
+          } else {
+            print('   ⚠️  Widget method with empty body');
+          }
+        } else if (!member.isAbstract && methodName == 'build') {
+          // Special case: build() method that isn't detected as widget
+          // This is unusual and might indicate a problem
+          print(
+            '   ⚠️  Method named "build" but not detected as widget-returning',
+          );
+        }
+
+        // =========================================================================
+        // STEP 4: Create MethodDecl with complete data
+        // =========================================================================
         final methodDecl = MethodDecl(
           id: builder.generateId('method', '${node.name.lexeme}.$methodName'),
           name: methodName,
@@ -415,12 +624,21 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           isGetter: member.isGetter,
           isSetter: member.isSetter,
           typeParameters: _extractTypeParameters(member.typeParameters),
-          body: bodyStatements, // ✅ Add extracted body
+          body:
+              bodyStatements, // ✅ Now has widget data attached if it's a widget method
           documentation: _extractDocumentation(member),
           annotations: _extractAnnotations(member.metadata),
           sourceLocation: _extractSourceLocation(member, member.name.offset),
           className: node.name.lexeme,
         );
+
+        // =========================================================================
+        // STEP 5: Mark as widget method if detected
+        // =========================================================================
+        if (isWidgetFunc) {
+          methodDecl.markAsWidgetFunction(isWidgetFun: true);
+        }
+
         methods.add(methodDecl);
       }
     }
@@ -429,7 +647,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   }
 
   // =========================================================================
-  // HELPER EXTRACTION METHODS
+  // HELPER METHODS: Extractors
   // =========================================================================
 
   /// Extract show combinators from import/export
@@ -471,11 +689,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
     final typeName = typeAnnotation.toString();
     final isNullable = typeAnnotation.question != null;
-
-    // Handle nullable marker
     final baseTypeName = typeName.replaceAll('?', '').trim();
 
-    // Check for built-in types
     if (_isBuiltInType(baseTypeName)) {
       if (baseTypeName == 'void') {
         return VoidTypeIR(
@@ -527,6 +742,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           param.offset,
         );
         if (param.defaultValue != null) {
+          // ✅ Use StatementExtractionPass to extract default value
           defaultValue = _statementExtractor.extractExpression(
             param.defaultValue!,
           );
@@ -549,7 +765,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         final paramDecl = ParameterDecl(
           id: builder.generateId('param', name),
           name: name,
-          type: type ??
+          type:
+              type ??
               DynamicTypeIR(
                 id: builder.generateId('type'),
                 sourceLocation: _extractSourceLocation(param, param.offset),
@@ -617,6 +834,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
     for (final init in initializers) {
       if (init is ConstructorFieldInitializer) {
+        // ✅ Use StatementExtractionPass to extract initializer expression
         result.add(
           cd.ConstructorInitializer(
             fieldName: init.fieldName.name,
@@ -665,9 +883,11 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       if (ann.arguments != null) {
         for (final arg in ann.arguments!.arguments) {
           if (arg is NamedExpression) {
-            namedArgs[arg.name.label.name] =
-                _statementExtractor.extractExpression(arg.expression);
+            // ✅ Use StatementExtractionPass to extract named argument
+            namedArgs[arg.name.label.name] = _statementExtractor
+                .extractExpression(arg.expression);
           } else {
+            // ✅ Use StatementExtractionPass to extract argument
             args.add(_statementExtractor.extractExpression(arg));
           }
         }
@@ -730,7 +950,6 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
   /// Extract source location with line and column
   SourceLocationIR _extractSourceLocation(AstNode node, int startOffset) {
-    // Calculate line and column from offset and file content
     int line = 1;
     int column = 1;
 
@@ -753,6 +972,19 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     );
   }
 
+  /// Get inheritance chain: [CustomButton, StatelessWidget, Widget]
+  static List<String> _getInheritanceChain(ClassElement classElement) {
+    final chain = <String>[];
+    var current = classElement.supertype;
+
+    while (current != null) {
+      chain.add(current.element.name ?? '');
+      current = current.superclass;
+    }
+
+    return chain;
+  }
+
   /// Push scope for tracking context
   void _pushScope(String type, String name) {
     _scopeStack.add('$type:$name');
@@ -765,3 +997,117 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     }
   }
 }
+
+// ============================================================================
+// COMPLETE CONNECTIONS DIAGRAM
+// ============================================================================
+
+/*
+ * 
+ * DECLARATION_PASS.dart CONNECTION MAP
+ * 
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │                   DeclarationPass                           │
+ * │        (Main orchestrator - connects everything)            │
+ * └─────────────────────────────────────────────────────────────┘
+ * 
+ * ✅ INPUT: CompilationUnit (AST from analyzer)
+ * 
+ * ┌────────────────────────────────────────────────────────────────┐
+ * │ COMPONENT 1: StatementExtractionPass                           │
+ * │ ─────────────────────────────────────────────────────────────  │
+ * │ Used in:                                                       │
+ * │  • extractBodyStatements(FunctionBody) → List<StatementIR>    │
+ * │  • extractExpression(Expression) → ExpressionIR               │
+ * │                                                                │
+ * │ Called in:                                                     │
+ * │  • visitFunctionDeclaration → extract function body          │
+ * │  • visitClassDeclaration._extractMethods → extract method body│
+ * │  • visitClassDeclaration._extractConstructors → ctor body     │
+ * │  • _extractClassFields → field initializers                   │
+ * │  • _extractParameters → default parameter values              │
+ * │  • _extractConstructorInitializers → initializer expressions  │
+ * │  • _extractAnnotations → annotation arguments                 │
+ * └────────────────────────────────────────────────────────────────┘
+ *         ↓ Produces
+ *    List<StatementIR>
+ *    List<ExpressionIR>
+ * 
+ * ┌────────────────────────────────────────────────────────────────┐
+ * │ COMPONENT 2: VerifiedWidgetDetection                           │
+ * │ ─────────────────────────────────────────────────────────────  │
+ * │ Used in:                                                       │
+ * │  • isWidgetClass(ClassElement) → bool                         │
+ * │  • isWidgetFunction(ExecutableElement) → bool                 │
+ * │                                                                │
+ * │ Called in:                                                     │
+ * │  • visitFunctionDeclaration → check if function is widget     │
+ * │  • visitClassDeclaration → check if class is widget           │
+ * │                                                                │
+ * │ Uses Type Resolution (NO hardcoded lists):                    │
+ * │  • Walks inheritance chain via element.supertype              │
+ * │  • Checks if extends Widget (directly or indirectly)          │
+ * │  • Validates build() method exists                            │
+ * │  • Resolves return types                                      │
+ * └────────────────────────────────────────────────────────────────┘
+ *         ↓ Produces
+ *    widget: true/false
+ *    category: 'stateless' | 'stateful' | 'custom'
+ * 
+ * ┌────────────────────────────────────────────────────────────────┐
+ * │ COMPONENT 3: StatementWidgetAnalyzer                           │
+ * │ ─────────────────────────────────────────────────────────────  │
+ * │ Used in:                                                       │
+ * │  • analyzeStatementsForWidgets(List<StatementIR>) → void      │
+ * │                                                                │
+ * │ Called in:                                                     │
+ * │  • _extractMethods → ONLY for build() method                  │
+ * │                                                                │
+ * │ Process:                                                       │
+ * │  1. Iterates through each statement in body                   │
+ * │  2. Calls _extractWidgetsFromStatement(stmt)                  │
+ * │  3. Recursively finds all WidgetUsageIR                       │
+ * │  4. Attaches widgetUsages to statements                       │
+ * │  5. Modifies statements in-place                              │
+ * └────────────────────────────────────────────────────────────────┘
+ *         ↓ Modifies in-place
+ *    bodyStatements[i].widgetUsages = [WidgetUsageIR, ...]
+ * 
+ * ┌────────────────────────────────────────────────────────────────┐
+ * │ COMPONENT 4: StatementIR & WidgetUsageIR                       │
+ * │ ─────────────────────────────────────────────────────────────  │
+ * │ All statements now have:                                       │
+ * │  • widgetUsages: List<WidgetUsageIR>?                         │
+ * │  • getWidgetUsages() → List<WidgetUsageIR>                    │
+ * │  • hasWidgets() → bool                                        │
+ * │                                                                │
+ * │ WidgetUsageIR contains:                                        │
+ * │  • widgetName: 'Scaffold', 'Text', etc.                       │
+ * │  • properties: {appBar: '...', body: '...'}                   │
+ * │  • statementType: 'return' | 'variable' | 'property'         │
+ * │  • isConditional: true/false                                  │
+ * │  • assignedToVariable: 'myWidget'?                            │
+ * └────────────────────────────────────────────────────────────────┘
+ *         ↓ Produces
+ *    Final IR with widget data attached
+ * 
+ * ┅ ✅ OUTPUT: Complete AST with widget detection
+ *    ClassDecl {
+ *      isWidget: true
+ *      widgetCategory: 'stateless'
+ *      methods: [
+ *        MethodDecl build() {
+ *          body: [
+ *            ReturnStmt {
+ *              widgetUsages: [
+ *                WidgetUsageIR('Scaffold'),
+ *                WidgetUsageIR('AppBar'),
+ *                ...
+ *              ]
+ *            }
+ *          ]
+ *        }
+ *      ]
+ *    }
+ * 
+ */

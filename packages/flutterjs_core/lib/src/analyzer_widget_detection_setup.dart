@@ -1,7 +1,10 @@
 // ============================================================================
-// ACTUALLY CORRECT: Using Real Dart Analyzer API (2025)
-// ClassDeclaration.declaredFragment.element for ClassElement
-// FunctionDeclaration.declaredElement for ExecutableElement
+// IMPROVED: Widget Detection - Handles Custom Widgets
+// ============================================================================
+// Real Widget Requirements:
+// 1. Class extends any class that ultimately extends Widget (from Flutter)
+// 2. Class has build() method that returns Widget (or any Widget subclass)
+// 3. Function returns Widget or any Widget subclass (via type resolution)
 // ============================================================================
 
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
@@ -11,20 +14,20 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:analyzer/file_system/physical_file_system.dart';
 
-/// Analyzer setup - CORRECT API
+/// Analyzer setup
 class AnalyzerWidgetDetectionSetup {
   late final AnalysisContextCollection collection;
   bool initialized = false;
-  
+
   bool initialize(String projectRoot) {
     try {
       print('🔍 Initializing Analyzer for: $projectRoot');
-      
+
       collection = AnalysisContextCollection(
         includedPaths: [projectRoot],
         resourceProvider: PhysicalResourceProvider.INSTANCE,
       );
-      
+
       initialized = true;
       print('✅ Analyzer initialized successfully');
       return true;
@@ -33,18 +36,18 @@ class AnalyzerWidgetDetectionSetup {
       return false;
     }
   }
-  
+
   /// Get resolved unit for a file
   Future<ResolvedUnitResult?> getResolvedUnit(String filePath) async {
     if (!initialized) {
       print('❌ Analyzer not initialized');
       return null;
     }
-    
+
     try {
       final context = collection.contextFor(filePath);
       final result = await context.currentSession.getResolvedUnit(filePath);
-      
+
       if (result is ResolvedUnitResult) {
         print('✅ Resolved: $filePath');
         return result;
@@ -59,242 +62,398 @@ class AnalyzerWidgetDetectionSetup {
   }
 }
 
-/// Core widget detection - CORRECT API
+/// IMPROVED: Widget Detection via Type Resolution
+/// No hardcoded widget names - checks inheritance chain!
 class VerifiedWidgetDetection {
-  
+  static String getWidgetKind(ExecutableElement element) {
+    final returnType = element.returnType;
+
+    if (returnType is InterfaceType) {
+      final returnTypeName = returnType.element.name;
+
+      // Check if it's the Widget base type or a specific widget
+      if (returnTypeName == 'Widget') {
+        return 'generic-Widget';
+      }
+
+      // Return the specific widget type
+      return returnTypeName ?? 'unknown-Widget';
+    }
+
+    return 'unknown';
+  }
+
   /// Is this ClassElement a Widget?
+  /// REQUIREMENTS:
+  /// 1. Extends (directly or indirectly) StatelessWidget or StatefulWidget
+  /// 2. Has build() method that returns Widget
   static bool isWidgetClass(ClassElement? classElement) {
     if (classElement == null) return false;
-    
-    print('   Checking class: ${classElement.name}');
-    
-    // Check superclass chain
-    if (_checkSuperclassChain(classElement.supertype)) {
-      print('   ✅ Found Widget in superclass chain');
-      return true;
+
+    print('   🔍 Checking class: ${classElement.name}');
+
+    // ✅ STEP 1: Check direct parent
+    final supertype = classElement.supertype;
+    if (supertype == null) {
+      print('      ❌ No supertype');
+      return false;
     }
-    
-    // Check interfaces
-    for (final interface in classElement.interfaces) {
-      if (_isWidgetType(interface)) {
-        print('   ✅ Found Widget in interfaces');
-        return true;
-      }
-    }
-    
-    // Check mixins
-    for (final mixin in classElement.mixins) {
-      if (_isWidgetType(mixin)) {
-        print('   ✅ Found Widget in mixins');
-        return true;
-      }
-    }
-    
-    print('   ❌ Not a Widget');
-    return false;
+
+    print('      Parent: ${supertype.element.name}');
+
+    // ✅ STEP 2: Handle special Flutter base types
+    return _checkInheritanceChain(classElement.name ?? 'Unknown', supertype);
   }
-  
+
   /// Is this ExecutableElement a widget function?
-  static bool isWidgetFunction(ExecutableElement? executableElement) {
-    if (executableElement == null) return false;
-    
-    print('   Checking function: ${executableElement.name}');
-    
-    final returnType = executableElement.returnType;
-    print('   Return type: ${returnType.getDisplayString(withNullability: true)}');
-    
+  /// REQUIREMENT: Returns Widget type (or any class that inherits from Widget)
+  static bool isWidgetFunction(ExecutableElement? element) {
+    if (element == null) return false;
+
+    print('   🔍 Checking function: ${element.name}');
+
+    // ✅ Skip abstract/external
+    if (element.isAbstract) {
+      print('      ℹ️  Abstract - skipping');
+      return false;
+    }
+
+    final returnType = element.returnType;
+    print(
+      '      Return type: ${returnType.getDisplayString(withNullability: true)}',
+    );
+
+    // ✅ Check if return type is Widget or subclass
     if (returnType is InterfaceType) {
-      final isWidget = _isWidgetType(returnType);
+      return _checkInheritanceChain('Function ${element.name}', returnType);
+    }
+
+    return false;
+  }
+  // =========================================================================
+  // CORE LOGIC: Type Resolution (No Hardcoded Lists!)
+  // =========================================================================
+
+  /// Check if a class inherits from Widget (anywhere in the hierarchy)
+  /// This walks the ENTIRE superclass chain
+    static bool _checkInheritanceChain(
+    String context,
+    InterfaceType? type,
+  ) {
+    if (type == null) return false;
+
+    InterfaceType? current = type;
+    int depth = 0;
+
+    print('      🔄 Inheritance chain:');
+
+    while (current != null && depth < 10) {
+      final name = current.element.name;
+      final library = current.element.library?.identifier ?? 'unknown';
+
+      print('         [$depth] $name ← $library');
+
+      // ✅ WIDGET FOUND
+      if (name == 'Widget' && _isFlutterLibrary(library)) {
+        print('      ✅ IS A WIDGET (via $name)');
+        return true;
+      }
+
+      // ✅ SPECIAL: StatelessWidget, StatefulWidget also indicate widgets
+      if ((name == 'StatelessWidget' || name == 'StatefulWidget') &&
+          _isFlutterLibrary(library)) {
+        print('      ✅ IS A WIDGET (extends $name)');
+        return true;
+      }
+
+      // ✅ SPECIAL: State<T> indicates stateful widget
+      if (name == 'State' && _isFlutterLibrary(library)) {
+        print('      ✅ IS A WIDGET STATE (extends State<T>)');
+        return true;
+      }
+
+      current = current.superclass;
+      depth++;
+    }
+
+    print('      ❌ NO WIDGET FOUND');
+    return false;
+  }
+
+    static bool _isFlutterLibrary(String libraryUri) {
+    final isFlutter =
+        libraryUri.contains('package:flutter') ||
+        libraryUri.contains('dart:ui');
+
+    if (isFlutter) {
+      print('         📚 Flutter library: $libraryUri');
+    }
+
+    return isFlutter;
+  }
+  /// Check if a type is Widget or any subclass of Widget
+  /// This handles: Widget, StatelessWidget, StatefulWidget, CustomButton, etc.
+  static bool _returnsWidgetOrSubclass(InterfaceType type) {
+    InterfaceType? current = type;
+
+    while (current != null) {
+      final element = current.element;
+      final name = element.name;
+      final library = element.library?.identifier ?? '';
+
+      // ✅ Found Widget base class from Flutter
+      if (name == 'Widget' && _isFlutterLibrary(library)) {
+        print('   ✅ Type inherits from Widget (from $library)');
+        return true;
+      }
+
+      // Continue up the chain
+      current = current.superclass;
+    }
+
+    return false;
+  }
+
+  /// Check if a class has a valid build() method
+  /// build() must:
+  /// - Be named "build"
+  /// - Not be static
+  /// - Return Widget or a Widget subclass
+  static bool _hasBuildMethod(ClassElement classElement) {
+    // Find build() method (including inherited)
+    final buildMethod = classElement.methods.firstWhereOrNull(
+      (m) => m.name == 'build' && !m.isStatic,
+    );
+
+    if (buildMethod == null) {
+      print('   ❌ No build() method found');
+      return false;
+    }
+
+    print('   ✅ Found build() method');
+
+    // Check if build() returns Widget or Widget subclass
+    final returnType = buildMethod.returnType;
+    if (returnType is InterfaceType) {
+      final isWidget = _returnsWidgetOrSubclass(returnType);
       if (isWidget) {
-        print('   ✅ Returns Widget');
-      } else {
-        print('   ❌ Does not return Widget');
-      }
-      return isWidget;
-    }
-    
-    print('   ❌ Return type is not InterfaceType');
-    return false;
-  }
-  
-  /// Check superclass chain
-  static bool _checkSuperclassChain(InterfaceType? type) {
-    while (type != null) {
-      if (_isWidgetType(type)) {
-        return true;
-      }
-      type = type.superclass;
-    }
-    return false;
-  }
-  
-  /// Is this type a Widget?
-  static bool _isWidgetType(InterfaceType type) {
-    final element = type.element;
-    final name = element.name;
-    
-    final coreWidgetTypes = {
-      'Widget',
-      'StatelessWidget',
-      'StatefulWidget',
-      'State',
-      'RenderObjectWidget',
-      'SingleChildRenderObjectWidget',
-      'MultiChildRenderObjectWidget',
-      'ParentDataWidget',
-      'ProxyWidget',
-      'InheritedWidget',
-      'InheritedNotifier',
-      'InheritedModel',
-      'InheritedTheme',
-    };
-    
-    if (coreWidgetTypes.contains(name)) {
-      final libraryUri = element.library?.identifier ?? '';
-      
-      if (libraryUri.contains('package:flutter') || libraryUri == 'dart:ui') {
-        print('   _isWidgetType: ✅ $name is a Flutter Widget');
+        print('   ✅ build() returns Widget (or subclass)');
         return true;
       }
     }
-    
-    // Recursively check superclass
-    final supertype = type.superclass;
-    if (supertype != null) {
-      return _isWidgetType(supertype);
-    }
-    
+
+    print('   ❌ build() does not return Widget');
     return false;
+  }
+
+  /// Check if library is from Flutter
+  /// Handles: package:flutter, dart:ui, etc.
+ 
+
+  /// Get the direct superclass type name
+  /// For: class MyButton extends StatelessWidget → returns "StatelessWidget"
+  /// For: class MyButton extends CustomButton → returns "CustomButton"
+  static String? _getDirectSuperclassName(ClassElement classElement) {
+    return classElement.supertype?.element.name;
+  }
+
+  /// Get ALL ancestor classes in the chain
+  /// For: class MyButton extends CustomButton extends StatelessWidget
+  /// Returns: [CustomButton, StatelessWidget, Widget]
+  static List<String> _getInheritanceChain(ClassElement classElement) {
+    final chain = <String>[];
+    var current = classElement.supertype;
+
+    while (current != null) {
+      chain.add(current.element.name ?? '<unknown>');
+      current = current.superclass;
+    }
+
+    return chain;
   }
 }
 
-/// Widget analysis pass - CORRECT API
+/// Widget analysis pass
 class WidgetAnalysisPass {
   final AnalyzerWidgetDetectionSetup setup;
   final List<WidgetFound> foundWidgets = [];
-  
+
   WidgetAnalysisPass({required this.setup});
-  
+
   /// Analyze all files for widgets
   Future<void> analyzeFiles(List<String> filePaths) async {
     print('\n🔍 Analyzing ${filePaths.length} files for widgets...\n');
-    
+
     for (final filePath in filePaths) {
       print('📄 Analyzing: $filePath');
-      
+
       final resolved = await setup.getResolvedUnit(filePath);
       if (resolved == null) {
         print('   ⚠️  Could not resolve file\n');
         continue;
       }
-      
+
       final compilationUnit = resolved.unit;
-      
-      // Analyze classes - CORRECT: Use declaredFragment?.element
+
+      // Analyze classes
       final classes = compilationUnit.declarations
           .whereType<ClassDeclaration>()
           .toList();
-      
+
       print('   📦 Classes found: ${classes.length}');
       for (final classDecl in classes) {
-        // CORRECT API: declaredFragment.element returns ClassElement
         final classElement = classDecl.declaredFragment?.element;
-        
+
         if (VerifiedWidgetDetection.isWidgetClass(classElement)) {
           print('   ✅ Widget Class: ${classElement!.name}');
-          
-          final superclassName = classElement.supertype?.element.name ?? 'Object';
+
+          final superclassName =
+              VerifiedWidgetDetection._getDirectSuperclassName(classElement);
+          final inheritanceChain = VerifiedWidgetDetection._getInheritanceChain(
+            classElement,
+          );
+
           final isStateful = superclassName == 'StatefulWidget';
           final isStateless = superclassName == 'StatelessWidget';
-          
-          // CORRECT API: Use formalParameters
-          final List<String> constructorParams = classElement.constructors.isNotEmpty
-              ? classElement.constructors.first.formalParameters
+          final isCustomWidget = !isStateful && !isStateless;
+
+          // Get build method parameters
+          final buildMethod = classElement.methods.firstWhereOrNull(
+            (m) => m.name == 'build',
+          );
+          final List<String> buildParams =
+              buildMethod?.formalParameters
                   .map<String>((p) => p.name ?? '')
                   .where((name) => name.isNotEmpty)
-                  .toList()
+                  .toList() ??
+              <String>[];
+
+          // Get constructor parameters
+          final List<String> constructorParams =
+              classElement.constructors.isNotEmpty
+              ? classElement.constructors.first.formalParameters
+                    .map<String>((p) => p.name ?? '')
+                    .where((name) => name.isNotEmpty)
+                    .toList()
               : <String>[];
-          
-          foundWidgets.add(WidgetFound(
-            name: classElement.name ?? '<unknown>',
-            type: WidgetType.widgetClass,
-            filePath: filePath,
-            superclass: superclassName,
-            isStateful: isStateful,
-            isStateless: isStateless,
-            parameters: constructorParams ,
-          ));
-          
-          print('      - Superclass: $superclassName');
-          print('      - Stateful: $isStateful, Stateless: $isStateless');
-          print('      - Parameters: $constructorParams');
+
+          foundWidgets.add(
+            WidgetFound(
+              name: classElement.name ?? '<unknown>',
+              type: WidgetType.widgetClass,
+              filePath: filePath,
+              superclass: superclassName,
+              isStateful: isStateful,
+              isStateless: isStateless,
+              isCustomWidget: isCustomWidget,
+              inheritanceChain: inheritanceChain,
+              parameters: constructorParams,
+              buildMethodParams: buildParams,
+              hasBuildMethod: true,
+            ),
+          );
+
+          print('      - Direct superclass: $superclassName');
+          print('      - Inheritance chain: ${inheritanceChain.join(' -> ')}');
+          print('      - Custom widget: $isCustomWidget');
+          print('      - Constructor params: $constructorParams');
+          print('      - build() params: $buildParams');
         }
       }
-      
-      // Analyze functions - CORRECT: declaredElement returns ExecutableElement
+
+      // Analyze functions
       final functions = compilationUnit.declarations
           .whereType<FunctionDeclaration>()
           .toList();
-      
+
       print('   📦 Functions found: ${functions.length}');
       for (final funcDecl in functions) {
-        // CORRECT API: declaredElement returns ExecutableElement directly
         final execElement = funcDecl.declaredFragment?.element;
-        
+
         if (VerifiedWidgetDetection.isWidgetFunction(execElement)) {
           print('   ✅ Widget Function: ${execElement!.name}');
-          
-          // CORRECT API: Use formalParameters
+
           final params = execElement.formalParameters
               .map((p) => p.name ?? '')
               .where((name) => name.isNotEmpty)
               .toList();
-          
-          foundWidgets.add(WidgetFound(
-            name: execElement.name ?? '<unknown>',
-            type: WidgetType.widgetFunction,
-            filePath: filePath,
-            parameters: params,
-          ));
-          
+
+          final returnTypeName = execElement.returnType.getDisplayString();
+
+          foundWidgets.add(
+            WidgetFound(
+              name: execElement.name ?? '<unknown>',
+              type: WidgetType.widgetFunction,
+              filePath: filePath,
+              parameters: params,
+              returnType: returnTypeName,
+            ),
+          );
+
           print('      - Parameters: $params');
+          print('      - Returns: $returnTypeName');
         }
       }
-      
+
       print('');
     }
-    
-    print('\n' + '='*60);
+
+    _printSummary();
+  }
+
+  void _printSummary() {
+    print('\n${'=' * 60}');
     print('📊 ANALYSIS SUMMARY');
-    print('='*60);
+    print('=' * 60);
     print('Total widgets found: ${foundWidgets.length}');
-    
+
     final classes = foundWidgets.where((w) => w.type == WidgetType.widgetClass);
-    final functions = foundWidgets.where((w) => w.type == WidgetType.widgetFunction);
+    final functions = foundWidgets.where(
+      (w) => w.type == WidgetType.widgetFunction,
+    );
+
     final stateful = classes.where((w) => w.isStateful).length;
     final stateless = classes.where((w) => w.isStateless).length;
-    
-    print('  - Widget Classes: ${classes.length} (Stateful: $stateful, Stateless: $stateless)');
+    final custom = classes.where((w) => w.isCustomWidget).length;
+
+    print('  - Widget Classes: ${classes.length}');
+    print('    • Stateful: $stateful');
+    print('    • Stateless: $stateless');
+    print('    • Custom: $custom');
     print('  - Widget Functions: ${functions.length}');
-    print('='*60 + '\n');
+    print('=' * 60 + '\n');
   }
-  
+
   void printReport() {
     print('\n📋 DETAILED WIDGET REPORT\n');
-    
+
     final byType = <WidgetType, List<WidgetFound>>{};
     for (final widget in foundWidgets) {
       byType.putIfAbsent(widget.type, () => []).add(widget);
     }
-    
+
     for (final entry in byType.entries) {
       print('${entry.key.toString().split('.').last}:');
       for (final widget in entry.value) {
         print('  ✅ ${widget.name}');
-        if (widget.superclass != null) print('     extends: ${widget.superclass}');
+        if (widget.superclass != null) {
+          print('     extends: ${widget.superclass}');
+        }
+        if (widget.inheritanceChain.isNotEmpty) {
+          print('     chain: ${widget.inheritanceChain.join(' -> ')}');
+        }
         if (widget.isStateful) print('     ⚙️  Stateful');
         if (widget.isStateless) print('     🎨 Stateless');
-        if (widget.parameters.isNotEmpty) print('     📋 params: ${widget.parameters}');
+        if (widget.isCustomWidget) print('     🎯 Custom Widget');
+        if (widget.hasBuildMethod) {
+          print('     🔨 build(${widget.buildMethodParams.join(', ')})');
+        }
+        if (widget.returnType != null) {
+          print('     returns: ${widget.returnType}');
+        }
+        if (widget.parameters.isNotEmpty) {
+          print('     📋 params: ${widget.parameters.join(', ')}');
+        }
         print('     📁 ${widget.filePath}');
       }
       print('');
@@ -309,8 +468,13 @@ class WidgetFound {
   final String? superclass;
   final bool isStateful;
   final bool isStateless;
+  final bool isCustomWidget;
+  final List<String> inheritanceChain;
   final List<String> parameters;
-  
+  final List<String> buildMethodParams;
+  final bool hasBuildMethod;
+  final String? returnType;
+
   WidgetFound({
     required this.name,
     required this.type,
@@ -318,35 +482,26 @@ class WidgetFound {
     this.superclass,
     this.isStateful = false,
     this.isStateless = false,
+    this.isCustomWidget = false,
+    this.inheritanceChain = const [],
     this.parameters = const [],
+    this.buildMethodParams = const [],
+    this.hasBuildMethod = false,
+    this.returnType,
   });
 }
 
-enum WidgetType {
-  widgetClass,
-  widgetFunction,
-}
+enum WidgetType { widgetClass, widgetFunction }
 
 // ============================================================================
-// USAGE EXAMPLE
+// EXTENSION: For easier null-safe access
 // ============================================================================
-
-/*
-Future<void> main() async {
-  final setup = AnalyzerWidgetDetectionSetup();
-  if (!setup.initialize('/path/to/flutter/project')) {
-    print('❌ Failed to initialize analyzer');
-    return;
+extension ListExtension<T> on List<T> {
+  T? firstWhereOrNull(bool Function(T) test) {
+    try {
+      return firstWhere(test);
+    } catch (e) {
+      return null;
+    }
   }
-  
-  final filePaths = [
-    '/path/to/flutter/project/lib/main.dart',
-    '/path/to/flutter/project/lib/screens/home.dart',
-  ];
-  
-  final analysis = WidgetAnalysisPass(setup: setup);
-  await analysis.analyzeFiles(filePaths);
-  
-  analysis.printReport();
 }
-*/

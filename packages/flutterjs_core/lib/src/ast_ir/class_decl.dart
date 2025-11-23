@@ -56,6 +56,11 @@ class ClassDecl extends IRNode {
   /// Class annotations (e.g., @immutable, @deprecated)
   final List<AnnotationIR> annotations;
 
+  bool? isWidget; // null = unknown, true = widget
+  String? widgetCategory; // 'stateless', 'stateful', 'custom'
+  List<String>? inheritanceChain; // ['CustomButton', 'StatelessWidget', 'Widget']
+  bool hasBuildMethod = false;
+
   ClassDecl({
     required super.id,
     required super.sourceLocation,
@@ -74,7 +79,22 @@ class ClassDecl extends IRNode {
     this.documentation,
     this.annotations = const [],
     super.metadata,
+    this.isWidget,
+    this.widgetCategory,
+    this.inheritanceChain,
+    this.hasBuildMethod = false,
   });
+
+   void markAsWidget({
+    required String category,
+    required List<String> chain,
+    required bool hasBuild,
+  }) {
+    isWidget = true;
+    widgetCategory = category;
+    inheritanceChain = chain;
+    hasBuildMethod = hasBuild;
+  }
 
   /// Get default constructor (no-arg unnamed constructor)
   ConstructorDecl? get defaultConstructor {
@@ -179,7 +199,6 @@ class ClassDecl extends IRNode {
     return '${modifiers.isNotEmpty ? '$modifiers ' : ''}class $name$typeParams$superStr$mixinStr$ifaceStr';
   }
 
-
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -187,13 +206,10 @@ class ClassDecl extends IRNode {
       if (superclass != null) 'superclass': superclass!.toJson(),
       if (interfaces.isNotEmpty)
         'interfaces': interfaces.map((i) => i.toJson()).toList(),
-      if (mixins.isNotEmpty)
-        'mixins': mixins.map((m) => m.toJson()).toList(),
+      if (mixins.isNotEmpty) 'mixins': mixins.map((m) => m.toJson()).toList(),
       if (typeParameters.isNotEmpty)
-        'typeParameters':
-            typeParameters.map((tp) => tp.toJson()).toList(),
-      if (fields.isNotEmpty)
-        'fields': fields.map((f) => f.toJson()).toList(),
+        'typeParameters': typeParameters.map((tp) => tp.toJson()).toList(),
+      if (fields.isNotEmpty) 'fields': fields.map((f) => f.toJson()).toList(),
       if (methods.isNotEmpty)
         'methods': methods.map((m) => m.toJson()).toList(),
       if (constructors.isNotEmpty)
@@ -255,6 +271,10 @@ class EnhancedClassDecl extends ClassDecl {
     this.directImplementers = const [],
     this.hasCyclicInheritance = false,
     super.metadata,
+    super.isWidget,
+    super.widgetCategory,
+    super.inheritanceChain,
+    super.hasBuildMethod,
   });
 
   /// Whether class is dead code (not used anywhere)

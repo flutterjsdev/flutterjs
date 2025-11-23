@@ -133,6 +133,8 @@ class FunctionDecl extends IRNode {
 
   final bool isWidgetReturnType;
 
+  bool? isWidgetFunction;   
+
   FunctionDecl({
     required super.id,
     required this.name,
@@ -160,6 +162,7 @@ class FunctionDecl extends IRNode {
     this.constructorName,
     this.redirectsTo,
     this.isWidgetReturnType = false,
+    this.isWidgetFunction,
   })  : assert(
           !(isAsync && isSyncGenerator),
           'Function cannot be both async and sync generator',
@@ -181,6 +184,14 @@ class FunctionDecl extends IRNode {
           'Abstract method cannot have body',
         );
 
+
+
+   void markAsWidgetFunction({
+   
+    required bool isWidgetFun,
+  }) {
+    isWidgetFunction = isWidgetFun;
+  }
   /// Human-readable function signature
   ///
   /// Examples:
@@ -457,6 +468,7 @@ class MethodDecl extends FunctionDecl {
     this.markedOverride = false,
     this.overriddenSignature,
     super.isWidgetReturnType = false,
+    super.isWidgetFunction,
   });
 
   /// Full method name with class context
@@ -526,6 +538,7 @@ class ConstructorDecl extends FunctionDecl {
     this.initializers = const [],
     this.superCall,
     this.redirectedCall,
+   super.isWidgetFunction= false,
   }) : super(
          id: id,
          name: name,

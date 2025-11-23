@@ -1,5 +1,5 @@
 // lib/src/ir/statement/statement_ir.dart
-// Complete Statement IR hierarchy for Phase 2
+// Complete Statement IR hierarchy with Widget Analysis
 
 import 'package:meta/meta.dart';
 import '../../function_decl.dart';
@@ -7,17 +7,24 @@ import '../expression_ir.dart';
 import '../ir_node.dart';
 import '../type_ir.dart';
 
-
-
-
 /// Base class for all statement IR nodes
 @immutable
 abstract class StatementIR extends IRNode {
+  // ✅ NEW: Widget analysis data
+  final List<WidgetUsageIR>? widgetUsages;
+
   const StatementIR({
     required super.id,
     required super.sourceLocation,
     super.metadata,
+    this.widgetUsages,
   });
+
+  /// Extract all widgets used in this statement
+  List<WidgetUsageIR> getWidgetUsages() => widgetUsages ?? [];
+
+  /// Check if this statement contains any widgets
+  bool hasWidgets() => widgetUsages != null && widgetUsages!.isNotEmpty;
 }
 
 // =============================================================================
@@ -33,6 +40,7 @@ class ExpressionStmt extends StatementIR {
     required super.sourceLocation,
     required this.expression,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -59,6 +67,7 @@ class VariableDeclarationStmt extends StatementIR {
     this.isConst = false,
     this.isLate = false,
     super.metadata,
+    super.widgetUsages,
   }) : isMutable = !isFinal && !isConst;
 
   @override
@@ -82,6 +91,7 @@ class ReturnStmt extends StatementIR {
     required super.sourceLocation,
     this.expression,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -98,6 +108,7 @@ class BreakStmt extends StatementIR {
     required super.sourceLocation,
     this.label,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -113,6 +124,7 @@ class ContinueStmt extends StatementIR {
     required super.sourceLocation,
     this.label,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -128,6 +140,7 @@ class ThrowStmt extends StatementIR {
     required super.sourceLocation,
     required this.exceptionExpression,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -147,10 +160,27 @@ class BlockStmt extends StatementIR {
     required super.sourceLocation,
     required this.statements,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
   String toShortString() => '{ ${statements.length} statements }';
+
+  /// Get all widgets from all nested statements
+  List<WidgetUsageIR> getAllNestedWidgets() {
+    final widgets = <WidgetUsageIR>[];
+
+    for (final stmt in statements) {
+      widgets.addAll(stmt.getWidgetUsages());
+
+      // Recursively get from nested blocks
+      if (stmt is BlockStmt) {
+        widgets.addAll(stmt.getAllNestedWidgets());
+      }
+    }
+
+    return widgets;
+  }
 }
 
 @immutable
@@ -166,11 +196,31 @@ class IfStmt extends StatementIR {
     required this.thenBranch,
     this.elseBranch,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
   String toShortString() =>
       'if (${condition.toShortString()}) { ... }${elseBranch != null ? ' else { ... }' : ''}';
+
+  /// Get all possible widgets from both branches
+  List<WidgetUsageIR> getAllBranchWidgets() {
+    final widgets = <WidgetUsageIR>[];
+
+    widgets.addAll(thenBranch.getWidgetUsages());
+    if (thenBranch is BlockStmt) {
+      widgets.addAll((thenBranch as BlockStmt).getAllNestedWidgets());
+    }
+
+    if (elseBranch != null) {
+      widgets.addAll(elseBranch!.getWidgetUsages());
+      if (elseBranch is BlockStmt) {
+        widgets.addAll((elseBranch as BlockStmt).getAllNestedWidgets());
+      }
+    }
+
+    return widgets;
+  }
 }
 
 @immutable
@@ -188,6 +238,7 @@ class ForStmt extends StatementIR {
     this.updaters = const [],
     required this.body,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -211,6 +262,7 @@ class ForEachStmt extends StatementIR {
     this.loopVariableType,
     this.isAsync = false,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -229,6 +281,7 @@ class WhileStmt extends StatementIR {
     required this.condition,
     required this.body,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -246,6 +299,7 @@ class DoWhileStmt extends StatementIR {
     required this.body,
     required this.condition,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -265,6 +319,7 @@ class SwitchStmt extends StatementIR {
     required this.cases,
     this.defaultCase,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -307,6 +362,7 @@ class TryStmt extends StatementIR {
     required this.catchClauses,
     this.finallyBlock,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -316,19 +372,9 @@ class TryStmt extends StatementIR {
 
 @immutable
 class CatchClauseStmt extends StatementIR {
-  /// Type of exception being caught (e.g., Exception, CustomError)
-  /// Can be null to catch all types
   final TypeIR? exceptionType;
-
-  /// Name of the variable holding the exception instance
-  /// Default: 'error' if not specified
   final String? exceptionParameter;
-
-  /// Optional: Name of the variable holding the stack trace
-  /// Default: null (not used in JavaScript)
   final String? stackTraceParameter;
-
-  /// The catch block statements
   final StatementIR body;
 
   const CatchClauseStmt({
@@ -339,6 +385,7 @@ class CatchClauseStmt extends StatementIR {
     this.stackTraceParameter,
     required this.body,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -346,19 +393,12 @@ class CatchClauseStmt extends StatementIR {
 }
 
 // =============================================================================
-// ASSERT STATEMENT
+// OTHER STATEMENTS
 // =============================================================================
 
-/// Represents an assert statement in Dart
-/// Used for debugging and enforcing runtime conditions
-///
-/// Example: `assert(value > 0);`, `assert(value != null, 'Value cannot be null');`
 @immutable
 class AssertStatementIR extends StatementIR {
-  /// The condition being asserted
   final ExpressionIR condition;
-
-  /// Optional message to display if assertion fails
   final ExpressionIR? message;
 
   const AssertStatementIR({
@@ -367,6 +407,7 @@ class AssertStatementIR extends StatementIR {
     required this.condition,
     this.message,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -375,40 +416,22 @@ class AssertStatementIR extends StatementIR {
       : 'assert(${condition.toShortString()})';
 }
 
-// =============================================================================
-// EMPTY STATEMENT
-// =============================================================================
-
-/// Represents an empty statement in Dart
-/// A statement that does nothing
-///
-/// Example: `;` (just a semicolon)
 @immutable
 class EmptyStatementIR extends StatementIR {
   const EmptyStatementIR({
     required super.id,
     required super.sourceLocation,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
   String toShortString() => ';';
 }
 
-// =============================================================================
-// YIELD STATEMENT
-// =============================================================================
-
-/// Represents a yield statement in Dart
-/// Used in generator functions to produce values
-///
-/// Example: `yield value;`, `yield* iterable;`
 @immutable
 class YieldStatementIR extends StatementIR {
-  /// The value being yielded
   final ExpressionIR value;
-
-  /// Whether this is a yield* (yield each) operation
   final bool isYieldEach;
 
   const YieldStatementIR({
@@ -417,6 +440,7 @@ class YieldStatementIR extends StatementIR {
     required this.value,
     this.isYieldEach = false,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
@@ -426,10 +450,7 @@ class YieldStatementIR extends StatementIR {
 
 @immutable
 class LabeledStatementIR extends StatementIR {
-  /// The label identifier
   final String label;
-
-  /// The statement being labeled
   final StatementIR statement;
 
   const LabeledStatementIR({
@@ -438,31 +459,15 @@ class LabeledStatementIR extends StatementIR {
     required this.label,
     required this.statement,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
   String toShortString() => '$label: ${statement.toShortString()}';
 }
 
-// =============================================================================
-// FUNCTION DECLARATION STATEMENT
-// =============================================================================
-
-/// Represents a function declaration as a statement
-/// Used for nested functions declared inside other functions or blocks
-///
-/// Example:
-/// ```dart
-/// void outer() {
-///   void inner() {  // <-- This is a FunctionDeclarationStmt
-///     print('nested');
-///   }
-///   inner();
-/// }
-/// ```
 @immutable
 class FunctionDeclarationStatementIR extends StatementIR {
-  /// The function being declared
   final FunctionDecl function;
 
   const FunctionDeclarationStatementIR({
@@ -470,10 +475,133 @@ class FunctionDeclarationStatementIR extends StatementIR {
     required super.sourceLocation,
     required this.function,
     super.metadata,
+    super.widgetUsages,
   });
 
   @override
   String toShortString() => 'function ${function.name}() { ... }';
 }
 
+// =============================================================================
+// WIDGET USAGE DATA MODEL
+// =============================================================================
 
+/// ✅ NEW: Represents a widget usage within a statement
+@immutable
+class WidgetUsageIR extends StatementIR {
+  /// Widget class name: Scaffold, Container, Text, etc.
+  final String widgetName;
+
+  /// Constructor name if using named constructor: Container.shrink()
+  final String? constructorName;
+
+  /// Widget properties passed as named arguments
+  final Map<String, String> properties;
+
+  /// Statement type where widget is used: 'return', 'variable', 'expression'
+  final String statementType;
+
+  /// Variable name if this is a variable assignment
+  final String? assignedToVariable;
+
+  /// Parent widget if nested
+  final String? parentWidget;
+
+  /// All positional arguments
+  final List<String> positionalArgs;
+
+  /// Whether this widget is conditional (in if/ternary)
+  final bool isConditional;
+
+  const WidgetUsageIR({
+    required super.id,
+    required super.sourceLocation,
+    required this.widgetName,
+    this.constructorName,
+    this.properties = const {},
+    required this.statementType,
+    this.assignedToVariable,
+    this.parentWidget,
+    this.positionalArgs = const [],
+    this.isConditional = false,
+    super.metadata,
+  });
+
+  @override
+  String toShortString() {
+    final varStr = assignedToVariable != null ? '$assignedToVariable = ' : '';
+    return '$varStr$widgetName(${properties.length} props)';
+  }
+
+  /// Get human-readable description
+  String describe() {
+    final sb = StringBuffer();
+    sb.write(widgetName);
+
+    if (constructorName != null) {
+      sb.write('.${constructorName!}');
+    }
+
+    if (assignedToVariable != null) {
+      sb.write(' → $assignedToVariable');
+    }
+
+    if (isConditional) {
+      sb.write(' [conditional]');
+    }
+
+    if (properties.isNotEmpty) {
+      sb.write(' {${properties.keys.join(', ')}}');
+    }
+
+    return sb.toString();
+  }
+}
+
+// =============================================================================
+// EXTENSION: Add widget extraction to statement body
+// =============================================================================
+
+/// ✅ NEW: Extension for easy widget analysis on statement bodies
+extension StatementBodyWidgetAnalysis on List<StatementIR> {
+  /// Get all widgets from all statements in body
+  List<WidgetUsageIR> getAllWidgetUsages() {
+    final widgets = <WidgetUsageIR>[];
+
+    for (final stmt in this) {
+      widgets.addAll(stmt.getWidgetUsages());
+
+      // Recursively extract from nested blocks
+      _extractFromNestedStatements(stmt, widgets);
+    }
+
+    return widgets;
+  }
+
+  void _extractFromNestedStatements(
+    StatementIR stmt,
+    List<WidgetUsageIR> widgets,
+  ) {
+    if (stmt is BlockStmt) {
+      widgets.addAll(stmt.getAllNestedWidgets());
+    } else if (stmt is IfStmt) {
+      widgets.addAll(stmt.getAllBranchWidgets());
+    } else if (stmt is ForStmt || stmt is ForEachStmt || stmt is WhileStmt) {
+      if (stmt is ForStmt) {
+        _extractFromNestedStatements(stmt.body, widgets);
+      } else if (stmt is ForEachStmt) {
+        _extractFromNestedStatements(stmt.body, widgets);
+      } else if (stmt is WhileStmt) {
+        _extractFromNestedStatements(stmt.body, widgets);
+      }
+    } else if (stmt is TryStmt) {
+      _extractFromNestedStatements(stmt.tryBlock, widgets);
+      for (final catchClause in stmt.catchClauses) {
+        _extractFromNestedStatements(catchClause.body, widgets);
+      }
+      if (stmt.finallyBlock != null) {
+        _extractFromNestedStatements(stmt.finallyBlock!, widgets);
+      }
+    }
+  }
+}
