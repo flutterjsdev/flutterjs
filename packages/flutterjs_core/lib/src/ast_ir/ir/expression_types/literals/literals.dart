@@ -1,6 +1,46 @@
 import 'package:meta/meta.dart';
 import '../../../ast_it.dart';
-
+/// =============================================================================
+///  LITERAL EXPRESSIONS
+///  Constants and collection literals in the IR
+/// =============================================================================
+///
+/// PURPOSE
+/// -------
+/// Represents compile-time known values and collection literals:
+/// • Primitives: 42, 3.14, true, "hello", null
+/// • Collections: [1, 2], {'a': 1}, <int>{1, 2}
+/// • String interpolation: "Hello $name"
+///
+/// Used heavily in:
+/// • Constant evaluation
+/// • Widget optimization (const widgets)
+/// • Code generation
+/// • Dead code elimination
+///
+/// KEY COMPONENTS
+/// --------------
+/// • Int/Double/String/Bool/NullLiteralExpr
+/// • ListLiteralExpr, MapLiteralExpr, SetLiteralExpr
+/// • MapEntryIR (for map entries)
+/// • isConstant flag (true for pure literals)
+///
+/// FEATURES
+/// --------
+/// • Full interpolation support in strings
+/// • Type information for collections
+/// • JSON serialization
+/// • Smart toShortString() with element counts
+///
+/// RELATED FILES
+/// -------------
+/// • expression_ir.dart
+/// • type_ir.dart
+/// • constant_evaluator.dart (future)
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 
 @immutable
 class IntLiteralExpr extends ExpressionIR {

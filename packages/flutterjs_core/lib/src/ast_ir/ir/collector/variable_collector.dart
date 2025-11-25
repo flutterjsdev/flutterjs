@@ -5,7 +5,48 @@ import '../expression_types/literals/literals.dart';
 import '../expression_types/operations/operations.dart';
 import '../expression_types/variables_access/vaibales_access.dart';
 import 'expression_visitor.dart';
-
+/// =============================================================================
+///  VARIABLE COLLECTOR
+///  Part of the custom Dart IR (Intermediate Representation) analyzer
+/// =============================================================================
+///
+/// PURPOSE
+/// -------
+/// Recursively traverses an expression tree and collects every variable
+/// (identifier) that is *read* or *referenced* within it.
+///
+/// This is extremely useful for:
+/// • Detecting undeclared variables
+/// • Building dependency graphs
+/// • Implementing "find all usages"
+/// • Supporting refactoring tools
+/// • Analyzing closure-captured variables
+/// • Linter rules (e.g. "no unused variables")
+///
+/// FEATURES
+/// --------
+/// • Handles all expression kinds (literals, operations, calls, etc.)
+/// • Properly walks inside string interpolations
+/// • Ignores literals and constants — only collects IdentifierExpr nodes
+/// • Thread-safe: can be reused across multiple expressions
+/// • Result available via the public `variables` Set<String>
+///
+/// USAGE EXAMPLE
+/// -------------
+/// ```dart
+/// final collector = VariableCollector();
+/// collector.visit(someComplexExpression);
+/// print(collector.variables); // → {'count', 'user', 'isActive'}
+/// ```
+///
+/// NOTE
+/// ----
+/// This visitor only collects *references*, not declarations.
+/// For declarations, use `VariableDeclarationExtractor` from expression_visitor.dart.
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 /// Collects all variable references
 class VariableCollector implements ExpressionVisitor<void> {
   final Set<String> variables = {};

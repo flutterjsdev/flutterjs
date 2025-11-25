@@ -5,10 +5,43 @@ import 'dart:core';
 
 import '../function_decl.dart';
 
-// =============================================================================
-// WIDGET CLASSIFICATION ENUMS
-// =============================================================================
-
+/// <---------------------------------------------------------------------------->
+/// widget_classification.dart
+/// ----------------------------------------------------------------------------
+///
+/// Core model and classification engine for Flutter widgets in a static-analysis
+/// tool (custom linter, IDE plugin, architecture auditor, performance profiler, etc.).
+///
+/// This file provides:
+/// • Enums that categorise widgets by type, purpose, performance impact, and child-handling
+/// • [WidgetDecl] – an immutable, enriched representation of a widget class that extends
+///   the generic [ClassDecl] with widget-specific diagnostics (const-constructible,
+///   rebuild frequency, known anti-patterns, etc.)
+/// • [WidgetProperty] & [ChildHandling] – metadata for common widget parameters
+/// • [WidgetClassifier] – a pure-static service that automatically classifies any
+///   [ClassDecl] into a fully-populated [WidgetDecl] using heuristics, name-based
+///   look-ups, and deep analysis of constructors, fields, and the build method.
+///
+/// The classifier is deliberately stateless and side-effect-free so it can be used
+/// both in a one-pass analyzer and in incremental/re-entrant analysis pipelines.
+///
+/// Typical usage inside an analyzer:
+/// ```dart
+/// final widgetDecl = WidgetClassifier.classify(classDecl);
+/// print('Widget ${widgetDecl.name} → ${widgetDecl.characteristics}');
+/// if (widgetDecl.knownIssues.isNotEmpty) { … report issues … }
+/// ```
+///
+/// The data produced here is consumed by:
+/// • Performance dashboards (expensive rebuild detection)
+/// • Architecture linters (StatelessWidget with mutable fields, etc.)
+/// • Widget-tree visualisers
+/// • Automatic refactoring tools (extract-widget, add-const, etc.)
+///
+/// All classes are `@immutable` and provide value-equality, JSON serialization
+/// helpers (via `toJson` on related IR nodes), and rich `toString` overrides for
+/// debugging and reporting.
+/// <---------------------------------------------------------------------------->
 /// Categorizes different widget types in Flutter
 enum WidgetType {
   /// StatelessWidget - no internal state

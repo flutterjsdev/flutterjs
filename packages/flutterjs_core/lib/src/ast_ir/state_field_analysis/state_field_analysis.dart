@@ -5,25 +5,36 @@ import '../ir/expression_ir.dart';
 import '../ir/ir_node.dart';
 import '../variable_decl.dart';
 
-// =============================================================================
-// STATE FIELD ANALYSIS
-// =============================================================================
-
-/// Detailed analysis of a single state field's role in UI reactivity
+/// <---------------------------------------------------------------------------->
+/// state_field_analysis.dart
+/// ----------------------------------------------------------------------------
 ///
-/// Tracks how a field affects rendering, when it's accessed, modified,
-/// and whether those modifications actually impact the UI.
+/// Fine-grained analysis of individual state fields inside StatefulWidget State
+/// classes (or any class that uses `setState` / reactive patterns).
 ///
-/// Example analysis for a state field:
-/// ```dart
-/// int _counter = 0;  // field
+/// Core entity: [StateFieldAnalysis] – describes one field’s lifecycle,
+/// usage, and impact on the widget tree:
+/// • Where it is read in `build()` (or never → dead code)
+/// • Where it is mutated via `setState()`
+/// • Resource handling (controllers, streams, listeners) and disposal checks
+/// • Dependency graph (which other fields it depends on / affects)
+/// • Performance impact and high-impact field detection
 ///
-/// // Analysis shows:
-/// // - accessed in build() at line 45
-/// // - modified by 3 setState() calls
-/// // - always triggers rebuild
-/// // - initialized in initState()
-/// ```
+/// Additional IR:
+/// • [SetStateModificationIR] – details of every `setState` call that touches the field
+/// • [FieldInitializationIR] / [FieldDisposalIR] – init/dispose paths
+/// • Issue containers ([StateFieldIssueIR]) and rebuild-trigger edges
+///
+/// Used for:
+/// • Detecting unused / dead state fields
+/// • Finding “modified in build()” bugs
+/// • Resource-leak diagnostics (controller not disposed)
+/// • Recommending field extraction or conversion to provider/selectors
+/// • Building the global rebuild-trigger graph (see rebuild_trigger_graph.dart)
+///
+/// All types are immutable, provide rich `toJson` and human-readable summaries,
+/// and are designed for incremental analysis and merging of results.
+/// <---------------------------------------------------------------------------->
 @immutable
 class StateFieldAnalysis extends IRNode {
   /// The field being analyzed

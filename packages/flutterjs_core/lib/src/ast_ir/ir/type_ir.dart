@@ -4,7 +4,70 @@ import 'ir_node.dart';
 import 'types/function_type_ir.dart';
 import 'types/generic_type_ir.dart';
 
-/// Base class for all type representations in the IR
+/// =============================================================================
+///  TYPE IR REPRESENTATIONS
+///  Part of the custom Dart IR analyzer
+/// =============================================================================
+///
+/// PURPOSE
+/// -------
+/// Defines a unified way to represent Dart types in the IR, including:
+/// • Simple types (int, String)
+/// • Generic types (List<T>)
+/// • Function types
+/// • Special types (dynamic, void, Never)
+///
+/// Supports nullability, assignability checks, and common factory methods.
+///
+/// KEY COMPONENTS
+/// --------------
+/// 1. TypeIR              → Abstract base for all types
+/// 2. SimpleTypeIR        → Non-generic or generic class types
+/// 3. DynamicTypeIR       → The 'dynamic' type
+/// 4. VoidTypeIR          → The 'void' type
+/// 5. NeverTypeIR         → The 'Never' type
+/// 6. TypeParameterIR     → For generic parameters (T extends Bound)
+///
+/// FEATURES
+/// --------
+/// • Nullability support (? operator)
+/// • Display names (e.g., "List<String>?")
+/// • Assignability/isSubtypeOf checks
+/// • Built-in detection (int, bool, etc.)
+/// • JSON serialization (toJson/fromJson)
+/// • Factories for common types (widget(), future(T), list(T))
+///
+/// USAGE EXAMPLE
+/// -------------
+/// ```dart
+/// // Create a nullable List<int>
+/// final listType = TypeIR.list(
+///   SimpleTypeIR(id: 'int', name: 'int', sourceLocation: loc)
+/// ).copyWith(isNullable: true);
+/// 
+/// // Check assignability
+/// if (myVarType.isAssignableTo(listType)) { ... }
+/// 
+/// // Display
+/// print(listType.displayName()); // "List<int>?"
+/// ```
+///
+/// EXTENSIBILITY
+/// -------------
+/// • Override displayName() for custom formatting
+/// • Extend isAssignableTo() for hierarchy-aware checks
+/// • Add more factories for domain-specific types
+///
+/// RELATED FILES
+/// -------------
+/// • ir_node.dart          → Base IRNode class
+/// • expression_ir.dart    → Expressions using these types
+/// • types/function_type_ir.dart → Function signatures
+/// • types/generic_type_ir.dart  → Generic handling
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 abstract class TypeIR extends IRNode {
   final String name;
   final bool isNullable;

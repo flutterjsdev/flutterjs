@@ -8,7 +8,52 @@ import '../expression_types/operations/operations.dart';
 import '../expression_types/variables_access/vaibales_access.dart';
 import '../statement/statement_ir.dart';
 import '../type_ir.dart';
-
+/// =============================================================================
+///  EXPRESSION & STATEMENT VISITOR FRAMEWORK
+///  Core analysis infrastructure for the custom Dart IR
+/// =============================================================================
+///
+/// OVERVIEW
+/// --------
+/// This file contains the complete visitor pattern implementation for
+/// traversing and analyzing the `ExpressionIR` and `StatementIR` AST.
+///
+/// It enables multiple independent analyses (type inference, constant folding,
+/// metrics, linting, etc.) without coupling them to the node classes.
+///
+/// KEY VISITORS INCLUDED
+/// ---------------------
+/// • DepthCalculator          → Maximum expression nesting depth
+/// • TypeInferencer            → Bottom-up type inference with context
+/// • ConstantFolder            → Evaluates compile-time constant expressions
+/// • DependencyExtractor       → Extracts function/method/constructor dependencies
+/// • StatementCounter          → Counts statements and control-flow nodes
+/// • VariableDeclarationExtractor → Finds all declared variables in a block
+/// • ReachabilityAnalyzer      → Detects unreachable code after return/throw/break
+///
+/// EXTENDING THE FRAMEWORK
+/// -----------------------
+/// To create a new analysis:
+///   1. Implement `ExpressionVisitor<R>` and/or `StatementVisitor<R>`
+///   2. Use the provided `_visit()` dispatcher for clean type-switching
+///   3. Return meaningful results or mutate internal state as needed
+///
+/// All visitors are designed to be fast, reusable, and composable.
+///
+/// PERFORMANCE
+/// -----------
+/// Visitors use direct `is` checks + private `_visit()` dispatchers for
+/// maximum performance (avoids virtual method overhead where possible).
+///
+/// RELATED FILES
+/// -------------
+/// • variable_collector.dart → Specialized collector for referenced variables
+/// • expression_ir.dart      → Core node definitions
+/// • statement_ir.dart       → Control-flow node definitions
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 /// Base visitor interface for traversing expressions
 abstract class ExpressionVisitor<R> {
   R visitIntLiteral(IntLiteralExpr expr);

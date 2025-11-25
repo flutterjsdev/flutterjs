@@ -6,8 +6,46 @@ import '../../function_decl.dart';
 import '../expression_ir.dart';
 import '../ir_node.dart';
 import '../type_ir.dart';
-
-/// Base class for all statement IR nodes
+/// =============================================================================
+///  STATEMENT IR HIERARCHY
+///  Complete Intermediate Representation for Dart statements
+/// =============================================================================
+///
+/// PURPOSE
+/// -------
+/// Defines immutable IR nodes for all Dart statement types, with built-in
+/// support for widget analysis via WidgetUsageIR.
+///
+/// Covers:
+/// • Simple: expressions, declarations, returns, break/continue, throw
+/// • Control: if/else, for/foreach, while/do-while
+/// • Blocks: nested statements
+/// • Exceptions: try/catch/finally
+/// • Switching: switch/case/default
+///
+/// KEY FEATURES
+/// ------------
+/// • Widget integration: widgetUsages list on every statement
+/// • Human-readable toShortString()
+/// • Recursive widget extraction via extensions
+/// • Immutable + metadata support
+/// • Easy nested traversal
+///
+/// EXTENSION: StatementBodyWidgetAnalysis
+/// --------------------------------------
+/// Provides getAllWidgetUsages() for recursive widget collection from bodies.
+///
+/// RELATED FILES
+/// -------------
+/// • ir_node.dart           → Base IRNode
+/// • expression_ir.dart     → Expressions in statements
+/// • type_ir.dart           → Types in declarations
+/// • function_decl.dart     → Function body integration
+/// • statement_widget_analyzer.dart → Populates widgetUsages
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 @immutable
 abstract class StatementIR extends IRNode {
   // ✅ NEW: Widget analysis data

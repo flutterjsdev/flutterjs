@@ -7,11 +7,34 @@ import '../function_decl.dart';
 import '../variable_decl.dart';
 import '../ir/type_ir.dart';
 import '../ir/statement/statement_ir.dart';
-
-// =============================================================================
-// LIFECYCLE METHOD DECLARATIONS
-// =============================================================================
-
+/// <---------------------------------------------------------------------------->
+/// state_class_representation.dart
+/// ----------------------------------------------------------------------------
+///
+/// Rich, analysis-oriented representation of a Flutter `State<T>` class.
+///
+/// Extends the generic class model with State-specific entities:
+/// • Lifecycle method declarations ([LifecycleMethodDecl]) with super-call tracking
+/// • Enhanced field model ([StateFieldDecl]) that knows about build access,
+///   controller status, and disposal correctness
+/// • Detailed `setState()` call model ([SetStateCallDecl]) with severity rating
+/// • Extended `build()` model ([BuildMethodDecl]) containing tree depth,
+///   loop detection, widget-in-loop flags, ancestor/provider reads, etc.
+///
+/// The file also contains [StateAnalyzer] – a pure-static utility that runs
+/// dozens of heuristic checks and produces:
+/// • Lists of [LifecycleIssue] (missing super, resource leaks, async build, …)
+/// • Health reports and scores for each State class
+///
+/// This is the central hub consumed by UI-facing diagnostics:
+/// • “This StatefulWidget could be Stateless”
+/// • “Missing dispose() for 3 controllers”
+/// • “setState() called inside a loop → critical”
+/// • “build() creates widgets in loops → suggest ListView.builder”
+///
+/// All data structures are immutable and optimized for serialization,
+/// deduplication, and presentation in IDEs, CLI tools, or web dashboards.
+/// <---------------------------------------------------------------------------->
 /// Information about a State lifecycle method
 @immutable
 class LifecycleMethodDecl extends MethodDecl {

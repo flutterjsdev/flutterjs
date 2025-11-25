@@ -5,10 +5,42 @@ import '../ir/ir_node.dart';
 import '../ir/statement/statement_ir.dart';
 import '../state_class_representation/state_class_representation.dart';
 
-// =============================================================================
-// LIFECYCLE ANALYSIS
-// =============================================================================
-
+/// <---------------------------------------------------------------------------->
+/// lifecycle_analysis.dart
+/// ----------------------------------------------------------------------------
+///
+/// Deep lifecycle correctness analysis for `State<T>` classes (initState,
+/// didUpdateWidget, dispose, etc.).
+///
+/// Primary entity: [LifecycleAnalysis] – aggregates every operation that occurs
+/// in each lifecycle method and validates resource acquisition/disposal order,
+/// super-call requirements, async safety, and error handling.
+///
+/// Key sub-models:
+/// • [LifecycleOperationIR] – a single statement in a lifecycle method
+/// • [ResourceLeakIR], [UseBeforeInitIR], [OrderingIssueIR] – concrete problems
+/// • Comprehensive issue list with severity and fix suggestions
+///
+/// Detects critical bugs such as:
+/// • AnimationController created but never disposed
+/// • Field used before initState runs
+/// • Missing `super.initState()` / `super.dispose()`
+/// • Async operations in initState without proper handling
+///
+/// Provides a health score (0-100) and a human-readable summary used by IDE
+/// quick-fixes, CI reports, and architecture dashboards.
+///
+/// All classes are immutable, JSON-serializable, and designed for incremental
+/// analysis passes and result merging.
+/// <---------------------------------------------------------------------------->
+/// 
+/// 
+/// 
+/// 
+/// 
+/// 
+/// 
+/// 
 /// Comprehensive analysis of State lifecycle methods and their correctness
 ///
 /// Tracks what operations happen at each lifecycle stage and detects:

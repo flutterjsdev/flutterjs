@@ -1,6 +1,50 @@
 import 'package:meta/meta.dart';
 import '../../expression_ir.dart';
-
+/// =============================================================================
+///  OPERATOR EXPRESSIONS
+///  Binary, unary, assignment, and conditional operations
+/// =============================================================================
+///
+/// PURPOSE
+/// -------
+/// Models all Dart operators as first-class IR nodes:
+/// • Arithmetic: +, -, *, /, ~/
+/// • Comparison: ==, !=, <, >, <=, >=
+/// • Logical: &&, ||
+/// • Bitwise: &, |, ^, <<, >>>
+/// • Null coalescing: ??>
+/// • Assignments: =, +=, ??=
+/// • Ternary: condition ? a : b
+///
+/// Essential for:
+/// • Constant folding
+/// • Optimization
+/// • Code transformation
+/// • Linter rules
+///
+/// KEY COMPONENTS
+/// --------------
+/// • BinaryOpExpr           → left + right
+/// • UnaryOpExpr            → !value, ++count
+/// • AssignmentExpr         → x = 5, y += 1
+/// • ConditionalExpr        → isTrue ? a : b
+///
+/// FEATURES
+/// --------
+/// • Full enum coverage of Dart operators
+/// • Compound assignment support
+/// • isConstant flag for folding
+/// • Rich toShortString()
+///
+/// RELATED FILES
+/// -------------
+/// • expression_ir.dart
+/// • type_ir.dart
+/// • constant_folder.dart (future)
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 enum BinaryOperator {
   add,
   subtract,

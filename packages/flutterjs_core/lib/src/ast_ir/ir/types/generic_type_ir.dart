@@ -1,6 +1,39 @@
 import '../../diagnostics/source_location.dart';
 import '../type_ir.dart';
-
+/// =============================================================================
+///  GENERIC TYPE REPRESENTATION
+///  List<T>, Map<K,V>, FutureOr<T>, etc.
+/// =============================================================================
+///
+/// PURPOSE
+/// -------
+/// Represents instantiated generic types with concrete type arguments
+/// and optional type parameters (for generic type aliases or declarations).
+///
+/// Used in:
+/// • Type inference
+/// • Generic method resolution
+/// • Bounds checking
+///
+/// EXAMPLE
+/// -------
+/// ```dart
+/// GenericTypeIR(
+///   name: 'List',
+///   typeArguments: [stringType],
+///   // → List<String>
+/// )
+/// ```
+///
+/// RELATED FILES
+/// -------------
+/// • type_ir.dart
+/// • class_type_ir.dart
+/// • function_type_ir.dart
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 class GenericTypeIR extends TypeIR {
   final List<TypeIR> typeArguments;
   final List<TypeParameterIR> typeParameters;

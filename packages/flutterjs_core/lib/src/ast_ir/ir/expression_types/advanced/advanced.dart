@@ -4,6 +4,48 @@ import '../../statement/statement_ir.dart';
 import '../../type_ir.dart';
 import '../../types/parameter_ir.dart';
 
+/// =============================================================================
+///  FUNCTION, METHOD & CONSTRUCTOR CALLS
+///  Invocation expressions in the IR
+/// =============================================================================
+///
+/// PURPOSE
+/// -------
+/// Represents all forms of callable invocations:
+/// • Free functions: print("hello")
+/// • Methods: obj.doSomething()
+/// • Constructors: MyWidget(), const Text("hi")
+/// • Null-aware and cascade calls
+///
+/// Critical for:
+/// • Dependency analysis
+/// • Widget tree extraction
+/// • Performance profiling
+/// • Refactoring
+///
+/// KEY COMPONENTS
+/// --------------
+/// • FunctionCallExpr       → print(), myFunc()
+/// • MethodCallExpr         → obj.method(), obj?.call(), obj..update()
+/// • ConstructorCallExpr    → Widget(), const Padding()
+///
+/// FEATURES
+/// --------
+/// • Positional + named arguments
+/// • Generic type arguments <T>()
+/// • Null-aware and cascade support
+/// • const constructor detection
+/// • Rich metadata attachment
+///
+/// RELATED FILES
+/// -------------
+/// • expression_ir.dart
+/// • constructor_call_expr.dart (legacy)
+/// • statement_widget_analyzer.dart → Heavily uses ConstructorCallExpr
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 @immutable
 class LambdaExpr extends ExpressionIR {
   final List<ParameterIR> parameters;

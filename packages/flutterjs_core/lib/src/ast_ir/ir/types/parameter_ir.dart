@@ -2,7 +2,52 @@ import '../expression_ir.dart';
 import '../ir_node.dart';
 import '../type_ir.dart';
 import '../../diagnostics/source_location.dart';
-
+/// =============================================================================
+///  FUNCTION/METHOD PARAMETER MODEL
+///  Complete parameter representation in the IR
+/// =============================================================================
+///
+/// PURPOSE
+/// -------
+/// Represents a single parameter in functions, methods, constructors, etc.
+/// with full metadata: type, name, optionality, default values, and source info.
+///
+/// Essential for:
+/// • Call site checking
+/// • Overload resolution
+/// • Refactoring (rename parameter)
+/// • Code generation
+///
+/// FEATURES
+/// --------
+/// • Positional / named / optional
+/// • Required named parameters (Dart 2.0+)
+/// • Default values (as ExpressionIR)
+/// • Variadic detection (...args)
+/// • Rich string formatting (signature, declaration)
+///
+/// EXAMPLE
+/// -------
+/// ```dart
+/// ParameterIR(
+///   name: 'callback',
+///   type: functionType,
+///   isNamed: true,
+///   isRequired: true,
+///   defaultValue: null,
+/// )
+/// // → "required void Function() callback"
+/// ```
+///
+/// RELATED FILES
+/// -------------
+/// • function_type_ir.dart
+/// • expression_ir.dart
+/// • type_ir.dart
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 /// Represents a parameter in a function, method, or constructor
 class ParameterIR extends IRNode {
   final String name;

@@ -13,18 +13,39 @@ import 'ast_ir/diagnostics/issue_category.dart';
 import 'ast_ir/diagnostics/source_location.dart';
 import 'symbol_resolution.dart';
 
-/// Pass 3: Type Inference
+/// <---------------------------------------------------------------------------->
+/// type_inference_pass.dart
+/// ----------------------------------------------------------------------------
 ///
-/// Input: Resolved declarations from Pass 2 (SymbolResolutionPass)
-/// Output: Complete type information for all expressions, no UnresolvedTypeIR remaining
+/// Bottom-up type inference engine for expressions and declarations (Pass 3).
 ///
-/// Responsibilities:
-/// 1. Infer expression types bottom-up (literals, binary ops, method calls, etc.)
-/// 2. Resolve type parameters and generics
-/// 3. Fill in UnresolvedTypeIR with actual inferred types
-/// 4. Track type mismatches and incompatibilities
-/// 5. Build type compatibility graph
-/// 6. Report type errors as analysis issues
+/// Infers types for all expressions ([ExpressionIR]) using resolved symbols,
+/// operator rules, and compatibility graphs. Replaces [UnresolvedTypeIR] with
+/// concrete types and reports mismatches.
+///
+/// Primary class: [TypeInferencePass] – traverses files to infer types recursively,
+/// caching results and building a compatibility graph for hierarchies/subtypes.
+///
+/// Features:
+/// • Literal inference (int, string, list, map, etc.)
+/// • Binary/unary op type propagation (e.g., int + double → double)
+/// • Function call/return type resolution with generics
+/// • Scope-based variable type tracking
+/// • Custom IR for wrappers (FutureTypeIR, StreamTypeIR)
+/// • Provider-specific inference (state types from registries)
+/// • Issue reporting for mismatches/incompatibilities
+///
+/// Example:
+/// dart /// final inferred = inferer.inferExpressionType(expr); /// if (inferred is UnresolvedTypeIR) { report error } /// 
+///
+/// Enables:
+/// • Flow analysis (Pass 4) with typed statements
+/// • Validation (Pass 5) for type-safe patterns
+/// • Optimization hints (e.g., unnecessary casts)
+/// • Advanced queries (e.g., "find all Future<Widget> returns")
+///
+/// Types are immutable; info stored as [TypeInferenceInfo] per file.
+/// <---------------------------------------------------------------------------->
 class TypeInferencePass {
   /// All DartFiles in project (from Pass 2 with resolutions)
   final Map<String, DartFile> dartFiles;

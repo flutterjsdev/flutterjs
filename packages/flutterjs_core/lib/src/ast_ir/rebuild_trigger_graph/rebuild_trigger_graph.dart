@@ -2,21 +2,38 @@ import 'package:meta/meta.dart';
 import '../diagnostics/analysis_issue.dart';
 import '../ir/ir_node.dart';
 
-// =============================================================================
-// REBUILD TRIGGER GRAPH
-// =============================================================================
-
-/// Models the dependency graph: State Field → Build Method Rebuild
+/// <---------------------------------------------------------------------------->
+/// rebuild_trigger_graph.dart
+/// ----------------------------------------------------------------------------
 ///
-/// This graph captures when modifications to state fields trigger widget rebuilds.
-/// Each node is a (StateField, BuildMethod) pair, and edges represent the
-/// causal relationship with associated costs (how expensive is this rebuild?).
+/// Directed graph that models **which state field changes trigger which build
+/// method executions** (the “rebuild trigger” graph).
 ///
-/// Enables analysis like:
-/// - "What triggers rebuilds of this widget?"
-/// - "How many rebuilds does changing field X cause?"
-/// - "Which rebuilds are expensive?"
-/// - "Can we eliminate unnecessary rebuilds?"
+/// Core entities:
+/// • [RebuildTriggerGraph] – container for nodes, edges, transitive closure
+/// • [RebuildEdge] – source field → target build method with detailed cost info
+/// • [RebuildCostIR] – estimated ms cost, widget count, const-ratio, nesting depth…
+/// • Comprehensive analysis ([GraphAnalysisIR]) and issue containers
+///
+/// The graph powers advanced diagnostics:
+/// • Unnecessary rebuild detection
+/// • Expensive / cascading rebuild identification
+/// • High-impact field discovery (“changing this one field rebuilds 87 widgets”)
+/// • Optimization suggestions (add const, extract widget, memoize, split state…)
+///
+/// Features:
+/// • Transitive closure pre-computed for O(1) “what does X affect?” queries
+/// • Cost model that respects loops, conditionals, dynamic children, etc.
+/// • Rich JSON export for visualisation tools
+/// • Immutable design with value-equality for safe incremental updates
+///
+/// Typical usage:
+/// ```dart
+/// final graph = RebuildTriggerGraph.buildFrom(project);
+/// final cascades = graph.findCascades();
+/// for (final c in cascades) { report “field X triggers ${c.cascadeLength} rebuilds” }
+/// ```
+/// <---------------------------------------------------------------------------->
 @immutable
 class RebuildTriggerGraph extends IRNode {
   /// All rebuild nodes: (StateField, BuildMethod) pairs

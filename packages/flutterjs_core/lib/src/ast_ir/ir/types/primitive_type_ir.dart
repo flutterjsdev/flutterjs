@@ -1,6 +1,41 @@
 import '../type_ir.dart';
 import '../../diagnostics/source_location.dart';
-
+/// =============================================================================
+///  PRIMITIVE & BUILT-IN TYPE REPRESENTATIONS
+///  int, double, bool, String, void, dynamic, Never
+/// =============================================================================
+///
+/// PURPOSE
+/// -------
+/// Canonical, fast representations of Dart’s built-in types with proper
+/// semantics, nullability, and factory constructors.
+///
+/// Used everywhere performance and correctness matter.
+///
+/// FEATURES
+/// --------
+/// • Enum-based kind (PrimitiveKind)
+/// • Dedicated factory methods: .int(), .string(), .void_(), etc.
+/// • Proper isBuiltIn = true
+/// • Optimized for frequent use
+/// • Full serialization
+///
+/// BEST PRACTICE
+/// -------------
+/// Always use the factories:
+/// ```dart
+/// PrimitiveTypeIR.string(id: 'str', sourceLocation: loc, isNullable: true)
+/// ```
+/// Never: new PrimitiveTypeIR(name: 'String', ...)
+///
+/// RELATED FILES
+/// -------------
+/// • type_ir.dart
+/// • nullable_type_ir.dart
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 class PrimitiveTypeIR extends TypeIR {
   final PrimitiveKind kind;
 

@@ -24,10 +24,38 @@ import 'code_reader/ast_component_adapter.dart';
 import 'statement_extraction_pass.dart';
 
 import 'ast_ir/function_decl.dart' as cd;
-
-// ============================================================================
-// DECLARATION PASS: Main class with WidgetProducerDetector integration
-// ============================================================================
+/// <---------------------------------------------------------------------------->
+/// declaration_pass.dart
+/// ----------------------------------------------------------------------------
+///
+/// Initial AST traversal and declaration extraction for a Flutter/Dart analyzer (Pass 1).
+///
+/// Visits the AST to collect top-level declarations (classes, functions, variables,
+/// imports/exports/parts) and builds an intermediate representation ([DartFileBuilder]).
+/// Integrates widget detection and component extraction for Flutter-specific insights.
+///
+/// Core class: [DeclarationPass] – a [RecursiveAstVisitor] that populates collections
+/// for classes, functions, etc., and extracts components via [ComponentExtractor].
+///
+/// Key features:
+/// • Handles all declaration types with metadata (annotations, docs, visibility)
+/// • Widget detection via [WidgetProducerDetector] for classes/functions
+/// • Symmetric function extraction for pure/impure classification
+/// • Component system for Flutter widgets (constructors, properties, children)
+/// • Scope tracking and inheritance chain resolution
+/// • Built-in type checks and source location mapping
+///
+/// Usage:
+/// dart /// final pass = DeclarationPass(...); /// compilationUnit.accept(pass); /// final dartFile = pass.buildDartFile(); /// 
+///
+/// Outputs feed into:
+/// • Symbol resolution (Pass 2)
+/// • Type inference (Pass 3)
+/// • Widget tree analysis and validation
+/// • Component-based diagnostics (missing props, empty children)
+///
+/// Includes extensions for convenience (e.g., [ForStatementHelper]) and rich debugging.
+/// <---------------------------------------------------------------------------->
 
 class DeclarationPass extends RecursiveAstVisitor<void> {
   // =========================================================================

@@ -2,17 +2,57 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import '../expression_types/cascade_expression_ir.dart';
 
-/// ✅ Analyzes statements to extract widget usages
-/// Adds WidgetUsageIR data to StatementIR objects
+/// =============================================================================
+///  STATEMENT WIDGET ANALYZER
+///  Flutter-specific widget usage extractor for statements
+/// =============================================================================
 ///
-/// Handles ALL common Flutter patterns:
-/// - Basic widget returns and assignments
-/// - Conditionals (ternary, if/else)
-/// - Cascades (Scaffold()..appBar = AppBar())
-/// - Null-aware operations (obj?.buildWidget())
-/// - Null coalescing (widget ?? DefaultWidget())
-/// - Compound assignments (children ??= [...])
-/// - Collections and nested structures
+/// PURPOSE
+/// -------
+/// Analyzes Dart statements (from AST) to identify and extract Flutter widget
+/// usages, adding WidgetUsageIR metadata to each StatementIR.
+///
+/// Handles all common patterns:
+/// • Direct returns: return Scaffold(...);
+/// • Assignments: final w = Container(...);
+/// • Conditionals: if (...) Text(...) else Icon(...);
+/// • Cascades: Scaffold()..body = Text(...);
+/// • Null-aware/coalescing: obj?.widget ?? Default();
+/// • Collections: children: [Text(), Icon()];
+/// • Nested blocks/loops/try-catch
+///
+/// Integrates with DartFileBuilder for full analysis pipeline.
+///
+/// USAGE
+/// -----
+/// ```dart
+/// final analyzer = StatementWidgetAnalyzer(
+///   filePath: 'lib/main.dart',
+///   fileContent: sourceCode,
+///   builder: myBuilder,
+/// );
+/// analyzer.analyzeStatementsForWidgets(statementsList);
+/// ```
+///
+/// After analysis, access via stmt.widgetUsages.
+///
+/// DESIGN NOTES
+/// ------------
+/// • Recursive extraction for nested structures
+/// • Preserves original StatementIR via immutable updates
+/// • Flutter-specific: Focuses on constructor calls like Scaffold()
+/// • Extensible: Add more patterns in _extractWidgetsFromExpression()
+///
+/// RELATED FILES
+/// -------------
+/// • statement_ir.dart      → StatementIR + WidgetUsageIR
+/// • expression_ir.dart     → Expression handling
+/// • cascade_expression_ir.dart → Cascade support
+/// • flutterjs_core.dart    → Core Flutter analysis utils
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 class StatementWidgetAnalyzer {
   final String filePath;
   final String fileContent;

@@ -14,9 +14,43 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:analyzer/file_system/physical_file_system.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
-
-/// Simplified, production-grade Widget detection
-/// Uses only stable analyzer APIs (^8.4.1+)
+// <---------------------------------------------------------------------------->
+/// analyzer_widget_detection_setup.dart
+/// ----------------------------------------------------------------------------
+///
+/// Production-grade widget detection utilities for a Flutter static analyzer.
+///
+/// This module focuses on robust, recursive identification of code that produces
+/// Flutter widgets, handling both classes and functions. It integrates with the
+/// Dart Analyzer's AST and element model to trace inheritance chains, return types,
+/// and builder patterns without relying on unstable APIs.
+///
+/// Core entity: [WidgetProducerDetector] – a stateful detector that resolves
+/// whether any Dart element (class, method, constructor, field) ultimately produces
+/// a Widget subtype. It uses:
+/// • Type resolution via [InterfaceType] and [DartType]
+/// • Recursion guards and caching to handle circular dependencies
+/// • Heuristics for common patterns (e.g., builder functions, const constructors)
+///
+/// Key features:
+/// • Detects direct Widget subclasses, StatefulWidget States, and indirect producers
+/// • Handles generics, factories, redirects, and inherited types
+/// • Stable ID generation for elements to enable caching and cycle detection
+/// • Extensible for custom widget-like types (e.g., third-party frameworks)
+///
+/// Typical usage in an analysis pass:
+/// dart:disable-run /// final detector = WidgetProducerDetector(widgetInterfaceType); /// if (detector.producesWidget(classElement)) { /* process as widget */ } /// 
+///
+/// Designed for:
+/// • IDE plugins / linters needing precise widget identification
+/// • Architecture auditors (e.g., count Stateful vs Stateless)
+/// • Refactoring tools (e.g., extract-widget)
+/// • Performance analyzers (widget tree depth / rebuild tracking)
+///
+/// All methods are pure and thread-safe except for the detector's internal cache,
+/// which is per-instance. Classes provide rich toString for debugging.
+/// <---------------------------------------------------------------------------->
+/// 
 class WidgetProducerDetector {
   final InterfaceType widgetType;
   final LibraryElement flutterWidgetsLibrary;

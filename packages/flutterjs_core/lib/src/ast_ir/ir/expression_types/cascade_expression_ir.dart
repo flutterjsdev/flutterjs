@@ -2,14 +2,65 @@ import 'package:meta/meta.dart';
 import '../expression_ir.dart';
 import '../type_ir.dart';
 
-// =============================================================================
-// CASCADE EXPRESSION
-// =============================================================================
-
-/// Represents a cascade expression in Dart
-/// Allows multiple method calls on the same object
+/// =============================================================================
+///  ADVANCED EXPRESSION IR REPRESENTATIONS
+///  Cascade, null-aware, coalescing, and other complex expressions
+/// =============================================================================
 ///
-/// Example: `obj..method1()..method2()..property = value`
+/// PURPOSE
+/// -------
+/// Extends the core ExpressionIR with advanced Dart features:
+/// • Cascades: obj..method()..prop = value
+/// • Null-aware: obj?.method(), obj?[index]
+/// • Coalescing: value ?? default
+/// • Spreads: [...list, ...?nullable]
+/// • Compound assignments: x += 1
+/// • Parenthesized: (a + b) * c
+/// • Simple assignments: x = 5
+/// • String interpolations: "Hello $name"
+///
+/// Critical for accurate analysis of modern Dart/Flutter code.
+///
+/// KEY COMPONENTS
+/// --------------
+/// 1. CascadeExpressionIR          → obj..a()..b=1
+/// 2. NullAwareAccessExpressionIR  → obj?.prop
+/// 3. NullCoalescingExpressionIR   → a ?? b
+/// 4. SpreadExpressionIR           → ...list
+/// 5. CompoundAssignmentExpressionIR → x += y
+/// 6. ParenthesizedExpressionIR    → (expr)
+/// 7. AssignmentExpressionIR       → target = value
+/// 8. StringInterpolationPart      → Text or $expr in strings
+///
+/// FEATURES
+/// --------
+/// • Full JSON serialization (toJson/fromJson)
+/// • Human-readable toShortString()
+/// • Immutable + metadata
+/// • Enum-based types (e.g., NullAwareOperationType)
+/// • Validation asserts in constructors
+///
+/// USAGE EXAMPLE
+/// -------------
+/// ```dart
+/// final cascade = CascadeExpressionIR(
+///   target: IdentifierExpressionIR(... 'obj' ...),
+///   cascadeSections: [methodCall, assignment],
+///   resultType: objType,
+/// );
+/// print(cascade.toShortString()); // "obj..2 cascade(s)"
+/// ```
+///
+/// RELATED FILES
+/// -------------
+/// • expression_ir.dart     → Base ExpressionIR
+/// • type_ir.dart           → Result types
+/// • operations.dart        → Binary/unary ops
+/// • literals.dart          → String literals with interpolation
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 @immutable
 class CascadeExpressionIR extends ExpressionIR {
   /// The target object

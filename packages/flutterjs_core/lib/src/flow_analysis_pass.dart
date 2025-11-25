@@ -7,19 +7,37 @@ import 'ast_ir/diagnostics/analysis_issue.dart';
 import 'ast_ir/diagnostics/issue_category.dart';
 import 'ast_ir/diagnostics/source_location.dart';
 
-/// Pass 4: Flow Analysis
+/// <---------------------------------------------------------------------------->
+/// flow_analysis_pass.dart
+/// ----------------------------------------------------------------------------
 ///
-/// Input: Typed declarations from Pass 3 (TypeInferencePass)
-/// Output: Control flow graphs, rebuild triggers, lifecycle tracking, unreachable code
+/// Control flow and data flow analysis module for a multi-pass Flutter analyzer.
 ///
-/// Responsibilities:
-/// 1. Build rebuild trigger graphs for state changes
-/// 2. Trace state field access in build methods
-/// 3. Analyze method/function body control flow
-/// 4. Track lifecycle method execution order
-/// 5. Identify unreachable code and unused fields
-/// 6. Detect memory leaks (missing disposals)
-/// 7. Report performance anti-patterns
+/// This pass (Pass 4) takes typed declarations and builds:
+/// • Control flow graphs ([ControlFlowGraph]) for methods/constructors
+/// • Rebuild trigger mappings ([rebuildTriggers]) linking state fields to builds
+/// • State field access traces ([StateFieldFlowAnalysis]) for reads/writes
+/// • Lifecycle operation tracking ([LifecycleFlowAnalysis]) for State classes
+/// • Detection of unreachable code, unused declarations, and memory leaks
+///
+/// Primary class: [FlowAnalysisPass] – orchestrates the analysis, producing
+/// a [FlowAnalysisInfo] per file with graphs, traces, and issues.
+///
+/// Features:
+/// • Bottom-up CFG construction with node types (entry, exit, decision, etc.)
+/// • Transitive rebuild trigger computation
+/// • Scope-aware variable tracking and mutation analysis
+/// • Integration with prior passes (types, resolutions) for accurate flows
+/// • JSON-serializable IR for external visualization (e.g., graph exports)
+///
+/// Used by downstream passes for:
+/// • Dead code elimination
+/// • Performance diagnostics (unnecessary rebuilds)
+/// • Bug detection (use-before-init, missing dispose)
+/// • Optimization suggestions (batch setState, lazy init)
+///
+/// All data is immutable post-analysis; issues are reported as [AnalysisIssue].
+/// <---------------------------------------------------------------------------->
 class FlowAnalysisPass {
   /// All DartFiles in project (from Pass 3 with type inference)
   final Map<String, DartFile> dartFiles;

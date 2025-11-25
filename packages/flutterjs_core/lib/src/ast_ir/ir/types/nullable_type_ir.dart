@@ -1,7 +1,50 @@
 import '../../diagnostics/source_location.dart';
 import '../type_ir.dart';
-
-/// Wrapper for nullable types, preventing double-wrapping
+/// =============================================================================
+///  NULLABLE TYPE WRAPPER
+///  Safe wrapper for nullable types in the custom Dart IR
+/// =============================================================================
+///
+/// PURPOSE
+/// -------
+/// Explicitly represents a nullable type (T?) while preventing dangerous
+/// double-wrapping (T??). Used throughout the type system to maintain
+/// correctness during type inference, serialization, and analysis.
+///
+/// KEY FEATURES
+/// ------------
+/// • Prevents double-nullable wrapping via assert + flatten()
+/// • Safe unwrapping with unwrap()
+/// • Factory .flatten() removes nested nullability
+/// • Full JSON serialization support
+/// • Immutable + proper equality/hashCode
+///
+/// USAGE
+/// -----
+/// ```dart
+/// final stringNullable = NullableTypeIR.flatten(
+///   id: 'type_str_nullable',
+///   name: 'String',
+///   sourceLocation: loc,
+///   type: someStringType, // even if already nullable
+/// );
+/// print(stringNullable.displayName()); // "String?"
+/// ```
+///
+/// DESIGN NOTES
+/// ------------
+/// This is the canonical way to represent nullability in the IR.
+/// Never create T? manually — always go through NullableTypeIR or .toNullable().
+///
+/// RELATED FILES
+/// -------------
+/// • type_ir.dart           → Base TypeIR
+/// • class_type_ir.dart     → Uses toNullable()/toNonNullable()
+/// • primitive_type_ir.dart → Primitives are non-nullable by default
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 class NullableTypeIR extends TypeIR {
   final TypeIR innerType;
 

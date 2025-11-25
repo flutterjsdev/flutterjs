@@ -1,7 +1,50 @@
 import '../type_ir.dart';
 import 'parameter_ir.dart';
 import '../../diagnostics/source_location.dart';
-
+/// =============================================================================
+///  FUNCTION TYPE REPRESENTATION
+///  Full Dart function signature modeling
+/// =============================================================================
+///
+/// PURPOSE
+/// -------
+/// Models function, method, and closure types with complete parameter and
+/// generic information — critical for type checking, refactoring, and code gen.
+///
+/// Supports:
+/// • Positional, optional, named parameters
+/// • Required named parameters
+/// • Generic functions (T Function<U>(U))
+/// • Nullability on the function type itself
+///
+/// USAGE
+/// -----
+/// ```dart
+/// final callbackType = FunctionTypeIR(
+///   id: 'type_callback',
+///   name: 'void Function(String)',
+///   returnType: PrimitiveTypeIR.void_(...),
+///   parameters: [paramString],
+///   sourceLocation: loc,
+/// );
+/// ```
+///
+/// RICH DISPLAY
+/// ------------
+/// ```
+/// (String name, [int? age], {required bool active}) → void
+/// <T>(T value) → T?
+/// ```
+///
+/// RELATED FILES
+/// -------------
+/// • parameter_ir.dart
+/// • type_ir.dart
+/// • primitive_type_ir.dart
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 class FunctionTypeIR extends TypeIR {
   final TypeIR returnType;
   final List<ParameterIR> parameters;

@@ -5,10 +5,47 @@ import '../ir/expression_ir.dart';
 import '../ir/ir_node.dart';
 import '../ir/type_ir.dart';
 
-// =============================================================================
-// PROVIDER CLASS DECLARATION
-// =============================================================================
-
+/// <---------------------------------------------------------------------------->
+/// state_management.dart
+/// ----------------------------------------------------------------------------
+///
+/// Data model for state-management entities (ChangeNotifier, Bloc, Cubit,
+/// InheritedWidget, Riverpod, GetX, MobX, etc.) in a Flutter static-analysis suite.
+///
+/// Primary entity: [ProviderClassDecl] – an immutable, enriched view of a class
+/// that participates in state management. It captures:
+/// • Provider type ([ProviderTypeIR])
+/// • Managed state type and field-level mutation tracking
+/// • All `notifyListeners()` / event emission points
+/// • Consumption sites (`watch`, `read`, `select`, Consumer widgets, etc.)
+/// • Dependency graph (which providers depend on which)
+/// • Performance & health metrics (over-notification, dead code, circular deps…)
+///
+/// Supporting IR nodes:
+/// • [NotifyListenerCallIR], [StateMutationIR], [ProviderConsumerIR]
+/// • Stream operation tracking, consumption analysis, issue reporting
+///
+/// The model powers:
+/// • Provider-overuse / “god-provider” detection
+/// • Missing-notification & over-notification diagnostics
+/// • Dead-code elimination of unused providers
+/// • Refactoring suggestions (“split this provider”, “use selector”, etc.)
+/// • Visual dependency graphs in IDEs / web dashboards
+///
+/// Every class is immutable, JSON-serializable, and implements value-equality
+/// based on stable identifiers, guaranteeing correct deduplication when the
+/// same provider is analysed in multiple passes.
+///
+/// Example:
+/// ```dart
+/// final provider = ProviderClassDecl( … );
+/// if (provider.isDeadCode) { report unused provider … }
+/// if (provider.overNotifies) { suggest batching notifyListeners() … }
+/// ```
+/// <---------------------------------------------------------------------------->
+/// 
+/// 
+/// 
 /// Represents a state management provider class
 ///
 /// Extends ClassDecl to add provider-specific analysis for:

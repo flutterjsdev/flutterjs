@@ -5,14 +5,85 @@ import 'expression_types/operations/operations.dart';
 import 'ir_node.dart';
 import 'type_ir.dart';
 
-// =============================================================================
-// BASE EXPRESSION IR
-// =============================================================================
-
-/// Base class for all expression representations in the IR
+/// =============================================================================
+///  EXPRESSION IR REPRESENTATIONS
+///  Core for expression analysis in the custom Dart IR
+/// =============================================================================
 ///
-/// Expressions are code fragments that evaluate to a value
-/// Examples: 42, "hello", x + 1, obj.property, functionCall()
+/// PURPOSE
+/// -------
+/// Models all possible Dart expressions as immutable IR nodes, enabling:
+/// • Type inference
+/// • Constant evaluation
+/// • Dependency analysis
+/// • Code generation
+/// • Linting/optimization
+///
+/// Covers literals, operations, calls, collections, and more.
+///
+/// KEY COMPONENTS
+/// --------------
+/// 1. ExpressionIR         → Abstract base for all expressions
+/// 2. LiteralExpressionIR  → Numbers, strings, booleans, null
+/// 3. IdentifierExpressionIR → Variable references (this, super)
+/// 4. BinaryExpressionIR   → Arithmetic/logical operations
+/// 5. MethodCallExpressionIR → obj.method(args)
+/// 6. PropertyAccessExpressionIR → obj.property
+/// 7. ConditionalExpressionIR → cond ? then : else
+/// 8. List/Map/SetExpressionIR → Collection literals
+/// 9. IndexAccessExpressionIR → obj[index]
+/// 10. UnaryExpressionIR   → !operand, ++var
+/// 11. CastExpressionIR    → expr as Type
+/// 12. ConstructorCallExpressionIR → Class(args)
+/// 13. FunctionExpressionIR → (params) => body
+/// 14. Specialized: FlutterWidgetConstructorIR, WidgetPropertyIR, etc.
+///
+/// FEATURES
+/// --------
+/// • Result type tracking (resultType)
+/// • Const detection (isConstant)
+/// • Null-aware/cascade support
+/// • JSON serialization (toJson/fromJson)
+/// • Human-readable toShortString()
+/// • Content equality checks
+///
+/// USAGE EXAMPLE
+/// -------------
+/// ```dart
+/// // Create a binary expression: x + 1
+/// final binExpr = BinaryExpressionIR(
+///   id: 'bin1',
+///   sourceLocation: loc,
+///   left: IdentifierExpressionIR(... 'x' ...),
+///   operator: BinaryOperatorIR.add,
+///   right: LiteralExpressionIR(... 1 ...),
+///   resultType: intType,
+/// );
+///
+/// // Check if constant
+/// if (binExpr.isConstant) { ... }
+///
+/// // Serialize
+/// final json = binExpr.toJson();
+/// ```
+///
+/// EXTENSIBILITY
+/// -------------
+/// • Add new expression types by subclassing ExpressionIR
+/// • Implement custom visitors (see expression_visitor.dart)
+/// • Use metadata for framework-specific data (e.g., Flutter)
+///
+/// RELATED FILES
+/// -------------
+/// • ir_node.dart                → Base IRNode
+/// • type_ir.dart                → Type representations
+/// • expression_types/operations/operations.dart → Binary/Unary details
+/// • variable_collector.dart     → Example visitor
+/// • expression_visitor.dart     → Traversal framework
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 @immutable
 abstract class ExpressionIR extends IRNode {
   /// The type this expression evaluates to
@@ -269,18 +340,16 @@ enum BinaryOperatorIR {
 // LITERAL EXPRESSION
 // =============================================================================
 
-
 class NamedArgumentIR extends ExpressionIR {
-
   final String name;
   final ExpressionIR value;
 
-   NamedArgumentIR({
+  NamedArgumentIR({
     required super.id,
     required this.name,
     required this.value,
     required super.sourceLocation,
-    required super.metadata, 
+    required super.metadata,
     required super.resultType,
   });
 
@@ -293,8 +362,6 @@ class NamedArgumentIR extends ExpressionIR {
     };
   }
 }
-
-
 
 /// Represents a literal value (number, string, boolean, null)
 @immutable
@@ -521,13 +588,11 @@ class PropertyAccessExpressionIR extends ExpressionIR {
   }
 }
 
-class WidgetPropertyIR extends ExpressionIR{
-
+class WidgetPropertyIR extends ExpressionIR {
   final String propertyName;
   final ExpressionIR value;
   final TypeIR? expectedType;
   final bool isCallback; // onPressed, onChanged, etc.
-
 
   const WidgetPropertyIR({
     required super.id,
@@ -551,7 +616,6 @@ class WidgetPropertyIR extends ExpressionIR{
   }
 }
 
-
 @immutable
 class ConstructorCallExpressionIR extends ExpressionIR {
   /// The class/widget being instantiated
@@ -563,17 +627,18 @@ class ConstructorCallExpressionIR extends ExpressionIR {
   /// Positional arguments
   final List<ExpressionIR> positionalArguments;
 
-   final List<NamedArgumentIR> namedArgumentsDetailed; // ✅ ADD THIS
+  final List<NamedArgumentIR> namedArgumentsDetailed; // ✅ ADD THIS
 
   const ConstructorCallExpressionIR({
     required super.id,
     required super.sourceLocation,
     required this.className,
     this.namedArguments = const {},
-      required this.namedArgumentsDetailed, // ✅ ADD THIS
+    required this.namedArgumentsDetailed, // ✅ ADD THIS
     this.positionalArguments = const [],
     required super.resultType,
-    super.metadata, required List<ExpressionIR> arguments,
+    super.metadata,
+    required List<ExpressionIR> arguments,
   });
 
   @override
@@ -601,31 +666,34 @@ class FlutterWidgetConstructorIR extends ConstructorCallExpressionIR {
   });
 }
 
-
 @immutable
 class FunctionExpressionIR extends ExpressionIR {
   final List<String> parameterNames;
   final List<StatementIR>? body; // null if not yet analyzed
 
-   FunctionExpressionIR({
+  FunctionExpressionIR({
     required super.id,
     required super.sourceLocation,
     required this.parameterNames,
     this.body,
     super.metadata,
-  }) : super(resultType:  DynamicTypeIR(id: 'dynamic', sourceLocation: SourceLocationIR(
-    id: 'loc_dynamic',
-    file: 'builtin',
-    line: 0,
-    column: 0,
-    offset: 0,
-    length: 0,
-  )));
+  }) : super(
+         resultType: DynamicTypeIR(
+           id: 'dynamic',
+           sourceLocation: SourceLocationIR(
+             id: 'loc_dynamic',
+             file: 'builtin',
+             line: 0,
+             column: 0,
+             offset: 0,
+             length: 0,
+           ),
+         ),
+       );
 
   @override
   String toShortString() => '(${parameterNames.join(', ')}) => ...';
 }
-
 
 // =============================================================================
 // CONDITIONAL EXPRESSION
@@ -667,7 +735,6 @@ class ConditionalExpressionIR extends ExpressionIR {
     };
   }
 }
-
 
 // =============================================================================
 // COLLECTION EXPRESSIONS
@@ -773,7 +840,6 @@ class SetExpressionIR extends ExpressionIR {
   }
 }
 
-
 // =============================================================================
 // INDEX ACCESS EXPRESSION
 // =============================================================================
@@ -861,7 +927,6 @@ class UnaryExpressionIR extends ExpressionIR {
 // CAST EXPRESSION
 // =============================================================================
 
-
 @immutable
 class CascadeSection extends IRNode {
   final String type; // 'method', 'property', 'index'
@@ -915,57 +980,62 @@ class CastExpressionIR extends ExpressionIR {
   }
 }
 
-
 @immutable
 class IsExpressionIR extends ExpressionIR {
   final ExpressionIR expression;
   final TypeIR targetType;
   final bool isNegated;
 
-   IsExpressionIR({
+  IsExpressionIR({
     required super.id,
     required super.sourceLocation,
     required this.expression,
     required this.targetType,
     this.isNegated = false,
     super.metadata,
-  }) : super(resultType:  SimpleTypeIR(
-    id: 'type_bool',
-    name: 'bool',
-    isNullable: false,
-    sourceLocation: SourceLocationIR(
-      id: 'loc_bool',
-      file: 'builtin',
-      line: 0,
-      column: 0,
-      offset: 0,
-      length: 0,
-    ),
-  ));
+  }) : super(
+         resultType: SimpleTypeIR(
+           id: 'type_bool',
+           name: 'bool',
+           isNullable: false,
+           sourceLocation: SourceLocationIR(
+             id: 'loc_bool',
+             file: 'builtin',
+             line: 0,
+             column: 0,
+             offset: 0,
+             length: 0,
+           ),
+         ),
+       );
 
   @override
   String toShortString() =>
       '${expression.toShortString()} ${isNegated ? 'is!' : 'is'} ${targetType.displayName()}';
 }
 
-
 @immutable
 class UnknownExpressionIR extends ExpressionIR {
   final String source;
 
-   UnknownExpressionIR({
+  UnknownExpressionIR({
     required super.id,
     required super.sourceLocation,
     required this.source,
     super.metadata,
-  }) : super(resultType:  DynamicTypeIR(id: 'dynamic', sourceLocation: SourceLocationIR(
-    id: 'loc_dynamic',
-    file: 'builtin',
-    line: 0,
-    column: 0,
-    offset: 0,
-    length: 0,
-  )));
+  }) : super(
+         resultType: DynamicTypeIR(
+           id: 'dynamic',
+           sourceLocation: SourceLocationIR(
+             id: 'loc_dynamic',
+             file: 'builtin',
+             line: 0,
+             column: 0,
+             offset: 0,
+             length: 0,
+           ),
+         ),
+       );
 
   @override
   String toShortString() => source;

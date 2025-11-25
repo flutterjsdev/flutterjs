@@ -1,12 +1,46 @@
 import 'package:meta/meta.dart';
 
 import '../../expression_ir.dart';
-
-/// Represents an identifier expression in the abstract syntax tree (AST).
-/// This could refer to a variable, function, or type name.
+/// =============================================================================
+///  VARIABLES & MEMBER ACCESS EXPRESSIONS
+///  Identifier, property access, and index access in the IR
+/// =============================================================================
 ///
-/// Example: `foo` or `int` (if [isTypeReference] is true).
-@immutable
+/// PURPOSE
+/// -------
+/// Represents how code reads from variables and accesses object members:
+/// • Simple identifiers: count, userName, MyClass
+/// • Property access: obj.property, obj?.property
+/// • Index access: list[0], map['key']
+///
+/// Critical for:
+/// • Variable usage analysis
+/// • Refactoring (rename symbol)
+/// • Null-safety checking
+/// • Dependency extraction
+///
+/// KEY COMPONENTS
+/// --------------
+/// • IdentifierExpr         → Variable, function, or type name
+/// • PropertyAccessExpr     → obj.property (with null-aware support)
+/// • IndexAccessExpr        → collection[index]
+///
+/// FEATURES
+/// --------
+/// • Null-aware property access (?.)
+/// • Type reference detection (e.g., int in var x = int;)
+/// • Human-readable toShortString()
+/// • Immutable + metadata support
+///
+/// RELATED FILES
+/// -------------
+/// • expression_ir.dart
+/// • variable_collector.dart  → Uses IdentifierExpr heavily
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// NOTE:    File was previously named "vaibales_access.dart" — renamed for correctness
+/// =============================================================================
 class IdentifierExpr extends ExpressionIR {
   final String name;
   final bool isTypeReference;

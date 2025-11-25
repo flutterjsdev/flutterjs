@@ -1,8 +1,42 @@
 import '../type_ir.dart';
 import '../../diagnostics/source_location.dart';
-
-/// Represents unresolved type references during multi-pass analysis
-/// Acts as a placeholder that can be resolved in a second pass
+/// =============================================================================
+///  UNRESOLVED TYPE PLACEHOLDER
+///  For multi-pass analysis and forward references
+/// =============================================================================
+///
+/// PURPOSE
+/// -------
+/// Represents a type that could not be resolved in the current analysis pass.
+/// Acts as a safe placeholder with full diagnostic information.
+///
+/// Used in:
+/// • Incremental analysis
+/// • Library import cycles
+/// • Forward declarations
+/// • Error recovery
+///
+/// FEATURES
+/// --------
+/// • Tracks resolution attempts
+/// • Rich error messages
+/// • Pass numbering
+/// • Safe nullability handling
+/// • Can be marked for next pass
+///
+/// WORKFLOW
+/// --------
+/// Pass 1 → UnresolvedTypeIR
+/// Pass 2 → Replace with real type (ClassTypeIR, etc.)
+///
+/// RELATED FILES
+/// -------------
+/// • type_ir.dart
+/// • analysis_pass.dart (future)
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 class UnresolvedTypeIR extends TypeIR {
   final String typeName;
   final String? hint; // "Could not find in package:flutter"

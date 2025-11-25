@@ -9,18 +9,40 @@ import 'ast_ir/function_decl.dart';
 import 'ast_ir/import_export_stmt.dart';
 import 'ast_ir/state_class_representation/state_class_representation.dart';
 
-/// Pass 5: Validation & Diagnostics
+/// <---------------------------------------------------------------------------->
+/// validation_pass.dart
+/// ----------------------------------------------------------------------------
 ///
-/// Input: Complete analysis from Pass 4 (FlowAnalysisPass)
-/// Output: List of issues with severity and suggestions
+/// Comprehensive validation and diagnostics generator (Pass 5).
 ///
-/// Responsibilities:
-/// 1. Validate common errors (setState in build, missing dispose, etc.)
-/// 2. Detect performance anti-patterns (unnecessary rebuilds, etc.)
-/// 3. Check for unused code (dead imports, unused fields, etc.)
-/// 4. Validate Flutter-specific patterns
-/// 5. Generate actionable AnalysisIssue objects with suggestions
-/// 6. Produce comprehensive diagnostics report
+/// Aggregates data from prior passes to detect bugs, anti-patterns, and optimizations.
+/// Focuses on Flutter specifics: lifecycles, state, widgets, performance, and code health.
+///
+/// Main class: [ValidationPass] – runs checks across files, producing [AnalysisIssue]
+/// lists grouped by category and a [ValidationSummary].
+///
+/// Key validations:
+/// • Lifecycle correctness (missing super calls, init/dispose mismatches)
+/// • State patterns (setState in loops/build, unused fields, leaks)
+/// • Performance (unnecessary rebuilds, empty widgets, heavy ops)
+/// • Widget schemas (required props, e.g., MaterialApp.home, FAB.onPressed)
+/// • Unused code (imports, variables, dead branches)
+/// • Common mistakes (async build, mutable Stateless, etc.)
+/// • Import/dependency hygiene (circular, unused, conflicts)
+///
+/// Features:
+/// • Schema-based widget validation (e.g., [WidgetPropertySchema])
+/// • Suggestion generation for common codes
+/// • Summary stats (error/warning counts, health scores)
+/// • Integration with flow info for precise diagnostics
+///
+/// Outputs consumed by:
+/// • IDE linters / quick-fixes
+/// • CI reports / dashboards
+/// • Automated refactoring scripts
+///
+/// Issues include codes for machine-readable actions; all data JSON-serializable.
+/// <---------------------------------------------------------------------------->
 class ValidationPass {
   /// All DartFiles in project (from Pass 4 with flow analysis)
   final Map<String, DartFile> dartFiles;
@@ -547,11 +569,11 @@ class ValidationPass {
   // STEP 4: VALIDATE FLUTTER-SPECIFIC PATTERNS
   // =========================================================================
 
-void _validateWidgetProperties(dartFiles) {
-  final widgetValidator = WidgetPropertyValidationPass(dartFiles: dartFiles);
-  widgetValidator.analyzeWidgetProperties();
-  validationIssues.addAll(widgetValidator.widgetIssues);
-}
+  void _validateWidgetProperties(dartFiles) {
+    final widgetValidator = WidgetPropertyValidationPass(dartFiles: dartFiles);
+    widgetValidator.analyzeWidgetProperties();
+    validationIssues.addAll(widgetValidator.widgetIssues);
+  }
 
   void _validateFlutterPatterns() {
     for (final dartFile in dartFiles.values) {
@@ -1216,9 +1238,6 @@ extension ValidationStatistics on List<AnalysisIssue> {
   }
 }
 
-
-
-
 // ============================================================================
 // ADD THIS TO: validation_pass.dart
 // New validation methods for widget property analysis
@@ -1277,7 +1296,8 @@ class WidgetPropertyValidationPass {
         !properties.containsKey('bottomNavigationBar')) {
       _addWidgetIssue(
         severity: IssueSeverity.warning,
-        message: 'Scaffold should define body, floatingActionButton, or bottomNavigationBar',
+        message:
+            'Scaffold should define body, floatingActionButton, or bottomNavigationBar',
         widget: widget,
         code: 'EMPTY_SCAFFOLD',
       );
@@ -1290,7 +1310,10 @@ class WidgetPropertyValidationPass {
   }
 
   /// Validate AppBar properties
-  void _validateAppBar(ExpressionIR appBarExpr, FlutterWidgetConstructorIR parent) {
+  void _validateAppBar(
+    ExpressionIR appBarExpr,
+    FlutterWidgetConstructorIR parent,
+  ) {
     if (appBarExpr is FlutterWidgetConstructorIR) {
       final properties = _extractPropertyMap(appBarExpr);
 
@@ -1306,7 +1329,10 @@ class WidgetPropertyValidationPass {
   }
 
   /// Validate ThemeData configuration
-  void _validateThemeData(ExpressionIR themeExpr, FlutterWidgetConstructorIR parent) {
+  void _validateThemeData(
+    ExpressionIR themeExpr,
+    FlutterWidgetConstructorIR parent,
+  ) {
     if (themeExpr is FlutterWidgetConstructorIR &&
         themeExpr.className == 'ThemeData') {
       final properties = _extractPropertyMap(themeExpr);
@@ -1396,8 +1422,7 @@ class WidgetPropertyValidationPass {
     final properties = _extractPropertyMap(widget);
 
     // Text requires positional argument or data parameter
-    if (widget.positionalArguments.isEmpty &&
-        !properties.containsKey('data')) {
+    if (widget.positionalArguments.isEmpty && !properties.containsKey('data')) {
       _addWidgetIssue(
         severity: IssueSeverity.error,
         message: 'Text widget requires a string argument or data property',
@@ -1493,8 +1518,6 @@ class WidgetPropertyValidationPass {
     }
   }
 }
-
-
 
 class WidgetPropertySchema {
   final String name;

@@ -1,6 +1,49 @@
 import '../../diagnostics/source_location.dart';
 import '../type_ir.dart';
-
+/// =============================================================================
+///  CLASS TYPE REPRESENTATION
+///  Core type for user-defined and library classes
+/// =============================================================================
+///
+/// PURPOSE
+/// -------
+/// Represents references to real Dart classes (e.g., Widget, MyController)
+/// with full support for generics, nullability, library origin, and metadata.
+///
+/// Used heavily in Flutter analysis, widget tree building, and inheritance checks.
+///
+/// KEY FEATURES
+/// ------------
+/// • Fully qualified names (libraryUri + className)
+/// • Generic type arguments (List<String>, Future<int>?)
+/// • Nullability support (toNullable() / toNonNullable())
+/// • Abstract class detection
+/// • Rich JSON serialization
+/// • Immutable + deep equality
+///
+/// COMMON EXAMPLES
+/// ---------------
+/// ```dart
+/// final widgetType = ClassTypeIR(
+///   id: 'type_widget',
+///   name: 'Widget',
+///   className: 'Widget',
+///   libraryUri: 'package:flutter/widgets.dart',
+///   sourceLocation: loc,
+/// );
+///
+/// final stateful = widgetType.withTypeArguments([genericT]);
+/// ```
+///
+/// RELATED FILES
+/// -------------
+/// • type_ir.dart
+/// • generic_type_ir.dart
+/// • nullable_type_ir.dart
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
 /// Represents class references: Widget, MyCustomClass, etc.
 class ClassTypeIR extends TypeIR {
   final String className;

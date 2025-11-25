@@ -12,18 +12,39 @@ import 'ast_ir/diagnostics/issue_category.dart';
 import 'ast_ir/diagnostics/source_location.dart';
 import 'type_inference_pass.dart';
 
-/// Pass 2: Symbol Resolution
+/// <---------------------------------------------------------------------------->
+/// symbol_resolution.dart
+/// ----------------------------------------------------------------------------
 ///
-/// Input: DartFile objects from Pass 1 (DeclarationPass)
-/// Output: All references resolved to their declarations, with UnresolvedTypeIR replaced by actual types
+/// Symbol resolution engine for a multi-file Dart/Flutter project analyzer (Pass 2).
 ///
-/// Responsibilities:
-/// 1. Resolve imports to actual files/symbols
-/// 2. Link widget types to StatefulWidget and State associations
-/// 3. Link provider references to actual provider classes
-/// 4. Resolve type references (simple names to fully qualified names)
-/// 5. Detect and report unresolved symbols as analysis issues
-/// 6. Build symbol lookup tables for efficient querying
+/// Takes raw declarations and links references to definitions, resolving imports,
+/// types, and associations (e.g., StatefulWidget → State). It builds a global
+/// symbol table and handles qualified names, prefixes, and relative paths.
+///
+/// Main class: [SymbolResolutionPass] – performs resolution across all files,
+/// producing [ResolutionInfo] with bindings, registries, and issues.
+///
+/// Features:
+/// • Global registry for classes/functions/variables
+/// • Import/export resolution (absolute/relative/package URIs)
+/// • Widget-State pairing via generics and createState overrides
+/// • Provider detection (ChangeNotifier, Bloc, etc.) with type classification
+/// • Type reference resolution (simple → fully qualified, with generics)
+/// • Built-in type checks and fallback handling
+/// • Issue reporting for unresolved symbols/circular imports
+///
+/// Example:
+/// dart /// resolver.resolveAllSymbols(); /// final state = file.resolutionInfo.widgetStateBindings[widgetName]; /// 
+///
+/// Essential for:
+/// • Type inference (Pass 3)
+/// • Flow analysis (Pass 4)
+/// • Cross-file diagnostics (unused imports, dead code)
+/// • IDE-like features (go-to-definition, rename refactoring)
+///
+/// All registries use immutable maps; issues as [AnalysisIssue] with codes/suggestions.
+/// <---------------------------------------------------------------------------->
 class SymbolResolutionPass {
   /// All DartFiles in project (from Pass 1)
   final Map<String, DartFile> dartFiles;

@@ -19,7 +19,38 @@ import 'ast_ir/ir/statement/statement_ir.dart';
 import 'ast_ir/diagnostics/source_location.dart';
 import 'ast_ir/dart_file_builder.dart';
 
-/// Extract List<StatementIR> from method/function bodies
+/// <---------------------------------------------------------------------------->
+/// statement_extraction_pass.dart
+/// ----------------------------------------------------------------------------
+///
+/// AST-to-IR converter for Dart statements and expressions in a Flutter analyzer.
+///
+/// This pass extracts executable code (bodies of methods/functions/constructors)
+/// into a structured IR ([StatementIR], [ExpressionIR]) for further analysis.
+/// It handles all major statement types (blocks, ifs, loops, switches, etc.)
+/// and expressions (literals, binaries, calls, cascades, etc.).
+///
+/// Core class: [StatementExtractionPass] – traverses AST nodes to build IR trees,
+/// preserving source locations, metadata, and structural details.
+///
+/// Key features:
+/// • Recursive extraction with null-safety and error handling
+/// • Support for modern Dart (patterns, records, cascades, null-aware ops)
+/// • Enum mappings for operators ([BinaryOperatorIR], [UnaryOperatorIR])
+/// • Specialized IR for complex constructs (e.g., [CascadeExpressionIR])
+/// • Debug utilities for body type inspection and extraction logging
+///
+/// Typical usage:
+/// dart /// final statements = extractor.extractBodyStatements(functionBody); /// // Now analyze statements for flows, types, etc. /// 
+///
+/// Powers:
+/// • Control flow graph building
+/// • Type inference on expressions
+/// • Pattern matching for anti-patterns (e.g., setState in loops)
+/// • Code generation/refactoring tools
+///
+/// IR nodes are immutable, JSON-serializable, and provide toShortString for summaries.
+/// <---------------------------------------------------------------------------->
 class StatementExtractionPass {
   final String filePath;
   final String fileContent;

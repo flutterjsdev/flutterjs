@@ -4,11 +4,87 @@ import 'package:meta/meta.dart';
 
 import '../diagnostics/analysis_issue.dart';
 import '../diagnostics/source_location.dart';
-
-/// Base class for all IR (Intermediate Representation) nodes
+/// =============================================================================
+///  IR NODE BASE CLASSES
+///  Foundation for the custom Dart Intermediate Representation (IR)
+/// =============================================================================
 ///
-/// Every piece of information extracted from Dart code is an IRNode.
-/// This ensures consistent identity, traceability, and debugging across the system.
+/// PURPOSE
+/// -------
+/// Defines the core building blocks for all IR nodes in the analyzer/compiler.
+/// Every piece of parsed/analyzed Dart code is represented as an IRNode subclass.
+///
+/// This ensures:
+/// • Consistent identity tracking (unique IDs)
+/// • Source traceability (file/line/column)
+/// • Debuggability (timestamps, metadata)
+/// • Extensibility (metadata map for custom data)
+/// • Equality checks (content-based, not reference)
+///
+/// KEY COMPONENTS
+/// --------------
+/// 1. IRNode              → Abstract base for all IR elements
+/// 2. SourceLocationIR    → (Commented out) Tracks code positions
+/// 3. AnalysisIssueIR     → Represents lint warnings/errors
+///
+/// FEATURES
+/// --------
+/// • Immutable by default (@immutable)
+/// • Debug-friendly toString() and toShortString()
+/// • Content equality for testing/comparison
+/// • Factory constructors for common cases (errors, warnings)
+/// • JSON serialization (toJson/fromJson)
+///
+/// USAGE EXAMPLE
+/// -------------
+/// ```dart
+/// // Create a custom node
+/// class MyCustomNode extends IRNode {
+///   final String data;
+///   MyCustomNode({
+///     required String id,
+///     required SourceLocationIR sourceLocation,
+///     required this.data,
+///   }) : super(id: id, sourceLocation: sourceLocation);
+/// 
+///   @override
+///   String toShortString() => 'MyCustom($data)';
+/// 
+///   @override
+///   bool contentEquals(IRNode other) => 
+///     other is MyCustomNode && data == other.data;
+/// }
+/// 
+/// // Create an issue
+/// final issue = AnalysisIssueIR.error(
+///   id: 'err_001',
+///   message: 'Something wrong',
+///   code: 'my.lint',
+///   sourceLocation: myLocation,
+/// );
+/// ```
+///
+/// EXTENSION GUIDE
+/// ---------------
+/// See the commented "EXTENSION GUIDE" section for patterns on:
+/// • Creating new IR classes
+/// • Integrating with AST visitors
+/// • Generating issues
+/// • Traversing trees
+/// • Serialization
+/// • Example Widget IR
+///
+/// RELATED FILES
+/// -------------
+/// • type_ir.dart        → Type representations
+/// • expression_ir.dart  → Expression nodes
+/// • statement_ir.dart   → (Assumed) Statement/control-flow nodes
+///
+/// AUTHOR:  Your Name / Team
+/// UPDATED: 2025-11-26
+/// =============================================================================
+/// 
+/// 
 @immutable
 abstract class IRNode {
   /// Unique identifier for this node (format: "type_uniqueKey")
