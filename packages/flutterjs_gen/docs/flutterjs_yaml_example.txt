@@ -1,0 +1,342 @@
+# FlutterJS Configuration
+# Documentation & Build Settings
+
+name: my_flutterjs_app
+description: >
+  A premium Flutter-like web app built with FlutterJS, showcasing 
+  Material 3 design and responsive components.
+
+version: 1.0.0
+author: Your Name
+homepage: https://example.com
+repository: https://github.com/username/my_flutterjs_app
+
+# ============================================================================
+# DOCUMENTATION GENERATION SETTINGS
+# ============================================================================
+docs:
+  # Output directory for generated documentation
+  output_dir: docs
+  
+  # Project name displayed in docs header
+  project_name: MyFlutterJS
+  
+  # Short description for the docs home page
+  description: >
+    Complete API documentation for MyFlutterJS widgets, utilities, and services.
+    Built with Material 3 design system.
+  
+  # Logo URL (relative to project root)
+  logo: assets/logo.svg
+  
+  # Favicon URL
+  favicon: assets/favicon.ico
+  
+  # Generate these sections automatically
+  generate_guides: true
+  generate_examples: true
+  generate_changelog: true
+  
+  # Guides to auto-generate
+  auto_guides:
+    - flutter_to_js_mapping      # How Flutter concepts map to JavaScript
+    - dart_js_interop             # Advanced Dart-JS interoperability
+    - performance_guide           # Performance tips & optimization
+    - limitations                 # Known limitations & workarounds
+    - migration_guide             # Migrating from Flutter web
+  
+  # Search index settings
+  search:
+    enabled: true
+    min_word_length: 2            # Minimum characters for search
+    fuzzy_matching: true
+    highlight_results: true
+  
+  # Table of contents settings
+  toc:
+    enabled: true
+    sticky: true                  # Stick TOC to viewport while scrolling
+    max_depth: 3                  # Only show up to 3 levels
+  
+  # Code syntax highlighting
+  syntax_highlight:
+    enabled: true
+    theme: material               # material, atom-dark, vs-code-dark
+    line_numbers: true
+    copy_button: true
+  
+  # Analytics (optional)
+  analytics:
+    enabled: false
+    google_analytics_id: ""       # Leave empty to disable
+  
+  # Social links in header
+  social_links:
+    - icon: github
+      url: https://github.com/username/my_flutterjs_app
+      label: GitHub
+    - icon: twitter
+      url: https://twitter.com/yourhandle
+      label: Twitter
+    - icon: discord
+      url: https://discord.gg/yourserver
+      label: Discord
+
+# ============================================================================
+# THEME & COLORS (Material 3)
+# ============================================================================
+theme:
+  # Base theme mode
+  mode: light                     # Options: light, dark, auto (system)
+  
+  # Material 3 Color Palette
+  colors:
+    # Primary brand color (used for buttons, links, highlights)
+    primary: "#6750a4"
+    
+    # Light variant for containers, disabled states
+    primary_container: "#eaddff"
+    
+    # Secondary color for accents
+    secondary: "#625b71"
+    secondary_container: "#e8def8"
+    
+    # Tertiary color for alerts, warnings
+    tertiary: "#7d5260"
+    tertiary_container: "#ffd8e4"
+    
+    # Neutral colors
+    background: "#fffbfe"
+    surface: "#fffbfe"
+    error: "#b3261e"
+    error_container: "#f9dedc"
+    
+    # Text colors
+    on_primary: "#ffffff"
+    on_secondary: "#ffffff"
+    on_tertiary: "#ffffff"
+    on_background: "#1c1b1f"
+    on_surface: "#1c1b1f"
+    on_error: "#ffffff"
+    
+    # Outline colors
+    outline: "#79747e"
+    outline_variant: "#cac7d0"
+  
+  # Typography
+  typography:
+    # Font family stack
+    font_family: |
+      -apple-system, BlinkMacSystemFont, "Segoe UI", 
+      Roboto, "Helvetica Neue", sans-serif
+    
+    # Code font
+    code_font_family: '"Fira Code", "Courier New", monospace'
+    
+    # Font sizes (scale)
+    font_sizes:
+      display_large: 3.5625rem
+      display_medium: 2.8125rem
+      headline_large: 2rem
+      headline_medium: 1.75rem
+      title_large: 1.375rem
+      title_medium: 1rem
+      title_small: 0.875rem
+      body_large: 1rem
+      body_medium: 0.875rem
+      body_small: 0.75rem
+      label_large: 0.75rem
+      label_medium: 0.625rem
+      label_small: 0.5625rem
+  
+  # Spacing scale
+  spacing:
+    xs: "0.25rem"      # 4px
+    sm: "0.5rem"       # 8px
+    md: "1rem"         # 16px
+    lg: "1.5rem"       # 24px
+    xl: "2rem"         # 32px
+    2xl: "2.5rem"      # 40px
+  
+  # Border radius
+  border_radius:
+    xs: "0.25rem"
+    sm: "0.5rem"
+    md: "1rem"
+    lg: "1.5rem"
+    xl: "2rem"
+  
+  # Shadows (elevation)
+  shadows:
+    sm: "0 1px 2px rgba(0,0,0,0.05)"
+    md: "0 4px 6px rgba(0,0,0,0.1)"
+    lg: "0 10px 15px rgba(0,0,0,0.1)"
+    xl: "0 20px 25px rgba(0,0,0,0.1)"
+    2xl: "0 25px 50px rgba(0,0,0,0.15)"
+
+# ============================================================================
+# DARK MODE SETTINGS
+# ============================================================================
+dark_mode:
+  # Enable/disable dark mode toggle
+  enabled: true
+  
+  # Default to dark mode for users with prefers-color-scheme: dark
+  respect_system_preference: true
+  
+  # Override dark mode colors here (inherits from light mode if not set)
+  colors:
+    background: "#1c1b1f"
+    surface: "#1c1b1f"
+    outline: "#9e9da7"
+    outline_variant: "#49454e"
+    primary_container: "#4f378b"
+    secondary_container: "#332d41"
+    tertiary_container: "#633b48"
+
+# ============================================================================
+# BUILD & TRANSPILATION SETTINGS
+# ============================================================================
+build:
+  # Source directories to transpile
+  sources:
+    - lib
+  
+  # Directories to exclude from documentation
+  exclude:
+    - lib/.test
+    - lib/generated
+  
+  # Generated JavaScript directory
+  js_output_dir: build/js
+  
+  # Source map generation (for debugging)
+  source_maps: true
+  
+  # Minify generated JavaScript
+  minify: true
+  
+  # Target ES version for JavaScript output
+  target: es2020
+  
+  # Module system
+  module_system: esm                # Options: esm, commonjs, umd
+
+# ============================================================================
+# ASSETS & RESOURCES
+# ============================================================================
+assets:
+  # Asset directories
+  directories:
+    - assets/images
+    - assets/icons
+    - assets/fonts
+  
+  # Copy assets to docs/assets
+  copy_to_docs: true
+  
+  # Generate favicon from logo
+  generate_favicon: true
+
+# ============================================================================
+# DEVELOPMENT SERVER
+# ============================================================================
+dev_server:
+  # Port for --serve flag
+  port: 8080
+  
+  # Auto-reload on changes
+  auto_reload: true
+  
+  # Reload delay (ms) after file change
+  reload_delay: 500
+  
+  # Watch these file patterns for changes
+  watch_patterns:
+    - lib/**/*.dart
+    - lib/**/*.md
+    - docs/**/*.md
+
+# ============================================================================
+# ADVANCED OPTIONS
+# ============================================================================
+advanced:
+  # Generate TypeScript definitions (.d.ts)
+  generate_typescript_definitions: true
+  
+  # Include private APIs (usually hidden from docs)
+  include_private_api: false
+  
+  # Performance: split large docs into chunks
+  chunk_size_kb: 100
+  
+  # Generate static site sitemaps
+  generate_sitemap: true
+  
+  # Cache compiled pages (for faster rebuilds)
+  enable_cache: true
+  
+  # Parallel doc generation (number of workers)
+  parallel_jobs: 4
+  
+  # Verbose logging
+  verbose: false
+  
+  # Dry run (generate but don't write files)
+  dry_run: false
+
+# ============================================================================
+# CONTINUOUS INTEGRATION
+# ============================================================================
+ci:
+  # Fail on documentation warnings
+  fail_on_warnings: false
+  
+  # Check all links are valid
+  check_links: true
+  
+  # Check examples compile
+  validate_examples: true
+  
+  # Generate coverage report
+  generate_coverage: true
+  
+  # Upload docs to CDN after generation
+  upload_after_build: false
+  upload_url: ""                    # e.g., s3://bucket/docs/
+
+# ============================================================================
+# EXAMPLE FILES & TEMPLATES
+# ============================================================================
+examples:
+  # Directory containing example projects
+  examples_dir: examples
+  
+  # Generate example code blocks from files
+  include_examples: true
+  
+  # Run examples to verify they work
+  run_examples: false
+
+# ============================================================================
+# METADATA & SEO
+# ============================================================================
+metadata:
+  # HTML meta description
+  description: >
+    MyFlutterJS - A beautiful Material 3 Flutter-like web framework. 
+    Complete API documentation with code examples.
+  
+  # Keywords for SEO
+  keywords:
+    - flutter
+    - javascript
+    - web
+    - material-design
+    - responsive
+  
+  # Open Graph image
+  og_image: assets/og-image.png
+  
+  # Twitter handle for social sharing
+  twitter_handle: "@yourhandle"

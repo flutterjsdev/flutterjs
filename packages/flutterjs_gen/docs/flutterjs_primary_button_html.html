@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrimaryButton - FlutterJS Docs</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    :root {
+      --primary: #6750a4;
+      --primary-container: #eaddff;
+      --secondary: #625b71;
+      --tertiary: #7d5260;
+      --error: #b3261e;
+      --background: #fffbfe;
+      --surface: #fffbfe;
+      --outline: #79747e;
+      --outline-variant: #cac7d0;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: #1c1b1f;
+        --surface: #1c1b1f;
+        --outline: #9e9da7;
+        --outline-variant: #49454e;
+        --primary-container: #4f378b;
+      }
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--background);
+      color: #1c1b1f;
+      line-height: 1.6;
+    }
+    
+    /* Dark mode text */
+    @media (prefers-color-scheme: dark) {
+      body { color: #fffbfe; }
+    }
+    
+    .header {
+      display: flex;
+      align-items: center;
+      padding: 1rem 2rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--outline-variant);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .header-content {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    
+    .logo { font-weight: 700; font-size: 1.25rem; }
+    .header input {
+      flex: 1;
+      max-width: 400px;
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--outline-variant);
+      border-radius: 0.5rem;
+      font-family: inherit;
+    }
+    
+    .breadcrumbs {
+      padding: 1rem 2rem;
+      font-size: 0.9rem;
+      color: var(--outline);
+      display: flex;
+      gap: 0.5rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    .breadcrumbs a { color: var(--primary); text-decoration: none; }
+    .breadcrumbs a:hover { text-decoration: underline; }
+    
+    .container {
+      display: grid;
+      grid-template-columns: 280px 1fr 320px;
+      gap: 2rem;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    
+    .sidebar {
+      border-right: 1px solid var(--outline-variant);
+      padding-right: 1.5rem;
+    }
+    
+    .sidebar h3 { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--outline); margin: 1.5rem 0 1rem; }
+    .sidebar ul { list-style: none; }
+    .sidebar li { margin: 0.5rem 0; }
+    .sidebar a {
+      display: block;
+      padding: 0.5rem 0.75rem;
+      text-decoration: none;
+      color: var(--outline);
+      border-radius: 0.5rem;
+      transition: all 200ms;
+    }
+    .sidebar a:hover, .sidebar a.active { background: var(--primary-container); color: var(--primary); font-weight: 500; }
+    
+    .content h1 {
+      font-size: 2rem;
+      margin: 2rem 0 1rem;
+      font-weight: 700;
+    }
+    
+    .class-header {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    
+    .badges {
+      display: flex;
+      gap: 0.5rem;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: var(--primary-container);
+      color: var(--primary);
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    
+    .inheritance {
+      padding: 1rem;
+      background: var(--primary-container);
+      border-left: 4px solid var(--primary);
+      border-radius: 0.5rem;
+      font-size: 0.9rem;
+    }
+    
+    .inheritance-label { color: var(--outline); font-weight: 600; }
+    .inheritance code { color: var(--primary); }
+    
+    .section {
+      margin: 2rem 0;
+      padding: 2rem 0;
+      border-bottom: 1px solid var(--outline-variant);
+    }
+    
+    .section:last-child { border-bottom: none; }
+    
+    .section h2 {
+      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+      color: #1c1b1f;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+      .section h2 { color: #fffbfe; }
+    }
+    
+    .description { font-size: 1rem; line-height: 1.8; }
+    .description p { margin-bottom: 1rem; }
+    .description strong { font-weight: 600; color: var(--primary); }
+    .description em { font-style: italic; }
+    
+    .params-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+    
+    .params-table th {
+      background: var(--primary-container);
+      color: var(--primary);
+      padding: 0.75rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    
+    .params-table td {
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--outline-variant);
+    }
+    
+    .params-table tr:hover {
+      background: var(--primary-container);
+      opacity: 0.5;
+    }
+    
+    .param-name { font-family: "Fira Code", monospace; color: var(--primary); }
+    .param-type { font-family: "Fira Code", monospace; color: var(--secondary); }
+    
+    .code-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid var(--outline-variant);
+      margin-bottom: 1rem;
+    }
+    
+    .tab-button {
+      padding: 0.75rem 1.5rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--outline);
+      font-weight: 500;
+      transition: all 200ms;
+      position: relative;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+    }
+    
+    .tab-button.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+    
+    pre {
+      background: var(--surface);
+      border: 1px solid var(--outline-variant);
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+      position: relative;
+    }
+    
+    code {
+      font-family: "Fira Code", "Courier New", monospace;
+      font-size: 0.9em;
+    }
+    
+    .copy-btn {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      padding: 0.5rem 1rem;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 0.25rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: all 200ms;
+    }
+    
+    .copy-btn:hover { background: #5a3d9f; }
+    
+    .tab-panel {
+      display: none;
+    }
+    
+    .tab-panel.active {
+      display: block;
+    }
+    
+    .toc-sidebar {
+      border-left: 1px solid var(--outline-variant);
+      padding-left: 1.5rem;
+    }
+    
+    .toc-sidebar h3 {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--outline);
+    }
+    
+    .toc-sidebar ol {
+      list-style: none;
+      padding: 0;
+    }
+    
+    .toc-sidebar li { margin: 0.5rem 0; }
+    .toc-sidebar a {
+      color: var(--outline);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 200ms;
+    }
+    
+    .toc-sidebar a:hover { color: var(--primary); }
+    .toc-sidebar a.active { color: var(--primary); font-weight: 600; }
+    
+    @media (max-width: 1200px) {
+      .container { grid-template-columns: 1fr 320px; }
+      .sidebar { display: none; }
+    }
+    
+    @media (max-width: 768px) {
+      .container { grid-template-columns: 1fr; }
+      .toc-sidebar { display: none; }
+      .content h1 { font-size: 1.5rem; }
+      .section { padding: 1.5rem 0; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">FlutterJS Docs</div>
+      <input type="text" id="search" placeholder="Search documentation...">
+      <button id="theme-toggle">🌙</button>
+    </div>
+  </header>
+  
+  <!-- Breadcrumbs -->
+  <nav class="breadcrumbs">
+    <a href="/">Home</a>
+    <span>/</span>
+    <a href="/api">API</a>
+    <span>/</span>
+    <a href="/api/widgets">widgets</a>
+    <span>/</span>
+    <strong>PrimaryButton</strong>
+  </nav>
+  
+  <!-- Main Container -->
+  <div class="container">
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+      <h3>Widgets</h3>
+      <ul>
+        <li><a href="#" class="active">PrimaryButton</a></li>
+        <li><a href="#">SecondaryButton</a></li>
+        <li><a href="#">IconButton</a></li>
+        <li><a href="#">FAB</a></li>
+      </ul>
+      
+      <h3>Other</h3>
+      <ul>
+        <li><a href="#">Guides</a></li>
+        <li><a href="#">Examples</a></li>
+      </ul>
+    </aside>
+    
+    <!-- Main Content -->
+    <main class="content">
+      <div class="class-header">
+        <div class="badges">
+          <span class="badge">WIDGET</span>
+          <span class="badge" style="background: #fce4ec; color: #c2185b;">Material 3</span>
+        </div>
+        <h1>PrimaryButton</h1>
+        <div class="inheritance">
+          <div class="inheritance-label">Inheritance</div>
+          <code>Widget &gt; StatelessWidget &gt; PrimaryButton</code>
+        </div>
+      </div>
+      
+      <!-- Description Section -->
+      <section class="section">
+        <h2>Description</h2>
+        <div class="description">
+          <p>A <strong>responsive button</strong> that follows Material 3 design guidelines for primary actions.</p>
+          
+          <p>Use <code>PrimaryButton</code> for the most important action on a screen, such as "Submit", "Confirm", or "Create". It features a filled background with the primary color, providing maximum emphasis and discoverability.</p>
+          
+          <p>The button automatically adapts its <strong>padding, font size, and touch targets</strong> based on the <code>ButtonSize</code> parameter. It supports all standard Material interactions including ripple effects, disabled states, and loading states.</p>
+          
+          <p><strong>Example usage:</strong></p>
+        </div>
+      </section>
+      
+      <!-- Parameters Section -->
+      <section class="section">
+        <h2>Parameters</h2>
+        <table class="params-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Default</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="param-name">onPressed</span></td>
+              <td><span class="param-type">VoidCallback?</span></td>
+              <td>—</td>
+              <td>Called when the button is pressed. If null, the button is disabled.</td>
+            </tr>
+            <tr>
+              <td><span class="param-name">child</span></td>
+              <td><span class="param-type">Widget</span></td>
+              <td>—</td>
+              <td>The widget below this widget in the tree. Typically a <code>Text</code> or <code>Icon</code>.</td>
+            </tr>
+            <tr>
+              <td><span class="param-name">size</span></td>
+              <td><span class="param-type">ButtonSize</span></td>
+              <td><code>medium</code></td>
+              <td>The size of the button. Options: <code>small</code>, <code>medium</code>, <code>large</code>.</td>
+            </tr>
+            <tr>
+              <td><span class="param-name">isLoading</span></td>
+              <td><span class="param-type">bool</span></td>
+              <td><code>false</code></td>
+              <td>If true, shows a loading spinner and disables the button.</td>
+            </tr>
+            <tr>
+              <td><span class="param-name">fullWidth</span></td>
+              <td><span class="param-type">bool</span></td>
+              <td><code>false</code></td>
+              <td>If true, the button fills available width.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+      
+      <!-- Source Code Section -->
+      <section class="section">
+        <h2>Source Code</h2>
+        
+        <div class="code-tabs">
+          <button class="tab-button active" onclick="switchTab('dart')">Dart</button>
+          <button class="tab-button" onclick="switchTab('javascript')">JavaScript</button>
+        </div>
+        
+        <div id="dart" class="tab-panel active">
+          <pre><code>/// A responsive button that follows Material 3 guidelines.
+///
+/// Use [PrimaryButton] for main actions, [SecondaryButton] for less important ones.
+///
+/// The button automatically adapts padding and font size based on [ButtonSize].
+///
+/// See also:
+///  * [SecondaryButton], a lower-emphasis button.
+///  * [ButtonSize], for controlling button sizing.
+class PrimaryButton extends StatelessWidget {
+  const PrimaryButton({
+    Key? key,
+    required this.onPressed,
+    required this.child,
+    this.size = ButtonSize.medium,
+    this.isLoading = false,
+    this.fullWidth = false,
+  }) : super(key: key);
+
+  final VoidCallback? onPressed;
+  final Widget child;
+  final ButtonSize size;
+  final bool isLoading;
+  final bool fullWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = onPressed != null 
+      ? theme.primaryColor 
+      : Colors.grey[400];
+
+    return SizedBox(
+      width: fullWidth ? double.infinity : null,
+      child: MaterialButton(
+        onPressed: isLoading ? null : onPressed,
+        padding: _getPadding(),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        color: color,
+        child: isLoading
+          ? SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation(Colors.white),
+              ),
+            )
+          : child,
+      ),
+    );
+  }
+
+  EdgeInsets _getPadding() {
+    switch (size) {
+      case ButtonSize.small:
+        return EdgeInsets.symmetric(horizontal: 12, vertical: 8);
+      case ButtonSize.medium:
+        return EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+      case ButtonSize.large:
+        return EdgeInsets.symmetric(horizontal: 24, vertical: 16);
+    }
+  }
+}
+
+enum ButtonSize { small, medium, large }</code></button>
+          <button class="copy-btn" onclick="copyCode('dart')">Copy</button>
+        </div>
+        
+        <div id="javascript" class="tab-panel">
+          <pre><code>// Generated JavaScript equivalent
+class PrimaryButton {
+  constructor(props = {}) {
+    this.onPressed = props.onPressed;
+    this.child = props.child;
+    this.size = props.size || 'medium';
+    this.isLoading = props.isLoading || false;
+    this.fullWidth = props.fullWidth || false;
+  }
+
+  getPadding() {
+    const sizes = {
+      small: { horizontal: 12, vertical: 8 },
+      medium: { horizontal: 16, vertical: 12 },
+      large: { horizontal: 24, vertical: 16 },
+    };
+    return sizes[this.size] || sizes.medium;
+  }
+
+  render() {
+    const padding = this.getPadding();
+    const isDisabled = !this.onPressed || this.isLoading;
+    
+    const button = document.createElement('button');
+    button.className = `primary-button primary-button--${this.size}`;
+    button.style.padding = `${padding.vertical}px ${padding.horizontal}px`;
+    button.disabled = isDisabled;
+    
+    if (this.fullWidth) {
+      button.style.width = '100%';
+    }
+
+    button.onclick = (e) => {
+      if (!isDisabled && this.onPressed) {
+        this.onPressed(e);
+      }
+    };
+
+    if (this.isLoading) {
+      const spinner = document.createElement('div');
+      spinner.className = 'spinner';
+      button.appendChild(spinner);
+    } else {
+      button.appendChild(this.child.render());
+    }
+
+    return button;
+  }
+}
+
+export { PrimaryButton, ButtonSize };</code></button>
+          <button class="copy-btn" onclick="copyCode('javascript')">Copy</button>
+        </div>
+      </section>
+      
+      <!-- See Also Section -->
+      <section class="section">
+        <h2>See Also</h2>
+        <ul style="list-style: none; padding: 0;">
+          <li style="margin: 0.5rem 0;"><a href="#" style="color: var(--primary); text-decoration: none;">SecondaryButton</a> — a lower-emphasis button for secondary actions</li>
+          <li style="margin: 0.5rem 0;"><a href="#" style="color: var(--primary); text-decoration: none;">IconButton</a> — a button that contains only an icon</li>
+          <li style="margin: 0.5rem 0;"><a href="#" style="color: var(--primary); text-decoration: none;">ButtonSize</a> — enumeration for button sizes</li>
+          <li style="margin: 0.5rem 0;"><a href="#" style="color: var(--primary); text-decoration: none;">Material 3 Guide</a> — official Material 3 button specification</li>
+        </ul>
+      </section>
+    </main>
+    
+    <!-- Right Sidebar - Table of Contents -->
+    <aside class="toc-sidebar">
+      <h3>In this article</h3>
+      <ol>
+        <li><a href="#" class="active">Description</a></li>
+        <li><a href="#">Parameters</a></li>
+        <li><a href="#">Source Code</a></li>
+        <li><a href="#">See Also</a></li>
+      </ol>
+    </aside>
+  </div>
+  
+  <script>
+    function switchTab(tab) {
+      // Hide all panels
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+      
+      // Show selected
+      document.getElementById(tab).classList.add('active');
+      event.target.classList.add('active');
+    }
+    
+    function copyCode(tab) {
+      const panel = document.getElementById(tab);
+      const code = panel.querySelector('code').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = event.target;
+        btn.textContent = '✓ Copied';
+        setTimeout(() => btn.textContent = 'Copy', 2000);
+      });
+    }
+  </script>
+</body>
+</html>

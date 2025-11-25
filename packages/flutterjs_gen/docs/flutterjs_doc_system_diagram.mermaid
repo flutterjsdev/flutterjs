@@ -1,0 +1,96 @@
+graph TB
+    subgraph Input["🔍 Input Phase"]
+        A["Dart Source Files<br/>lib/**/*.dart"]
+        B["flutterjs.yaml<br/>Configuration"]
+        C["Generated JS<br/>build/js/**/*.js"]
+        A --> Input_
+        B --> Input_
+        C --> Input_
+    end
+
+    subgraph Analysis["📊 Analysis Phase"]
+        D["DartAnalyzer<br/>package:analyzer"]
+        E["JSAnalyzer<br/>Code Extraction"]
+        F["ConfigLoader<br/>YAML Parsing"]
+        D -->|Parse AST| Analysis_
+        E -->|Extract JS| Analysis_
+        F -->|Load Config| Analysis_
+    end
+
+    subgraph Models["🗂️ Data Models"]
+        G["DartElement<br/>Class/Method/Property"]
+        H["DocPackage<br/>Complete Project"]
+        I["Parameter<br/>Args Info"]
+        G -->|Collection| H
+        I -->|List| G
+    end
+
+    subgraph Generation["⚙️ Generation Phase"]
+        J["HtmlGenerator<br/>Main Orchestrator"]
+        K["MarkdownProcessor<br/>Doc Comments"]
+        L["CodeHighlighter<br/>Syntax Highlight"]
+        M["Material3Theme<br/>CSS Generation"]
+        J -->|Process| K
+        J -->|Highlight| L
+        J -->|Theme| M
+    end
+
+    subgraph Templates["🎨 Templates"]
+        N["BaseTemplate<br/>HTML Shell"]
+        O["ClassTemplate<br/>API Pages"]
+        P["GuideTemplate<br/>Auto Guides"]
+        N -->|Render| Templates_
+        O -->|Render| Templates_
+        P -->|Render| Templates_
+    end
+
+    subgraph Assets["📦 Assets"]
+        Q["CSS<br/>Material 3<br/>Theme<br/>Responsive<br/>Dark Mode"]
+        R["JavaScript<br/>Search.js<br/>Theme Toggle<br/>TOC Sticky<br/>Code Copy"]
+        S["Icons<br/>Material Icons<br/>Base64 SVGs"]
+        Q --> Assets_
+        R --> Assets_
+        S --> Assets_
+    end
+
+    subgraph Output["📄 Output Generation"]
+        T["HTML Files<br/>index.html<br/>api/**/*.html<br/>guides/**/*.html"]
+        U["Search Index<br/>search-index.json<br/>Full-text Data"]
+        V["Assets<br/>css/<br/>js/<br/>icons/"]
+        T --> Output_
+        U --> Output_
+        V --> Output_
+    end
+
+    subgraph Server["🌐 Dev Server"]
+        W["ShelfServer<br/>HTTP Handler"]
+        X["FileWatcher<br/>Change Detection"]
+        Y["LiveReload<br/>WebSocket"]
+        W --> Server_
+        X -->|Watch| Server_
+        Y -->|Notify| Server_
+    end
+
+    subgraph Result["✨ Final Output"]
+        Z["Beautiful Docs<br/>Material 3 Design<br/>Responsive<br/>Dark Mode<br/>Fast Search<br/>Live Reload"]
+        Z
+    end
+
+    Input_ --> Analysis
+    Analysis --> Models
+    Models --> Generation
+    Generation --> Templates
+    Templates --> Output
+    Assets --> Output
+    Output --> Result
+    Result --> Server
+    
+    style Input fill:#e1f5ff
+    style Analysis fill:#f3e5f5
+    style Models fill:#fff3e0
+    style Generation fill:#f1f8e9
+    style Templates fill:#fce4ec
+    style Assets fill:#ede7f6
+    style Output fill:#e0f2f1
+    style Server fill:#fff9c4
+    style Result fill:#c8e6c9

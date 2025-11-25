@@ -1400,8 +1400,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         final paramDecl = ParameterDecl(
           id: builder.generateId('param', name),
           name: name,
-          type:
-              type ??
+          type:type ??
               DynamicTypeIR(
                 id: builder.generateId('type'),
                 sourceLocation: _extractSourceLocation(param, param.offset),

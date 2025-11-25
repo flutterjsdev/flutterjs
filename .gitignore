@@ -16,6 +16,7 @@ doc/api/
 
 // Ignore the Flutter.js build output directory only published once build upload
 packages/flutter_js_engine/dist/
+# packages/flutterjs_core/lib/src/ast_ir/build_method_ir
 
 # Avoid committing generated Javascript files:
 *.dart.js
