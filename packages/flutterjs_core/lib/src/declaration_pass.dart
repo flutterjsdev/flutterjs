@@ -24,6 +24,7 @@ import 'code_reader/ast_component_adapter.dart';
 import 'statement_extraction_pass.dart';
 
 import 'ast_ir/function_decl.dart' as cd;
+
 /// <---------------------------------------------------------------------------->
 /// declaration_pass.dart
 /// ----------------------------------------------------------------------------
@@ -46,7 +47,7 @@ import 'ast_ir/function_decl.dart' as cd;
 /// • Built-in type checks and source location mapping
 ///
 /// Usage:
-/// dart /// final pass = DeclarationPass(...); /// compilationUnit.accept(pass); /// final dartFile = pass.buildDartFile(); /// 
+/// dart /// final pass = DeclarationPass(...); /// compilationUnit.accept(pass); /// final dartFile = pass.buildDartFile(); ///
 ///
 /// Outputs feed into:
 /// • Symbol resolution (Pass 2)
@@ -1428,7 +1429,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         final paramDecl = ParameterDecl(
           id: builder.generateId('param', name),
           name: name,
-          type:type ??
+          type:
+              type ??
               DynamicTypeIR(
                 id: builder.generateId('type'),
                 sourceLocation: _extractSourceLocation(param, param.offset),

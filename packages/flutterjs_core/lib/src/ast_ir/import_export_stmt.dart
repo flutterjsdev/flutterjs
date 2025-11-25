@@ -218,11 +218,8 @@ class PartStmt {
   String toString() => 'part \'$uri\'';
 
   Map<String, dynamic> toJson() {
-    return {
-      'uri': uri,
-      'sourceLocation': sourceLocation.toJson(),
-    };
-  } 
+    return {'uri': uri, 'sourceLocation': sourceLocation.toJson()};
+  }
 }
 
 /// Represents a "part of" directive

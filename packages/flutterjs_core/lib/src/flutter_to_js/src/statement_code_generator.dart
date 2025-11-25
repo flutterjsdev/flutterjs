@@ -72,9 +72,9 @@ class StatementCodeGen {
     StatementGenConfig? config,
     ExpressionCodeGen? exprGen,
     FlutterPropConverter? propConverter,
-  })  :propConverter = propConverter ?? FlutterPropConverter(),
-   config = config ?? const StatementGenConfig(),
-        exprGen = exprGen ?? ExpressionCodeGen() {
+  }) : propConverter = propConverter ?? FlutterPropConverter(),
+       config = config ?? const StatementGenConfig(),
+       exprGen = exprGen ?? ExpressionCodeGen() {
     indenter = Indenter(this.config.indent);
   }
 
@@ -250,7 +250,10 @@ class StatementCodeGen {
   }
 
   String _generateThrowStatement(ThrowStmt stmt) {
-    final expr = exprGen.generate(stmt.exceptionExpression, parenthesize: false);
+    final expr = exprGen.generate(
+      stmt.exceptionExpression,
+      parenthesize: false,
+    );
     final semi = config.useSemicolons ? ';' : '';
 
     return indenter.line('throw $expr$semi');
@@ -334,7 +337,10 @@ class StatementCodeGen {
           init = init.substring(0, init.length - 1);
         }
       } else if (stmt.initialization is ExpressionIR) {
-        init = exprGen.generate(stmt.initialization as ExpressionIR, parenthesize: false);
+        init = exprGen.generate(
+          stmt.initialization as ExpressionIR,
+          parenthesize: false,
+        );
       }
     }
 
@@ -369,9 +375,13 @@ class StatementCodeGen {
 
     // ✅ FIXED: Proper async for-await handling
     if (stmt.isAsync) {
-      buffer.writeln(indenter.line('for await (const ${stmt.loopVariable} of $iterable) {'));
+      buffer.writeln(
+        indenter.line('for await (const ${stmt.loopVariable} of $iterable) {'),
+      );
     } else {
-      buffer.writeln(indenter.line('for (const ${stmt.loopVariable} of $iterable) {'));
+      buffer.writeln(
+        indenter.line('for (const ${stmt.loopVariable} of $iterable) {'),
+      );
     }
 
     indenter.indent();
@@ -458,7 +468,7 @@ class StatementCodeGen {
 
     // ✅ FIXED: Analyze statement block type
     final blockType = _analyzeStatementBlock(switchCase.statements);
-    
+
     for (final stmt in switchCase.statements) {
       buffer.writeln(generate(stmt));
     }
@@ -512,7 +522,9 @@ class StatementCodeGen {
 
     if (stackTraceParam != null) {
       buffer.writeln(indenter.line('} catch ($exceptionParam) {'));
-      buffer.writeln(indenter.line('const $stackTraceParam = new Error().stack;'));
+      buffer.writeln(
+        indenter.line('const $stackTraceParam = new Error().stack;'),
+      );
     } else {
       buffer.writeln(indenter.line('} catch ($exceptionParam) {'));
     }
@@ -549,7 +561,9 @@ class StatementCodeGen {
   ) {
     // This would delegate to FunctionCodeGen (Phase 2.3)
     // For now, return placeholder
-    return indenter.line('// TODO: Function declaration: ${stmt.function.name}');
+    return indenter.line(
+      '// TODO: Function declaration: ${stmt.function.name}',
+    );
   }
 
   // =========================================================================

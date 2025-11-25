@@ -7,6 +7,7 @@ import '../function_decl.dart';
 import '../variable_decl.dart';
 import '../ir/type_ir.dart';
 import '../ir/statement/statement_ir.dart';
+
 /// <---------------------------------------------------------------------------->
 /// state_class_representation.dart
 /// ----------------------------------------------------------------------------

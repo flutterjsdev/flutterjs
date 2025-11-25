@@ -100,8 +100,6 @@ class ComputationFunctionData extends FlutterComponent {
   String describe() =>
       '$displayName($inputType) → $outputType [loops: $loopDepth, conditions: $conditionalDepth]';
 
- 
-
   @override
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -248,8 +246,6 @@ class MixedFunctionData extends FlutterComponent {
   @override
   String describe() => '$displayName [${components.length} components]';
 
-  
-
   @override
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -336,13 +332,12 @@ class PureFunctionExtractor {
     }
   }
 
-
   FlutterComponent extractMethod({
     required MethodDeclaration node,
     required String functionName,
     required String className,
     required List<StatementIR> bodyStatements,
-  }){
+  }) {
     try {
       // Classify the pure function type
       final functionKind = _classifyPureFunction(functionName, bodyStatements);
@@ -354,13 +349,33 @@ class PureFunctionExtractor {
         'computation' => _extractComputationFromMethod(
           node,
           functionName,
-            className,
+          className,
           bodyStatements,
         ),
-        'validation' => _extractValidationFromMethod(node, functionName, className,bodyStatements),
-        'factory' => _extractFactoryFromMethod(node, functionName, className,bodyStatements),
-        'helper' => _extractHelperFromMethod(node, functionName,className, bodyStatements),
-        _ => _extractGenericFromMethod(node, functionName, className,bodyStatements),
+        'validation' => _extractValidationFromMethod(
+          node,
+          functionName,
+          className,
+          bodyStatements,
+        ),
+        'factory' => _extractFactoryFromMethod(
+          node,
+          functionName,
+          className,
+          bodyStatements,
+        ),
+        'helper' => _extractHelperFromMethod(
+          node,
+          functionName,
+          className,
+          bodyStatements,
+        ),
+        _ => _extractGenericFromMethod(
+          node,
+          functionName,
+          className,
+          bodyStatements,
+        ),
       };
 
       return data;
@@ -368,7 +383,12 @@ class PureFunctionExtractor {
       print('      ❌ Extraction failed: $e');
 
       // Fallback: generic extraction
-      return _extractGenericFromMethod(node, functionName, className,bodyStatements);
+      return _extractGenericFromMethod(
+        node,
+        functionName,
+        className,
+        bodyStatements,
+      );
     }
   }
 
@@ -437,8 +457,7 @@ class PureFunctionExtractor {
     FunctionDeclaration node,
     String functionName,
     List<StatementIR> bodyStatements,
-  ) 
-  {
+  ) {
     print('      ✅ Extracting computation function...');
 
     int loopDepth = 0;
@@ -485,51 +504,49 @@ class PureFunctionExtractor {
     );
   }
 
+  ComputationFunctionData _extractComputationFromMethod(
+    MethodDeclaration node,
+    String methodName,
+    String className,
+    List<StatementIR> bodyStatements,
+  ) {
+    print('      Extracting computation method: $className.$methodName');
 
-ComputationFunctionData _extractComputationFromMethod(
-  MethodDeclaration node,
-  String methodName,
-  String className,
-  List<StatementIR> bodyStatements,
-) {
-  print('      Extracting computation method: $className.$methodName');
+    int loopDepth = 0;
+    int conditionalDepth = 0;
+    final analysis = <String, dynamic>{};
 
-  int loopDepth = 0;
-  int conditionalDepth = 0;
-  final analysis = <String, dynamic>{};
+    // Structural analysis
+    for (final stmt in bodyStatements) {
+      if (stmt is ForStmt || stmt is ForEachStmt) loopDepth++;
+      if (stmt is IfStmt) conditionalDepth++;
+    }
 
-  // Structural analysis
-  for (final stmt in bodyStatements) {
-    if (stmt is ForStmt || stmt is ForEachStmt) loopDepth++;
-    if (stmt is IfStmt) conditionalDepth++;
+    final inputType =
+        node.parameters?.parameters.firstOrNull?.name?.lexeme ?? 'input';
+
+    final outputType = node.returnType?.toString() ?? 'dynamic';
+
+    analysis
+      ..['statementsCount'] = bodyStatements.length
+      ..['hasReturn'] = bodyStatements.any((s) => s is ReturnStmt)
+      ..['variableCount'] = bodyStatements
+          .whereType<VariableDeclarationStmt>()
+          .length;
+
+    return ComputationFunctionData(
+      id: builder.generateId('computation_method', '$className.$methodName'),
+      displayName: '$className.$methodName',
+      inputType: inputType,
+      outputType: outputType,
+      computationSteps: bodyStatements,
+      sourceLocation: _makeLocation(node.offset, node.length),
+      loopDepth: loopDepth,
+      conditionalDepth: conditionalDepth,
+      analysis: analysis,
+    );
   }
 
-  final inputType = node.parameters
-          ?.parameters
-          .firstOrNull
-          ?.name
-          ?.lexeme ??
-      'input';
-
-  final outputType = node.returnType?.toString() ?? 'dynamic';
-
-  analysis
-    ..['statementsCount'] = bodyStatements.length
-    ..['hasReturn'] = bodyStatements.any((s) => s is ReturnStmt)
-    ..['variableCount'] = bodyStatements.whereType<VariableDeclarationStmt>().length;
-
-  return ComputationFunctionData(
-    id: builder.generateId('computation_method', '$className.$methodName'),
-    displayName: '$className.$methodName',
-    inputType: inputType,
-    outputType: outputType,
-    computationSteps: bodyStatements,
-    sourceLocation: _makeLocation(node.offset, node.length),
-    loopDepth: loopDepth,
-    conditionalDepth: conditionalDepth,
-    analysis: analysis,
-  );
-}
   ValidationFunctionData _extractValidation(
     FunctionDeclaration node,
     String functionName,
@@ -579,50 +596,47 @@ ComputationFunctionData _extractComputationFromMethod(
   }
 
   ValidationFunctionData _extractValidationFromMethod(
-  MethodDeclaration node,
-  String methodName,
-  String className,
-  List<StatementIR> bodyStatements,
-) {
-  print('      Extracting validation method: $className.$methodName');
+    MethodDeclaration node,
+    String methodName,
+    String className,
+    List<StatementIR> bodyStatements,
+  ) {
+    print('      Extracting validation method: $className.$methodName');
 
-  final targetType = node.parameters
-          ?.parameters
-          .firstOrNull
-          ?.name
-          ?.lexeme ??
-      'target';
+    final targetType =
+        node.parameters?.parameters.firstOrNull?.name?.lexeme ?? 'target';
 
-  final returnType = node.returnType?.toString() ?? 'bool';
+    final returnType = node.returnType?.toString() ?? 'bool';
 
-  // Extract validation rules from if-statements
-  final rules = <String>[];
-  for (final stmt in bodyStatements) {
-    if (stmt is IfStmt) {
-      rules.add('Rule: ${stmt.condition.toString()}');
+    // Extract validation rules from if-statements
+    final rules = <String>[];
+    for (final stmt in bodyStatements) {
+      if (stmt is IfStmt) {
+        rules.add('Rule: ${stmt.condition.toString()}');
+      }
     }
+
+    final analysis = <String, dynamic>{
+      'ruleCount': rules.length,
+      'statementsCount': bodyStatements.length,
+      'hasEarlyReturn': bodyStatements.any(
+        (s) =>
+            s is ReturnStmt &&
+            bodyStatements.indexOf(s) < bodyStatements.length - 1,
+      ),
+    };
+
+    return ValidationFunctionData(
+      id: builder.generateId('validation_method', '$className.$methodName'),
+      displayName: '$className.$methodName',
+      targetType: targetType,
+      validationRules: rules,
+      returnType: returnType,
+      validationSteps: bodyStatements,
+      sourceLocation: _makeLocation(node.offset, node.length),
+      analysis: analysis,
+    );
   }
-
-  final analysis = <String, dynamic>{
-    'ruleCount': rules.length,
-    'statementsCount': bodyStatements.length,
-    'hasEarlyReturn': bodyStatements.any(
-      (s) =>
-          s is ReturnStmt && bodyStatements.indexOf(s) < bodyStatements.length - 1,
-    ),
-  };
-
-  return ValidationFunctionData(
-    id: builder.generateId('validation_method', '$className.$methodName'),
-    displayName: '$className.$methodName',
-    targetType: targetType,
-    validationRules: rules,
-    returnType: returnType,
-    validationSteps: bodyStatements,
-    sourceLocation: _makeLocation(node.offset, node.length),
-    analysis: analysis,
-  );
-}
 
   FactoryFunctionData _extractFactory(
     FunctionDeclaration node,
@@ -665,49 +679,49 @@ ComputationFunctionData _extractComputationFromMethod(
     );
   }
 
-
   FactoryFunctionData _extractFactoryFromMethod(
-  MethodDeclaration node,
-  String methodName,
-  String className,
-  List<StatementIR> bodyStatements,
-) {
-  print('      Extracting factory method: $className.$methodName');
+    MethodDeclaration node,
+    String methodName,
+    String className,
+    List<StatementIR> bodyStatements,
+  ) {
+    print('      Extracting factory method: $className.$methodName');
 
-  final producedType = node.returnType?.toString() ?? 'dynamic';
+    final producedType = node.returnType?.toString() ?? 'dynamic';
 
-  final parameters = node.parameters?.parameters
-          .map((p) => p.name?.lexeme ?? '')
-          .where((n) => n.isNotEmpty)
-          .toList() ??
-      <String>[];
+    final parameters =
+        node.parameters?.parameters
+            .map((p) => p.name?.lexeme ?? '')
+            .where((n) => n.isNotEmpty)
+            .toList() ??
+        <String>[];
 
-  // Extract initialized fields (could be instance fields or local vars)
-  final initializedFields = <String>[];
-  for (final stmt in bodyStatements) {
-    if (stmt is VariableDeclarationStmt) {
-      initializedFields.add(stmt.name);
+    // Extract initialized fields (could be instance fields or local vars)
+    final initializedFields = <String>[];
+    for (final stmt in bodyStatements) {
+      if (stmt is VariableDeclarationStmt) {
+        initializedFields.add(stmt.name);
+      }
     }
+
+    final analysis = <String, dynamic>{
+      'parameterCount': parameters.length,
+      'fieldCount': initializedFields.length,
+      'statementsCount': bodyStatements.length,
+      'hasReturn': bodyStatements.any((s) => s is ReturnStmt),
+    };
+
+    return FactoryFunctionData(
+      id: builder.generateId('factory_method', '$className.$methodName'),
+      displayName: '$className.$methodName',
+      producedType: producedType,
+      parameters: parameters,
+      creationSteps: bodyStatements,
+      initializedFields: initializedFields,
+      sourceLocation: _makeLocation(node.offset, node.length),
+      analysis: analysis,
+    );
   }
-
-  final analysis = <String, dynamic>{
-    'parameterCount': parameters.length,
-    'fieldCount': initializedFields.length,
-    'statementsCount': bodyStatements.length,
-    'hasReturn': bodyStatements.any((s) => s is ReturnStmt),
-  };
-
-  return FactoryFunctionData(
-    id: builder.generateId('factory_method', '$className.$methodName'),
-    displayName: '$className.$methodName',
-    producedType: producedType,
-    parameters: parameters,
-    creationSteps: bodyStatements,
-    initializedFields: initializedFields,
-    sourceLocation: _makeLocation(node.offset, node.length),
-    analysis: analysis,
-  );
-}
 
   HelperFunctionData _extractHelper(
     FunctionDeclaration node,
@@ -746,45 +760,45 @@ ComputationFunctionData _extractComputationFromMethod(
     );
   }
 
-HelperFunctionData _extractHelperFromMethod(
-  MethodDeclaration node,
-  String methodName,
-  String className,
-  List<StatementIR> bodyStatements,
-) {
-  print('      Extracting helper method: $className.$methodName');
+  HelperFunctionData _extractHelperFromMethod(
+    MethodDeclaration node,
+    String methodName,
+    String className,
+    List<StatementIR> bodyStatements,
+  ) {
+    print('      Extracting helper method: $className.$methodName');
 
-  final sideEffects = <String>[];
+    final sideEffects = <String>[];
 
-  for (final stmt in bodyStatements) {
-    if (stmt is VariableDeclarationStmt && stmt.initializer != null) {
-      sideEffects.add('Initialize ${stmt.name}');
+    for (final stmt in bodyStatements) {
+      if (stmt is VariableDeclarationStmt && stmt.initializer != null) {
+        sideEffects.add('Initialize ${stmt.name}');
+      }
+      if (stmt is ExpressionStmt) {
+        sideEffects.add('Expression: ${stmt.expression.toShortString()}');
+      }
     }
-    if (stmt is ExpressionStmt) {
-      sideEffects.add('Expression: ${stmt.expression.toShortString()}');
-    }
+
+    final purpose = _determinePurpose(methodName);
+
+    final analysis = <String, dynamic>{
+      'sideEffectCount': sideEffects.length,
+      'statementsCount': bodyStatements.length,
+      'hasComplexLogic': bodyStatements.any(
+        (s) => s is ForStmt || s is ForEachStmt || s is IfStmt || s is TryStmt,
+      ),
+    };
+
+    return HelperFunctionData(
+      id: builder.generateId('helper_method', '$className.$methodName'),
+      displayName: '$className.$methodName',
+      sideEffects: sideEffects,
+      steps: bodyStatements,
+      purpose: purpose,
+      sourceLocation: _makeLocation(node.offset, node.length),
+      analysis: analysis,
+    );
   }
-
-  final purpose = _determinePurpose(methodName);
-
-  final analysis = <String, dynamic>{
-    'sideEffectCount': sideEffects.length,
-    'statementsCount': bodyStatements.length,
-    'hasComplexLogic': bodyStatements.any(
-      (s) => s is ForStmt || s is ForEachStmt || s is IfStmt || s is TryStmt,
-    ),
-  };
-
-  return HelperFunctionData(
-    id: builder.generateId('helper_method', '$className.$methodName'),
-    displayName: '$className.$methodName',
-    sideEffects: sideEffects,
-    steps: bodyStatements,
-    purpose: purpose,
-    sourceLocation: _makeLocation(node.offset, node.length),
-    analysis: analysis,
-  );
-}
 
   FlutterComponent _extractGeneric(
     FunctionDeclaration node,
@@ -806,28 +820,40 @@ HelperFunctionData _extractHelperFromMethod(
     return _extractHelper(node, functionName, bodyStatements);
   }
 
-FlutterComponent _extractGenericFromMethod(
-  MethodDeclaration node,
-  String methodName,
-  String className,
-  List<StatementIR> bodyStatements,
-) {
-  print('      Warning Could not classify method: $className.$methodName → falling back');
+  FlutterComponent _extractGenericFromMethod(
+    MethodDeclaration node,
+    String methodName,
+    String className,
+    List<StatementIR> bodyStatements,
+  ) {
+    print(
+      '      Warning Could not classify method: $className.$methodName → falling back',
+    );
 
-  final hasComplexLogic = bodyStatements.any(
-    (s) => s is ForStmt || s is ForEachStmt || s is IfStmt || s is TryStmt,
-  );
+    final hasComplexLogic = bodyStatements.any(
+      (s) => s is ForStmt || s is ForEachStmt || s is IfStmt || s is TryStmt,
+    );
 
-  if (hasComplexLogic) {
-    final data = _extractComputationFromMethod(node, methodName, className, bodyStatements);
-    print('         → Classified as computation (fallback)');
+    if (hasComplexLogic) {
+      final data = _extractComputationFromMethod(
+        node,
+        methodName,
+        className,
+        bodyStatements,
+      );
+      print('         → Classified as computation (fallback)');
+      return data;
+    }
+
+    final data = _extractHelperFromMethod(
+      node,
+      methodName,
+      className,
+      bodyStatements,
+    );
+    print('         → Classified as helper (fallback)');
     return data;
   }
-
-  final data = _extractHelperFromMethod(node, methodName, className, bodyStatements);
-  print('         → Classified as helper (fallback)');
-  return data;
-}
 
   String _determinePurpose(String functionName) {
     final lower = functionName.toLowerCase();

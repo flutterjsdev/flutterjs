@@ -68,13 +68,12 @@ class FileCodeGen {
 
       // Step 2: Generate code with proper async/await
       var generatedCode = await _generateCodeAsync(dartFile);
-     
 
       // Step 3: VALIDATE
       if (validate) {
         generatedCode = await _performValidationAsync(generatedCode, dartFile);
       }
-     
+
       // Step 4: OPTIMIZE
       if (optimize) {
         generatedCode = await _performOptimizationAsync(
@@ -82,7 +81,6 @@ class FileCodeGen {
           optimizationLevel,
         );
       }
-    
 
       return generatedCode;
     } catch (e) {

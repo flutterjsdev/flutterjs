@@ -161,12 +161,11 @@ class TypeParameterDecl {
   @override
   String toString() => declaration;
 
-
   Map<String, dynamic> toJson() {
     return {
       'name': name,
       if (bound != null) 'bound': bound!.toJson(),
       if (lowerBound != null) 'lowerBound': lowerBound!.toJson(),
     };
-  } 
+  }
 }

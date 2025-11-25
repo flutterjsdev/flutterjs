@@ -1,5 +1,6 @@
 import '../type_ir.dart';
 import '../../diagnostics/source_location.dart';
+
 /// =============================================================================
 ///  UNRESOLVED TYPE PLACEHOLDER
 ///  For multi-pass analysis and forward references

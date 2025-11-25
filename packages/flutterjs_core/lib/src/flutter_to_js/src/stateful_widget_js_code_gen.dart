@@ -837,7 +837,6 @@ class StatefulWidgetJSCodeGen {
     }
   }
 
- 
   void _generateBuildMethod(StringBuffer buffer) {
     if (lifecycleMapping.build == null) {
       buffer.writeln(indenter.line('build(context) {'));

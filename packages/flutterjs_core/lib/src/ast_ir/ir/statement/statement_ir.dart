@@ -6,6 +6,7 @@ import '../../function_decl.dart';
 import '../expression_ir.dart';
 import '../ir_node.dart';
 import '../type_ir.dart';
+
 /// =============================================================================
 ///  STATEMENT IR HIERARCHY
 ///  Complete Intermediate Representation for Dart statements

@@ -31,7 +31,7 @@ mixin StatementWriter {
     if (stmt.type != null) {
       writeType(stmt.type!);
     }
-   
+
     writeByte(stmt.initializer != null ? 1 : 0);
     if (stmt.initializer != null) {
       writeExpression(stmt.initializer!);

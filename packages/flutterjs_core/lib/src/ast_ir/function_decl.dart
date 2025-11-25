@@ -73,7 +73,7 @@ class FunctionDecl extends IRNode {
   /// For constructors: return type is implicit (the class itself)
   /// For generators (async*): wraps type in Stream<T>
   /// For async functions: wraps type in Future<T>
-   TypeIR returnType;
+  TypeIR returnType;
 
   /// Parameters of this function
   final List<ParameterDecl> parameters;
@@ -83,7 +83,7 @@ class FunctionDecl extends IRNode {
   /// For regular functions: list of statements (may be empty for arrow functions)
   /// For abstract methods: null
   /// For native functions: null
-  /// 
+  ///
   /// ✅ FIXED: Changed from StatementIR? to List<StatementIR>?
   final List<StatementIR>? body;
 
@@ -160,10 +160,9 @@ class FunctionDecl extends IRNode {
   /// Example: `Point(int x, int y) : this.fromJson({'x': x, 'y': y})`
   final String? redirectsTo;
 
-
   final bool isWidgetReturnType;
 
-  bool? isWidgetFunction;   
+  bool? isWidgetFunction;
 
   FunctionDecl({
     required super.id,
@@ -193,35 +192,31 @@ class FunctionDecl extends IRNode {
     this.redirectsTo,
     this.isWidgetReturnType = false,
     this.isWidgetFunction,
-  })  : assert(
-          !(isAsync && isSyncGenerator),
-          'Function cannot be both async and sync generator',
-        ),
-        assert(
-          !(isFactory && (isAbstract || isStatic)),
-          'Factory constructor cannot be abstract or static',
-        ),
-        assert(
-          !(isConst && (isAsync || isGenerator)),
-          'Const constructor cannot be async or generator',
-        ),
-        assert(
-          !(isGetter && (isSetter || isOperator)),
-          'Getter cannot also be setter or operator',
-        ),
-        assert(
-          !(isAbstract && body != null),
-          'Abstract method cannot have body',
-        );
+  }) : assert(
+         !(isAsync && isSyncGenerator),
+         'Function cannot be both async and sync generator',
+       ),
+       assert(
+         !(isFactory && (isAbstract || isStatic)),
+         'Factory constructor cannot be abstract or static',
+       ),
+       assert(
+         !(isConst && (isAsync || isGenerator)),
+         'Const constructor cannot be async or generator',
+       ),
+       assert(
+         !(isGetter && (isSetter || isOperator)),
+         'Getter cannot also be setter or operator',
+       ),
+       assert(
+         !(isAbstract && body != null),
+         'Abstract method cannot have body',
+       );
 
-
-
-   void markAsWidgetFunction({
-   
-    required bool isWidgetFun,
-  }) {
+  void markAsWidgetFunction({required bool isWidgetFun}) {
     isWidgetFunction = isWidgetFun;
   }
+
   /// Human-readable function signature
   ///
   /// Examples:
@@ -469,7 +464,6 @@ class MethodDecl extends FunctionDecl {
 
   /// For overridden methods: the method signature being overridden
   final String? overriddenSignature;
-  
 
   MethodDecl({
     required super.id,
@@ -557,7 +551,8 @@ class ConstructorDecl extends FunctionDecl {
     required String constructorClass,
     String? constructorName,
     List<ParameterDecl> parameters = const [],
-    List<StatementIR>? body, // ✅ FIXED: Changed from StatementIR? to List<StatementIR>?
+    List<StatementIR>?
+    body, // ✅ FIXED: Changed from StatementIR? to List<StatementIR>?
     bool isFactory = false,
     bool isConst = false,
     bool isExternal = false,
@@ -568,7 +563,7 @@ class ConstructorDecl extends FunctionDecl {
     this.initializers = const [],
     this.superCall,
     this.redirectedCall,
-   super.isWidgetFunction= false,
+    super.isWidgetFunction = false,
   }) : super(
          id: id,
          name: name,
@@ -626,11 +621,9 @@ class ConstructorDecl extends FunctionDecl {
       'isConst': isConst,
       'isExternal': isExternal,
       'typeParameters': typeParameters.map((tp) => tp.toJson()).toList(),
-      'initializers':
-          initializers.map((init) => init.toString()).toList(),
+      'initializers': initializers.map((init) => init.toString()).toList(),
       if (superCall != null) 'superCall': superCall.toString(),
-      if (redirectedCall != null)
-        'redirectedCall': redirectedCall.toString(),
+      if (redirectedCall != null) 'redirectedCall': redirectedCall.toString(),
       'sourceLocation': sourceLocation.toJson(),
       if (documentation != null) 'documentation': documentation,
       if (annotations.isNotEmpty)

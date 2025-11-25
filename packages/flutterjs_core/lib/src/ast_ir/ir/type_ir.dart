@@ -44,10 +44,10 @@ import 'types/generic_type_ir.dart';
 /// final listType = TypeIR.list(
 ///   SimpleTypeIR(id: 'int', name: 'int', sourceLocation: loc)
 /// ).copyWith(isNullable: true);
-/// 
+///
 /// // Check assignability
 /// if (myVarType.isAssignableTo(listType)) { ... }
-/// 
+///
 /// // Display
 /// print(listType.displayName()); // "List<int>?"
 /// ```

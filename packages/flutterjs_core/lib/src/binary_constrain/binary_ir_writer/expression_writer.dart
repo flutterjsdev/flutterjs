@@ -19,15 +19,11 @@ mixin ExpressionWriter {
 
   // ✓ NEW: Access to relationship registry and string collection
 
-
-
   void writeExpression(ExpressionIR expr);
 
   // ✓ UPDATED: Widget tracking added
   void writeInstanceCreationExpression(InstanceCreationExpressionIR expr) {
     writeType(expr.type);
-
-  
 
     writeByte(expr.constructorName != null ? 1 : 0);
     if (expr.constructorName != null) {
@@ -43,7 +39,6 @@ mixin ExpressionWriter {
 
     writeUint32(expr.namedArguments.length);
     for (final entry in expr.namedArguments.entries) {
-
       writeUint32(getStringRef(entry.key));
       writeExpression(entry.value);
     }

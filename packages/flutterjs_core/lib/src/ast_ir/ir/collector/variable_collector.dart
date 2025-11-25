@@ -5,6 +5,7 @@ import '../expression_types/literals/literals.dart';
 import '../expression_types/operations/operations.dart';
 import '../expression_types/variables_access/vaibales_access.dart';
 import 'expression_visitor.dart';
+
 /// =============================================================================
 ///  VARIABLE COLLECTOR
 ///  Part of the custom Dart IR (Intermediate Representation) analyzer

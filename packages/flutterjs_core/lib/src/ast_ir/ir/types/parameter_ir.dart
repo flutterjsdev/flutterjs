@@ -2,6 +2,7 @@ import '../expression_ir.dart';
 import '../ir_node.dart';
 import '../type_ir.dart';
 import '../../diagnostics/source_location.dart';
+
 /// =============================================================================
 ///  FUNCTION/METHOD PARAMETER MODEL
 ///  Complete parameter representation in the IR

@@ -1,5 +1,6 @@
 import '../../diagnostics/source_location.dart';
 import '../type_ir.dart';
+
 /// =============================================================================
 ///  GENERIC TYPE REPRESENTATION
 ///  List<T>, Map<K,V>, FutureOr<T>, etc.

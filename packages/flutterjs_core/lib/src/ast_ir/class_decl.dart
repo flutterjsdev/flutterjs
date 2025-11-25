@@ -85,7 +85,8 @@ class ClassDecl extends IRNode {
 
   bool? isWidget; // null = unknown, true = widget
   String? widgetCategory; // 'stateless', 'stateful', 'custom'
-  List<String>? inheritanceChain; // ['CustomButton', 'StatelessWidget', 'Widget']
+  List<String>?
+  inheritanceChain; // ['CustomButton', 'StatelessWidget', 'Widget']
   bool hasBuildMethod = false;
 
   ClassDecl({
@@ -112,7 +113,7 @@ class ClassDecl extends IRNode {
     this.hasBuildMethod = false,
   });
 
-   void markAsWidget({
+  void markAsWidget({
     required String category,
     required List<String> chain,
     required bool hasBuild,

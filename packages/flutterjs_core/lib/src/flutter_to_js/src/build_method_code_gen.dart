@@ -153,11 +153,13 @@ class BuildMethodCodeGen {
         printDebug('⚠️  No return statement found');
         buffer.writeln(indenter.line('// Build method has no return'));
         buffer.writeln(indenter.line('return null;'));
-        warnings.add(CodeGenWarning(
-          severity: WarningSeverity.warning,
-          message: 'No return statement in build method',
-          suggestion: 'Add: return <widget>;',
-        ));
+        warnings.add(
+          CodeGenWarning(
+            severity: WarningSeverity.warning,
+            message: 'No return statement in build method',
+            suggestion: 'Add: return <widget>;',
+          ),
+        );
         indenter.dedent();
         buffer.write(indenter.line('}'));
         return buffer.toString();
@@ -171,7 +173,9 @@ class BuildMethodCodeGen {
         return buffer.toString();
       }
 
-      printDebug('✓ Return expression type: ${returnStmt.expression.runtimeType}');
+      printDebug(
+        '✓ Return expression type: ${returnStmt.expression.runtimeType}',
+      );
 
       // ✓ FIXED: Generate the widget tree
       final widgetCode = _generateReturnWidget(returnStmt.expression!);
@@ -232,7 +236,7 @@ class BuildMethodCodeGen {
     // Search backwards for the last return statement
     for (int i = statements.length - 1; i >= 0; i--) {
       final stmt = statements[i];
-      
+
       if (stmt is ReturnStmt) {
         printDebug('Found ReturnStmt at index $i');
         return stmt;
@@ -260,7 +264,9 @@ class BuildMethodCodeGen {
       }
     }
 
-    printDebug('No return statement found in list of ${statements.length} statements');
+    printDebug(
+      'No return statement found in list of ${statements.length} statements',
+    );
     return null;
   }
 
@@ -275,10 +281,12 @@ class BuildMethodCodeGen {
       // Handle null
       if (expr == null) {
         printDebug('❌ Expression is null');
-        warnings.add(CodeGenWarning(
-          severity: WarningSeverity.error,
-          message: 'Return expression is null',
-        ));
+        warnings.add(
+          CodeGenWarning(
+            severity: WarningSeverity.error,
+            message: 'Return expression is null',
+          ),
+        );
         return 'null';
       }
 
@@ -334,11 +342,13 @@ class BuildMethodCodeGen {
 
       // Fallback
       printDebug('⚠️  Unsupported expression type: ${expr.runtimeType}');
-      warnings.add(CodeGenWarning(
-        severity: WarningSeverity.warning,
-        message: 'Non-standard widget expression: ${expr.runtimeType}',
-        suggestion: 'Consider wrapping in a widget class',
-      ));
+      warnings.add(
+        CodeGenWarning(
+          severity: WarningSeverity.warning,
+          message: 'Non-standard widget expression: ${expr.runtimeType}',
+          suggestion: 'Consider wrapping in a widget class',
+        ),
+      );
 
       return exprGen.generate(expr, parenthesize: false);
     } catch (e, st) {
@@ -412,7 +422,10 @@ class BuildMethodCodeGen {
     );
     if (named.isNotEmpty) {
       final namedStr = named.entries
-          .map((e) => '${e.key}: ${exprGen.generate(e.value, parenthesize: false)}')
+          .map(
+            (e) =>
+                '${e.key}: ${exprGen.generate(e.value, parenthesize: false)}',
+          )
           .join(', ');
       parts.add('{$namedStr}');
     }
@@ -422,7 +435,8 @@ class BuildMethodCodeGen {
   String _extractLocalBuilder(String pattern, ExpressionIR expr) {
     final key = 'builder_${pattern}_${expr.id}';
     if (!localBuilders.containsKey(key)) {
-      final builderName = '_build${pattern[0].toUpperCase()}${pattern.substring(1)}';
+      final builderName =
+          '_build${pattern[0].toUpperCase()}${pattern.substring(1)}';
       final builderCode = _generateReturnWidget(expr);
       localBuilders[key] = '  $builderName() {\n    return $builderCode;\n  }';
     }

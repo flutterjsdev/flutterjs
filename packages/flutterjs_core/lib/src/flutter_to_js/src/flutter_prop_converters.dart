@@ -92,8 +92,8 @@ class FlutterPropConverter {
   FlutterPropConverter({
     PropConverterConfig? config,
     ExpressionCodeGen? exprGen,
-  })  : config = config ?? const PropConverterConfig(),
-        exprGen = exprGen ?? ExpressionCodeGen();
+  }) : config = config ?? const PropConverterConfig(),
+       exprGen = exprGen ?? ExpressionCodeGen();
 
   // =========================================================================
   // PUBLIC API - MAIN CONVERSION DISPATCH
@@ -220,10 +220,7 @@ class FlutterPropConverter {
         // 0xFFFF0000
         final intVal = expr.value as int;
         final hexStr = _intToHex(intVal);
-        return ConversionResult(
-          code: "'$hexStr'",
-          dartType: 'Color',
-        );
+        return ConversionResult(code: "'$hexStr'", dartType: 'Color');
       }
     }
 
@@ -265,10 +262,7 @@ class FlutterPropConverter {
       final alignName = expr.propertyName;
       final cssAlign = _alignmentToCss(alignName);
 
-      return ConversionResult(
-        code: "'$cssAlign'",
-        dartType: 'Alignment',
-      );
+      return ConversionResult(code: "'$cssAlign'", dartType: 'Alignment');
     }
 
     if (expr is MethodCallExpressionIR) {
@@ -296,7 +290,7 @@ class FlutterPropConverter {
   // EDGE INSETS CONVERSION
   // =========================================================================
 
-ConversionResult convertEdgeInsets(ExpressionIR expr) {
+  ConversionResult convertEdgeInsets(ExpressionIR expr) {
     // EdgeInsets.all(16) -> {top: 16, right: 16, bottom: 16, left: 16}
     // EdgeInsets.symmetric(h: 8, v: 16) -> {top: 16, left: 8, ...}
     // EdgeInsets.only(top: 10, left: 5) -> {top: 10, left: 5, ...}
@@ -309,7 +303,8 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
         // FIX: Handle null value
         if (value != null) {
           return ConversionResult(
-            code: "new EdgeInsets({top: $value, right: $value, bottom: $value, left: $value})",
+            code:
+                "new EdgeInsets({top: $value, right: $value, bottom: $value, left: $value})",
             dartType: 'EdgeInsets',
           );
         }
@@ -332,7 +327,8 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
         final left = _getNamedArgumentValue(expr, 'left') ?? '0';
 
         return ConversionResult(
-          code: "new EdgeInsets({top: $top, right: $right, bottom: $bottom, left: $left})",
+          code:
+              "new EdgeInsets({top: $top, right: $right, bottom: $bottom, left: $left})",
           dartType: 'EdgeInsets',
         );
       }
@@ -352,7 +348,7 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
   // TEXT STYLE CONVERSION
   // =========================================================================
 
- ConversionResult convertTextStyle(ExpressionIR expr) {
+  ConversionResult convertTextStyle(ExpressionIR expr) {
     // TextStyle(fontSize: 16, color: Colors.blue, fontWeight: FontWeight.bold)
     // -> {fontSize: 16, color: '#2196F3', fontWeight: 'bold'}
 
@@ -365,8 +361,10 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
 
         switch (key) {
           case 'fontSize':
-            styleProps['fontSize'] =
-                exprGen.generate(value, parenthesize: false);
+            styleProps['fontSize'] = exprGen.generate(
+              value,
+              parenthesize: false,
+            );
             break;
 
           case 'fontWeight':
@@ -392,18 +390,24 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
             break;
 
           case 'letterSpacing':
-            styleProps['letterSpacing'] =
-                exprGen.generate(value, parenthesize: false);
+            styleProps['letterSpacing'] = exprGen.generate(
+              value,
+              parenthesize: false,
+            );
             break;
 
           case 'wordSpacing':
-            styleProps['wordSpacing'] =
-                exprGen.generate(value, parenthesize: false);
+            styleProps['wordSpacing'] = exprGen.generate(
+              value,
+              parenthesize: false,
+            );
             break;
 
           case 'height':
-            styleProps['lineHeight'] =
-                exprGen.generate(value, parenthesize: false);
+            styleProps['lineHeight'] = exprGen.generate(
+              value,
+              parenthesize: false,
+            );
             break;
 
           default:
@@ -437,10 +441,7 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
 
     if (expr is PropertyAccessExpressionIR) {
       final alignName = expr.propertyName.toLowerCase();
-      return ConversionResult(
-        code: "'$alignName'",
-        dartType: 'TextAlign',
-      );
+      return ConversionResult(code: "'$alignName'", dartType: 'TextAlign');
     }
 
     return ConversionResult(
@@ -452,10 +453,7 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
   ConversionResult convertTextDirection(ExpressionIR expr) {
     if (expr is PropertyAccessExpressionIR) {
       final dir = expr.propertyName.toLowerCase() == 'ltr' ? 'ltr' : 'rtl';
-      return ConversionResult(
-        code: "'$dir'",
-        dartType: 'TextDirection',
-      );
+      return ConversionResult(code: "'$dir'", dartType: 'TextDirection');
     }
 
     return ConversionResult(
@@ -488,10 +486,7 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
       };
 
       final css = mapping[name] ?? 'flex-start';
-      return ConversionResult(
-        code: "'$css'",
-        dartType: 'MainAxisAlignment',
-      );
+      return ConversionResult(code: "'$css'", dartType: 'MainAxisAlignment');
     }
 
     return ConversionResult(
@@ -521,10 +516,7 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
       };
 
       final css = mapping[name] ?? 'stretch';
-      return ConversionResult(
-        code: "'$css'",
-        dartType: 'CrossAxisAlignment',
-      );
+      return ConversionResult(code: "'$css'", dartType: 'CrossAxisAlignment');
     }
 
     return ConversionResult(
@@ -536,16 +528,10 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
   ConversionResult convertMainAxisSize(ExpressionIR expr) {
     if (expr is PropertyAccessExpressionIR) {
       final name = expr.propertyName;
-      const mapping = {
-        'max': 'max',
-        'min': 'min',
-      };
+      const mapping = {'max': 'max', 'min': 'min'};
 
       final value = mapping[name] ?? 'max';
-      return ConversionResult(
-        code: "'$value'",
-        dartType: 'MainAxisSize',
-      );
+      return ConversionResult(code: "'$value'", dartType: 'MainAxisSize');
     }
 
     return ConversionResult(
@@ -583,10 +569,7 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
       };
 
       final css = mapping[name] ?? 'contain';
-      return ConversionResult(
-        code: "'$css'",
-        dartType: 'BoxFit',
-      );
+      return ConversionResult(code: "'$css'", dartType: 'BoxFit');
     }
 
     return ConversionResult(
@@ -666,10 +649,7 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
   ConversionResult convertBorder(ExpressionIR expr) {
     if (expr is MethodCallExpressionIR && expr.methodName == 'all') {
       final value = _getArgumentValue(expr, 0);
-      return ConversionResult(
-        code: "Border.all($value)",
-        dartType: 'Border',
-      );
+      return ConversionResult(code: "Border.all($value)", dartType: 'Border');
     }
 
     return ConversionResult(
@@ -687,10 +667,7 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
       final value = _getArgumentValue(expr, 0);
 
       if (method == 'circular' || method == 'all') {
-        return ConversionResult(
-          code: "'${value}px'",
-          dartType: 'BorderRadius',
-        );
+        return ConversionResult(code: "'${value}px'", dartType: 'BorderRadius');
       }
     }
 
@@ -713,11 +690,16 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
 
   ConversionResult convertBoxShadow(ExpressionIR expr) {
     if (expr is InstanceCreationExpressionIR) {
-      final offsetX = _getNamedArgumentValueFromInstance(expr, 'offset.dx') ?? '0';
-      final offsetY = _getNamedArgumentValueFromInstance(expr, 'offset.dy') ?? '0';
-      final blur = _getNamedArgumentValueFromInstance(expr, 'blurRadius') ?? '4';
-      final spread = _getNamedArgumentValueFromInstance(expr, 'spreadRadius') ?? '0';
-      final color = _getNamedArgumentValueFromInstance(expr, 'color') ?? '#000000';
+      final offsetX =
+          _getNamedArgumentValueFromInstance(expr, 'offset.dx') ?? '0';
+      final offsetY =
+          _getNamedArgumentValueFromInstance(expr, 'offset.dy') ?? '0';
+      final blur =
+          _getNamedArgumentValueFromInstance(expr, 'blurRadius') ?? '4';
+      final spread =
+          _getNamedArgumentValueFromInstance(expr, 'spreadRadius') ?? '0';
+      final color =
+          _getNamedArgumentValueFromInstance(expr, 'color') ?? '#000000';
 
       return ConversionResult(
         code: "$offsetX $offsetY ${blur}px ${spread}px $color",
@@ -739,21 +721,18 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
   // ANIMATION CONVERSION
   // =========================================================================
 
- ConversionResult convertDuration(ExpressionIR expr) {
+  ConversionResult convertDuration(ExpressionIR expr) {
     // Duration(milliseconds: 300) -> 300
     // Duration(seconds: 1) -> 1000
 
     if (expr is MethodCallExpressionIR) {
       final method = expr.methodName;
       final value = _getArgumentValue(expr, 0);
-    
+
       // FIX: Handle null value properly
       if (value != null) {
         if (method == 'milliseconds') {
-          return ConversionResult(
-            code: value,
-            dartType: 'Duration',
-          );
+          return ConversionResult(code: value, dartType: 'Duration');
         }
 
         if (method == 'seconds') {
@@ -780,10 +759,7 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
       final curveName = expr.propertyName;
       final cssCurve = _curveToCss(curveName);
 
-      return ConversionResult(
-        code: "'$cssCurve'",
-        dartType: 'Curve',
-      );
+      return ConversionResult(code: "'$cssCurve'", dartType: 'Curve');
     }
 
     return ConversionResult(
@@ -966,10 +942,7 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
 
   String _convertFontStyle(ExpressionIR expr) {
     if (expr is PropertyAccessExpressionIR) {
-      const mapping = {
-        'normal': 'normal',
-        'italic': 'italic',
-      };
+      const mapping = {'normal': 'normal', 'italic': 'italic'};
 
       return mapping[expr.propertyName] ?? 'normal';
     }
@@ -1017,28 +990,19 @@ ConversionResult convertEdgeInsets(ExpressionIR expr) {
     return null;
   }
 
-  String? _getNamedArgumentValue(
-    MethodCallExpressionIR expr,
-    String name,
-  ) {
+  String? _getNamedArgumentValue(MethodCallExpressionIR expr, String name) {
     if (expr.namedArguments.containsKey(name)) {
-      return exprGen.generate(
-        expr.namedArguments[name]!,
-        parenthesize: false,
-      );
+      return exprGen.generate(expr.namedArguments[name]!, parenthesize: false);
     }
     return null;
   }
 
-    String? _getNamedArgumentValueFromInstance(
+  String? _getNamedArgumentValueFromInstance(
     InstanceCreationExpressionIR expr,
     String name,
   ) {
     if (expr.namedArguments.containsKey(name)) {
-      return exprGen.generate(
-        expr.namedArguments[name]!,
-        parenthesize: false,
-      );
+      return exprGen.generate(expr.namedArguments[name]!, parenthesize: false);
     }
     return null;
   }

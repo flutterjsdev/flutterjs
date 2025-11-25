@@ -1,5 +1,6 @@
 import '../type_ir.dart';
 import '../../diagnostics/source_location.dart';
+
 /// =============================================================================
 ///  PRIMITIVE & BUILT-IN TYPE REPRESENTATIONS
 ///  int, double, bool, String, void, dynamic, Never

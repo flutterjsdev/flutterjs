@@ -281,7 +281,6 @@ class FlutterWidgetRegistry {
     // ========================================================================
     // LAYOUT WIDGETS (IMPLEMENTED)
     // ========================================================================
-
     'Container': JSWidgetInfo(
       jsClass: 'Container',
       file: 'widgets/container.js',
@@ -682,7 +681,6 @@ class FlutterWidgetRegistry {
     // ========================================================================
     // DECORATION WIDGETS (IMPLEMENTED)
     // ========================================================================
-
     'DecoratedBox': JSWidgetInfo(
       jsClass: 'DecoratedBox',
       file: 'widgets/container.js',
@@ -823,7 +821,6 @@ class FlutterWidgetRegistry {
     // ========================================================================
     // TEXT WIDGETS (IMPLEMENTED)
     // ========================================================================
-
     'RichText': JSWidgetInfo(
       jsClass: 'RichText',
       file: 'widgets/rich_text.js',
@@ -888,7 +885,6 @@ class FlutterWidgetRegistry {
     // ========================================================================
     // INPUT & INTERACTIVE WIDGETS (IMPLEMENTED)
     // ========================================================================
-
     'MouseRegion': JSWidgetInfo(
       jsClass: 'MouseRegion',
       file: 'widgets/mouse_region.js',
@@ -945,7 +941,6 @@ class FlutterWidgetRegistry {
     // ========================================================================
     // IMAGE & MEDIA WIDGETS (IMPLEMENTED)
     // ========================================================================
-
     'RawImage': JSWidgetInfo(
       jsClass: 'RawImage',
       file: 'widgets/raw_image.js',
@@ -1004,15 +999,13 @@ class FlutterWidgetRegistry {
         lastUpdated: DateTime(2024, 1, 22),
       ),
       browserCompatibility: ['Image API', 'CSS object-fit'],
-      performanceNotes:
-          'Image loading is async; placeholder shown during load',
+      performanceNotes: 'Image loading is async; placeholder shown during load',
       accessibilityScore: 75,
     ),
 
     // ========================================================================
     // CLIPPING & SHAPE WIDGETS (IMPLEMENTED)
     // ========================================================================
-
     'ClipRect': JSWidgetInfo(
       jsClass: 'ClipRect',
       file: 'widgets/clip.js',
@@ -1114,7 +1107,9 @@ class FlutterWidgetRegistry {
         releaseDate: DateTime(2024, 1, 19),
       ),
       description: 'Clips to superellipse shape with border radius',
-      limitations: ['Superellipse rendering may differ from Flutter on older browsers'],
+      limitations: [
+        'Superellipse rendering may differ from Flutter on older browsers',
+      ],
       props: {
         'borderRadius': PropertyInfo(
           name: 'borderRadius',
@@ -1155,7 +1150,6 @@ class FlutterWidgetRegistry {
     // ========================================================================
     // FLEXIBLE & MULTI-CHILD WIDGETS (IMPLEMENTED)
     // ========================================================================
-
     'Flex': JSWidgetInfo(
       jsClass: 'Flex',
       file: 'widgets/multi_child_view.js',
@@ -1362,7 +1356,6 @@ class FlutterWidgetRegistry {
     // ========================================================================
     // HELPER & PROVIDER WIDGETS (IMPLEMENTED)
     // ========================================================================
-
     'BackdropGroup': JSWidgetInfo(
       jsClass: 'BackdropGroup',
       file: 'widgets/backdrop.js',
@@ -1374,7 +1367,8 @@ class FlutterWidgetRegistry {
         minJSVersion: 'ES6',
         releaseDate: DateTime(2024, 1, 23),
       ),
-      description: 'Ubiquitous inherited widget that groups backdrop-related widgets',
+      description:
+          'Ubiquitous inherited widget that groups backdrop-related widgets',
       props: {
         'child': PropertyInfo(
           name: 'child',
@@ -1412,7 +1406,8 @@ class FlutterWidgetRegistry {
         minJSVersion: 'ES6',
         releaseDate: DateTime(2024, 1, 24),
       ),
-      description: 'Ubiquitous inherited widget that provides image filter to descendants',
+      description:
+          'Ubiquitous inherited widget that provides image filter to descendants',
       props: {
         'imageFilter': PropertyInfo(
           name: 'imageFilter',
@@ -1513,7 +1508,6 @@ class FlutterWidgetRegistry {
     // ========================================================================
     // NOT STARTED WIDGETS
     // ========================================================================
-
     'TextField': JSWidgetInfo(
       jsClass: 'TextField',
       file: 'widgets/textfield.js',
@@ -1639,8 +1633,9 @@ class FlutterWidgetRegistry {
     ImplementationStatus status,
   ) {
     return Map.fromEntries(
-      dartToJSWidgets.entries
-          .where((e) => e.value.implementationStatus == status),
+      dartToJSWidgets.entries.where(
+        (e) => e.value.implementationStatus == status,
+      ),
     );
   }
 
@@ -1649,8 +1644,7 @@ class FlutterWidgetRegistry {
     final summary = <String, int>{};
 
     for (final status in ImplementationStatus.values) {
-      summary[status.name] =
-          getWidgetsByImplementationStatus(status).length;
+      summary[status.name] = getWidgetsByImplementationStatus(status).length;
     }
 
     return summary;
@@ -1676,53 +1670,74 @@ class FlutterWidgetRegistry {
   static String generateImplementationReport() {
     final buffer = StringBuffer();
 
-    buffer.writeln('\n┌─────────────────────────────────────────────────────────┐');
-    buffer.writeln('│   FLUTTER WIDGET IMPLEMENTATION REPORT                 │');
-    buffer.writeln('└─────────────────────────────────────────────────────────┘\n');
+    buffer.writeln(
+      '\n┌─────────────────────────────────────────────────────────┐',
+    );
+    buffer.writeln(
+      '│   FLUTTER WIDGET IMPLEMENTATION REPORT                 │',
+    );
+    buffer.writeln(
+      '└─────────────────────────────────────────────────────────┘\n',
+    );
 
     // Summary
     final summary = getImplementationSummary();
     buffer.writeln('📊 SUMMARY:');
     buffer.writeln('  Total Widgets: ${dartToJSWidgets.length}');
     buffer.writeln(
-        '  ✅ Production Ready: ${summary[ImplementationStatus.productionReady.name] ?? 0}');
+      '  ✅ Production Ready: ${summary[ImplementationStatus.productionReady.name] ?? 0}',
+    );
     buffer.writeln(
-        '  🟢 Feature Complete: ${summary[ImplementationStatus.featureComplete.name] ?? 0}');
+      '  🟢 Feature Complete: ${summary[ImplementationStatus.featureComplete.name] ?? 0}',
+    );
     buffer.writeln(
-        '  🟡 In Progress: ${summary[ImplementationStatus.inProgress.name] ?? 0}');
+      '  🟡 In Progress: ${summary[ImplementationStatus.inProgress.name] ?? 0}',
+    );
     buffer.writeln(
-        '  ⚪ Not Started: ${summary[ImplementationStatus.notStarted.name] ?? 0}');
+      '  ⚪ Not Started: ${summary[ImplementationStatus.notStarted.name] ?? 0}',
+    );
     buffer.writeln(
-        '  ❌ Deprecated: ${summary[ImplementationStatus.deprecated.name] ?? 0}');
+      '  ❌ Deprecated: ${summary[ImplementationStatus.deprecated.name] ?? 0}',
+    );
     buffer.writeln(
-        '\n📈 Overall Coverage: ${getOverallCoverage().toStringAsFixed(1)}%\n');
+      '\n📈 Overall Coverage: ${getOverallCoverage().toStringAsFixed(1)}%\n',
+    );
 
     // Production ready widgets
-    buffer.writeln('✅ PRODUCTION READY WIDGETS (${summary[ImplementationStatus.productionReady.name] ?? 0}):');
-    final productionReady =
-        getWidgetsByImplementationStatus(ImplementationStatus.productionReady);
+    buffer.writeln(
+      '✅ PRODUCTION READY WIDGETS (${summary[ImplementationStatus.productionReady.name] ?? 0}):',
+    );
+    final productionReady = getWidgetsByImplementationStatus(
+      ImplementationStatus.productionReady,
+    );
     for (final entry in productionReady.entries) {
       final widget = entry.value;
       buffer.writeln(
-          '  • ${entry.key} (${widget.metrics?.performanceScore ?? 0}/100 perf)');
+        '  • ${entry.key} (${widget.metrics?.performanceScore ?? 0}/100 perf)',
+      );
     }
 
     // In progress widgets
     buffer.writeln(
-        '\n🟡 IN PROGRESS WIDGETS (${summary[ImplementationStatus.inProgress.name] ?? 0}):');
-    final inProgress =
-        getWidgetsByImplementationStatus(ImplementationStatus.inProgress);
+      '\n🟡 IN PROGRESS WIDGETS (${summary[ImplementationStatus.inProgress.name] ?? 0}):',
+    );
+    final inProgress = getWidgetsByImplementationStatus(
+      ImplementationStatus.inProgress,
+    );
     for (final entry in inProgress.entries) {
       final widget = entry.value;
       buffer.writeln(
-          '  • ${entry.key} (${widget.metrics?.completionPercentage ?? 0}% complete)');
+        '  • ${entry.key} (${widget.metrics?.completionPercentage ?? 0}% complete)',
+      );
     }
 
     // Not started
     buffer.writeln(
-        '\n⚪ NOT STARTED WIDGETS (${summary[ImplementationStatus.notStarted.name] ?? 0}):');
-    final notStarted =
-        getWidgetsByImplementationStatus(ImplementationStatus.notStarted);
+      '\n⚪ NOT STARTED WIDGETS (${summary[ImplementationStatus.notStarted.name] ?? 0}):',
+    );
+    final notStarted = getWidgetsByImplementationStatus(
+      ImplementationStatus.notStarted,
+    );
     for (final entry in notStarted.entries) {
       buffer.writeln('  • ${entry.key}');
     }

@@ -2,6 +2,7 @@ import 'package:meta/meta.dart';
 
 import '../../expression_ir.dart';
 import '../../type_ir.dart';
+
 /// =============================================================================
 ///  FUNCTION, METHOD & CONSTRUCTOR CALLS
 ///  Invocation expressions in the IR

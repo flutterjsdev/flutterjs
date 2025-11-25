@@ -340,10 +340,7 @@ class FunctionCodeGen {
   }
 
   /// ✅ FIXED: Check if body can be converted to arrow function
-  bool _canBeArrowFunction(
-    FunctionBodyType bodyType,
-    List<StatementIR>? body,
-  ) {
+  bool _canBeArrowFunction(FunctionBodyType bodyType, List<StatementIR>? body) {
     // Only singleReturn or singleExpression can be arrow functions
     if (bodyType == FunctionBodyType.singleReturn ||
         bodyType == FunctionBodyType.singleExpression) {

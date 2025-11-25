@@ -4,6 +4,7 @@ import 'package:meta/meta.dart';
 
 import '../diagnostics/analysis_issue.dart';
 import '../diagnostics/source_location.dart';
+
 /// =============================================================================
 ///  IR NODE BASE CLASSES
 ///  Foundation for the custom Dart Intermediate Representation (IR)
@@ -46,15 +47,15 @@ import '../diagnostics/source_location.dart';
 ///     required SourceLocationIR sourceLocation,
 ///     required this.data,
 ///   }) : super(id: id, sourceLocation: sourceLocation);
-/// 
+///
 ///   @override
 ///   String toShortString() => 'MyCustom($data)';
-/// 
+///
 ///   @override
-///   bool contentEquals(IRNode other) => 
+///   bool contentEquals(IRNode other) =>
 ///     other is MyCustomNode && data == other.data;
 /// }
-/// 
+///
 /// // Create an issue
 /// final issue = AnalysisIssueIR.error(
 ///   id: 'err_001',
@@ -83,8 +84,8 @@ import '../diagnostics/source_location.dart';
 /// AUTHOR:  Your Name / Team
 /// UPDATED: 2025-11-26
 /// =============================================================================
-/// 
-/// 
+///
+///
 @immutable
 abstract class IRNode {
   /// Unique identifier for this node (format: "type_uniqueKey")

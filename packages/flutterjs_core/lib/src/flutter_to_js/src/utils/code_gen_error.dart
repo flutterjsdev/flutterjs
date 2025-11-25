@@ -1,4 +1,4 @@
-enum WarningSeverity { info, warning, error, }
+enum WarningSeverity { info, warning, error }
 
 class CodeGenWarning {
   final WarningSeverity severity;

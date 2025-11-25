@@ -1,6 +1,7 @@
 import '../type_ir.dart';
 import 'class_type_ir.dart';
 import 'unresolved_type_ir.dart';
+
 /// =============================================================================
 ///  DART TYPE HIERARCHY & RELATIONSHIP CHECKER
 ///  Subtype, assignability, and common supertype logic

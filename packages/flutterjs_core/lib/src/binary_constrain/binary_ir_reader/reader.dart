@@ -19,6 +19,5 @@ mixin Reader {
 }
 
 mixin SourceLocation {
-
   SourceLocationIR readSourceLocation();
 }

@@ -43,9 +43,9 @@ import '../ir/type_ir.dart';
 /// if (provider.overNotifies) { suggest batching notifyListeners() … }
 /// ```
 /// <---------------------------------------------------------------------------->
-/// 
-/// 
-/// 
+///
+///
+///
 /// Represents a state management provider class
 ///
 /// Extends ClassDecl to add provider-specific analysis for:

@@ -33,14 +33,14 @@ import '../state_class_representation/state_class_representation.dart';
 /// All classes are immutable, JSON-serializable, and designed for incremental
 /// analysis passes and result merging.
 /// <---------------------------------------------------------------------------->
-/// 
-/// 
-/// 
-/// 
-/// 
-/// 
-/// 
-/// 
+///
+///
+///
+///
+///
+///
+///
+///
 /// Comprehensive analysis of State lifecycle methods and their correctness
 ///
 /// Tracks what operations happen at each lifecycle stage and detects:

@@ -6,7 +6,7 @@
 // ============================================================================
 
 import '../../ast_ir/ast_it.dart';
-// 
+//
 
 // ============================================================================
 // error & REPORT CLASSES
@@ -43,7 +43,7 @@ class ValidationReport {
   final DateTime timestamp;
   final Duration duration;
   final bool canProceed;
-  
+
   late final int fatalCount;
   late final int errorCount;
   late final int warningCount;
@@ -53,9 +53,15 @@ class ValidationReport {
     required this.duration,
     this.canProceed = true,
   }) : timestamp = DateTime.now() {
-    fatalCount = errors.where((e) => e.severity == ValidationSeverity.fatal).length;
-    errorCount = errors.where((e) => e.severity == ValidationSeverity.error).length;
-    warningCount = errors.where((e) => e.severity == ValidationSeverity.warning).length;
+    fatalCount = errors
+        .where((e) => e.severity == ValidationSeverity.fatal)
+        .length;
+    errorCount = errors
+        .where((e) => e.severity == ValidationSeverity.error)
+        .length;
+    warningCount = errors
+        .where((e) => e.severity == ValidationSeverity.warning)
+        .length;
   }
 
   bool get hasErrors => errorCount > 0 || fatalCount > 0;
@@ -69,7 +75,7 @@ class ValidationReport {
     buffer.writeln('╚════════════════════════════════════════════════════╝\n');
 
     buffer.writeln('Status: ${canProceed ? '✓ PASSED' : '✗ FAILED'}\n');
-    
+
     buffer.writeln('Issues Found:');
     buffer.writeln('  Fatal:   $fatalCount');
     buffer.writeln('  Error:   $errorCount');
@@ -246,7 +252,7 @@ class IRPostDeserializeValidator {
 
   void _detectInheritanceCycles() {
     final classMap = {
-      for (final cls in dartFile.classDeclarations) cls.name: cls
+      for (final cls in dartFile.classDeclarations) cls.name: cls,
     };
 
     for (final cls in dartFile.classDeclarations) {
@@ -262,7 +268,11 @@ class IRPostDeserializeValidator {
     }
   }
 
-  bool _hasCycle(String className, Map<String, ClassDecl> classMap, Set<String> visited) {
+  bool _hasCycle(
+    String className,
+    Map<String, ClassDecl> classMap,
+    Set<String> visited,
+  ) {
     if (visited.contains(className)) return true;
     if (!classMap.containsKey(className)) return false;
 
@@ -290,7 +300,8 @@ class IRPostDeserializeValidator {
               'Non-abstract class ${cls.name} contains abstract method ${method.name}',
               ValidationSeverity.error,
               affectedNode: 'MethodDecl[${method.name}]',
-              suggestion: 'Either mark class as abstract or provide implementation',
+              suggestion:
+                  'Either mark class as abstract or provide implementation',
             );
           }
         }
@@ -470,7 +481,9 @@ class TypeEnvironment {
 
     buffer.writeln('\nGeneric Types: ${genericTypes.length}');
     for (final entry in genericTypes.entries) {
-      buffer.writeln('  - ${entry.key}<${entry.value.map((p) => p.name).join(', ')}>');
+      buffer.writeln(
+        '  - ${entry.key}<${entry.value.map((p) => p.name).join(', ')}>',
+      );
     }
 
     return buffer.toString();
@@ -610,13 +623,11 @@ class ClosureInfo {
   final Set<String> capturedVariables = {};
   final bool captureByReference;
 
-  ClosureInfo({
-    required this.closureId,
-    this.captureByReference = true,
-  });
+  ClosureInfo({required this.closureId, this.captureByReference = true});
 
   @override
-  String toString() => 'ClosureInfo($closureId, captures: ${capturedVariables.length})';
+  String toString() =>
+      'ClosureInfo($closureId, captures: ${capturedVariables.length})';
 }
 
 class IRScopeAnalyzer {
@@ -742,8 +753,7 @@ class IRControlFlowAnalyzer {
 
 class Phase0Orchestrator {
   final DartFile dartFile;
-  
-  
+
   late ValidationReport validationReport;
   late TypeEnvironment typeEnvironment;
   late ScopeModel scopeModel;
@@ -781,7 +791,10 @@ class Phase0Orchestrator {
     final typeAnalyzer = IRTypeSystemAnalyzer(dartFile);
     typeAnalyzer.analyze();
     typeEnvironment = typeAnalyzer.typeEnvironment;
-    if (verbose) print('✓ Type system analyzed (${typeEnvironment.typeTable.length} types)\n');
+    if (verbose)
+      print(
+        '✓ Type system analyzed (${typeEnvironment.typeTable.length} types)\n',
+      );
 
     // 0.3: IR Scope & Binding Analyzer
     if (verbose) print('Step 3: Analyzing scope and bindings...');
@@ -832,17 +845,17 @@ class Phase0AnalysisResult {
     required this.scopeModel,
     required this.controlFlowGraph,
     required this.duration,
-  })  : success = true,
-        error = null;
+  }) : success = true,
+       error = null;
 
   Phase0AnalysisResult.failed({
     required this.validationReport,
     required this.duration,
     this.error,
-  })  : success = false,
-        typeEnvironment = null,
-        scopeModel = null,
-        controlFlowGraph = null;
+  }) : success = false,
+       typeEnvironment = null,
+       scopeModel = null,
+       controlFlowGraph = null;
 
   String generateSummary() {
     final buffer = StringBuffer();
@@ -869,13 +882,17 @@ class Phase0AnalysisResult {
     if (success && scopeModel != null) {
       buffer.writeln('Scopes:');
       buffer.writeln('  Total scopes: ${scopeModel!.scopeMap.length}');
-      buffer.writeln('  Global bindings: ${scopeModel!.globalBindings.length}\n');
+      buffer.writeln(
+        '  Global bindings: ${scopeModel!.globalBindings.length}\n',
+      );
     }
 
     if (success && controlFlowGraph != null) {
       buffer.writeln('Control Flow:');
       buffer.writeln('  Basic blocks: ${controlFlowGraph!.blocks.length}');
-      buffer.writeln('  Dead code statements: ${controlFlowGraph!.unreachableStatements.length}\n');
+      buffer.writeln(
+        '  Dead code statements: ${controlFlowGraph!.unreachableStatements.length}\n',
+      );
     }
 
     if (error != null) {

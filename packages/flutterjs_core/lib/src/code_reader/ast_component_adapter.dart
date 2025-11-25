@@ -107,22 +107,20 @@ class ASTComponentAdapter implements ComponentDetector {
 
   bool _isWidgetCreation(dynamic node) {
     if (node is! InstanceCreationExpression) return false;
-    
+
     final className = node.constructorName.type.name.toString();
     return _isLikelyWidget(className);
   }
 
   bool _isConditional(dynamic node) {
-    return node is ConditionalExpression ||
-        node is IfStatement ;
-        //todo:: need to add If Expression support in analyzer package
-        // ||
-        // (node is IfExpression);
+    return node is ConditionalExpression || node is IfStatement;
+    //todo:: need to add If Expression support in analyzer package
+    // ||
+    // (node is IfExpression);
   }
 
   bool _isLoop(dynamic node) {
-    return node is ForStatement ||
-        (node is ForStatement && (node).isForEach);
+    return node is ForStatement || (node is ForStatement && (node).isForEach);
   }
 
   bool _isCollection(dynamic node) {
@@ -190,17 +188,21 @@ class ASTComponentAdapter implements ComponentDetector {
 
         // Detect property type
         if (_isCallbackName(name)) {
-          props.add(CallbackPropertyBinding(
-            name: name,
-            value: value,
-            parameters: _extractParameters(arg.expression),
-          ));
+          props.add(
+            CallbackPropertyBinding(
+              name: name,
+              value: value,
+              parameters: _extractParameters(arg.expression),
+            ),
+          );
         } else if (_isBuilderName(name)) {
-          props.add(BuilderPropertyBinding(
-            name: name,
-            value: value,
-            parameters: _extractParameters(arg.expression),
-          ));
+          props.add(
+            BuilderPropertyBinding(
+              name: name,
+              value: value,
+              parameters: _extractParameters(arg.expression),
+            ),
+          );
         } else {
           props.add(LiteralPropertyBinding(name: name, value: value));
         }
@@ -410,15 +412,38 @@ class ASTComponentAdapter implements ComponentDetector {
 
   bool _isLikelyWidget(String className) {
     final commonWidgets = {
-      'Scaffold', 'AppBar', 'Container', 'Column', 'Row', 'Center', 'Text',
-      'Button', 'FloatingActionButton', 'ListView', 'GridView', 'Stack',
-      'Positioned', 'GestureDetector', 'InkWell', 'MaterialApp',
-      'ElevatedButton', 'Icon', 'Padding', 'SizedBox', 'Expanded',
-      'Flexible', 'Dialog', 'AlertDialog', 'Card', 'ListTile', 'Drawer',
+      'Scaffold',
+      'AppBar',
+      'Container',
+      'Column',
+      'Row',
+      'Center',
+      'Text',
+      'Button',
+      'FloatingActionButton',
+      'ListView',
+      'GridView',
+      'Stack',
+      'Positioned',
+      'GestureDetector',
+      'InkWell',
+      'MaterialApp',
+      'ElevatedButton',
+      'Icon',
+      'Padding',
+      'SizedBox',
+      'Expanded',
+      'Flexible',
+      'Dialog',
+      'AlertDialog',
+      'Card',
+      'ListTile',
+      'Drawer',
     };
 
     if (commonWidgets.contains(className)) return true;
-    if (className.endsWith('Widget') || className.endsWith('Button')) return true;
+    if (className.endsWith('Widget') || className.endsWith('Button'))
+      return true;
     if (className[0].toUpperCase() == className[0]) return true;
 
     return false;
@@ -477,9 +502,6 @@ void registerASTAdapter(
 }
 
 /// Quick extraction from AST node
-FlutterComponent extractFromAST(
-  dynamic astNode,
-  ComponentExtractor extractor,
-) {
+FlutterComponent extractFromAST(dynamic astNode, ComponentExtractor extractor) {
   return extractor.extract(astNode, hint: 'from_ast');
 }

@@ -36,7 +36,7 @@ import 'symbol_resolution.dart';
 /// • Issue reporting for mismatches/incompatibilities
 ///
 /// Example:
-/// dart /// final inferred = inferer.inferExpressionType(expr); /// if (inferred is UnresolvedTypeIR) { report error } /// 
+/// dart /// final inferred = inferer.inferExpressionType(expr); /// if (inferred is UnresolvedTypeIR) { report error } ///
 ///
 /// Enables:
 /// • Flow analysis (Pass 4) with typed statements

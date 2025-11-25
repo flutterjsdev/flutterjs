@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 import '../../../ast_it.dart';
+
 /// =============================================================================
 ///  LITERAL EXPRESSIONS
 ///  Constants and collection literals in the IR

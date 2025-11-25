@@ -1,4 +1,3 @@
-
 /// <---------------------------------------------------------------------------->
 /// dart_file_builder.dart
 /// ----------------------------------------------------------------------------
@@ -97,8 +96,7 @@ class LibraryMetadata {
       if (libraryName != null) 'libraryName': libraryName,
       if (documentation != null) 'documentation': documentation,
       'isDeprecated': isDeprecated,
-      if (deprecationMessage != null)
-        'deprecationMessage': deprecationMessage,
+      if (deprecationMessage != null) 'deprecationMessage': deprecationMessage,
       if (analyzerDirectives.isNotEmpty)
         'analyzerDirectives': analyzerDirectives,
       if (annotations.isNotEmpty) 'annotations': annotations,
@@ -106,7 +104,7 @@ class LibraryMetadata {
       if (analyzerVersion != null) 'analyzerVersion': analyzerVersion,
       if (environment.isNotEmpty) 'environment': environment,
     };
-  } 
+  }
 }
 
 // =============================================================================
@@ -173,8 +171,6 @@ class DartFile {
 
   /// When this file was last analyzed
   final DateTime? lastAnalyzedAt;
-
-  
 
   const DartFile({
     required this.filePath,
@@ -303,10 +299,12 @@ Issues: ${analysisIssues.length}
       'analysisIssues': analysisIssues.map((i) => i.toJson()).toList(),
       'metadata': metadata.toJson(),
       'classDeclarations': classDeclarations.map((c) => c.toJson()).toList(),
-      'functionDeclarations':
-          functionDeclarations.map((f) => f.toJson()).toList(),
-      'variableDeclarations':
-          variableDeclarations.map((v) => v.toJson()).toList(),
+      'functionDeclarations': functionDeclarations
+          .map((f) => f.toJson())
+          .toList(),
+      'variableDeclarations': variableDeclarations
+          .map((v) => v.toJson())
+          .toList(),
       'enumDeclarations': enumDeclarations,
       'mixinDeclarations': mixinDeclarations,
       'typedefDeclarations': typedefDeclarations,

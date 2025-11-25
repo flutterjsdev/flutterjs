@@ -129,7 +129,7 @@ class OutputValidator {
 
     // Run all validations
     _syntaxValidation();
-  
+
     _semanticValidation();
     _runtimeValidation();
     _styleValidation();

@@ -35,7 +35,7 @@ import 'type_inference_pass.dart';
 /// • Issue reporting for unresolved symbols/circular imports
 ///
 /// Example:
-/// dart /// resolver.resolveAllSymbols(); /// final state = file.resolutionInfo.widgetStateBindings[widgetName]; /// 
+/// dart /// resolver.resolveAllSymbols(); /// final state = file.resolutionInfo.widgetStateBindings[widgetName]; ///
 ///
 /// Essential for:
 /// • Type inference (Pass 3)

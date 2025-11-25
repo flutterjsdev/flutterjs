@@ -238,7 +238,6 @@ class VariableDecl extends IRNode {
     return errors;
   }
 
-
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -257,7 +256,6 @@ class VariableDecl extends IRNode {
       'isNamed': isNamed,
       'isPositional': isPositional,
       'isPrivate': isPrivate,
-      
     };
   }
 

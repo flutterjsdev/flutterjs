@@ -35,7 +35,7 @@ mixin StatementReader {
     if (hasType) {
       type = readType();
     }
-  
+
     final hasInitializer = readByte() != 0;
     ExpressionIR? initializer;
     if (hasInitializer) {
@@ -52,7 +52,7 @@ mixin StatementReader {
       id: 'stmt_var_decl',
       name: name,
       type: type,
-     
+
       initializer: initializer,
       isFinal: isFinal,
       isConst: isConst,

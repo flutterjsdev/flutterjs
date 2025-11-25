@@ -104,12 +104,9 @@ mixin RelationshipWriter {
 
         if (returnedWidget != null) {
           // Store relationship: class -> widget tree
-           final widgetName = returnedWidget.debugName;
-           addString(widgetName);
-          _relationships.registerClassBuildOutput(
-            classDecl.id,
-            widgetName,
-          );
+          final widgetName = returnedWidget.debugName;
+          addString(widgetName);
+          _relationships.registerClassBuildOutput(classDecl.id, widgetName);
         }
       }
     }

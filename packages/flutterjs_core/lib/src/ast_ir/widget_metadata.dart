@@ -27,6 +27,7 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
 
 import '../binary_constrain/binary_ir_writer/ir_relationship_registry.dart';
+
 class WidgetMetadata {
   /// Maps build method ID -> root widget type (e.g., "Scaffold", "Container")
   final Map<String, String> buildMethods;
@@ -171,8 +172,6 @@ class WidgetMetadata {
   }
 }
 
-
-
 class WidgetTreeNode {
   /// Widget class name (e.g., "Scaffold", "Container")
   final String widgetType;
@@ -191,8 +190,8 @@ class WidgetTreeNode {
     this.constructorName,
     List<WidgetTreeNode>? children,
     Map<String, dynamic>? properties,
-  })  : children = children ?? [],
-        properties = properties ?? {};
+  }) : children = children ?? [],
+       properties = properties ?? {};
 
   /// Pretty print widget tree
   String prettyPrint({int indent = 0}) {

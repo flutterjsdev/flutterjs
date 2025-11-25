@@ -1,6 +1,7 @@
 import '../type_ir.dart';
 import 'parameter_ir.dart';
 import '../../diagnostics/source_location.dart';
+
 /// =============================================================================
 ///  FUNCTION TYPE REPRESENTATION
 ///  Full Dart function signature modeling

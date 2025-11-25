@@ -1,5 +1,6 @@
 import '../../diagnostics/source_location.dart';
 import '../type_ir.dart';
+
 /// =============================================================================
 ///  NULLABLE TYPE WRAPPER
 ///  Safe wrapper for nullable types in the custom Dart IR

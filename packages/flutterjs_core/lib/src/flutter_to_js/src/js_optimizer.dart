@@ -58,13 +58,17 @@ class JSOptimizer {
       final beforeCF = testCode;
       testCode = _constantFolding(testCode);
       if (beforeCF != testCode) {
-        analysis.add('✓ Constant Folding: Will optimize arithmetic/string operations');
+        analysis.add(
+          '✓ Constant Folding: Will optimize arithmetic/string operations',
+        );
       }
 
       final beforeDCE = testCode;
       testCode = _deadCodeElimination(testCode);
       if (beforeDCE != testCode) {
-        analysis.add('✓ Dead Code Elimination: Will remove unreachable code after returns');
+        analysis.add(
+          '✓ Dead Code Elimination: Will remove unreachable code after returns',
+        );
       }
     }
 
@@ -72,7 +76,9 @@ class JSOptimizer {
       final beforeCSE = testCode;
       testCode = _commonSubexpressionElimination(testCode);
       if (beforeCSE != testCode) {
-        analysis.add('✓ Common Subexpression Elimination: Will extract repeated expressions');
+        analysis.add(
+          '✓ Common Subexpression Elimination: Will extract repeated expressions',
+        );
       }
 
       final beforeVI = testCode;
@@ -86,10 +92,14 @@ class JSOptimizer {
       final beforeMI = testCode;
       testCode = _methodInlining(testCode);
       if (beforeMI != testCode) {
-        analysis.add('✓ Method Inlining: Will inline small, single/dual-use functions');
+        analysis.add(
+          '✓ Method Inlining: Will inline small, single/dual-use functions',
+        );
       }
 
-      analysis.add('✓ Minification: Will remove comments and collapse whitespace');
+      analysis.add(
+        '✓ Minification: Will remove comments and collapse whitespace',
+      );
     }
 
     analysis.add('\nOriginal Size: ${code.length} bytes');
@@ -109,13 +119,10 @@ class JSOptimizer {
     var result = input;
 
     // Fold number additions: 1 + 2 → 3 (only within expressions, respect scope)
-    result = result.replaceAllMapped(
-      RegExp(r'(\d+)\s*\+\s*(\d+)'),
-      (m) {
-        final sum = int.parse(m.group(1)!) + int.parse(m.group(2)!);
-        return sum.toString();
-      },
-    );
+    result = result.replaceAllMapped(RegExp(r'(\d+)\s*\+\s*(\d+)'), (m) {
+      final sum = int.parse(m.group(1)!) + int.parse(m.group(2)!);
+      return sum.toString();
+    });
 
     // Fold string concatenation: 'a' + 'b' → 'ab'
     result = result.replaceAllMapped(
@@ -142,7 +149,7 @@ class JSOptimizer {
 
     for (var line in lines) {
       final trimmed = line.trim();
-      
+
       // Skip empty lines for analysis
       if (trimmed.isEmpty) {
         result.add(line);
@@ -153,7 +160,8 @@ class JSOptimizer {
       final closeBraces = '}'.allMatches(trimmed).length;
 
       // Detect return/break/continue/throw (unreachable code markers)
-      final isUnreachableMarker = (trimmed.startsWith('return ') ||
+      final isUnreachableMarker =
+          (trimmed.startsWith('return ') ||
               trimmed.startsWith('break') ||
               trimmed.startsWith('continue') ||
               trimmed.startsWith('throw ')) &&
@@ -203,7 +211,7 @@ class JSOptimizer {
     final pattern = RegExp(
       r'\b(\w+(?:\.\w+)*)\s*\(\s*(?:[^()]*|(?:\([^)]*\)))*\s*\)',
     );
-    
+
     final matches = pattern.allMatches(input);
     final freqMap = <String, List<int>>{};
 
@@ -211,7 +219,7 @@ class JSOptimizer {
       final expr = match.group(0)!;
       // Ignore very short expressions and built-in methods
       if (expr.length < 10 || _isBuiltIn(expr)) continue;
-      
+
       freqMap.putIfAbsent(expr, () => []).add(match.start);
     }
 
@@ -224,7 +232,9 @@ class JSOptimizer {
         final declaration = 'const $varName = ${entry.key};';
         result = result.replaceAll(entry.key, varName);
         result = declaration + '\n' + result;
-        optimizationLog.add('CSE: Extracted ${entry.key} (used ${entry.value.length}x)');
+        optimizationLog.add(
+          'CSE: Extracted ${entry.key} (used ${entry.value.length}x)',
+        );
       }
     }
 
@@ -255,7 +265,7 @@ class JSOptimizer {
     int inlinedCount = 0;
 
     final constMatches = constPattern.allMatches(input).toList();
-    
+
     for (final match in constMatches) {
       final varName = match.group(1)!;
       final value = match.group(2)!.trim();
@@ -272,12 +282,13 @@ class JSOptimizer {
         // Replace usage (skip the declaration itself)
         result = result.replaceFirstMapped(usePattern, (m) {
           // Skip if this is the declaration
-          if (result.indexOf('const $varName') == m.start - varName.length - 6) {
+          if (result.indexOf('const $varName') ==
+              m.start - varName.length - 6) {
             return m.group(0)!;
           }
           return '($value)';
         });
-        
+
         // Remove declaration
         result = result.replaceAll(match.group(0)!, '');
         inlinedCount++;
@@ -320,7 +331,7 @@ class JSOptimizer {
       final name = match.group(1) ?? match.group(4);
       final params = (match.group(2) ?? match.group(5))!;
       final body = (match.group(3) ?? match.group(6))!.trim();
-      
+
       if (name == null || seen.containsKey(name)) continue;
 
       // Validate: no side effects, simple params
@@ -333,7 +344,9 @@ class JSOptimizer {
       if (useCount >= 1 && useCount <= 2 && body.length < 80) {
         seen[name] = _FunctionInfo(name, params, body);
         result = result.replaceAll(callPattern, '$body;');
-        optimizationLog.add('Method Inlining: inlined $name (called $useCount times)');
+        optimizationLog.add(
+          'Method Inlining: inlined $name (called $useCount times)',
+        );
       }
     }
 
@@ -393,10 +406,13 @@ class JSOptimizer {
       '?',
       ':',
       '&',
-      '|'
+      '|',
     ];
     for (final token in safeTokens) {
-      result = result.replaceAll(RegExp('\\s*\\${RegExp.escape(token)}\\s*'), token);
+      result = result.replaceAll(
+        RegExp('\\s*\\${RegExp.escape(token)}\\s*'),
+        token,
+      );
     }
 
     // 5. Remove empty lines and trim
@@ -423,10 +439,12 @@ class JSOptimizer {
     final originalSize = originalCode.length;
     final optimizedSize = code.length;
     final reduction = originalSize - optimizedSize;
-    final reductionPercent =
-        originalSize > 0 ? (reduction / originalSize * 100).toStringAsFixed(2) : '0.00';
+    final reductionPercent = originalSize > 0
+        ? (reduction / originalSize * 100).toStringAsFixed(2)
+        : '0.00';
 
-    final report = '''
+    final report =
+        '''
 ╔════════════════════════════════════════════════════════════════╗
 ║                     OPTIMIZATION REPORT                        ║
 ╚════════════════════════════════════════════════════════════════╝
@@ -444,7 +462,8 @@ Safe Practices:
   ✓ Variable inlining skips side-effect expressions
   ✓ Method inlining validates function safety
   ✓ Scope awareness maintained throughout
-'''.trim();
+'''
+            .trim();
 
     return report;
   }

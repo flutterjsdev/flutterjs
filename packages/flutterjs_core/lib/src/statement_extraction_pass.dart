@@ -41,7 +41,7 @@ import 'ast_ir/dart_file_builder.dart';
 /// • Debug utilities for body type inspection and extraction logging
 ///
 /// Typical usage:
-/// dart /// final statements = extractor.extractBodyStatements(functionBody); /// // Now analyze statements for flows, types, etc. /// 
+/// dart /// final statements = extractor.extractBodyStatements(functionBody); /// // Now analyze statements for flows, types, etc. ///
 ///
 /// Powers:
 /// • Control flow graph building

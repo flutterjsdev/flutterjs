@@ -59,9 +59,9 @@ class SpecialFeaturesCodeGen {
     SpecialFeaturesConfig? config,
     ExpressionCodeGen? exprGen,
     StatementCodeGen? stmtGen,
-  })  : config = config ?? const SpecialFeaturesConfig(),
-        exprGen = exprGen ?? ExpressionCodeGen(),
-        stmtGen = stmtGen ?? StatementCodeGen() {
+  }) : config = config ?? const SpecialFeaturesConfig(),
+       exprGen = exprGen ?? ExpressionCodeGen(),
+       stmtGen = stmtGen ?? StatementCodeGen() {
     indenter = Indenter(this.config.indent);
   }
 
@@ -249,7 +249,9 @@ class SpecialFeaturesCodeGen {
     buffer.writeln(indenter.line('next() {'));
     indenter.indent();
     buffer.writeln(indenter.line('// TODO: Implement iteration logic'));
-    buffer.writeln(indenter.line('return { value: undefined, done: this.done };'));
+    buffer.writeln(
+      indenter.line('return { value: undefined, done: this.done };'),
+    );
     indenter.dedent();
     buffer.writeln(indenter.line('}'));
 
@@ -401,7 +403,7 @@ class SpecialFeaturesCodeGen {
   // 2.5.5 CASCADE EXPRESSIONS
   // =========================================================================
 
-String handleCascadeExpression(CascadeExpressionIR expr) {
+  String handleCascadeExpression(CascadeExpressionIR expr) {
     final buffer = StringBuffer();
     final target = exprGen.generate(expr.target, parenthesize: false);
 
@@ -412,8 +414,13 @@ String handleCascadeExpression(CascadeExpressionIR expr) {
     // Apply each cascade section
     for (final section in expr.cascadeSections) {
       if (section is MethodCallExpressionIR) {
-        final args = _generateArgumentList(section.arguments, section.namedArguments);
-        buffer.writeln(indenter.line('\$\$cascade.${section.methodName}($args);'));
+        final args = _generateArgumentList(
+          section.arguments,
+          section.namedArguments,
+        );
+        buffer.writeln(
+          indenter.line('\$\$cascade.${section.methodName}($args);'),
+        );
       } else if (section is PropertyAccessExpressionIR) {
         buffer.writeln(indenter.line('\$\$cascade.${section.propertyName};'));
       } else if (section is AssignmentExpressionIR) {
@@ -428,7 +435,6 @@ String handleCascadeExpression(CascadeExpressionIR expr) {
 
     return buffer.toString().trim();
   }
-
 
   // =========================================================================
   // 2.5.6 COLLECTION LITERALS WITH IF/FOR
@@ -447,7 +453,10 @@ String handleCascadeExpression(CascadeExpressionIR expr) {
       // TODO: Check if element is a ConditionalExpression
       if (elem is ConditionalExpressionIR) {
         final cond = exprGen.generate(elem.condition, parenthesize: false);
-        final trueBranch = exprGen.generate(elem.thenExpression, parenthesize: false);
+        final trueBranch = exprGen.generate(
+          elem.thenExpression,
+          parenthesize: false,
+        );
 
         buffer.write('...($cond ? [$trueBranch] : [])');
       } else {
@@ -485,7 +494,10 @@ String handleCascadeExpression(CascadeExpressionIR expr) {
       return param.name;
     }
 
-    final defaultVal = exprGen.generate(param.defaultValue!, parenthesize: false);
+    final defaultVal = exprGen.generate(
+      param.defaultValue!,
+      parenthesize: false,
+    );
     return '${param.name} = $defaultVal';
   }
 
@@ -495,12 +507,14 @@ String handleCascadeExpression(CascadeExpressionIR expr) {
       return '';
     }
 
-    final parts = namedParams.map((p) {
-      final defaultVal = p.defaultValue != null
-          ? exprGen.generate(p.defaultValue!, parenthesize: false)
-          : 'undefined';
-      return '${p.name} = $defaultVal';
-    }).join(', ');
+    final parts = namedParams
+        .map((p) {
+          final defaultVal = p.defaultValue != null
+              ? exprGen.generate(p.defaultValue!, parenthesize: false)
+              : 'undefined';
+          return '${p.name} = $defaultVal';
+        })
+        .join(', ');
 
     return '{ $parts } = {}';
   }
@@ -515,11 +529,16 @@ String handleCascadeExpression(CascadeExpressionIR expr) {
   ) {
     final parts = <String>[];
 
-    parts.addAll(positional.map((e) => exprGen.generate(e, parenthesize: false)));
+    parts.addAll(
+      positional.map((e) => exprGen.generate(e, parenthesize: false)),
+    );
 
     if (named.isNotEmpty) {
       final namedStr = named.entries
-          .map((e) => '${e.key}: ${exprGen.generate(e.value, parenthesize: false)}')
+          .map(
+            (e) =>
+                '${e.key}: ${exprGen.generate(e.value, parenthesize: false)}',
+          )
           .join(', ');
       parts.add('{$namedStr}');
     }
@@ -544,7 +563,6 @@ String handleCascadeExpression(CascadeExpressionIR expr) {
 // ============================================================================
 // HELPER: INDENTER
 // ============================================================================
-
 
 // ============================================================================
 // EXAMPLE CONVERSIONS

@@ -1,5 +1,6 @@
 import '../../diagnostics/source_location.dart';
 import '../type_ir.dart';
+
 /// =============================================================================
 ///  CLASS TYPE REPRESENTATION
 ///  Core type for user-defined and library classes

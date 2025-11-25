@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
 import '../../expression_ir.dart';
+
 /// =============================================================================
 ///  VARIABLES & MEMBER ACCESS EXPRESSIONS
 ///  Identifier, property access, and index access in the IR
