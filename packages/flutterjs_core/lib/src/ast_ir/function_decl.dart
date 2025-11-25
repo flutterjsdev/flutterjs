@@ -1,3 +1,33 @@
+/// <---------------------------------------------------------------------------->
+/// function_decl.dart
+/// ----------------------------------------------------------------------------
+///
+/// Detailed IR for functions, methods, and constructors in Dart.
+///
+/// [FunctionDecl] base: returns, params, body, async/generator modifiers.
+///
+/// Specializations:
+/// • [MethodDecl]: Class methods with override/external
+/// • [ConstructorDecl]: Inits, super calls, redirects, factories
+///
+/// Includes:
+/// • [ConstructorInitializer]: Field inits
+/// • [SuperConstructorCall]: Super invocations
+/// • [RedirectedConstructorCall]: Redirects
+///
+/// Features:
+/// • Signature strings
+/// • Override checks
+/// • JSON serialization
+/// • Operator/constructor specifics
+///
+/// Key for:
+/// • Call graph construction
+/// • Async analysis
+/// • Constructor validation
+/// <---------------------------------------------------------------------------->
+library;
+
 import 'package:meta/meta.dart';
 import 'diagnostics/source_location.dart';
 import 'ir/expression_ir.dart';

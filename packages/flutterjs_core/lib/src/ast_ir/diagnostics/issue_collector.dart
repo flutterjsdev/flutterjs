@@ -1,3 +1,39 @@
+/// <---------------------------------------------------------------------------->
+/// issue_collector.dart
+/// ----------------------------------------------------------------------------
+///
+/// In-memory collector and processor for analysis results.
+///
+/// Acts as the central registry for all [AnalysisIssue]s produced during a
+/// static analysis run (Dart analyzer, custom linters, flutter analyze, etc.).
+///
+/// Key responsibilities:
+/// • Collect & store issues immutably
+/// • Deduplicate aggressively (by location + code or location only)
+/// • Auto-categorize uncategorized issues via [IssueCategorizer]
+/// • Provide rich filtering, grouping, and statistics
+/// • Generate beautiful console reports
+/// • Export structured JSON or text summaries
+/// • Sort issues by severity → file → line (perfect for IDEs and CI)
+///
+/// Designed for use in:
+/// • CLI tools (`flutter analyze`, custom linters)
+/// • IDE extensions (VS Code, IntelliJ)
+/// • CI/CD pipelines and web dashboards
+/// • Testing & benchmarking frameworks
+///
+/// Thread-safe for single analysis runs. Reset with `clear()` between projects.
+///
+/// Example:
+/// ```dart
+/// final collector = IssueCollector();
+/// collector.addIssues(issuesFromAnalyzer);
+/// collector.deduplicateByLocation();
+/// collector.categorizeAll(fileContent: source);
+/// collector.printAllIssues();
+/// ```
+/// <---------------------------------------------------------------------------->
+
 import 'analysis_issue.dart';
 import 'issue_categorizer.dart';
 import 'issue_category.dart';

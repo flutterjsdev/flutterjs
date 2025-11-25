@@ -1,3 +1,31 @@
+/// <---------------------------------------------------------------------------->
+/// ir_id_generator.dart
+/// ----------------------------------------------------------------------------
+///
+/// Robust ID generation for IR nodes, ensuring uniqueness and determinism.
+///
+/// [IRIdGenerator] produces readable, collision-free IDs with strategies:
+/// • Counter-based: Fast, session-unique
+/// • Contextual: Nested (e.g., class.method)
+/// • Deterministic: Hash-based for caching
+/// • Simple: Temporary nodes
+///
+/// Includes:
+/// • File hashing for cross-file uniqueness
+/// • Name sanitization
+/// • Reset for multi-file analysis
+///
+/// Recommendations:
+/// • Use in [DartFileBuilder] for declaration passes
+/// • Format spec: {type}_{context}_{name}_{counter}
+///
+/// Vital for:
+/// • Node referencing in graphs
+/// • Cache keys
+/// • Debug logging
+/// <---------------------------------------------------------------------------->
+library;
+
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 

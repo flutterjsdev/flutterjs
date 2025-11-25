@@ -1,9 +1,34 @@
+/// <---------------------------------------------------------------------------->
+/// variable_decl.dart
+/// ----------------------------------------------------------------------------
+///
+/// Comprehensive models for variable and field declarations in Dart.
+///
+/// [VariableDecl] base covers locals, globals, fields, parameters with
+/// modifiers (final, const, late, static) and initializers.
+///
+/// Extensions:
+/// • [FieldDecl]: Class fields with getter/setter, abstract
+/// • [ParameterDecl]: Signature params with kinds (required, named)
+///
+/// Also:
+/// • [VisibilityModifier]: Enum for access levels
+/// • [ParameterKind]: Enum for parameter types
+/// • [AnnotationIR]: Metadata like @override
+///
+/// Supports:
+/// • Mutability checks
+/// • Compile-time constancy
+/// • Declaration strings
+/// • JSON serialization
+/// <---------------------------------------------------------------------------->
+library;
+
 import 'package:meta/meta.dart';
 import 'diagnostics/source_location.dart';
 import 'ir/expression_ir.dart';
 import 'ir/ir_node.dart';
 import 'ir/type_ir.dart';
-
 // =============================================================================
 // VARIABLE DECLARATIONS
 // =============================================================================

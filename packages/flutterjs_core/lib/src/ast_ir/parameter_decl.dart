@@ -1,3 +1,28 @@
+/// <---------------------------------------------------------------------------->
+/// parameter_decl.dart
+/// ----------------------------------------------------------------------------
+///
+/// Declarations for function parameters and type parameters in Dart.
+///
+/// [ParameterDecl] captures all parameter flavors: positional, named,
+/// required, optional, with defaults and annotations.
+///
+/// [TypeParameterDecl] handles generics: bounds, constraints.
+///
+/// Features:
+/// • Kind detection: optionalPositional, requiredNamed, etc.
+/// • String representations matching Dart syntax
+/// • JSON for serialization
+/// • Mutual exclusivity checks (positional vs named)
+///
+/// Critical for:
+/// • Signature matching and overload resolution
+/// • Default value evaluation
+/// • Generic type inference
+/// • API documentation generation
+/// <---------------------------------------------------------------------------->
+library;
+
 import 'package:meta/meta.dart';
 import 'diagnostics/source_location.dart';
 import 'ir/ir_node.dart';

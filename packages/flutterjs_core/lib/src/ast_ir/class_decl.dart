@@ -1,3 +1,30 @@
+/// <---------------------------------------------------------------------------->
+/// class_decl.dart
+/// ----------------------------------------------------------------------------
+///
+/// Rich IR models for Dart class declarations and hierarchy analysis.
+///
+/// Defines [ClassDecl] as the base for all class-like structures, with
+/// extensions like [EnhancedClassDecl] for post-analysis metadata.
+///
+/// Highlights:
+/// • Inheritance: superclass, interfaces, mixins
+/// • Members: fields, methods, constructors (with factories/const)
+/// • Modifiers: abstract, final, sealed, mixin
+/// • Flutter-specific: widget detection, categories, build methods
+/// • Utilities: [ClassHierarchyUtils] for subclass checks, method inheritance
+///
+/// Also includes:
+/// • [FieldDecl]: Specialized fields with getter/setter support
+/// • [FieldInitializer]: Constructor field init expressions
+///
+/// Used in:
+/// • Type checking and resolution
+/// • Inheritance validation (cycles, unimplemented abstracts)
+/// • Code metrics (depth, usage counts)
+/// • Flutter-specific optimizations
+/// <---------------------------------------------------------------------------->
+
 import 'package:meta/meta.dart';
 import 'diagnostics/source_location.dart';
 import 'ir/ir_node.dart';

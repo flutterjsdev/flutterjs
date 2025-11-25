@@ -1,4 +1,35 @@
-/// Comprehensive category of analysis issues with full Flutter support
+/// <---------------------------------------------------------------------------->
+/// issue_category.dart
+/// ----------------------------------------------------------------------------
+///
+/// Exhaustive, Flutter-first taxonomy of analysis issue categories.
+///
+/// Defines over 100 finely-grained categories covering:
+/// • Core Dart issues (syntax, types, null safety, etc.)
+/// • Flutter widget lifecycle & best practices
+/// • State management patterns (Provider, Bloc, Riverpod, setState, etc.)
+/// • Performance, memory leaks, async gaps
+/// • Navigation, localization, accessibility, security
+/// • Testing, build system, platform channels
+///
+/// Each category includes:
+/// • Human-readable display name
+/// • Color code for UI badges
+/// • Critical flag (for blocking CI or highlighting)
+/// • Related category grouping
+/// • Flutter-specific detection logic
+///
+/// Used everywhere:
+/// • Issue filtering & grouping
+/// • Dashboard widgets & charts
+/// • Severity prioritization
+/// • Rule documentation linking
+///
+/// New categories should be added here first — then mapped in
+/// [IssueCategorizer] for detection.
+///
+/// Goal: Make every issue instantly understandable at a glance.
+/// <---------------------------------------------------------------------------->
 enum IssueCategory {
   flutterPatterns,
   controlFlow,

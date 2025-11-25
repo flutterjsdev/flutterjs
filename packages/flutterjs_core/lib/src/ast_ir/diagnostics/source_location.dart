@@ -1,7 +1,34 @@
+/// <---------------------------------------------------------------------------->
+/// source_location.dart
+/// ----------------------------------------------------------------------------
+///
+/// Immutable, rich representation of a source code location.
+///
+/// Used universally across the analyzer ecosystem to pinpoint where an
+/// [AnalysisIssue] occurs — with support for:
+/// • Human-readable display (`lib/main.dart:42:8`)
+/// • IDE navigation (line/col 1-based)
+/// • LSP (Language Server Protocol) compatibility
+/// • Byte offsets for precise parsing
+/// • Range spanning (multi-line nodes)
+/// • JSON serialization
+/// • Value-based equality & hashing
+///
+/// Also includes smart extensions for:
+/// • Distance calculations
+/// • Range creation
+/// • Nearby location checks
+/// • Debug-friendly formatting
+///
+/// This is the single source of truth for "where" in the entire analysis pipeline.
+///
+/// Preferred over raw maps or analyzer's SourceLocation for consistency
+/// and richer functionality.
+/// <---------------------------------------------------------------------------->
+library;
+
 import 'package:meta/meta.dart';
 
-/// Unified source location tracking
-/// Represents a physical location in source code for precise error reporting and IDE integration
 @immutable
 class SourceLocationIR {
   /// Unique identifier for this location

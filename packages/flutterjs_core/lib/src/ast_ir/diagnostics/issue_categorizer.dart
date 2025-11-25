@@ -1,8 +1,40 @@
+/// <---------------------------------------------------------------------------->
+/// issue_categorizer.dart
+/// ----------------------------------------------------------------------------
+///
+/// Central intelligence engine for classifying raw analysis issues into meaningful,
+/// human- and machine-friendly categories.
+///
+/// This utility uses a multi-layered fallback strategy to determine the best
+/// [IssueCategory] for any [AnalysisIssue]:
+///
+/// 1. Primary: Exact code matching (Dart analyzer, flutter_lints, custom rules)
+/// 2. Secondary: Message pattern matching (regex-free, fast keyword detection)
+/// 3. Tertiary: Source context analysis (when file content is available)
+///
+/// Features:
+/// • Comprehensive mapping of official Dart analyzer diagnostic codes
+/// • Special handling for all major Flutter lint rules
+/// • Heuristic fallbacks for unknown or custom linters
+/// • Context-aware detection (e.g., setState() inside build(), missing dispose)
+/// • Fully static — no instance needed
+///
+/// Used by [IssueCollector], CLI reporters, IDE plugins, and web dashboards
+/// to group, filter, prioritize, and visualize issues effectively.
+///
+/// Example:
+/// ```dart
+/// final category = IssueCategorizer.categorize(issue, fileContent: sourceCode);
+/// ```
+///
+/// Maintainers: Add new codes to the appropriate `_xxxCodes` sets or extend
+/// the switch expressions for maximum accuracy.
+/// <---------------------------------------------------------------------------->
+
 import 'analysis_issue.dart';
 import 'issue_category.dart';
 import 'source_location.dart';
 
-/// Utility class to categorize analysis issues based on code, message, and context
 class IssueCategorizer {
   /// Categorize an issue based on its code, message, and severity
   static IssueCategory categorizeByCode(String code, String message) {

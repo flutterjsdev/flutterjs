@@ -1,7 +1,35 @@
+/// <---------------------------------------------------------------------------->
+/// import_export_stmt.dart
+/// ----------------------------------------------------------------------------
+///
+/// Models for Dart's directive statements: imports, exports, parts, and part-of.
+///
+/// Provides immutable representations for precise tracking of library
+/// dependencies, visibility controls (show/hide), and file composition.
+///
+/// Core classes:
+/// • [ImportStmt]: Full import details with prefix, show/hide, deferred
+/// • [ExportStmt]: Export directives with selective visibility
+/// • [PartStmt]: Part inclusions for multi-file libraries
+/// • [PartOfStmt]: Markers for part files linking to main library
+///
+/// Features:
+/// • Exposure checks: shows(), exposes() for name visibility
+/// • Effective exposure calculation for analysis
+/// • JSON serialization for persistence
+/// • Human-readable string representations
+///
+/// Essential for:
+/// • Dependency graphs and resolution
+/// • Name conflict detection
+/// • Library boundary enforcement
+/// • Refactoring tools (e.g., rename imports)
+/// <---------------------------------------------------------------------------->
+library;
+
 import 'diagnostics/source_location.dart';
 import 'package:meta/meta.dart';
 import 'variable_decl.dart';
-
 // =============================================================================
 // IMPORT/EXPORT STATEMENTS
 // =============================================================================

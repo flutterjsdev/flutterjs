@@ -1,7 +1,32 @@
+/// <---------------------------------------------------------------------------->
+/// widget_metadata.dart
+/// ----------------------------------------------------------------------------
+///
+/// Flutter-specific metadata aggregation for widgets and state management.
+///
+/// [WidgetMetadata] collects analysis results: build methods, state connections,
+/// hierarchies, lifecycles, trees, implementers, call/access graphs.
+///
+/// Utilities:
+/// • Checks: isStatefulWidget(), isStateClass()
+/// • Getters: getBuildMethod(), getRootWidgetType()
+/// • Serialization: toJson()
+/// • From registry: fromRegistry()
+///
+/// [WidgetTreeNode]: Hierarchical widget structure with prettyPrint()
+///
+/// Extension on [DartFile] for attachment/caching.
+///
+/// For:
+/// • Flutter optimizations
+/// • Widget tree visualization
+/// • State analysis
+/// • Performance insights
+/// <---------------------------------------------------------------------------->
+
 import 'package:flutterjs_core/flutterjs_core.dart';
 
 import '../binary_constrain/binary_ir_writer/ir_relationship_registry.dart';
-
 class WidgetMetadata {
   /// Maps build method ID -> root widget type (e.g., "Scaffold", "Container")
   final Map<String, String> buildMethods;

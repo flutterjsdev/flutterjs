@@ -1,3 +1,36 @@
+
+/// <---------------------------------------------------------------------------->
+/// dart_file_builder.dart
+/// ----------------------------------------------------------------------------
+///
+/// Core builder pattern implementation for constructing complete Dart file IR.
+///
+/// This file provides the [DartFile] model — a comprehensive, immutable
+/// representation of a single .dart source file — and its associated
+/// [DartFileBuilder] for progressive construction during analysis passes.
+///
+/// Key components:
+/// • File metadata ([LibraryMetadata]): library directives, annotations, etc.
+/// • Top-level declarations: classes, functions, variables, enums, etc.
+/// • Directives: imports, exports, parts, part-of
+/// • Analysis integration: issues, content hash for change detection
+/// • Timestamps: creation and last analysis times
+///
+/// Usage in analysis pipeline:
+/// 1. Create builder: `DartFileBuilder(filePath: 'lib/main.dart')`
+/// 2. Populate during visitor passes: addImport(), addClass(), etc.
+/// 3. Finalize: `builder.build()` to get immutable [DartFile]
+///
+/// Designed for:
+/// • Static analyzers and linters
+/// • Code generators and transformers
+/// • IDE features (refactoring, navigation)
+/// • Documentation tools
+/// • Serialization to JSON/binary for caching or transfer
+///
+/// All collections are immutable in the final [DartFile] for thread-safety.
+/// <---------------------------------------------------------------------------->
+
 import 'package:meta/meta.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
