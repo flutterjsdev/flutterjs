@@ -12,6 +12,102 @@ import 'package:flutterjs_core/src/analyzer_widget_detection_setup.dart';
 import 'package:flutterjs_core/src/code_reader/flutter_component_system.dart';
 
 import 'package:flutterjs_core/src/statement_extraction_pass.dart';
+/// ============================================================================
+/// AST → Flutter Component Adapter
+/// ============================================================================
+///
+/// Converts Dart Analyzer AST nodes into the unified Flutter Component Model
+/// used by the FlutterJS UI extraction pipeline.
+///
+/// # Overview
+/// This adapter acts as a bridge between:
+///   - **Dart Analyzer AST nodes**  
+///   - **Your custom Flutter Component System**
+///
+/// Dart AST nodes expose low-level syntax structures (constructor calls,
+/// conditionals, loops, list literals, spread operators, function expressions,
+/// etc.).  
+/// The component model expects clean, normalized UI metadata.
+///
+/// This adapter translates AST → UI Model so the rest of the system does not
+/// need to understand raw AST nodes.
+///
+/// # Responsibilities
+///
+/// The adapter exposes a generic `call(method, node)` interface and implements:
+///
+/// ## 1. Detection Methods
+/// - `isWidgetCreation` → Identifies widget constructor expressions
+/// - `isConditional` → Detects if/else or ternary expressions
+/// - `isLoop` → Detects `for`/`forEach` loops
+/// - `isCollection` → Detects list/map/set literals
+/// - `isBuilder` → Identifies builder-style functions
+/// - `isCallback` → Identifies callback functions such as `onTap`, `onPressed`
+///
+/// ## 2. Widget Extraction
+/// - `getWidgetName` → Returns the class name of a widget
+/// - `getConstructorName` → Returns named constructors (`.builder` etc.)
+/// - `isConst` → Whether widget instantiation is `const`
+/// - `getProperties` → Extracts named parameters into `PropertyBinding` objects
+/// - `getChildElements` → Extracts children from a widget’s `children:` list
+///
+/// ## 3. Conditional Extraction
+/// - `getCondition` → Expression used in the condition
+/// - `getThenBranch` → True branch
+/// - `getElseBranch` → False branch
+/// - `isTernary` → Whether the node is a `?:` expression
+///
+/// ## 4. Loop Extraction
+/// - `getLoopKind` → `for` or `forEach`
+/// - `getLoopVariable` → Declared loop variable
+/// - `getIterable` → Iterable used in a `forEach`
+/// - `getLoopCondition` → Loop condition for classical `for`
+/// - `getLoopBody` → Body of the loop
+///
+/// ## 5. Collection Extraction
+/// - `getCollectionKind` → Identifies list/set/map
+/// - `hasSpread` → Detects spread elements (...)
+/// - `getCollectionElements` → Returns collection element nodes
+///
+/// ## 6. Builder/Callback Extraction
+/// - `getBuilderName`
+/// - `getBuilderParameters`
+/// - `isAsyncBuilder`
+/// - `getCallbackName`
+/// - `getCallbackParameters`
+///
+///
+/// # Requirements
+/// The adapter requires the following components:
+/// - **Dart Analyzer** (AST node classes)
+/// - **WidgetProducerDetector** (to determine likely widgets)
+/// - **ComponentRegistry** (to register the adapter)
+/// - **ComponentExtractor** (to drive extraction)
+/// - **FlutterComponent model classes**:
+///   - `PropertyBinding`
+///   - `LiteralPropertyBinding`
+///   - `CallbackPropertyBinding`
+///   - `BuilderPropertyBinding`
+///
+///
+/// # Integration
+/// Register the adapter:
+///
+/// ```dart
+/// registerASTAdapter(registry, widgetDetector, filePath, fileContent);
+/// ```
+///
+/// Extract a component from an AST node:
+///
+/// ```dart
+/// final component = extractor.extract(astNode, hint: 'from_ast');
+/// ```
+///
+/// After registration, the rest of the system works entirely with
+/// **FlutterComponent** objects instead of low-level AST nodes.
+///
+///
+/// ============================================================================
 
 // Assuming flutter_component_system.dart is imported
 // import 'flutter_component_system.dart';
