@@ -1,7 +1,151 @@
 import 'package:args/command_runner.dart';
-// ============================================================================
-// BUILD COMMAND
-// ============================================================================
+/// ============================================================================
+/// BuildCommand – Flutter.js Build System (Production / Development)
+/// ============================================================================
+///
+/// The `build` command executes the full Flutter.js build pipeline, producing
+/// optimized HTML/CSS/JS output.  
+///
+/// It supports **production**, **development**, and **comparison** builds, with
+/// optional obfuscation, tree shaking, maximum compression, and size reporting.
+///
+///
+/// # Purpose
+///
+/// This command is the Flutter.js equivalent of:
+///
+/// ```bash
+/// flutter build web
+/// ```
+///
+/// but with extended phases designed for the Flutter.js architecture:
+///
+/// **Phase 1. Parsing**  
+/// **Phase 2. IR Generation**  
+/// **Phase 3. Transpilation** (Widgets → DOM + CSS + runtime)  
+/// **Phase 4. Obfuscation (optional)**  
+/// **Phase 5. Bundling, Minification, Compression**  
+///
+///
+/// # Features
+///
+/// ### ✔ Production & Development Modes
+///
+/// - `production` (default): minified, obfuscated, tree-shaken  
+/// - `dev` / `development`: readable output, no obfuscation, partial shaking  
+///
+/// ### ✔ Obfuscation
+///
+/// Includes:
+/// - name-mangling  
+/// - string encoding  
+/// - dead code elimination  
+///
+/// Enabled automatically in production unless overridden.
+///
+///
+/// ### ✔ Tree Shaking
+///
+/// Removes:
+/// - unused widgets  
+/// - unused CSS  
+/// - unused runtime helpers  
+/// - unreachable JavaScript branches  
+///
+///
+/// ### ✔ Maximum Compression (`--compress-max`)
+///
+/// Enables:
+/// - advanced minification  
+/// - whitespace folding  
+/// - syntax compression  
+///
+///
+/// ### ✔ Compare with Flutter Web (`--compare`)
+///
+/// Prints a size comparison:
+///
+/// ```
+/// Flutter Web:    2.1 MB
+/// Flutter.js:     37 KB
+/// Reduction:      98.2%
+/// ```
+///
+///
+/// # CLI Options
+///
+/// | Option | Description |
+/// |--------|-------------|
+/// | `--mode, -m` | Build mode (`production`, `dev`). Default: `production`. |
+/// | `--compress-max` | Enable maximum compression. |
+/// | `--compare` | Compare output size vs Flutter Web. |
+/// | `--output, -o` | Output directory. Default: `build`. |
+/// | `--obfuscate` | Enable/disable obfuscation. Auto-enabled in production. |
+/// | `--tree-shake` | Remove unused code. Default: `true`. |
+/// | `--verbose` | Print detailed build steps. |
+///
+///
+/// # Workflow
+///
+/// ```
+/// Phase 1 → Parse Flutter code
+/// Phase 2 → Generate IR
+/// Phase 3 → Transpile to HTML/CSS/JS
+/// Phase 4 → (optional) Obfuscation
+/// Phase 5 → Bundling + Minification
+/// ```
+///
+/// Verbose mode will show subtasks such as:
+///
+/// - Widget classification  
+/// - Reactivity analysis  
+/// - Route analysis  
+/// - CSS generation  
+/// - Runtime injection  
+/// - Dead code elimination  
+///
+///
+/// # Output Examples
+///
+/// ### Development Build
+/// ```
+/// index.html      15 KB (readable)
+/// flutter.js      45 KB
+/// widgets.js      30 KB
+/// app.js          25 KB
+/// styles.css      20 KB
+/// Total: ~135 KB
+/// ```
+///
+/// ### Production Build
+/// ```
+/// index.html      3 KB  (minified)
+/// app.min.js      28 KB (obfuscated)
+/// styles.min.css  6 KB  (minified)
+/// Total: 37 KB
+/// Gzipped: ~12 KB
+/// ```
+///
+///
+/// # Notes
+///
+/// - Obfuscation defaults to **ON** in production unless overridden.  
+/// - Tree shaking defaults to **ON** in all modes.  
+/// - Build steps are simulated in this version (Phase-accurate printout).  
+/// - This command prepares the foundation for the full IR pipeline.
+/// 
+///
+/// # Usage
+///
+/// ```bash
+/// flutterjs build
+/// flutterjs build -m dev
+/// flutterjs build --compress-max
+/// flutterjs build --compare
+/// ```
+///
+///
+/// ============================================================================
 
 class BuildCommand extends Command<void> {
   BuildCommand({required this.verbose, required this.verboseHelp}) {
