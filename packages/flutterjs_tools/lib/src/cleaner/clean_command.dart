@@ -1,9 +1,100 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 
-// ============================================================================
-// CLEAN COMMAND
-// ============================================================================
+/// ============================================================================
+/// CLEAN COMMAND — Remove Build Artifacts & Caches (Flutter.js)
+/// ============================================================================
+///
+/// The `clean` command deletes all generated artifacts, caches, temporary
+/// directories, and platform build folders used by Flutter.js and related tools.
+///
+/// This behaves similarly to:
+///
+/// ```bash
+/// flutter clean
+/// ```
+///
+/// but extends functionality to include:
+///
+/// - Flutter.js build output  
+/// - Analyzer cache  
+/// - Node.js dependencies  
+/// - iOS/Android platform build folders  
+/// - Pub cache repair (Windows/Linux)  
+///
+///
+/// # Purpose
+///
+/// The command is useful when:
+/// - build inconsistencies appear  
+/// - generated JS/CSS/IR files become stale  
+/// - analyzer crashes due to corrupted cache  
+/// - switching branches with large project diffs  
+///
+/// It ensures the next `flutterjs build` or `flutterjs run` starts fresh.
+///
+///
+/// # Directories Removed
+///
+/// | Directory | Purpose |
+/// |----------|---------|
+/// | `build/` | All Flutter.js output files (HTML/CSS/JS/IR) |
+/// | `.dart_tool/` | Analyzer + Dart package metadata |
+/// | `.flutterjs-cache/` | Flutter.js incremental cache |
+/// | `node_modules/` | Node.js dependencies (if present) |
+/// | `ios/Pods/` | CocoaPods dependencies |
+/// | `ios/.symlinks/` | iOS symlink metadata |
+/// | `android/.gradle/` | Gradle cache |
+/// | `android/app/build/` | Android build output |
+///
+/// Platform-specific cleaning:
+///
+/// - **macOS:** Removes Xcode `DerivedData`  
+/// - **Windows/Linux:** Runs `dart pub cache repair`  
+///
+///
+/// # Options
+///
+/// | Flag | Description |
+/// |------|-------------|
+/// | `--verbose` | Show each directory being cleaned. |
+///
+///
+/// # Example Usage
+///
+/// ```bash
+/// flutterjs clean
+/// flutterjs clean --verbose
+/// ```
+///
+///
+/// # Behavior
+///
+/// The command:
+///
+/// 1. Iterates through all known build/cache folders  
+/// 2. Deletes directories safely and recursively  
+/// 3. Prints skipped directories when using `--verbose`  
+/// 4. Performs platform-specific cleanup  
+/// 5. Reports the total number of removed directories  
+///
+///
+/// # Output Example
+///
+/// ```
+/// 🧹 Cleaning build artifacts and caches...
+///
+///    Removing: build/
+///    Removing: .dart_tool/
+///    Skipped: node_modules/ (does not exist)
+///
+/// ✅ Clean complete! Removed 5 artifact directories.
+/// ```
+///
+///
+/// ============================================================================  
+
+
 class CleanCommand extends Command<void> {
   CleanCommand({this.verbose = false});
 
