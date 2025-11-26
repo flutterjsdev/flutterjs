@@ -4,9 +4,134 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/file_system/physical_file_system.dart';
 import 'dart:io';
 
-// ============================================================================
-// WORKING DART FILE PARSER - Using actual analyzer API
-// ============================================================================
+/// ============================================================================
+/// DartFileParser
+/// ============================================================================
+///
+/// A lightweight wrapper around the Dart `analyzer` package for parsing and
+/// resolving Dart files inside a Flutter.js project.
+///
+/// This utility abstracts away the complexity of managing
+/// `AnalysisContextCollection`, synchronous parsing, resolved units, and errors.
+///
+/// It provides:
+///
+///   • **Synchronous AST parsing** via `getParsedUnit()`  
+///   • **Asynchronous semantic resolution** via `getResolvedUnit()`  
+///   • **One-time initialization** of the analyzer context  
+///   • **Safe disposal** of the underlying context collection  
+///
+///
+/// # Why This Exists
+///
+/// The analyzer package is highly flexible but verbose. A simple "`parse this
+/// file`" operation normally requires:
+///
+///   • creating a file system resource provider  
+///   • creating an `AnalysisContextCollection`  
+///   • retrieving the correct context  
+///   • handling both `ParsedUnitResult` and `ResolvedUnitResult`  
+///
+/// This helper class encapsulates all of that into clean and safe APIs.
+///
+///
+/// # Usage
+///
+/// ## Initialize Once
+/// ```dart
+/// DartFileParser.initialize(projectRoot: '/my/project');
+/// ```
+///
+/// ## Parse a Dart File (AST only)
+/// ```dart
+/// final unit = DartFileParser.parseFile('lib/main.dart');
+/// if (unit != null) {
+///   print(unit.directives);
+/// }
+/// ```
+///
+/// ## Resolve a Dart File (includes types)
+/// ```dart
+/// final resolved = await DartFileParser.getResolvedUnit('lib/main.dart');
+/// print(resolved?.toSource());
+/// ```
+///
+/// ## Dispose When Done
+/// ```dart
+/// DartFileParser.dispose();
+/// ```
+///
+///
+/// # Methods
+///
+/// ## `initialize({String? projectRoot})`
+/// Creates a new `AnalysisContextCollection` for the given root directory.
+/// Must be called before `parseFile` or `getResolvedUnit`.
+///
+/// Uses:
+/// ```dart
+/// AnalysisContextCollection(
+///   includedPaths: [projectRoot],
+///   resourceProvider: PhysicalResourceProvider.INSTANCE,
+/// );
+/// ```
+///
+///
+/// ## `parseFile(String filePath)`
+/// Synchronously parses a Dart file using:
+///
+/// ```dart
+/// session.getParsedUnit(filePath)
+/// ```
+///
+/// Returns:
+///   • `CompilationUnit` on success  
+///   • `null` if parsing fails or analyzer cannot handle the input  
+///
+/// **Does NOT include type information.**
+///
+///
+/// ## `getResolvedUnit(String filePath)`
+/// Asynchronously resolves a file with full semantic info:
+///
+/// ```dart
+/// await session.getResolvedUnit(filePath)
+/// ```
+///
+/// Returns:
+///   • `CompilationUnit` with resolved types  
+///   • `null` on failure  
+///
+///
+/// ## `dispose()`
+/// Safely releases the `AnalysisContextCollection`.  
+/// Should be called when shutting down the analyzer pipeline.
+///
+///
+/// # Implementation Notes
+///
+/// • `getParsedUnit()` is synchronous and fast — best for passes like  
+///   DeclarationPass where only the AST structure is needed.  
+///
+/// • `getResolvedUnit()` is asynchronous and slow — use only when type
+///   information is required (e.g., type checking or advanced analysis).
+///
+/// • Both methods require type checking (`is ParsedUnitResult` and  
+///   `is ResolvedUnitResult`) because the analyzer returns abstract result types.
+///
+///
+/// # Summary
+///
+/// `DartFileParser` provides a minimal, stable, and developer-friendly interface
+/// around the Dart analyzer for:
+///
+///   ✔ AST parsing  
+///   ✔ Full semantic resolution  
+///   ✔ Project-wide context management  
+///   ✔ Error-safe handling  
+///
+/// It is the recommended entry point for all parsing inside Flutter.js.
+///
 
 /// Correct implementation using analyzer package's actual methods
 class DartFileParser {
