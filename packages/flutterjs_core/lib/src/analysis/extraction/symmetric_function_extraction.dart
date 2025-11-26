@@ -5,12 +5,13 @@
 // If widget: extract FlutterComponents
 // If pure function: extract PureFunctionData (same depth/detail)
 // ============================================================================
-import 'package:flutterjs_core/src/code_reader/flutter_component_system.dart';
+import 'package:flutterjs_core/src/analysis/extraction/flutter_component_system.dart';
 import 'package:meta/meta.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 
 /// ============================================================================
+/// symmetric_function_extraction.dart
 /// SYMMETRIC FUNCTION EXTRACTION SYSTEM
 /// ============================================================================
 ///

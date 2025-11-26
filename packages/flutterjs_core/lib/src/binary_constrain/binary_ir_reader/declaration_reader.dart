@@ -1,4 +1,161 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
+/// ============================================================================
+/// declaration_reader.dart
+/// Declaration Reader — Reconstructs Declarations in the FlutterJS IR
+/// ============================================================================
+///
+/// Responsible for decoding all **declaration-related structures** from the
+/// binary IR format produced by `declaration_writer.dart`.
+///
+/// A *declaration* represents any named entity in the FlutterJS IR:
+/// - variables  
+/// - function/method declarations  
+/// - parameters  
+/// - fields  
+/// - class-level items  
+///
+/// This reader is the exact inverse of the declaration writer and guarantees
+/// the complete, accurate reconstruction of the IR’s symbol table.
+///
+///
+/// # Purpose
+///
+/// Declarations define the **names, types, and scopes** of the entire IR.  
+///
+/// Without reconstructing declarations correctly:
+/// - expressions cannot resolve references  
+/// - statements cannot map to correct variables  
+/// - type information breaks  
+/// - UI generation becomes impossible  
+///
+/// This module restores the symbol structure used throughout the IR graph.
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Read Declaration Tags
+///
+/// Each declaration begins with a binary tag:
+///
+/// - variable declaration  
+/// - function declaration  
+/// - class member  
+/// - parameter declaration  
+///
+/// Controls the decoding path.
+///
+///
+/// ## 2. Read Identifier (Name)
+///
+/// Reads the identifier’s string-table index:
+///
+/// ```dart
+/// final name = strings[index];
+/// ```
+///
+///
+/// ## 3. Read Type Information
+///
+/// Uses:
+/// ```dart
+/// typeReader.readTypeRef();
+/// ```
+///
+/// Supports:
+/// - primitive types  
+/// - nullable types  
+/// - generics  
+/// - function types  
+///
+///
+/// ## 4. Read Modifiers & Flags
+///
+/// Includes attributes such as:
+/// - const  
+/// - final  
+/// - static  
+/// - required  
+/// - optional  
+/// - visibility modifiers  
+///
+/// Ensures decoding matches the encoding schema.
+///
+///
+/// ## 5. Read Initializer Expressions (If Present)
+///
+/// Uses:
+///
+/// ```dart
+/// expressionReader.readExpression();
+/// ```
+///
+/// Handles:
+/// - literal initializers  
+/// - computed values  
+/// - builder expressions  
+///
+///
+/// ## 6. Read Function Declarations
+///
+/// Includes:
+/// - return type  
+/// - parameters  
+/// - async / sync modifier  
+/// - function body (via statement reader)  
+///
+///
+/// ## 7. Integrate Into IR Symbol Table
+///
+/// Reader ensures:
+/// - declarations are assigned stable indices  
+/// - references can resolve immediately  
+/// - parent-scope is tracked  
+///
+///
+/// # Example Binary Structure
+///
+/// ```
+/// [DECL_TAG]
+/// [NAME_INDEX]
+/// [TYPE_REF]
+/// [FLAGS]
+/// [HAS_INITIALIZER]
+///   [EXPRESSION?]
+/// [PARAMETER_COUNT]
+///   [PARAM_DECLS...]
+/// [FUNCTION_BODY?]
+/// ```
+///
+///
+/// # Example Usage
+///
+/// ```dart
+/// final decl = declarationReader.readDeclaration();
+/// ```
+///
+/// Called by:
+/// - `binary_ir_reader.dart`  
+/// - function / widget deserializers  
+///
+///
+/// # Error Handling
+///
+/// Throws:
+/// - malformed declaration tag  
+/// - invalid string reference  
+/// - missing type information  
+/// - invalid initializer expression  
+///
+///
+/// # Notes
+///
+/// - Must stay symmetrical with declaration_writer.dart.  
+/// - Declaration order must match writer’s deterministic output.  
+/// - Ensure parameters are read before body statements.  
+///
+///
+/// ============================================================================
+///
 
 mixin DeclarationReader {
   SourceLocationIR readSourceLocation();

@@ -6,19 +6,19 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/analysis/visitors/analyzer_widget_detection_setup.dart';
-import 'package:flutterjs_core/src/analysis/detection/statement_widget_analyzer.dart';
-import 'package:flutterjs_core/src/code_reader/flutter_component_system.dart'
+import 'package:flutterjs_core/src/analysis/extraction/statement_widget_analyzer.dart';
+import 'package:flutterjs_core/src/analysis/extraction/flutter_component_system.dart'
     show
         FlutterComponent,
         ComponentExtractor,
         ComponentRegistry,
         UnsupportedComponent;
-import 'package:flutterjs_core/src/code_reader/symmetric_function_extraction.dart'
+import 'package:flutterjs_core/src/analysis/extraction/symmetric_function_extraction.dart'
     show PureFunctionExtractor;
 import 'package:path/path.dart' as path;
 
-import '../../code_reader/ast_component_adapter.dart';
-import '../detection/statement_extraction_pass.dart';
+import '../extraction/ast_component_adapter.dart';
+import '../extraction/statement_extraction_pass.dart';
 
 import '../../ir/declarations/function_decl.dart' as cd;
 

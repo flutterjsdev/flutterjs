@@ -1,16 +1,150 @@
-// =============================================================================
-// Flutter IR Binary Format Constants
-// =============================================================================
-//
-// This file defines all constants used in the binary serialization format
-// for Flutter IR (Intermediate Representation).
-//
-// Binary Format Overview:
-// [HEADER (8 bytes)] -> [STRING_TABLE (variable)] -> [IR_DATA (variable)] -> [CHECKSUM (optional)]
-//
-// =============================================================================
+/// ============================================================================
+/// binary_constain.dart
+/// Binary Format Constants & System-Level Encoding Rules
+/// ============================================================================
+///
+/// Defines all **low-level constants**, **magic numbers**, **section markers**,
+/// and **binary schema rules** used by the FlutterJS binary serialization
+/// system.
+///
+/// This file is the *source of truth* for the binary format used across:
+/// - **IR → Binary Encoding**
+/// - **Binary → IR Decoding**
+/// - **Format Validation**
+/// - **Binary bundle versioning**
+///
+/// No binary writer/reader logic is implemented here—only constants and
+/// restrictions that ensure stable, deterministic encoding.
+///
+///
+/// # Purpose
+///
+/// FlutterJS generates a **compact binary representation** of the UI
+/// intermediate representation (IR).  
+/// To guarantee compatibility and reproducibility across builds and devices,
+/// all encoding rules are centralized inside this file.
+///
+/// This allows:
+/// - Backward compatibility management  
+/// - Forward compatibility checking  
+/// - Debugging via structured section markers  
+/// - Prevention of undefined binary states  
+/// - Consistency across all binary tools  
+///
+///
+/// # Responsibilities
+///
+/// - Define **magic headers** for verifying bundle identity
+/// - Provide **version constants** for schema evolution
+/// - Define **section types** (widgets, expressions, metadata)
+/// - Define **type tags** for primitive expression encoding
+/// - Define **reserved ranges** preventing collisions
+/// - Define **maximum/minimum value constraints**
+/// - Expose **binary safety rules** used by validation module
+///
+///
+/// # Key Components
+///
+/// ## 1. Magic Numbers
+/// Unique markers embedded into the file header to ensure the incoming binary
+/// matches the FlutterJS format.
+///
+/// ```dart
+/// const int kMagicHeader = 0xF1F2F3F4;
+/// ```
+///
+/// These help readers reject corrupted or incompatible binaries.
+///
+///
+/// ## 2. Schema Versioning
+///
+/// ```dart
+/// const int kBinaryFormatVersion = 2;
+/// ```
+///
+/// Increment this whenever there are:
+/// - Changes in encoding order  
+/// - Addition/removal of section types  
+/// - Modifications to string-table rules  
+///
+///
+/// ## 3. Section Identifiers
+///
+/// Used by writers/readers to mark logical groups:
+/// - Widget tree section
+/// - Expression section
+/// - String table section
+/// - Metadata section
+///
+/// Example:
+/// ```dart
+/// const int kSectionWidgets = 0x01;
+/// const int kSectionExpressions = 0x02;
+/// const int kSectionStringTable = 0x03;
+/// ```
+///
+///
+/// ## 4. Expression Type Tags
+///
+/// Tags used when encoding any expression node:
+///
+/// ```dart
+/// const int kExprLiteralString = 0x10;
+/// const int kExprLiteralNumber = 0x11;
+/// const int kExprVariableRef   = 0x12;
+/// const int kExprBinaryOp      = 0x13;
+/// const int kExprUnaryOp       = 0x14;
+/// ```
+///
+/// Writers always output these tags before the expression payload.
+///
+///
+/// ## 5. Reserved Ranges
+///
+/// Ensures no collisions across custom or extended IR types:
+///
+/// ```dart
+/// const int kReservedMin = 0xF000;
+/// const int kReservedMax = 0xFFFF;
+/// ```
+///
+/// These values must **never** appear in user-generated tags.
+///
+///
+/// ## 6. Validation Rules
+///
+/// Imported by `binary_format_validate.dart` to verify:
+/// - Header correctness  
+/// - Section boundaries  
+/// - Tag integrity  
+/// - Unexpected end-of-stream errors  
+/// - Zero-length or invalid string table issues  
+///
+///
+/// # Integration
+///
+/// Writers/readers must *only* use constants defined here.
+///
+/// ```dart
+/// writer.writeUint32(kMagicHeader);
+/// writer.writeUint8(kSectionWidgets);
+/// reader.expectUint32(kMagicHeader);
+/// ```
+///
+/// Validation tools should rely on these constants to ensure correctness.
+///
+///
+/// # Notes
+/// - **Never** hardcode magic numbers in other modules.  
+/// - When adding new constants, update the binary schema documentation.  
+/// - When breaking format compatibility, increment `kBinaryFormatVersion`.  
+/// - This file is zero-logic by design and should remain stable.
+///
+///
+/// ============================================================================
+///
+library;
 
-/// Constants for binary serialization of Flutter IR
 class BinaryConstants {
   // ===========================================================================
   // HEADER CONSTANTS (8 bytes total)

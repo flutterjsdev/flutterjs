@@ -2,26 +2,152 @@ import 'dart:typed_data';
 import 'dart:convert';
 import 'binary_constain.dart';
 
-/// Manages string deduplication and serialization for binary IR format
+/// ============================================================================
+/// string_table.dart
+/// String Interning System for Binary Serialization
+/// ============================================================================
 ///
-/// Purpose:
-/// - Deduplicates repeated strings (e.g., "Widget", "build", type names)
-/// - Maintains a mapping from string -> index for efficient lookup
-/// - Serializes/deserializes the string table in binary format
-/// - Reduces file size by 60-70% for typical Flutter projects
+/// Implements a **compact, indexed string table** used during the binary
+/// serialization process.
 ///
-/// Usage in Writer:
+/// This module ensures that every unique string appearing in FlutterJS IR
+/// (widget names, identifiers, property keys, literal values, etc.) is:
+///
+/// - Stored **once**
+/// - Assigned a **stable numeric index**
+/// - Referenced via lightweight integer offsets in the binary stream
+///
+/// The binary format relies heavily on this table because strings are the
+/// most repeated and memory-heavy elements in UI metadata.
+///
+///
+/// # Purpose
+///
+/// Without interning, writing the same string repeatedly—like:
+/// - `"Text"`
+/// - `"container"`
+/// - `"onTap"`
+/// - `"color"`
+///
+/// would dramatically inflate binary size.
+///
+/// The string table provides:
+/// - **Deduplication** of identical strings
+/// - **Index-based lookup** for compact encoding
+/// - **Deterministic ordering** for reproducibility
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Interning & Indexing
+/// The table assigns each string a unique integer index.
+///
+/// Example:
 /// ```dart
-/// stringTable.addString('Container');
-/// final index = stringTable.getStringRef('Container');
-/// stringTable.write(buffer);
+/// final index = table.addString("Text"); // returns 0, 1, 2...
 /// ```
 ///
-/// Usage in Reader:
+/// If a string already exists, the existing index is returned:
+///
 /// ```dart
-/// stringTable.read(buffer);
-/// final string = stringTable.getString(index);
+/// final again = table.addString("Text"); // returns same index
 /// ```
+///
+/// Ensures **no duplicates**.
+///
+///
+/// ## 2. Lookups
+///
+/// Fast lookup from index → string:
+/// ```dart
+/// final name = table.getString(3);
+/// ```
+///
+/// And reverse:
+/// ```dart
+/// final index = table.getIndex("MyWidget");
+/// ```
+///
+///
+/// ## 3. Export / Import (Binary Serialization)
+///
+/// ### Writing the table:
+/// - Writes the number of strings
+/// - Writes each string in UTF-8
+/// - Writes length-prefixes for safe decoding
+///
+/// ### Reading the table:
+/// - Reads string count
+/// - Reads each UTF-8 blob
+/// - Reconstructs index ordering
+///
+///
+/// ## 4. Internal Storage
+///
+/// The table typically maintains:
+/// - `_strings` → List<String>
+/// - `_indices` → Map<String, int>
+///
+/// This ensures O(1) access for both add and lookup.
+///
+///
+/// # How Binary Writer Uses StringTable
+///
+/// When writing a string:
+/// ```dart
+/// final ref = stringTable.addString(value);
+/// writer.writeUint32(ref);
+/// ```
+///
+/// When reading:
+/// ```dart
+/// final index = reader.readUint32();
+/// final value = stringTable.getString(index);
+/// ```
+///
+///
+/// # Guarantees
+///
+/// - **No duplicates**
+/// - **Stable ordering** (order of first appearance)
+/// - **Deterministic binary output**
+/// - **Fast integer references**
+///
+///
+/// # Example Usage
+///
+/// ```dart
+/// final table = StringTable();
+/// table.addString("title");
+/// table.addString("subtitle");
+///
+/// final idx = table.getIndex("title"); // -> 0
+/// final str = table.getString(idx);    // -> "title"
+/// ```
+///
+///
+/// # Error Handling
+///
+/// Reader must throw if:
+/// - index is out of range
+/// - invalid UTF-8 sequence encountered
+///
+/// Writer ensures:
+/// - no null strings
+/// - no malformed references
+///
+///
+/// # Notes
+///
+/// - The string table is highly performance-sensitive; avoid expensive ops.
+/// - All strings used in binary IR **must** pass through this table.
+/// - Changing indexing behavior breaks binary compatibility.
+/// - If new string categories are added, update serialization schema accordingly.
+///
+///
+/// ============================================================================
+///
+
 class StringTable {
   /// Maps string -> index for O(1) lookup
   final Map<String, int> _indices = {};

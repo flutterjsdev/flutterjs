@@ -17,6 +17,167 @@ import 'package:flutterjs_core/src/binary_constrain/binary_ir_reader/type_reader
 
 import '../binary_ir_writer/ir_relationship_registry.dart';
 import 'statement_reader.dart';
+/// ============================================================================
+/// binary_ir_reader.dart
+/// Binary IR Reader — Reconstructs FlutterJS IR From Binary Format
+/// ============================================================================
+///
+/// Responsible for **decoding the entire FlutterJS Intermediate Representation**
+/// from the binary format produced by:
+/// → `binary_ir_writer.dart`
+///
+/// This file orchestrates all readers:
+/// - `expression_reader.dart`
+/// - `statement_reader.dart`
+/// - `type_reader.dart`
+/// - `declaration_reader.dart`
+/// - relationship deserialization
+/// - binary structure validation
+///
+/// It is the exact inverse of the Binary IR Writer, ensuring the IR graph is
+/// reconstructed with total fidelity.
+///
+///
+/// # Purpose
+///
+/// The FlutterJS compiler stores IR in a **compact binary format**.  
+/// BinaryIRReader turns that byte stream back into a fully structured IR tree:
+///
+/// - widget metadata  
+/// - declarations  
+/// - types  
+/// - statements  
+/// - expressions  
+/// - relationships  
+///
+/// This enables:
+/// - debugging  
+/// - JS code generation  
+/// - visualization tools  
+/// - re-analysis or incremental rebuilds  
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Entry Point for Full IR Deserialization
+///
+/// ```dart
+/// IRRoot root = BinaryIRReader(bytes).read();
+/// ```
+///
+/// Coordinates sub-readers to decode all IR components.
+///
+///
+/// ## 2. Read and Verify Binary Headers
+///
+/// Validates:
+/// - magic number  
+/// - binary schema version  
+/// - section layout  
+///
+/// Failure results in:
+/// - `BinaryFormatException`  
+///
+///
+/// ## 3. Read String Table
+///
+/// Reads:
+/// - string count  
+/// - UTF-8 blobs  
+/// - rebuilds StringTable mapping  
+///
+/// All named IR components depend on this table.
+///
+///
+/// ## 4. Deserialize Types
+///
+/// Calls:
+/// ```dart
+/// typeReader.readType();
+/// ```
+///
+/// Rebuilds:
+/// - primitives  
+/// - class types  
+/// - function types  
+/// - generic structures  
+///
+///
+/// ## 5. Deserialize Declarations
+///
+/// Reads:
+/// - variable declarations  
+/// - function definitions  
+/// - constructor signatures  
+///
+/// via:
+/// ```dart
+/// declarationReader.readDeclaration();
+/// ```
+///
+///
+/// ## 6. Deserialize Statements
+///
+/// Function bodies and procedural logic reconstructed through:
+///
+/// ```dart
+/// statementReader.readStatement();
+/// ```
+///
+///
+/// ## 7. Deserialize Expressions
+///
+/// For every expression-like field:
+///
+/// ```dart
+/// expressionReader.readExpression();
+/// ```
+///
+///
+/// ## 8. Deserialize Relationships
+///
+/// Loads IR graph edges:
+/// - parent → child  
+/// - declaration → reference  
+/// - type → usage  
+///
+/// Ensures IR graph integrity.
+///
+///
+/// ## 9. Build Complete IR Tree
+///
+/// Once all sections are decoded:
+/// - nodes are linked  
+/// - parent/child structure restored  
+/// - declarations tied to references  
+///
+///
+/// # Example Usage
+///
+/// ```dart
+/// final reader = BinaryIRReader(bytes);
+/// final ir = reader.read();
+/// ```
+///
+///
+/// # Error Handling
+///
+/// Throws:
+/// - `BinaryFormatException`  
+/// - `IRValidationException` (if semantic issues found)  
+/// - `RangeError` for string/offset violations  
+///
+///
+/// # Notes
+///
+/// - Must remain 100% symmetric with Binary IR Writer.  
+/// - Changes in encoding require matching updates here.  
+/// - Must rebuild relationships *after* nodes are read.  
+/// - Decoder must gracefully detect broken or partial binaries.  
+///
+///
+/// ============================================================================
+///
 
 class BinaryIRReader
     with

@@ -1,4 +1,158 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
+/// ============================================================================
+/// validator_file.dart
+/// IR Validator File — Entry Point for All Validation Systems in FlutterJS
+/// ============================================================================
+///
+/// Acts as the **central hub** that coordinates all validation steps required
+/// before IR is serialized to binary or converted to JavaScript.
+///
+/// While individual validators handle specific concerns:
+/// - `binary_format_validator.dart` → binary structural correctness  
+/// - `comprehensive_ir_validator.dart` → semantic IR correctness  
+/// - relationship validation → cross-node graph integrity  
+///
+/// `validator_file.dart` provides a *single unified validation interface* used
+/// throughout the pipeline.
+///
+///
+/// # Purpose
+///
+/// FlutterJS IR must be validated thoroughly before:
+/// - writing binary  
+/// - decoding binary  
+/// - exporting to JS  
+/// - running UI analysis  
+///
+/// Invalid IR can lead to:
+/// - corrupted builds  
+/// - runtime errors  
+/// - invalid JS output  
+/// - broken widget trees  
+///
+/// This file ensures **all validation passes run in correct order**, forming
+/// the final “gatekeeper” before serialization.
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Aggregate All Validators
+///
+/// The primary responsibility is to assemble all validation steps together:
+///
+/// ```dart
+/// final binaryValidator = BinaryFormatValidator();
+/// final irValidator = ComprehensiveIRValidator();
+/// final relationshipValidator = RelationshipIntegrityValidator();
+/// ```
+///
+///
+/// ## 2. Provide a Single `.validate()` API
+///
+/// ```dart
+/// void validate(IRRoot root, Uint8List? binaryBytes);
+/// ```
+///
+/// Runs all validators in sequence:
+/// - binary validation (if binary provided)  
+/// - IR semantic validation  
+/// - relationship consistency checks  
+///
+///
+/// ## 3. Enforce Validation Ordering
+///
+/// Correct order is critical:
+///
+/// 1. Basic binary format checking  
+/// 2. IR semantic checks  
+/// 3. Relationship graph validation  
+///
+/// Failing to maintain order can hide or misattribute errors.
+///
+///
+/// ## 4. Centralized Error Reporting
+///
+/// Collects errors from multiple validators and presents:
+/// - merged diagnostics  
+/// - normalized exception types  
+/// - consistent error messages  
+///
+/// Example output:
+/// ```
+/// ValidationError:
+///   - Missing declaration for variable 'count'
+///   - Invalid type reference #12
+///   - Relationship cycle detected at node #41
+/// ```
+///
+///
+/// ## 5. Optional Strict Mode
+///
+/// Some implementations support:
+///
+/// ```dart
+/// enableStrictMode(); // forces aggressive validation
+/// ```
+///
+/// Used during development or compiler debugging.
+///
+///
+/// ## 6. Integration with the Build Pipeline
+///
+/// `validator_file.dart` is used by:
+/// - the IR writer  
+/// - the JS code generator  
+/// - debug tooling  
+/// - developer CLI tools (flutterjs_tools)  
+///
+/// Guarantees consistent validation across all environments.
+///
+///
+/// # Example Usage
+///
+/// ```dart
+/// final validator = CombinedIRValidator();
+/// validator.validate(irRoot);
+/// ```
+///
+/// or with binary:
+///
+/// ```dart
+/// validator.validate(irRoot, binaryBytes);
+/// ```
+///
+///
+/// # Internal Components
+///
+/// Depends on:
+/// - Binary format rules  
+/// - String table integrity  
+/// - Type table correctness  
+/// - Expression validity  
+/// - Declaration consistency  
+/// - Relationship graph validation  
+///
+///
+/// # Error Handling
+///
+/// Throws:
+/// - `BinaryFormatException`  
+/// - `IRValidationException`  
+/// - `RelationshipValidationException`  
+///
+/// Or a merged exception wrapping multiple validation errors.
+///
+///
+/// # Notes
+///
+/// - Must stay aligned with every IR schema update.  
+/// - Extremely critical for build-time safety — do NOT bypass.  
+/// - Should be lightweight when no errors are present.  
+/// - Makes debugging IR errors significantly easier.  
+///
+///
+/// ============================================================================
+///
 
 mixin ValidatorFile {
   // =========================================================================

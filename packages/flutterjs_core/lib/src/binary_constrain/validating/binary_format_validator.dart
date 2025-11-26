@@ -4,9 +4,116 @@ import '../../ir/declarations/class_decl.dart';
 import '../../ir/declarations/dart_file_builder.dart';
 import '../../ir/declarations/function_decl.dart';
 
-// ============================================================================
-// LAYER 1: BINARY FORMAT & DESERIALIZATION VALIDATION
-// ============================================================================
+/// ============================================================================
+/// binary_format_validator.dart
+/// Binary Format Validator — Structural & Schema-Level Verification
+/// ============================================================================
+///
+/// Provides a complete validation layer for the **FlutterJS Binary Format**.
+/// This file is responsible for ensuring that incoming binary bundles conform
+/// to the official schema defined in:
+///
+/// - `binary_constain.dart`  
+/// - `expression_read_write.dart`  
+/// - `string_table.dart`  
+///
+/// This validator protects the system from corrupted files, mismatched schema
+/// versions, malformed sections, incomplete string tables, and unexpected
+/// binary tokens.
+///
+///
+/// # Purpose
+///
+/// FlutterJS uses a custom binary format to store:
+/// - Widget IR trees  
+/// - Expressions  
+/// - String table  
+/// - Metadata  
+///
+/// Because this binary format must be safe, deterministic, and forward/backward
+/// compatible, validation is required before decoding any part of the IR.
+///
+/// This file guarantees:
+/// - The binary begins with the correct **magic header**
+/// - The **version** matches supported schema
+/// - All **sections** appear in correct order
+/// - Section sizes and boundaries are valid
+/// - Reads do not overflow or underflow
+/// - No corrupted structure enters the IR pipeline
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Header Validation
+/// Validates:
+/// - Magic number  
+/// - Schema version  
+/// - Reserved bits  
+///
+/// Ensures the binary belongs to FlutterJS and matches decoder expectations.
+///
+///
+/// ## 2. Section Structure Validation
+///
+/// Checks:
+/// - Section order (widgets → expressions → strings → metadata)
+/// - Section sizes  
+/// - Duplicate sections  
+/// - Missing sections  
+///
+///
+/// ## 3. String Table Validation
+///
+/// Ensures:
+/// - Count matches actual items  
+/// - Entries are valid UTF-8  
+/// - No negative or out-of-range indices  
+///
+///
+/// ## 4. IR-Level Checks (High-Level Structure)
+///
+/// Examples:
+/// - Widget node count matches declared size  
+/// - Expression count matches content  
+/// - No dangling references  
+///
+///
+/// ## 5. Detailed Diagnostic Errors
+///
+/// Validator produces:
+/// - Human-readable debug descriptions  
+/// - Exact byte offset of the problem  
+/// - Expected vs. actual tags  
+///
+/// Useful for debugging corrupted binaries.
+///
+///
+/// # Example Usage
+///
+/// ```dart
+/// final validator = BinaryFormatValidator();
+/// validator.validate(bytes);
+/// ```
+///
+/// Throws an error if invalid, returns normally if valid.
+///
+///
+/// # Integration
+///
+/// - Called before `BinaryReader` reconstructs IR.
+/// - Used during development to debug encoding errors.
+/// - Deployed in production to reject malformed/attacked bundles.
+///
+///
+/// # Notes
+///
+/// - This module must remain tightly synchronized with binary schema changes.
+/// - Any schema update requires updating validation logic.
+/// - Avoid expensive runtime operations — validation must be fast.
+///
+///
+/// ============================================================================
+///
 
 class BinaryFormatValidator {
   Future<ValidationResult> validateBinaryIntegrity(

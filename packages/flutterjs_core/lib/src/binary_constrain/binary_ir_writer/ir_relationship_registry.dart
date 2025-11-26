@@ -3,6 +3,156 @@
 // =========================================================================
 
 import '../../../flutterjs_core.dart';
+/// ============================================================================
+/// ir_relationship_registry.dart
+/// IR Relationship Registry — Tracks and Manages Cross-Node Relationships
+/// ============================================================================
+///
+/// Provides a centralized registry for recording, organizing, and validating
+/// **cross-node relationships** inside the FlutterJS Intermediate Representation (IR).
+///
+/// In a complex IR tree, many nodes depend on one another:
+/// - Widget → parent widget
+/// - Variable → declaration site
+/// - Function → parameters
+/// - Expression → referenced identifiers
+/// - Types → generic constraints
+///
+/// The IRRelationshipRegistry exists to track these links in a structured and
+/// deterministic way so that:
+/// - Binary serialization has stable reference indices  
+/// - Validation can detect invalid or dangling relationships  
+/// - Code generation (JS export) can resolve all dependencies  
+///
+///
+/// # Purpose
+///
+/// The IR is not just a tree — it’s a **graph** with multiple kinds of edges:
+///
+/// - parent/child  
+/// - declaration/reference  
+/// - type/subtype  
+/// - variable/assignment  
+/// - callable/call-site  
+///
+/// Manually embedding all links inside nodes would:
+/// - complicate traversal  
+/// - risk missing reverse references  
+/// - break binary ordering guarantees  
+///
+/// This registry provides a **single source of truth** for IR-level relationships.
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Store All Relationship Mappings
+///
+/// Tracks relationships such as:
+/// - node → parent  
+/// - variable → declaration  
+/// - function → parameters  
+/// - widget → children references  
+/// - type indexes → usage indexes  
+///
+/// uses internal maps such as:
+/// ```dart
+/// Map<IRNode, IRNode> parentOf;
+/// Map<VariableRef, Declaration> varToDecl;
+/// Map<TypeRef, Set<IRNode>> typeUsage;
+/// ```
+///
+///
+/// ## 2. Provide Reverse Lookups
+///
+/// Useful for:
+/// - validation  
+/// - error reporting  
+/// - optimization passes  
+///
+/// Example:
+/// ```dart
+/// final allUsers = registry.getNodesUsingType(typeRef);
+/// ```
+///
+///
+/// ## 3. Ensure Deterministic Relationship Ordering
+///
+/// All relationships must be emitted in the same order during:
+/// - serialization  
+/// - validation  
+/// - export  
+///
+/// This registry enforces ordering guarantees.
+///
+///
+/// ## 4. Relationship Queries
+///
+/// Common operations include:
+/// - `getParent(node)`  
+/// - `getChildren(node)`  
+/// - `getDeclaration(variable)`  
+/// - `getVariableUses(varDecl)`  
+/// - `getCallSites(functionDecl)`  
+///
+///
+/// ## 5. Used by Writers
+///
+/// `relationship_writer.dart` uses this registry to serialize:
+/// - parent → child edges  
+/// - declaration → reference edges  
+/// - type dependency lists  
+///
+/// Binary output becomes fully reconstructable because the registry has
+/// complete knowledge of every linkage.
+///
+///
+/// ## 6. Used by Validators
+///
+/// `comprehensive_ir_validator.dart` checks:
+/// - circular widget references  
+/// - reference to undeclared variables  
+/// - dangling type links  
+/// - invalid parent/child structure  
+///
+///
+/// # Internal Data Structures
+///
+/// The registry typically maintains:
+///
+/// ```dart
+/// final Map<int, List<int>> relationships;
+/// final Map<IRNode, int> nodeToIndex;
+/// final Map<int, IRNode> indexToNode;
+/// ```
+///
+/// ensuring bi-directional access.
+///
+///
+/// # Example Usage
+///
+/// ```dart
+/// final registry = IRRelationshipRegistry();
+/// registry.registerParent(childNode, parentNode);
+/// registry.registerVariableUse(variableRef, someExpression);
+/// ```
+///
+/// Later used by:
+///
+/// ```dart
+/// relationshipWriter.write(registry);
+/// ```
+///
+///
+/// # Notes
+///
+/// - The IR graph must be fully registered before writing binary.
+/// - Registry must remain stable & immutable during serialization.
+/// - Invalid states (dangling refs, cycles) must be caught before serialization.
+/// - Performance critical — avoid heavy iteration inside core loops.
+///
+///
+/// ============================================================================
+///
 
 class IRRelationshipRegistry {
   final Map<String, List<String>> classMethods = {};

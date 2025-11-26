@@ -1,4 +1,182 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
+/// ============================================================================
+/// statement_reader.dart
+/// Statement Reader — Reconstructs Executable Statements from Binary IR
+/// ============================================================================
+///
+/// This module deserializes all **statement-level IR structures** from the
+/// binary format produced by `statement_writer.dart`.
+///
+/// Statements represent **execution flow** within the FlutterJS IR:
+/// - return statements  
+/// - variable assignments  
+/// - expression statements  
+/// - if/else branches  
+/// - block statements  
+/// - loops (for / foreach / while)  
+///
+/// They form the procedural backbone of function bodies and widget logic.
+///
+///
+/// # Purpose
+///
+/// Rebuilds the procedural execution tree of the IR so FlutterJS can:
+/// - generate JavaScript equivalents  
+/// - re-run validation  
+/// - visualize control flow  
+/// - analyze or optimize IR  
+///
+/// This file must fully mirror the encoding logic from the writer.
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Read Statement Tags
+///
+/// Each statement begins with a tag, allowing the reader to dispatch to the
+/// correct decoding logic:
+///
+/// - `kStmtExpression`  
+/// - `kStmtReturn`  
+/// - `kStmtVarAssign`  
+/// - `kStmtIf`  
+/// - `kStmtBlock`  
+/// - `kStmtFor`  
+/// - `kStmtForEach`  
+/// - `kStmtWhile`  
+///
+///
+/// ## 2. Expression Statement
+///
+/// Reads a single expression:
+///
+/// ```dart
+/// TAG_EXPRESSION_STATEMENT
+///   [EXPRESSION]
+/// ```
+///
+///
+/// ## 3. Return Statement
+///
+/// ```dart
+/// TAG_RETURN
+///   [HAS_VALUE]
+///     [EXPRESSION?]
+/// ```
+///
+/// Allows both:
+/// - `return;`  
+/// - `return value;`  
+///
+///
+/// ## 4. Variable Assignment
+///
+/// Reads:
+/// - variable reference  
+/// - operator tag  
+/// - RHS expression  
+///
+/// Example:
+/// ```dart
+/// count = count + 1;
+/// ```
+///
+///
+/// ## 5. If / Else Statements
+///
+/// Structure:
+/// ```dart
+/// TAG_IF
+///   [CONDITION]
+///   [THEN_BLOCK]
+///   [HAS_ELSE]
+///     [ELSE_BLOCK?]
+/// ```
+///
+///
+/// ## 6. Block Statements
+///
+/// ```dart
+/// TAG_BLOCK
+///   [STATEMENT_COUNT]
+///   [STATEMENTS...]
+/// ```
+///
+/// Supports nested blocks recursively.
+///
+///
+/// ## 7. For Loop
+///
+/// Recreates:
+/// - initializer  
+/// - condition  
+/// - update expression  
+/// - body  
+///
+/// ```dart
+/// TAG_FOR
+///   [INIT_STMT?]
+///   [CONDITION_EXPR?]
+///   [UPDATE_EXPR?]
+///   [BODY_BLOCK]
+/// ```
+///
+///
+/// ## 8. ForEach Loop
+///
+/// Reads:
+/// - loop variable declaration  
+/// - iterable expression  
+/// - loop body  
+///
+///
+/// ## 9. While Loop
+///
+/// Reads:
+/// - condition expression  
+/// - body block  
+///
+///
+/// ## 10. Recursive Reconstruction
+///
+/// Every branch, body, and nested block is processed recursively:
+///
+/// ```dart
+/// Statement readStatement();
+/// ```
+///
+/// allowing arbitrarily deep control flow structures.
+///
+///
+/// # Example Usage
+///
+/// ```dart
+/// final stmt = statementReader.readStatement();
+/// ```
+///
+/// Called within:
+/// - declaration_reader (for function bodies)  
+/// - binary_ir_reader (global deserialization)  
+///
+///
+/// # Error Handling
+///
+/// Throws when:
+/// - encountering unknown statement tag  
+/// - missing required child expression or body  
+/// - malformed loop structure  
+/// - invalid boolean flags  
+///
+///
+/// # Notes
+///
+/// - Must match statement_writer.dart exactly, field by field.  
+/// - Recursion depth can be large — guard against corrupted binaries.  
+/// - Control-flow integrity is validated by `comprehensive_ir_validator.dart`.  
+///
+///
+/// ============================================================================
+///
 
 mixin StatementReader {
   int readByte();

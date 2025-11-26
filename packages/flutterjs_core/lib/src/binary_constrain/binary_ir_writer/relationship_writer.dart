@@ -2,6 +2,151 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/ir_relationship_registry.dart';
 
 import '../../ir/expressions/cascade_expression_ir.dart';
+/// ============================================================================
+/// relationship_writer.dart
+/// Relationship Writer — Serializes Cross-Node IR Relationships into Binary
+/// ============================================================================
+///
+/// Converts all IR-level relationships recorded in
+/// `IRRelationshipRegistry` into a structured binary format.
+///
+/// The FlutterJS IR is a graph, not just a tree. Relationships include:
+/// - Parent → child mapping  
+/// - Declaration → reference usage  
+/// - Type → usage mapping  
+/// - Function → call sites  
+/// - Variable → assigned expressions  
+///
+/// These relationships must be written in a precise, deterministic format to
+/// allow the binary decoder and validators to **reconstruct the full IR graph**
+/// exactly as it existed in memory.
+///
+///
+/// # Purpose
+///
+/// The binary IR writer handles the core structure of the IR, but it **cannot**
+/// encode graph edges implicitly — these must be written as explicit
+/// relationship blocks.
+///
+/// `relationship_writer.dart` ensures:
+/// - All IR graph connections are serialized  
+/// - Relationships are ordered deterministically  
+/// - Referencing indices match the IR writer’s node indices  
+/// - Cycles or invalid references can be detected by validators  
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Write Relationship Section Header
+///
+/// Emits the relationship section tag (`kSectionRelationships`) defined in
+/// `binary_constain.dart`.
+///
+/// Ensures the decoder knows where the relationship block begins.
+///
+///
+/// ## 2. Serialize Parent → Child Edges
+///
+/// For each IR node:
+/// ```dart
+/// writer.writeUint32(parentIndex);
+/// writer.writeUint32(childIndex);
+/// ```
+///
+/// Order is deterministic based on registry ordering.
+///
+///
+/// ## 3. Serialize Declaration → Usage Relationships
+///
+/// Examples:
+/// - Variable reference → variable declaration  
+/// - Function call → function declaration  
+///
+/// Structure:
+/// ```dart
+/// [DECL_NODE_INDEX]
+/// [REFERENCE_COUNT]
+///   [REF_NODE_INDEX_1]
+///   [REF_NODE_INDEX_2]
+///   ...
+/// ```
+///
+///
+/// ## 4. Serialize Type Dependencies
+///
+/// Used to track:
+/// - which nodes use a specific type  
+/// - which generic types depend on another type  
+///
+/// Example:
+/// ```dart
+/// [TYPE_INDEX]
+/// [DEPENDENT_NODE_COUNT]
+/// [NODE_1]
+/// [NODE_2]
+/// ```
+///
+///
+/// ## 5. Deterministic Ordering
+///
+/// All edges must follow stable ordering rules:
+/// 1. relationships sorted by source node  
+/// 2. edges sorted by target node  
+///
+/// Guarantees reproducible builds and binary diffs.
+///
+///
+/// ## 6. Integration with IR Registry
+///
+/// The writer gathers all relationships from:
+///
+/// ```dart
+/// final rels = registry.getAll();
+/// ```
+///
+/// Converts internal maps into serializable lists of index pairs.
+///
+///
+/// # Binary Structure Summary
+///
+/// ```
+/// [REL_SECTION_TAG]
+/// [TOTAL_RELATIONSHIP_GROUPS]
+/// 
+/// -- Parent/Child --
+///— [PARENT_INDEX, CHILD_INDEX]
+///
+/// -- Declarations --
+///— [DECL_INDEX]
+///— [REFERENCE_COUNT]
+///— [REF_INDEXES...]
+///
+/// -- Types --
+/// — [TYPE_INDEX]
+/// — [DEPENDENT_COUNT]
+/// — [DEPENDENT_INDEXES...]
+/// ```
+///
+///
+/// # Example Usage
+///
+/// ```dart
+/// final writer = RelationshipWriter(binaryWriter, registry);
+/// writer.write();
+/// ```
+///
+/// Normally called indirectly as part of:
+///
+/// ```dart
+/// BinaryIRWriter().write(ir);
+/// ```
+///
+///
+/// # Error Handling
+///
+/// Throws when:
+/// - an IR node is missing in registry mappings  
+/// - relationships reference unk
 
 mixin RelationshipWriter {
   /// Returns the relationships registry from BinaryIRWriter

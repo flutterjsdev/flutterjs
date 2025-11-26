@@ -1,5 +1,188 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
+/// ============================================================================
+/// expression_reader.dart
+/// Expression Reader — Deserializes Expression Trees from FlutterJS Binary IR
+/// ============================================================================
+///
+/// Responsible for decoding **all expression nodes** from the binary IR
+/// produced by `expression_writer.dart`.
+///
+/// Expressions represent the computational logic embedded inside the IR:
+/// - widget property bindings  
+/// - conditional logic  
+/// - function calls  
+/// - arithmetic & boolean operations  
+/// - list/map literals  
+/// - callbacks  
+///
+/// The ExpressionReader must reconstruct these expression trees **exactly** as
+/// they were encoded to ensure correct IR semantics.
+///
+///
+/// # Purpose
+///
+/// Expressions are deeply embedded in nearly every IR construct.  
+/// This module restores expression trees from the binary stream and rebuilds a
+/// fully navigable, strongly typed IR representation.
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Read Expression Type Tags
+///
+/// Every expression begins with a tag:
+///
+/// - literal (string / number / bool / null)  
+/// - variable reference  
+/// - property reference  
+/// - unary expression  
+/// - binary expression  
+/// - function/callback call  
+/// - list literal  
+/// - map literal  
+///
+/// These tags determine which reading path to take.
+///
+///
+/// ## 2. Decode Literal Expressions
+///
+/// - Reads literal subtype  
+/// - Reads primitive payload  
+///
+/// Examples:
+/// ```dart
+/// TAG_LITERAL_STRING → readUtf8 payload  
+/// TAG_LITERAL_INT    → readInt32  
+/// TAG_LITERAL_BOOL   → readBool  
+/// TAG_LITERAL_NULL   → no payload  
+/// ```
+///
+///
+/// ## 3. Decode Variable & Identifier References
+///
+/// Uses:
+/// ```dart
+/// final name = stringTable.get(index);
+/// ```
+///
+/// Reconstructs identifiers referenced throughout the IR.
+///
+///
+/// ## 4. Decode Unary Expressions
+///
+/// Reads:
+/// - operator code  
+/// - operand expression  
+///
+/// Example:
+/// ```dart
+/// !isActive
+/// ```
+///
+///
+/// ## 5. Decode Binary Expressions
+///
+/// Reads:
+/// - operator code  
+/// - left expression  
+/// - right expression  
+///
+/// Example:
+/// ```dart
+/// width > minWidth
+/// ```
+///
+///
+/// ## 6. Decode Function/Callback Calls
+///
+/// Reconstructs:
+/// - invoked function reference  
+/// - positional arguments  
+/// - named arguments  
+///
+/// Example:
+/// ```dart
+/// onTap: () => doSomething(value)
+/// ```
+///
+///
+/// ## 7. Decode List Literals
+///
+/// Example:
+/// ```dart
+/// [1, 2, compute()]
+/// ```
+///
+/// Reads element count → recursively decodes all elements.
+///
+///
+/// ## 8. Decode Map Literals
+///
+/// Example:
+/// ```dart
+/// {"foo": bar, "key": compute()}
+/// ```
+///
+/// Reads key/value count → recursively decodes entries.
+///
+///
+/// ## 9. Recursive Tree Reconstruction
+///
+/// All expressions may nest:
+/// - deeply nested binary trees  
+/// - lists containing maps  
+/// - expressions inside expressions  
+///
+/// Reader builds the complete recursive structure exactly as written.
+///
+///
+/// # Example Binary Flow
+///
+/// ```
+/// TAG_BINARY
+///   OP_ADD
+///   TAG_VAR (x)
+///   TAG_LITERAL (5)
+/// ```
+///
+/// Decodes into:
+/// - BinaryExpr  
+/// - VariableRef("x")  
+/// - LiteralExpr(5)  
+///
+///
+/// # Example Usage
+///
+/// ```dart
+/// final expr = expressionReader.readExpression();
+/// ```
+///
+/// Called by:
+/// - declaration_reader  
+/// - statement_reader  
+/// - type_reader (for function types)  
+///
+///
+/// # Error Handling
+///
+/// Throws:
+/// - invalid expression tag  
+/// - missing operand  
+/// - unknown operator code  
+/// - out-of-range string index  
+/// - corrupted literal payload  
+///
+///
+/// # Notes
+///
+/// - Must stay 100% symmetric with expression_writer.dart.  
+/// - Performance critical — expressions appear everywhere in IR.  
+/// - Recursion depth should be guarded against malformed binaries.  
+///
+///
+/// ============================================================================
+///
 
 mixin ExpressionReader {
   int readByte();

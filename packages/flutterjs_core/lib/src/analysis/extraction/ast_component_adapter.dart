@@ -9,10 +9,11 @@ import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:flutterjs_core/src/analysis/visitors/analyzer_widget_detection_setup.dart';
-import 'package:flutterjs_core/src/code_reader/flutter_component_system.dart';
+import 'package:flutterjs_core/src/analysis/extraction/flutter_component_system.dart';
 
-import 'package:flutterjs_core/src/analysis/detection/statement_extraction_pass.dart';
+import 'package:flutterjs_core/src/analysis/extraction/statement_extraction_pass.dart';
 /// ============================================================================
+/// ast_component_adapter.dart
 /// AST → Flutter Component Adapter
 /// ============================================================================
 ///

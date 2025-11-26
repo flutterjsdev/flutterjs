@@ -2,7 +2,161 @@ import 'dart:typed_data';
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 
-import '../../ir/expressions/cascade_expression_ir.dart';
+/// ============================================================================
+/// declaration_writer.dart
+/// Declaration Writer — Serializes Declarations in the FlutterJS IR
+/// ============================================================================
+///
+/// Responsible for writing **all declaration-level IR structures** to the
+/// binary output.  
+///
+/// A *declaration* represents any named construct in the FlutterJS IR:
+/// - Variables
+/// - Functions
+/// - Classes / Widget Declarations
+/// - Parameters
+/// - Scoped identifiers
+///
+/// This writer ensures each declaration is translated into a compact and stable
+/// binary format consistent with the global IR schema.
+///
+/// It is invoked by the master orchestrator:  
+/// → `binary_ir_writer.dart`  
+///
+///
+/// # Purpose
+///
+/// In FlutterJS IR, declarations define the "vocabulary" of the UI execution
+/// environment.  
+///
+/// This module converts these declarations into binary form by encoding:
+///
+/// - identifiers  
+/// - annotations  
+/// - declaration type  
+/// - parent scope  
+/// - assigned expressions  
+/// - declaration visibility  
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Serialize Declaration Metadata
+///
+/// Writes:
+//  - declaration type (variable, function, class, etc.)
+//  - string-table index for name
+//  - modifiers (const, final, static, external, etc.)
+//  - access scope (public/private)
+///
+///
+/// ## 2. Serialize Types for Declarations
+///
+/// Ensures that *declared types* reference:
+/// - type indices created by `type_writer.dart`
+/// - generic constraints
+/// - nullability flags
+///
+/// Example:
+/// ```dart
+/// writer.writeTypeRef(declaration.type);
+/// ```
+///
+///
+/// ## 3. Serialize Initial Values (If Present)
+///
+/// For variable or field declarations:
+///
+/// ```dart
+/// writeExpression(declaration.initializer);
+/// ```
+///
+/// Uses the expression writer for encoding the assigned value.
+///
+///
+/// ## 4. Serialize Function & Method Declarations
+///
+/// Includes:
+/// - parameter list  
+/// - parameter types  
+/// - return type  
+/// - async/async* markers  
+/// - function body → forwarded to `statement_writer.dart`  
+///
+///
+/// ## 5. Ordering Guarantees
+///
+/// Declarations must be written in a deterministic order to ensure:
+/// - reproducible binary output  
+/// - stable indices  
+///
+/// The order typically enforced:
+///
+/// 1. Type declarations  
+/// 2. Global declarations  
+/// 3. Class members  
+/// 4. Local declarations  
+///
+///
+/// # Binary Structure Example
+///
+/// ```
+/// [DECLARATION_TAG]
+/// [DECL_KIND]
+/// [NAME_INDEX]
+/// [TYPE_INDEX]
+/// [FLAGS]
+/// [INIT_EXPR?]
+/// [PARAMETERS?]
+/// [FUNCTION_BODY?]
+/// ```
+///
+///
+/// # Example Usage
+///
+/// ```dart
+/// final dw = DeclarationWriter(writer, stringTable);
+/// dw.writeDeclaration(myIRDeclaration);
+/// ```
+///
+/// Usually invoked indirectly via:
+///
+/// ```dart
+/// BinaryIRWriter().write(irRoot);
+/// ```
+///
+///
+/// # Integration
+///
+/// Works closely with:
+/// - `type_writer.dart`  
+/// - `expression_writer.dart`  
+/// - `statement_writer.dart`  
+/// - `string_collection.dart`  
+///
+/// Ensures each string and type is registered and referenced correctly.
+///
+///
+/// # Error Handling
+///
+/// Throws validation errors when:
+/// - a declaration is missing a required name  
+/// - an invalid type reference is used  
+/// - a function body references undeclared symbols  
+/// - modifiers conflict (e.g., const + mutable)  
+///
+///
+/// # Notes
+///
+/// - Must always write declarations **before** writing their usage.
+/// - Changing declaration structure requires binary schema updates.
+/// - Deeply tied to IR design—update both together.
+/// - All strings must be added to the global string table before writing.
+///
+///
+/// ============================================================================
+///
+
 
 mixin DeclarationWriter {
   void writeByte(int value);

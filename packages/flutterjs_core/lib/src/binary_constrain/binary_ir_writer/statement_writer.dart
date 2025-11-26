@@ -1,6 +1,203 @@
 import 'dart:typed_data';
 
 import 'package:flutterjs_core/flutterjs_core.dart';
+/// ============================================================================
+/// statement_writer.dart
+/// Statement Writer — Serializes All Executable Statements in the FlutterJS IR
+/// ============================================================================
+///
+/// Responsible for writing **statement-level IR structures** into binary form.
+/// Statements define the executable flow within the FlutterJS IR:
+///
+/// - variable assignments  
+/// - return statements  
+/// - if/else blocks  
+/// - loops (for, foreach, while)  
+/// - expression statements  
+/// - block scopes  
+///
+/// This writer serializes control flow, logic flow, and procedural structure of
+/// the IR, ensuring it becomes a compact, traversable binary representation.
+///
+/// Used by:
+/// - `declaration_writer.dart` (function bodies)  
+/// - `binary_ir_writer.dart`  
+/// - validators and code generators  
+///
+///
+/// # Purpose
+///
+/// While expressions represent *values*, statements represent *execution flow*.
+/// The StatementWriter ensures that:
+///
+/// - all procedural constructs are encoded deterministically  
+/// - nested blocks are represented properly  
+/// - all embedded expressions are serialized via `expression_writer.dart`  
+/// - control-flow boundaries are explicit and binary-safe  
+///
+/// This guarantees predictable decoding, validation, and JS generation.
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Write Statement Tags
+///
+/// Each statement begins with a type tag:
+///
+/// - `kStmtExpression`  
+/// - `kStmtReturn`  
+/// - `kStmtVariableAssign`  
+/// - `kStmtIf`  
+/// - `kStmtBlock`  
+/// - `kStmtFor`  
+/// - `kStmtForEach`  
+/// - `kStmtWhile`  
+///
+/// Tags come from the binary schema (`binary_constain.dart`).
+///
+///
+/// ## 2. Expression Statements
+///
+/// ```dart
+/// print(value);
+/// ```
+///
+/// Serialized as:
+/// ```
+/// [TAG_EXPRESSION_STATEMENT]
+/// [EXPRESSION]
+/// ```
+///
+///
+/// ## 3. Return Statements
+///
+/// ```dart
+/// return value;
+/// ```
+///
+/// Binary format:
+/// ```
+/// [TAG_RETURN]
+/// [EXPRESSION?]
+/// ```
+///
+///
+/// ## 4. Variable Assignment Statements
+///
+/// ```dart
+/// count = count + 1;
+/// ```
+///
+/// Writes:
+/// - variable reference  
+/// - assignment operator tag  
+/// - value expression  
+///
+///
+/// ## 5. If / Else Statements
+///
+/// Structure:
+/// ```
+/// if (condition) { ... } else { ... }
+/// ```
+///
+/// Binary layout:
+/// ```
+/// [TAG_IF]
+/// [CONDITION_EXPR]
+/// [THEN_BLOCK]
+/// [HAS_ELSE]
+///   [ELSE_BLOCK?]
+/// ```
+///
+///
+/// ## 6. Block Statements
+///
+/// Blocks contain lists of statements:
+///
+/// ```dart
+/// {
+///   stmt1;
+///   stmt2;
+/// }
+/// ```
+///
+/// Encoding:
+/// ```
+/// [TAG_BLOCK]
+/// [STATEMENT_COUNT]
+/// [STATEMENT_1]
+/// [STATEMENT_2]
+/// ...
+/// ```
+///
+///
+/// ## 7. Loop Statements
+///
+/// ### For Loops
+/// ```dart
+/// for (init; condition; update) { ... }
+/// ```
+///
+/// ### ForEach Loops
+/// ```dart
+/// for (var item in list) { ... }
+/// ```
+///
+/// ### While Loops
+/// ```dart
+/// while (condition) { ... }
+/// ```
+///
+/// Each loop type has its own binary structure, but all include:
+/// - loop header metadata  
+/// - condition expression (if applicable)  
+/// - loop body → nested block  
+///
+///
+/// ## 8. Recursive Serialization
+///
+/// A statement may contain:
+/// - nested expressions  
+/// - nested statements  
+/// - nested blocks  
+///
+/// The writer serializes them recursively, guaranteeing complete IR encoding.
+///
+///
+/// # Example Usage
+///
+/// ```dart
+/// final sw = StatementWriter(writer, exprWriter, stringTable);
+/// sw.write(statementNode);
+/// ```
+///
+/// Typically invoked from:
+///
+/// - function writers  
+/// - widget event writers  
+/// - IR root writer  
+///
+///
+/// # Error Handling
+///
+/// Throws errors when:
+/// - encountering an unsupported statement type  
+/// - missing required expression (e.g., no condition for an if-statement)  
+/// - mismatched block boundaries  
+/// - empty or malformed loop headers  
+///
+///
+/// # Notes
+///
+/// - Statement encoding must match the binary reader's structure.  
+/// - Recursion depth can be high for large IRs; optimize for stack safety.  
+/// - Must remain stable for deterministic byte output.  
+/// - Structural changes require updating validators and decoders.  
+///
+///
+/// ============================================================================
+///
 
 mixin StatementWriter {
   void writeByte(int value);

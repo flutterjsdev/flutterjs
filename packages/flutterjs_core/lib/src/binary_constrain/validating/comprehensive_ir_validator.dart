@@ -4,10 +4,113 @@ import 'package:path/path.dart' as path;
 import '../binary_ir_reader/binary_ir_reader.dart';
 import '../../ir/declarations/dart_file_builder.dart';
 import 'binary_format_validator.dart';
-
-// ============================================================================
-// INTEGRATED VALIDATION ORCHESTRATOR
-// ============================================================================
+/// ============================================================================
+/// comprehensive_ir_validator.dart
+/// Comprehensive IR Validator — Semantic & Structural IR Integrity Checker
+/// ============================================================================
+///
+/// Performs **full semantic validation** on the FlutterJS Intermediate
+/// Representation (IR) after decoding from binary or generating from AST.
+///
+/// While `binary_format_validator.dart` validates *binary format integrity*,
+/// this validator checks the *logical correctness* of the IR itself.
+///
+///
+/// # Purpose
+///
+/// Ensures the IR is:
+/// - Structurally consistent  
+/// - Free of invalid references  
+/// - Compliant with rules of the FlutterJS IR schema  
+/// - Safe for UI translation, code generation, or JavaScript export  
+///
+/// This validator prevents rendering failures, runtime crashes, or invalid JS
+/// output by guaranteeing the IR tree is complete and semantically correct.
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Widget Tree Validation
+///
+/// Validates:
+/// - Every node has a valid widget type  
+/// - Children exist where required  
+/// - Forbidden widget combinations are not used  
+/// - Parent-child relationships are consistent  
+/// - No circular widget references  
+///
+///
+/// ## 2. Property Validation
+///
+/// Ensures:
+/// - All required properties are provided  
+/// - Types of properties match expected schema  
+/// - Illegal property values (e.g., negative padding, empty keys) are flagged  
+/// - Bindings reference valid expressions  
+///
+///
+/// ## 3. Expression Tree Validation
+///
+/// Confirms:
+/// - All expressions are valid  
+/// - Binary/unary operators are allowed  
+/// - Literals are valid (no NaN unless allowed)
+/// - Variables exist in the corresponding scope  
+/// - No dangling identifiers  
+///
+///
+/// ## 4. String Table References
+///
+/// Verifies:
+/// - Every string index maps correctly  
+/// - String literals exist  
+/// - No out-of-range references  
+///
+///
+/// ## 5. Semantic Rule Enforcement
+///
+/// Examples:
+/// - `ListView` cannot contain multiple scrollable parents  
+/// - Callback properties must be functions  
+/// - Layout constraints must be internally consistent  
+///
+///
+/// ## 6. Comprehensive Error Reporting
+///
+/// Produces detailed errors with:
+/// - Node path  
+/// - Property name  
+/// - Expression chain  
+/// - Suggested fix  
+///
+///
+/// # Example Usage
+///
+/// ```dart
+/// final validator = ComprehensiveIRValidator();
+/// validator.validate(irRoot);
+/// ```
+///
+/// Throws `IRValidationException` when invalid.
+///
+///
+/// # Integration
+///
+/// - Run after decoding binary to ensure IR integrity.
+/// - Used during development to detect malformed AST → IR conversions.
+/// - Can be run automatically before FlutterJS → JavaScript generation.
+/// - Serves as a “linting” step for IR.
+///
+///
+/// # Notes
+///
+/// - Keep tightly synchronized with evolving IR schema.
+/// - Validation must be deterministic and pure (no side effects).
+/// - Performance-sensitive — avoid deep recursion without tail optimization.
+///
+///
+/// ============================================================================
+///
 
 class ComprehensiveIRValidator {
   final BinaryFormatValidator binaryValidator = BinaryFormatValidator();

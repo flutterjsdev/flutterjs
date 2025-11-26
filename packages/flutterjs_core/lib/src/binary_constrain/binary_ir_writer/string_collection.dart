@@ -1,4 +1,159 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
+/// ============================================================================
+/// string_collection.dart
+/// String Collection — Centralized Interning Pool for IR → Binary Serialization
+/// ============================================================================
+///
+/// Maintains a **global pooled string table** used throughout the FlutterJS IR
+/// serialization process.  
+///
+/// This module ensures:
+/// - All strings used in IR are deduplicated  
+/// - Each string receives a stable index  
+/// - Writers can reference strings using compact integer IDs  
+///
+/// It acts as the in-memory builder for the binary **StringTable** written later
+/// into the output bundle.
+///
+///
+/// # Purpose
+///
+/// The IR contains a large number of strings:
+/// - widget names  
+/// - parameter names  
+/// - variable identifiers  
+/// - type names  
+/// - literal values  
+///
+/// Repeating these strings directly in binary output would:
+/// - increase size  
+/// - reduce determinism  
+/// - break efficient decoding  
+///
+/// `StringCollection` collects all strings **before writing anything**,
+/// guaranteeing a stable ordering throughout the binary writer.
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Intern Strings
+///
+/// ```dart
+/// int index = collection.intern("Container");
+/// ```
+///
+/// Interning guarantees:
+/// - consistent ID assignment  
+/// - zero duplicates  
+///
+///
+/// ## 2. Index-Based Lookups
+///
+/// Retrieve string by index:
+/// ```dart
+/// final str = collection.lookup(3);
+/// ```
+///
+///
+/// ## 3. Reverse Lookup
+///
+/// Retrieve index for an existing string:
+///
+/// ```dart
+/// final id = collection.indexOf("title");
+/// ```
+///
+///
+/// ## 4. Export to `StringTable`
+///
+/// Before writing binary, the collection outputs:
+///
+/// ```dart
+/// final table = collection.toTable();
+/// ```
+///
+/// A StringTable is then serialized in the binary format using:
+/// - UTF-8 byte encoding  
+/// - length-prefixed strings  
+/// - stable ordering  
+///
+///
+/// ## 5. Enforce Deterministic Ordering
+///
+/// Ordering is based on **first appearance**, making builds reproducible:
+/// - same IR → same string ordering → same binary output  
+///
+///
+/// ## 6. Provide String Indices to Writers
+///
+/// Used across:
+/// - expression_writer  
+/// - statement_writer  
+/// - declaration_writer  
+/// - type_writer  
+/// - relationship_writer  
+///
+/// Example:
+/// ```dart
+/// writer.writeUint32(collection.indexOf(param.name));
+/// ```
+///
+///
+/// # Internal Structure
+///
+/// Typically:
+/// ```dart
+/// final List<String> _strings;
+/// final Map<String, int> _index;
+/// ```
+///
+/// This ensures:
+/// - fast O(1) lookup  
+/// - string → index and index → string mapping  
+///
+///
+/// # Binary Flow Overview
+///
+/// ```
+/// IR Nodes
+///     ↓
+/// StringCollection (intern all strings)
+///     ↓
+/// StringTable (ready for binary)
+///     ↓
+/// BinaryWriter (serialize table)
+/// ```
+///
+///
+/// # Example Usage
+///
+/// ```dart
+/// final sc = StringCollection();
+/// sc.intern("title");
+/// sc.intern("subtitle");
+///
+/// final idx = sc.indexOf("title"); // → 0  
+/// final table = sc.toTable();
+/// ```
+///
+///
+/// # Error Handling
+///
+/// Throws when:
+/// - attempting to look up an invalid index  
+/// - receiving a null or empty string where not allowed  
+/// - exporting before all IR strings were registered  
+///
+///
+/// # Notes
+///
+/// - Strings must be interned before binary writing begins.  
+/// - Ordering must stay stable for binary reproducibility.  
+/// - Updating this module affects the binary schema; proceed with caution.  
+///
+///
+/// ============================================================================
+///
 
 mixin StringCollectionPhase {
   // âœ… Abstract getters that must be provided by implementing class

@@ -3,10 +3,202 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 import '../../ir/expressions/cascade_expression_ir.dart';
 import 'ir_relationship_registry.dart';
 
-// ============================================================================
-// FILE: expression_writer.dart (UPDATED)
-// Widget tracking integrated into expression writing
-// ============================================================================
+/// ============================================================================
+/// expression_writer.dart
+/// Expression Writer — Serializes Expression IR Nodes into Binary Format
+/// ============================================================================
+///
+/// Handles the serialization of **all expression types** in the FlutterJS
+/// Intermediate Representation.  
+///
+/// Expressions form the computational logic behind UI metadata:
+/// - widget parameters
+/// - conditional logic
+/// - computed values
+/// - callbacks
+/// - mathematical/boolean operations
+///
+/// This writer produces a compact, schema-compliant binary encoding for each
+/// expression node using the tags and rules defined in:
+/// - `binary_constain.dart`  
+/// - `string_collection.dart`  
+///
+/// Called internally by:
+/// → `binary_ir_writer.dart`  
+/// → `statement_writer.dart`  
+/// → `declaration_writer.dart`  
+///
+///
+/// # Purpose
+///
+/// Expressions are **the most complex and most frequently occurring IR nodes**.
+/// The ExpressionWriter ensures that:
+///
+/// - each node is encoded deterministically  
+/// - binary size remains small  
+/// - the decoder can reconstruct the exact tree  
+/// - all string identifiers reference the string table  
+///
+/// The output is a fully traversable expression tree stored in binary form.
+///
+///
+/// # Responsibilities
+///
+/// ## 1. Write Expression Type Tags
+///
+/// Before writing the payload of any expression, the writer emits the tag:
+///
+/// ```dart
+/// writer.writeUint8(expr.kindTag);
+/// ```
+///
+/// Tags include:
+/// - literal string  
+/// - literal number  
+/// - literal boolean  
+/// - literal null  
+/// - variable reference  
+/// - property reference  
+/// - unary op  
+/// - binary op  
+/// - function call  
+/// - list literal  
+/// - map literal  
+///
+///
+/// ## 2. Literal Expressions
+///
+/// Example:
+/// ```dart
+/// "hello"  → (TAG_STRING + STRING_INDEX)
+/// 42       → (TAG_NUMBER + double/int payload)
+/// true     → (TAG_BOOL + 1)
+/// null     → (TAG_NULL)
+/// ```
+///
+///
+/// ## 3. Variable & Property References
+///
+/// Writes:
+/// - string index for variable name  
+/// - optional parent object reference  
+///
+/// Ensures all strings exist in the string table beforehand.
+///
+///
+/// ## 4. Unary Expressions
+///
+/// ```dart
+/// !flag
+/// -count
+/// ~value
+/// ```
+///
+/// Binary structure:
+/// ```
+/// [TAG_UNARY]
+/// [OPERATOR_CODE]
+/// [OPERAND_EXPRESSION]
+/// ```
+///
+///
+/// ## 5. Binary Expressions
+///
+/// ```dart
+/// a + b
+/// width >= 200
+/// isDark && hasContrast
+/// ```
+///
+/// Structure:
+/// ```
+/// [TAG_BINARY]
+/// [OPERATOR_CODE]
+/// [LEFT_EXPR]
+/// [RIGHT_EXPR]
+/// ```
+///
+///
+/// ## 6. Function Call / Callback Expressions
+///
+/// Encodes:
+/// - target expression (function reference)  
+/// - positional arguments  
+/// - named arguments  
+///
+/// This powers:
+/// - onTap handlers  
+/// - builder functions  
+/// - closure wrappers  
+///
+///
+/// ## 7. Collection Literals
+///
+/// ### List
+/// ```dart
+/// [1, 2, computeValue()]
+/// ```
+///
+/// ### Map
+/// ```dart
+/// {"name": user.name, "age": 21}
+/// ```
+///
+/// Writer encodes:
+/// - element count  
+/// - each item key/value recursively  
+///
+///
+/// ## 8. Recursion Handling
+///
+/// The writer is fully recursive — each expression node calls back into:
+///
+/// ```dart
+/// writeExpression(node.child);
+/// ```
+///
+/// guaranteeing correct nested encoding.
+///
+///
+/// # Binary Example
+///
+/// ```
+/// TAG_BINARY
+///   OP_ADD
+///   TAG_VARIABLE("a")
+///   TAG_LITERAL_NUMBER(10)
+/// ```
+///
+///
+/// # Integration
+///
+/// ```dart
+/// final ew = ExpressionWriter(writer, strings);
+/// ew.write(expr);
+/// ```
+///
+/// Never called directly by end-users — only by higher-level writers.
+///
+///
+/// # Error Handling
+///
+/// Throws on:
+/// - encountering unsupported IR expression type  
+/// - unknown operator  
+/// - null operand for required expressions  
+/// - invalid string-table reference  
+///
+///
+/// # Notes
+///
+/// - Very performance-sensitive due to recursive traversal.
+/// - Must mirror decoder structure exactly.
+/// - Schema changes must be updated in both writer and reader.
+/// - String interning must occur **before** writing expression payloads.
+///
+///
+/// ============================================================================
+///
 
 mixin ExpressionWriter {
   void writeByte(int value);
