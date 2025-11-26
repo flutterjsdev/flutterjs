@@ -7,7 +7,7 @@
 
 import 'package:flutterjs_core/src/flutter_to_js/src/utils/code_gen_error.dart';
 
-import '../../ast_ir/ast_it.dart';
+import '../../../ast_it.dart';
 import 'build_method_code_gen.dart';
 import 'flutter_prop_converters.dart';
 import 'function_code_generator.dart';

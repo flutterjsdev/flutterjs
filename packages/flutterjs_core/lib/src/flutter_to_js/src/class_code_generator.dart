@@ -6,7 +6,7 @@
 // ============================================================================
 
 import 'package:collection/collection.dart';
-import 'package:flutterjs_core/src/ast_ir/ast_it.dart';
+import 'package:flutterjs_core/ast_it.dart';
 import 'package:flutterjs_core/src/flutter_to_js/src/flutter_prop_converters.dart';
 import 'package:flutterjs_core/src/flutter_to_js/src/utils/code_gen_error.dart';
 import 'expression_code_generator.dart';

@@ -6,9 +6,9 @@
 // Works with StatefulWidget, StatelessWidget, and custom widgets
 // ============================================================================
 
-import 'package:flutterjs_core/src/ast_ir/ir/expression_types/cascade_expression_ir.dart';
+import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 
-import '../../ast_ir/ast_it.dart';
+import '../../../ast_it.dart';
 import 'expression_code_generator.dart';
 
 // ============================================================================

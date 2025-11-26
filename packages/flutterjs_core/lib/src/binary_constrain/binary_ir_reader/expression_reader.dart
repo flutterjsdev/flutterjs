@@ -1,5 +1,5 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_core/src/ast_ir/ir/expression_types/cascade_expression_ir.dart';
+import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 
 mixin ExpressionReader {
   int readByte();

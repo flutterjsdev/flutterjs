@@ -1,7 +1,7 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/ir_relationship_registry.dart';
 
-import '../../ast_ir/ir/expression_types/cascade_expression_ir.dart';
+import '../../ir/expressions/cascade_expression_ir.dart';
 
 mixin RelationshipWriter {
   /// Returns the relationships registry from BinaryIRWriter

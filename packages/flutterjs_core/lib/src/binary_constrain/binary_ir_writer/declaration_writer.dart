@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 
-import '../../ast_ir/ir/expression_types/cascade_expression_ir.dart';
+import '../../ir/expressions/cascade_expression_ir.dart';
 
 mixin DeclarationWriter {
   void writeByte(int value);

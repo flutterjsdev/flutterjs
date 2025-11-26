@@ -9,8 +9,8 @@ import 'package:collection/collection.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/flutter_to_js/src/utils/code_gen_error.dart'
     hide CodeGenWarning, WarningSeverity;
-import '../../ast_ir/ast_it.dart';
-import '../../ast_ir/ir/expression_types/cascade_expression_ir.dart';
+import '../../../ast_it.dart';
+import '../../ir/expressions/cascade_expression_ir.dart';
 
 // ============================================================================
 // CONFIGURATION & HELPERS

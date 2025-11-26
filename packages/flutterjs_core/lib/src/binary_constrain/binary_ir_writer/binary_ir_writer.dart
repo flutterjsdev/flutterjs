@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_core/src/ast_ir/diagnostics/source_location.dart';
-import 'package:flutterjs_core/src/ast_ir/import_export_stmt.dart';
-import 'package:flutterjs_core/src/ast_ir/ir/expression_ir.dart';
+import 'package:flutterjs_core/src/ir/core/source_location.dart';
+import 'package:flutterjs_core/src/ir/declarations/import_export_stmt.dart';
+import 'package:flutterjs_core/src/ir/expressions/expression_ir.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/declaration_writer.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/expression_writer.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/relationship_writer.dart';
@@ -13,8 +13,8 @@ import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/string_coll
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/type_writer.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/writer.dart';
 
-import '../../ast_ir/dart_file_builder.dart';
-import '../../ast_ir/ir/expression_types/cascade_expression_ir.dart';
+import '../../ir/declarations/dart_file_builder.dart';
+import '../../ir/expressions/cascade_expression_ir.dart';
 import 'ir_relationship_registry.dart';
 import '../binary_constain.dart';
 import 'validator_file.dart';

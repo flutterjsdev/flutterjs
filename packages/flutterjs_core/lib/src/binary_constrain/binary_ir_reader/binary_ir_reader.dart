@@ -9,7 +9,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_core/src/ast_ir/widget_metadata.dart';
+import 'package:flutterjs_core/src/ir/flutter/widget_metadata.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_reader/declaration_reader.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_reader/expression_reader.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_reader/reader.dart';

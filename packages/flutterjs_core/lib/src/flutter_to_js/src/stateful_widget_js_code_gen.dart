@@ -7,8 +7,8 @@
 
 import 'package:flutterjs_core/src/flutter_to_js/src/utils/indenter.dart';
 
-import '../../ast_ir/ast_it.dart';
-import '../../ast_ir/ir/expression_types/cascade_expression_ir.dart';
+import '../../../ast_it.dart';
+import '../../ir/expressions/cascade_expression_ir.dart';
 import '../flutter_to_js.dart';
 import 'build_method_code_gen.dart';
 import 'flutter_prop_converters.dart';

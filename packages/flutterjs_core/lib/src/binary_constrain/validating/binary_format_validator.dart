@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 import '../binary_constain.dart';
-import '../../ast_ir/class_decl.dart';
-import '../../ast_ir/dart_file_builder.dart';
-import '../../ast_ir/function_decl.dart';
+import '../../ir/declarations/class_decl.dart';
+import '../../ir/declarations/dart_file_builder.dart';
+import '../../ir/declarations/function_decl.dart';
 
 // ============================================================================
 // LAYER 1: BINARY FORMAT & DESERIALIZATION VALIDATION
