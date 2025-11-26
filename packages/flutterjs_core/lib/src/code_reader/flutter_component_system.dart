@@ -7,6 +7,214 @@
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:meta/meta.dart';
+/// ============================================================================
+/// COMPREHENSIVE FLUTTER COMPONENT HANDLER SYSTEM
+/// ============================================================================
+///
+/// A full-featured system for extracting, normalizing, and representing Flutter
+/// UI code as structured components. This system works together with AST-based
+/// detectors (e.g., ASTComponentAdapter) and the FlutterJS Core engine.
+///
+/// This file defines:
+///   1. A unified `FlutterComponent` model
+///   2. All concrete component types (widgets, loops, conditionals, builders...)
+///   3. Property binding models (callbacks, builders, literals)
+///   4. Source location tracking
+///   5. A `ComponentExtractor` that converts AST → FlutterComponents
+///   6. A `ComponentRegistry` that manages custom detectors
+///   7. Hot reload–safe mutation helpers
+///
+/// The goal is to represent ANY part of Flutter UI code—widget trees, lists,
+/// loops, conditionals, callbacks—as strongly typed component objects that can
+/// be serialized, inspected, analyzed, or converted into other formats (e.g.
+/// JavaScript/HTML visualizations).
+///
+///
+/// ============================================================================
+/// 1. UNIFIED COMPONENT MODEL
+/// ============================================================================
+///
+/// The [`FlutterComponent`] class represents every extractable part of Flutter
+/// code. Each component variant (widget, loop, conditional, callback, etc.)
+/// extends this base class.
+///
+/// A `FlutterComponent` includes:
+///   • A unique ID  
+///   • A `ComponentType` describing its role  
+///   • A `displayName`  
+///   • A source-code location (`SourceLocationIR`)  
+///   • Optional metadata  
+///
+/// This allows:
+///   - Visual tree rendering
+///   - UI code introspection
+///   - Exporting UI to JSON
+///   - Hot reload component replacement
+///   - Cross-language translation (Flutter → JS/HTML)
+///
+///
+/// ============================================================================
+/// 2. CONCRETE COMPONENT TYPES
+/// ============================================================================
+///
+/// The following extractable component types are supported:
+///
+///   • `WidgetComponent`  
+///   • `BuilderComponent`  
+///   • `ConditionalComponent`  
+///   • `LoopComponent`  
+///   • `CollectionComponent`  
+///   • `ContainerFallbackComponent`  
+///   • `UnsupportedComponent`  
+///
+/// These types represent:
+///   - Widgets with properties and children
+///   - Builder functions (`builder: (ctx) { ... }`)
+///   - If/else and ternary operators
+///   - For/forEach/while loops
+///   - Lists/maps/sets with optional spread elements
+///   - Fallback containers when extraction fails
+///   - Unsupported syntax (for debugging)
+///
+/// Every component implements:
+///   - `describe()` → human-readable summary  
+///   - `toJson()` → serialization  
+///   - `getChildren()` → recursive children  
+///
+///
+/// ============================================================================
+/// 3. PROPERTY BINDINGS
+/// ============================================================================
+///
+/// Properties inside widget constructors can be:
+///   - Literals (`color: Colors.red`)
+///   - Variables (`child: myWidget`)
+///   - Callbacks (`onTap: () { }`)
+///   - Builder functions (`builder: (...)`)
+///   - Expressions (`width: size * 2`)
+///
+/// These distinctions are captured using:
+///
+///   • `LiteralPropertyBinding`  
+///   • `CallbackPropertyBinding`  
+///   • `BuilderPropertyBinding`  
+///
+/// These bindings allow accurate UI rewrites, previews, or code generation.
+///
+///
+/// ============================================================================
+/// 4. SOURCE LOCATION TRACKING
+/// ============================================================================
+///
+/// The extractor maps AST offsets to:
+///   - Line number  
+///   - Column number  
+///   - Raw code substring range  
+///
+/// This enables:
+///   • Highlighting source in editors  
+///   • Error messages tied to original code  
+///   • Click-to-navigate in UI inspectors  
+///
+///
+/// ============================================================================
+/// 5. COMPONENT EXTRACTOR
+/// ============================================================================
+///
+/// `ComponentExtractor` is the core engine.  
+/// Given any AST node, it:
+///
+///   1. Identifies its type using `ComponentRegistry`
+///   2. Delegates to an appropriate extraction method:
+///        - `_extractWidget`  
+///        - `_extractConditional`  
+///        - `_extractLoop`  
+///        - `_extractCollection`  
+///        - `_extractBuilder`  
+///        - `_extractCallback`  
+///   3. Recursively builds a component tree
+///
+/// This creates a fully typed `FlutterComponent` tree that mirrors the structure
+/// of Flutter UI code without requiring a running Flutter app.
+///
+///
+/// ============================================================================
+/// 6. COMPONENT REGISTRY (DETECTION SYSTEM)
+/// ============================================================================
+///
+/// `ComponentRegistry` is an extensible system that delegates parsing logic to
+/// custom detectors such as:
+///
+///   - AST-based detectors  
+///   - Reflection-based detectors  
+///   - Plugin-based detectors  
+///
+/// It exposes high-level detection functions:
+///
+///   • `isWidgetCreation(node)`  
+///   • `isBuilder(node)`  
+///   • `isCallback(node)`  
+///   • `isLoop(node)`  
+///   • `isCollection(node)`  
+///   • `isConditional(node)`  
+///
+/// Each of these checks is delegated to the registered detectors.
+///
+/// This architecture allows:
+///   - Plug-and-play detectors  
+///   - Multiple environments (AST, runtime, hybrid)  
+///   - Custom DSLs  
+///   - Versioned Flutter support  
+///
+///
+/// ============================================================================
+/// 7. HOT RELOAD / MUTATION SUPPORT
+/// ============================================================================
+///
+/// `ComponentModifier` provides optional mutation helpers to support:
+///
+///   • Adding/removing/replacing child components  
+///   • Reordering child lists  
+///   • Updating property values  
+///
+/// These are essential for:
+///   - Live preview editing  
+///   - Full UI editors  
+///   - Hot reload visualization  
+///   - Dynamic code generation tools  
+///
+/// The system is designed with **immutable patterns** so original components
+/// stay pure while modified copies are generated.
+///
+///
+/// ============================================================================
+/// REQUIREMENTS
+/// ============================================================================
+///
+/// This system requires:
+///   • A valid `ComponentDetector` implementation (e.g., ASTComponentAdapter)  
+///   • FlutterJS Core (`flutterjs_core`)  
+///   • Proper AST parsing (Dart Analyzer if using AST detection)  
+///   • Source code string & file path for location tracking  
+///
+///
+/// ============================================================================
+/// SUMMARY
+/// ============================================================================
+///
+/// This file defines the **entire component representation layer** of the
+/// FlutterJS UI engine. It forms a complete, extensible foundation for analyzing
+/// Flutter code, representing it structurally, and enabling tools such as:
+///
+///   ✔ UI tree previews  
+///   ✔ Code inspectors  
+///   ✔ Flutter → Web/JS transformers  
+///   ✔ Behavior visualizers  
+///   ✔ Hot reload visual editors  
+///   ✔ Smart refactoring tools  
+///
+/// It is the central "model layer" for everything related to UI extraction.
+///
 
 // ============================================================================
 // 1. UNIFIED COMPONENT MODEL
