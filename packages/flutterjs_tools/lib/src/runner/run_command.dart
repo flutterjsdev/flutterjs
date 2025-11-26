@@ -13,6 +13,150 @@ import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 
+/// ============================================================================
+/// RunCommand
+/// ============================================================================
+///
+/// A full end-to-end pipeline for:
+///
+///   ✔ Dart Analysis  
+///   ✔ IR Generation  
+///   ✔ IR Validation  
+///   ✔ IR → JavaScript Conversion  
+///   ✔ Optimization (0–3)  
+///   ✔ Reporting  
+///   ✔ DevTools IR Viewer (live server)
+///
+/// This is the most powerful and feature-complete command in the Flutter.js CLI.
+/// Its goal is to take a Flutter project directory and produce:
+///
+///   - Binary IR files (`.ir`)  
+///   - JavaScript module files (`.js`)  
+///   - Detailed analysis & conversion reports  
+///   - Live DevTools IR viewer on a local server  
+///
+///
+/// # Overview of Pipeline Phases
+///
+/// ## **Phase 0 – Pre-Analysis Setup**
+///  - Directory resolution  
+///  - Cache clearing  
+///  - Parser bootstrapping  
+///
+/// ## **Phase 1 – Static Analysis**
+/// Using `ProjectAnalyzer`:
+///  - File change detection  
+///  - AST parsing  
+///  - Semantic checks  
+///  - Error reporting  
+///
+/// Output: List of Dart files to convert
+///
+/// ## **Phase 2 – IR Generation (Passes 1–5)**
+///
+/// Pass 1: Declaration Discovery  
+/// Pass 2: Symbol Resolution  
+/// Pass 3: Type Inference  
+/// Pass 4: Control-Flow Analysis  
+/// Pass 5: Validation & Diagnostics  
+///
+/// Output: A complete `IRGenerationResults` object.
+///
+/// ## **Phase 3 – IR Serialization**
+/// Writes `.ir` binary files to:
+///
+/// `build/flutterjs/ir/<relative_path>/*.ir`
+///
+///
+/// ## **Phase 4–6 – IR → JavaScript Conversion**
+///  - File-level code generation  
+///  - Optional validation  
+///  - Optimization levels 0–3  
+///  - Per-file conversion reports  
+///
+/// Output: one `.js` file per Dart file.
+///
+///
+/// # Integrated DevTools IR Viewer
+///
+/// This command includes an embedded DevTools server which:
+///
+///   • Watches IR directory live  
+///   • Reloads when new IR is generated  
+///   • Visualizes declarations, CFGs, state fields, lifecycle, etc.  
+///   • Opens automatically unless `--devtools-no-open` is passed  
+///
+/// The server is started **before** analysis so that files appear live as soon
+/// as they are generated.
+///
+///
+/// # CLI Flags
+///
+/// ## Project Control
+/// - `--project` (`-p`)  
+/// - `--source` (`-s`)  
+///
+/// ## Analysis Control
+/// - `--skip-analysis`  
+/// - `--incremental` (enabled default)  
+/// - `--all` (forces full rebuild)  
+///
+/// ## Parallelism
+/// - `--parallel`  
+/// - `--max-parallelism=<n>`  
+///
+/// ## IR Output
+/// - `--json` (machine-readable output)  
+/// - `--generate-reports`  
+/// - `--strict` (exit 1 on any issue)  
+///
+/// ## JS Conversion
+/// - `--to-js`  
+/// - `--js-optimization-level=0–3`  
+/// - `--validate-output`  
+///
+/// ## DevTools
+/// - `--devtools-port=<port>`  
+/// - `--devtools-no-open`  
+///
+///
+/// # Execution Workflow
+///
+/// ```text
+/// run → set paths → start DevTools → analyze → generate IR → serialize IR
+///     → convert to JavaScript → write reports → print summary → stay open
+/// ```
+///
+/// The DevTools server continues running until the user presses Ctrl+C.
+///
+///
+/// # Error Handling
+///
+/// - Every phase is wrapped with detailed verbose diagnostics.  
+/// - Any exception during IR or JS generation is logged.  
+/// - With `--strict`, the process exits with non-zero status if **any** issue
+///   or warning is collected.  
+///
+///
+/// # Summary
+///
+/// `RunCommand` is the heart of the Flutter.js command-line tool.  
+/// It unifies:
+///
+///   • full static analysis  
+///   • multi-pass IR generation  
+///   • incremental & parallel conversion  
+///   • cross-file dependency analysis  
+///   • optimized JavaScript output  
+///   • human-readable + JSON reporting  
+///   • optional strict mode for CI pipelines  
+///   • a fully integrated DevTools visualization server  
+///
+/// This is the recommended command for end users and CI to produce all artifacts
+/// required for Flutter.js runtime execution.
+///
+
+
 class RunCommand extends Command<void> {
   RunCommand({required this.verbose, required this.verboseHelp}) {
     argParser
