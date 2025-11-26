@@ -3,20 +3,30 @@ import 'package:meta/meta.dart';
 import '../diagnostics/source_location.dart';
 import '../ir/ir_node.dart';
 import 'widget_node_ir.dart';
-// =============================================================================
-// WIDGET TREE REPRESENTATION
-// =============================================================================
 
-/// Represents the complete widget tree rendered by a build method
+/// <---------------------------------------------------------------------------->
+/// widget_tree_ir.dart
+/// ----------------------------------------------------------------------------
 ///
-/// This captures the hierarchical structure of all widgets that will be
-/// rendered during a single build() call. It includes metadata about the
-/// tree structure that enables optimization analysis and debugging.
+/// Represents the full widget tree IR generated from a widget's build() method.
 ///
-/// Examples of what this contains:
-/// - Scaffold > AppBar (const) > Column > [Container, Text]
-/// - ListView.builder with dynamic children (keyed)
-/// - Complex nested structure with conditional branches
+/// Purpose:
+/// • Provide a root node for all WidgetNodeIR descendants
+/// • Serve as a context for tree-wide operations (search, diff, validate)
+/// • Support dev tools like tree visualizers and code explorers
+///
+/// Features:
+/// • Immutable root reference
+/// • Simple traversal utilities
+/// • Serializable structure for JSON inspection
+/// • Clean separation from AST and live Flutter elements
+///
+/// This IR is the bridge between:
+/// • The AST-based extraction layer
+/// • The UI analysis / visualization tooling
+/// • The runtime diffing logic for rebuild optimization
+///
+
 @immutable
 class WidgetTreeIR extends IRNode {
   /// Root node of the tree

@@ -4,19 +4,33 @@ import '../diagnostics/source_location.dart';
 import '../ir/expression_ir.dart';
 import '../ir/ir_node.dart';
 import 'key_type_ir.dart';
-// =============================================================================
-// WIDGET NODE REPRESENTATION
-// =============================================================================
 
-/// Represents a single node in the widget tree
+/// <---------------------------------------------------------------------------->
+/// widget_node_ir.dart
+/// ----------------------------------------------------------------------------
 ///
-/// This is the actual runtime structure of widgets that get rendered.
-/// Each node corresponds to a widget constructor call in the build tree.
+/// Core IR structure representing a single widget node in the widget tree.
 ///
-/// Examples:
-/// - Container widget with padding property
-/// - Text widget with string content
-/// - CustomWidget with multiple child widgets
+/// Responsibilities:
+/// • Capture widget constructor type and arguments  
+/// • Hold references to child widget nodes  
+/// • Store metadata (keys, attributes, source locations)  
+///
+/// WidgetNodeIR is used in:
+/// • Build method IR output  
+/// • Widget tree diffing / reconciliation  
+/// • Visual widget tree inspectors  
+/// • Code transformation (e.g., automated refactoring)  
+///
+/// Design Principles:
+/// • Immutable, clean IR  
+/// • JSON serializable  
+/// • Independent of Flutter runtime (pure data)  
+/// • Supports complex nested widget structures  
+///
+/// This file forms the **foundation of the entire widget IR system**.
+
+
 @immutable
 class WidgetNodeIR extends IRNode {
   /// Widget type/class name (e.g., "Container", "Text", "CustomWidget")

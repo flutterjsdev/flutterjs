@@ -3,19 +3,31 @@ import '../diagnostics/source_location.dart';
 import '../ir/ir_node.dart';
 import '../ir/type_ir.dart';
 
-// =============================================================================
-// KEY TYPE REPRESENTATION
-// =============================================================================
 
-/// Represents the type of Key used in a widget
+/// <---------------------------------------------------------------------------->
+/// key_type_ir.dart
+/// ----------------------------------------------------------------------------
 ///
-/// Keys are used to preserve widget state across rebuilds
+/// IR representation of different widget key types used within Flutter.js.
 ///
-/// Examples:
-/// - ValueKey<String>('myKey')
-/// - ObjectKey(myObject)
-/// - UniqueKey()
-/// - GlobalKey<MyWidgetState>()
+/// Purpose:
+/// • Track key usage on IR-based widget nodes  
+/// • Support compiler-time validation (e.g., duplicated keys in lists)  
+/// • Represent key types in a JSON-friendly, enum-stable form  
+///
+/// Supported key forms:
+/// • `ValueKey<T>`  
+/// • `ObjectKey`  
+/// • `UniqueKey`  
+/// • `GlobalKey` (limited structural representation)
+///
+/// This module helps ensure:
+/// • Consistency across widget-level IR  
+/// • Predictable diffing behavior for rebuilds  
+/// • Accurate AST-to-IR conversion for key-based widgets  
+///
+
+
 @immutable
 class KeyTypeIR extends IRNode {
   /// Kind of key being used

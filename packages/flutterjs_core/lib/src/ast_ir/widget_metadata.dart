@@ -1,3 +1,9 @@
+library;
+
+import 'package:flutterjs_core/flutterjs_core.dart';
+
+import '../binary_constrain/binary_ir_writer/ir_relationship_registry.dart';
+
 /// <---------------------------------------------------------------------------->
 /// widget_metadata.dart
 /// ----------------------------------------------------------------------------
@@ -22,12 +28,6 @@
 /// • Widget tree visualization
 /// • State analysis
 /// • Performance insights
-/// <---------------------------------------------------------------------------->
-
-import 'package:flutterjs_core/flutterjs_core.dart';
-
-import '../binary_constrain/binary_ir_writer/ir_relationship_registry.dart';
-
 class WidgetMetadata {
   /// Maps build method ID -> root widget type (e.g., "Scaffold", "Container")
   final Map<String, String> buildMethods;

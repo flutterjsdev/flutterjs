@@ -1,14 +1,5 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
 
-import 'ast_ir/class_decl.dart';
-import 'ast_ir/dart_file_builder.dart';
-import 'ast_ir/diagnostics/analysis_issue.dart';
-import 'ast_ir/diagnostics/issue_category.dart';
-import 'ast_ir/diagnostics/source_location.dart';
-import 'ast_ir/function_decl.dart';
-import 'ast_ir/import_export_stmt.dart';
-import 'ast_ir/state_class_representation/state_class_representation.dart';
-
 /// <---------------------------------------------------------------------------->
 /// validation_pass.dart
 /// ----------------------------------------------------------------------------

@@ -1,6 +1,3 @@
-// ============================================================================
-// declaration_pass.dart - UPDATED WITH WidgetProducerDetector
-// ============================================================================
 
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/ast.dart' as ast;

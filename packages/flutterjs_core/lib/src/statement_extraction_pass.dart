@@ -1,23 +1,8 @@
-// ============================================================================
-// FIXED: statement_extraction_pass.dart
-// ============================================================================
-// Key fixes:
-// 1. Proper null handling for optional types
-// 2. Correct UnaryOperator enum usage (not string operators)
-// 3. Assignment expression extraction separated from statements
-// 4. Proper metadata handling on ExpressionIR base class
-// 5. MapEntryIR properly instantiated with all required fields
-
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/ast_ir/ir/expression_types/cascade_expression_ir.dart';
 
-import 'ast_ir/ir/expression_ir.dart';
-import 'ast_ir/ir/type_ir.dart';
-import 'ast_ir/ir/statement/statement_ir.dart';
-import 'ast_ir/diagnostics/source_location.dart';
-import 'ast_ir/dart_file_builder.dart';
 
 /// <---------------------------------------------------------------------------->
 /// statement_extraction_pass.dart

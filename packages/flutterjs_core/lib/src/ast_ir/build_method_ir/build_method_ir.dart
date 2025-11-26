@@ -9,18 +9,32 @@ import 'key_type_ir.dart';
 import 'widget_node_ir.dart';
 import 'widget_tree_ir.dart';
 
-// =============================================================================
-// BUILD METHOD ANALYSIS
-// =============================================================================
+/// <---------------------------------------------------------------------------->
+/// build_method_ir.dart
+/// ----------------------------------------------------------------------------
+///
+/// Defines the IR representation of a widget's `build()` method in Flutter.js.
+/// This structure is responsible for capturing the resulting widget tree
+/// produced during the build phase.
+///
+/// Responsibilities:
+/// • Encapsulate the return expression of build()
+/// • Preserve source location for debugging and refactoring
+/// • Provide type-safe access to widget tree root
+/// • Integrate with statement/expression IR extraction
+///
+/// BuildMethodIR is used by:
+/// • Widget tree analyzers
+/// • Code generators
+/// • Dev tools (visual inspectors)
+/// • Hot-reload / hot-restart rebuild diffing
+///
+/// Design goals:
+/// • Minimal, predictable, immutable IR
+/// • Clean separation from AST nodes
+/// • Full JSON support for serialization
+///
 
-/// Specialized MethodDecl for build() methods in Flutter widgets
-///
-/// Captures detailed information about widget composition, state dependencies,
-/// performance characteristics, and rebuild triggers.
-///
-/// This is the most analysis-intensive part of the IR - the build method
-/// defines what UI gets rendered, so understanding its behavior is critical
-/// for optimization and correctness checking.
 @immutable
 class BuildMethodIR extends MethodDecl {
   /// The root widget that this build method returns
