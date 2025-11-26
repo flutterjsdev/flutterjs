@@ -10,69 +10,188 @@ import 'package:meta/meta.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 
-// ============================================================================
-// 1. PURE FUNCTION DATA MODEL (Symmetric to FlutterComponent)
-// ============================================================================
-
-/// Represents extracted data from a pure Dart function
-/// Mirrors FlutterComponent structure but for non-widget functions
-// @immutable
-// abstract class PureFunctionData extends IRNode {
-//   final String functionName;
-//   final FunctionDataType dataType;
-
-//   const PureFunctionData({
-//     required super.id,
-//     required this.functionName,
-//     required this.dataType,
-//     required super.sourceLocation,
-//     super.metadata = const {},
-//   });
-
-//   String describe();
-//   List<PureFunctionData> getChildren() => [];
-//   bool get canContainChildren => false;
-
-//   Map<String, dynamic> toJson();
-// }
-
-// @immutable
-// abstract class FlutterComponent extends IRNode {
-//   final String displayName;
-//   final FunctionDataType type;
-
-//   const FlutterComponent({
-//     required super.id,
-//     required this.displayName,
-//     required this.type,
-
-//     super.metadata = const {},
-//     required super.sourceLocation,
-//   });
-
-//   /// Serialize for transmission/storage
-//   Map<String, dynamic> toJson();
-
-//   /// Human-readable summary
-//   String describe();
-
-//   /// Can this component be hot-replaced?
-//   bool get isHotReloadable => true;
-
-//   /// Can this component contain children?
-//   bool get canContainChildren => false;
-
-//   /// Get child components if any
-//   List<FlutterComponent> getChildren() => [];
-// }
-
-// enum FunctionDataType {
-
-// }
-
-// ============================================================================
-// 2. SPECIFIC PURE FUNCTION DATA TYPES
-// ============================================================================
+/// ============================================================================
+/// SYMMETRIC FUNCTION EXTRACTION SYSTEM
+/// ============================================================================
+///
+/// Extracts *pure Dart functions* and *widget-producing functions* using a
+/// unified, symmetric model. This allows the FlutterJS code reader to interpret
+/// both UI code and logic code with equal depth, detail, and structure.
+///
+/// The system ensures that:
+///   • Widget-returning functions → become `FlutterComponent` trees  
+///   • Non-widget functions → become `PureFunctionData` variants  
+///
+/// This means every function in a file is analyzed, classified, normalized, and
+/// stored in a consistent format, enabling:
+///
+///   ✔ Static analysis  
+///   ✔ Code intelligence  
+///   ✔ Visualization (UI + logic trees)  
+///   ✔ Function summaries  
+///   ✔ Cross-language transformations  
+///
+///
+/// ============================================================================
+/// 1. PURE FUNCTION DATA MODEL
+/// ============================================================================
+///
+/// Pure Dart functions are represented using the same base model (`FlutterComponent`)
+/// for maximum compatibility with widget components. Each specialized function
+/// category (validation, computation, factory, helpers, mixed) extends
+/// `FlutterComponent` and provides:
+///
+///   • A name / signature  
+///   • Input & output types  
+///   • Structured body statements (`StatementIR`)  
+///   • Complexity metrics (loops, conditions)  
+///   • Semantic analysis data  
+///
+/// This allows a pure function to be analyzed just as deeply as a widget tree.
+///
+///
+/// ============================================================================
+/// 2. PURE FUNCTION DATA TYPES
+/// ============================================================================
+///
+/// Supported pure function categories include:
+///
+///   • `ComputationFunctionData`  
+///        Mathematical / transformation logic  
+///        Tracks loop depth, conditional depth, variable count, etc.
+///
+///   • `ValidationFunctionData`  
+///        Checks, rules, assertions, boolean returns  
+///
+///   • `FactoryFunctionData`  
+///        Object creation & field initialization  
+///
+///   • `HelperFunctionData`  
+///        Setup/configure/prepare/reset/cleanup style functions  
+///        Includes side-effect detection  
+///
+///   • `MixedFunctionData`  
+///        Functions containing multiple semantic components  
+///
+/// Each type has a `describe()` method and a JSON representation.
+///
+///
+/// ============================================================================
+/// 3. PURE FUNCTION EXTRACTOR
+/// ============================================================================
+///
+/// `PureFunctionExtractor` is the symmetric counterpart to `ComponentExtractor`.
+/// While `ComponentExtractor` extracts *widgets*, this extractor analyzes *pure
+/// logic functions* and classifies them into specific semantic buckets.
+///
+/// Extraction workflow:
+///
+///   1. Classify function  
+///         → Based on naming conventions + statement structure  
+///
+///   2. Run specialized extractor method  
+///         → `_extractComputation()`  
+///         → `_extractValidation()`  
+///         → `_extractFactory()`  
+///         → `_extractHelper()`  
+///         → Fallback to generic extraction  
+///
+///   3. Generate typed `FlutterComponent`-based function data  
+///
+/// This gives every standalone function a clear, analyzable structure.
+///
+///
+/// ============================================================================
+/// 4. CLASSIFICATION LOGIC
+/// ============================================================================
+///
+/// The system uses combined heuristics:
+///
+///   • Name-based signals:  
+///       “validate…” → validation  
+///       “create…/build…” → factory  
+///       “calculate…/convert…” → computation  
+///       “setup…/initialize…” → helper  
+///
+///   • Structural signals:  
+///       loops     → computation  
+///       conditionals → computation or validation  
+///
+///   • Fallbacks:  
+///       complex logic → computation  
+///       simple logic  → helper  
+///
+/// This enables highly accurate auto-classification of arbitrary functions.
+///
+///
+/// ============================================================================
+/// 5. SYMMETRIC INTEGRATION (DeclarationPass)
+/// ============================================================================
+///
+/// `DeclarationPass` integrates symmetric extraction:
+///
+///   • Widget-producing functions → extracted as FlutterComponents  
+///   • Pure functions → extracted as PureFunctionData  
+///
+/// Inside `visitFunctionDeclaration`:
+///
+///   1. Determine if function produces a widget (via WidgetProducerDetector)  
+///   2. Extract body statements (for *all* functions)  
+///   3. If widget:  
+///         → Use ComponentExtractor  
+///   4. If pure function:  
+///         → Use PureFunctionExtractor  
+///   5. Annotate FunctionDecl with metadata:
+///         - extractionType: widget / pure_function  
+///         - componentCount or dataType  
+///
+/// This creates a unified representation of ALL functions in the file.
+///
+///
+/// ============================================================================
+/// 6. DESIGN GOALS & ADVANTAGES
+/// ============================================================================
+///
+/// This symmetric extraction system provides:
+///
+/// ✔ One extraction pipeline for *both UI and logic*  
+/// ✔ Deep statement-level analysis for pure functions  
+/// ✔ Compatibility with UI component structures  
+/// ✔ Extensibility for new function categories  
+/// ✔ Support for advanced analysis (complexity, flow, rules, etc.)  
+/// ✔ Perfect integration with the component tree visualizer  
+///
+///
+/// ============================================================================
+/// REQUIREMENTS
+/// ============================================================================
+///
+/// This system depends on:
+///
+///   • `ComponentExtractor` (for widget functions)  
+///   • `StatementExtractorPass` (for IR-level statements)  
+///   • `WidgetProducerDetector` (to detect UI-returning functions)  
+///   • `SourceLocationIR` mapping  
+///
+///
+/// ============================================================================
+/// SUMMARY
+/// ============================================================================
+///
+/// The Symmetric Function Extraction System enables the FlutterJS code reader to
+/// understand **every function**, not only UI-building ones. It builds a bridge
+/// between UI components and pure computation logic, enabling a merged world
+/// where the entire file—widgets, transforms, validators, and helpers—is
+/// represented uniformly as structured, typed components.
+///
+/// This unlocks powerful features:
+///
+///   • Code editors & visualizers  
+///   • Smart refactoring  
+///   • Cross-platform rewriters  
+///   • Code intelligence  
+///   • Static analysis at UI + logic levels  
+/// ============================================================================
 
 @immutable
 class ComputationFunctionData extends FlutterComponent {
