@@ -3,9 +3,160 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
 
-// ============================================================================
-// ANALYZE COMMAND - Full Phase 1 Analysis with Report
-// ============================================================================
+/// ============================================================================
+/// AnalyzeCommand – Phase 1 Flutter.js Project Analyzer
+/// ============================================================================
+///
+/// Performs a **full Phase-1 analysis** of a Flutter.js project, including:
+///
+///   • Parsing every `.dart` file  
+///   • Dependency resolution  
+///   • Change detection & incremental caching  
+///   • Type registry population  
+///   • Circular dependency detection  
+///   • File metadata extraction (widgets, classes, functions)  
+///
+/// This command **does not generate IR**. It is exclusively responsible for the
+/// initial analysis needed before IR generation or JavaScript conversion.
+///
+///
+/// # Purpose
+///
+/// `flutterjs analyze` is used to:
+///
+/// - Validate project structure  
+/// - Understand which files changed since last analysis  
+/// - Detect errors early  
+/// - Produce a detailed report  
+/// - Prepare data for the IR pipeline (Phase 2+)  
+///
+/// This phase is equivalent to:
+/// > *"Flutter.js Analyzer Pass: 0 → 1"*  
+///
+///
+/// # Key Features
+///
+/// ### ✔ Incremental Analysis  
+/// Uses caching to skip unchanged files and dramatically reduce processing time.
+///
+/// ### ✔ Dependency Graph  
+/// Builds a complete import/export graph and detects cycles.
+///
+/// ### ✔ File Metadata  
+/// Extracts:
+/// - widget declarations  
+/// - state classes  
+/// - regular classes  
+/// - typedefs / mixins / enums  
+///
+/// ### ✔ Change Detection  
+/// Identifies exactly which files need IR regeneration.
+///
+/// ### ✔ Parallel Processing  
+/// Multi-thread capable (Isolate-based) with `--parallel` & `--max-parallelism`.
+///
+/// ### ✔ JSON & Text Output  
+/// Perfect for CI/CD or human inspection.
+///
+///
+/// # CLI Flags
+///
+/// | Flag | Description |
+/// |------|-------------|
+/// | `--json` | Output machine-readable JSON instead of text. |
+/// | `--suggestions` | Show optimization suggestions (default: on). |
+/// | `--source` / `-s` | Source directory (default: `lib`). |
+/// | `--project` / `-p` | Project root (default: `.`). |
+/// | `--parallel` | Enable parallel processing. |
+/// | `--cache` | Enable incremental cache (default: on). |
+/// | `--max-parallelism` | Number of workers. |
+/// | `--show-errors` | Show detailed error summaries. |
+/// | `--show-metadata` | Show widgets, classes, and function counts. |
+///
+///
+/// # When to Use
+///
+/// Run this command:
+///
+/// - before generating IR  
+/// - after large codebase changes  
+/// - when debugging dependency or caching issues  
+/// - to diagnose errors in Flutter project structure  
+///
+///
+/// # Output Format (Text)
+///
+/// Produces structured sections:
+///
+///   • File statistics  
+///   • Performance metrics  
+///   • Import/export breakdown  
+///   • Dependency graph stats  
+///   • Declarations summary  
+///   • Files with errors  
+///   • Files requiring IR generation  
+///   • Optimization suggestions  
+///
+///
+/// # Output Format (JSON)
+///
+/// Machine-readable output containing:
+///   - statistics  
+///   - dependency graph  
+///   - type registry summary  
+///   - file metadata  
+///   - errors (if any)  
+///   - changed files needing IR  
+///
+/// Perfect for CI/CD integrations or custom tooling.
+///
+///
+/// # Workflow (Phase 1)
+///
+/// ```
+/// ProjectAnalyzer.initialize()
+///       ↓
+/// Dependency Resolution
+///       ↓
+/// Change Detection (incremental cache)
+///       ↓
+/// Type Registry
+///       ↓
+/// File Metadata Extraction
+///       ↓
+/// Report (JSON or Text)
+/// ```
+///
+/// This phase **does not** produce IR or JavaScript.
+/// It simply analyzes and prepares the project.
+///
+///
+/// # Fail-Fast Behavior
+///
+/// The command exits with **code 1** if:
+///
+/// - any file contains analysis errors  
+///
+/// Useful for gating builds in CI/CD.
+///
+///
+/// # Next Steps After Analysis
+///
+/// If the project is clean:
+///
+/// ```bash
+/// flutterjs run  # full pipeline IR → JS
+/// ```
+///
+/// or
+///
+/// ```bash
+/// flutterjs generate-ir
+/// ```
+///
+///
+/// ============================================================================
+///
 
 class AnalyzeCommand extends Command<void> {
   AnalyzeCommand({required this.verbose, required this.verboseHelp}) {
