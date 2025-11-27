@@ -3,7 +3,6 @@ import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 
-
 /// <---------------------------------------------------------------------------->
 /// statement_extraction_pass.dart
 /// ----------------------------------------------------------------------------
@@ -97,6 +96,143 @@ class StatementExtractionPass {
       print('✅ Has .block property: $block');
     } catch (e) {
       print('❌ No .block property: $e');
+    }
+  }
+
+  List<ExpressionIR> extractBodyExpressions(FunctionBody? body) {
+    if (body == null) {
+      print('⚠️  [extractBodyExpressions] FunctionBody is null');
+      return [];
+    }
+
+    final expressions = <ExpressionIR>[];
+    print('📊 [extractBodyExpressions] Type: ${body.runtimeType}');
+
+    // TYPE 1: BlockFunctionBody - extract expressions from all statements
+    if (body is BlockFunctionBody) {
+      print('   ✅ BlockFunctionBody');
+      _extractExpressionsFromStatements(body.block.statements, expressions);
+      print('   ✓ Extracted: ${expressions.length} expressions');
+      return expressions;
+    }
+
+    // TYPE 2: ExpressionFunctionBody - the expression itself
+    if (body is ExpressionFunctionBody) {
+      print('   ✅ ExpressionFunctionBody (arrow syntax)');
+      expressions.add(extractExpression(body.expression));
+      print('   ✓ Extracted: ${expressions.length} expressions');
+      return expressions;
+    }
+
+    // TYPE 3: EmptyFunctionBody
+    print('   ℹ️  EmptyFunctionBody');
+    return [];
+  }
+
+  /// Recursively extract all expressions from a list of statements
+  void _extractExpressionsFromStatements(
+    List<AstNode> statements,
+    List<ExpressionIR> expressions,
+  ) {
+    for (final stmt in statements) {
+      if (stmt is ReturnStatement && stmt.expression != null) {
+        expressions.add(extractExpression(stmt.expression!));
+      } else if (stmt is ExpressionStatement) {
+        expressions.add(extractExpression(stmt.expression));
+      } else if (stmt is VariableDeclarationStatement &&
+          stmt.variables.variables.isNotEmpty) {
+        final variable = stmt.variables.variables.first;
+        if (variable.initializer != null) {
+          expressions.add(extractExpression(variable.initializer!));
+        }
+      } else if (stmt is IfStatement) {
+        // Extract condition expression
+        expressions.add(extractExpression(stmt.expression));
+        // Recursively extract from branches
+        if (stmt.thenStatement is Block) {
+          _extractExpressionsFromStatements(
+            (stmt.thenStatement as Block).statements,
+            expressions,
+          );
+        }
+        if (stmt.elseStatement is Block) {
+          _extractExpressionsFromStatements(
+            (stmt.elseStatement as Block).statements,
+            expressions,
+          );
+        }
+      } else if (stmt is ForStatement) {
+        // Extract loop condition and updaters
+        final parts = stmt.forLoopParts;
+        if (parts is ForPartsWithDeclarations) {
+          if (parts.condition != null) {
+            expressions.add(extractExpression(parts.condition!));
+          }
+          expressions.addAll(parts.updaters.map((e) => extractExpression(e)));
+        } else if (parts is ForPartsWithExpression) {
+          if (parts.condition != null) {
+            expressions.add(extractExpression(parts.condition!));
+          }
+          expressions.addAll(parts.updaters.map((e) => extractExpression(e)));
+        } else if (parts is ForEachParts) {
+          if (parts is ForEachPartsWithDeclaration) {
+            expressions.add(extractExpression(parts.iterable));
+          } else if (parts is ForEachPartsWithIdentifier) {
+            expressions.add(extractExpression(parts.iterable));
+          }
+        }
+        // Recursively extract from loop body
+        if (stmt.body is Block) {
+          _extractExpressionsFromStatements(
+            (stmt.body as Block).statements,
+            expressions,
+          );
+        }
+      } else if (stmt is WhileStatement) {
+        expressions.add(extractExpression(stmt.condition));
+        if (stmt.body is Block) {
+          _extractExpressionsFromStatements(
+            (stmt.body as Block).statements,
+            expressions,
+          );
+        }
+      } else if (stmt is DoStatement) {
+        expressions.add(extractExpression(stmt.condition));
+        if (stmt.body is Block) {
+          _extractExpressionsFromStatements(
+            (stmt.body as Block).statements,
+            expressions,
+          );
+        }
+      } else if (stmt is AssignmentExpression) {
+        expressions.add(extractExpression(stmt));
+      } else if (stmt is Block) {
+        _extractExpressionsFromStatements(stmt.statements, expressions);
+      } else if (stmt is TryStatement) {
+        _extractExpressionsFromStatements(stmt.body.statements, expressions);
+        for (final catchClause in stmt.catchClauses) {
+          _extractExpressionsFromStatements(
+            catchClause.body.statements,
+            expressions,
+          );
+        }
+        if (stmt.finallyBlock != null) {
+          _extractExpressionsFromStatements(
+            stmt.finallyBlock!.statements,
+            expressions,
+          );
+        }
+      } else if (stmt is SwitchStatement) {
+        expressions.add(extractExpression(stmt.expression));
+        for (final member in stmt.members) {
+          if (member is SwitchCase) {
+            expressions.add(extractExpression(member.expression!));
+            _extractExpressionsFromStatements(member.statements, expressions);
+          } else if (member is SwitchDefault) {
+            _extractExpressionsFromStatements(member.statements, expressions);
+          }
+        }
+      }
     }
   }
 

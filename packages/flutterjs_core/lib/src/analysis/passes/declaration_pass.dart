@@ -1,10 +1,11 @@
-
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:flutterjs_core/src/analysis/extraction/component_registry.dart';
+import 'package:flutterjs_core/src/analysis/extraction/widget_function_extractor.dart';
 import 'package:flutterjs_core/src/analysis/visitors/analyzer_widget_detection_setup.dart';
 import 'package:flutterjs_core/src/analysis/extraction/statement_widget_analyzer.dart';
 import 'package:flutterjs_core/src/analysis/extraction/flutter_component_system.dart'
@@ -18,6 +19,7 @@ import 'package:flutterjs_core/src/analysis/extraction/symmetric_function_extrac
 import 'package:path/path.dart' as path;
 
 import '../extraction/ast_component_adapter.dart';
+import '../extraction/component_extractor.dart';
 import '../extraction/statement_extraction_pass.dart';
 
 import '../../ir/declarations/function_decl.dart' as cd;
@@ -98,8 +100,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   // âœ… NEW: COMPONENT SYSTEM FIELDS
   // =========================================================================
 
-  late ComponentExtractor componentExtractor;
-  late ComponentRegistry componentRegistry;
+  late EnhancedComponentExtractor componentExtractor;
+  late EnhancedComponentRegistry componentRegistry;
 
   /// Store extracted components by function ID
   final Map<String, List<FlutterComponent>> functionComponents = {};
@@ -133,7 +135,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     print('ðŸ"Š [ComponentSystem] Initializing for: $filePath');
 
     // Create registry
-    componentRegistry = ComponentRegistry();
+    componentRegistry = EnhancedComponentRegistry();
 
     // Register AST adapter if detector available
     if (widgetDetector != null) {
@@ -147,7 +149,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     }
 
     // Create extractor
-    componentExtractor = ComponentExtractor(
+    componentExtractor = EnhancedComponentExtractor(
       id: builder.generateId('component_extractor'),
       filePath: filePath,
       fileContent: fileContent,
@@ -363,29 +365,50 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       }
 
       // =========================================================================
-      // PHASE 2: Extract body statements (ALWAYS - common to both types)
+      // PHASE 2: Extract body statements AND expressions
       // =========================================================================
 
       final bodyStatements = _statementExtractor.extractBodyStatements(
         node.functionExpression.body,
       );
 
+      final bodyExpressions = _statementExtractor.extractBodyExpressions(
+        node.functionExpression.body,
+      );
+
       print('   📦 Body statements: ${bodyStatements.length}');
+      print('   📦 Body expressions: ${bodyExpressions.length}');
 
       // =========================================================================
-      // PHASE 3: SYMMETRIC EXTRACTION BASED ON TYPE
+      // PHASE 3: Extract rich function data
       // =========================================================================
 
-      final extractionData = _extractFunction(
+      final extractionData = WidgetFunctionExtractor.extractFunction(
         node: node,
         funcName: funcName,
         funcId: funcId,
         isWidgetFunc: isWidgetFunc,
         bodyStatements: bodyStatements,
+        bodyExpressions: bodyExpressions,
+        builder: builder,
+        componentExtractor: componentExtractor,
+        fileContent: fileContent,
+        filePath: filePath,
+        pureFunctionExtractor: pureFunctionExtractor,
       );
 
       // =========================================================================
-      // PHASE 4: Create FunctionDecl with unified metadata
+      // PHASE 4: Create FunctionBody with extraction data
+      // =========================================================================
+
+      final functionBody = FunctionBodyIR(
+        statements: bodyStatements,
+        expressions: bodyExpressions,
+        extractionData: extractionData,
+      );
+
+      // =========================================================================
+      // PHASE 5: Create FunctionDecl with FunctionBody
       // =========================================================================
 
       final functionDecl = FunctionDecl(
@@ -396,7 +419,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           node.name.offset,
         ),
         parameters: _extractParameters(node.functionExpression.parameters),
-        body: bodyStatements,
+        body: functionBody,
         isAsync: node.functionExpression.body.isAsynchronous,
         isGenerator: node.functionExpression.body.isGenerator,
         typeParameters: _extractTypeParameters(
@@ -408,61 +431,34 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       );
 
       // =========================================================================
-      // PHASE 5: Attach extraction results to metadata
+      // PHASE 6: Mark as widget function and attach metadata
       // =========================================================================
 
-      functionDecl.metadata['extractionType'] = extractionData.extractionType;
-      functionDecl.metadata['extractionDuration'] = DateTime.now()
-          .difference(startTime)
-          .inMilliseconds;
-
       if (isWidgetFunc) {
-        // Widget function metadata
         functionDecl.markAsWidgetFunction(isWidgetFun: true);
         if (widgetKind != null) {
           functionDecl.metadata['widgetKind'] = widgetKind;
         }
-
-        functionDecl.metadata['components'] = extractionData.components;
-        functionDecl.metadata['componentCount'] =
-            extractionData.components.length;
-        functionDecl.metadata['widgetAnalysis'] = extractionData.analysis;
-
-        print(
-          '   🏷️  [WIDGET] Components: ${extractionData.components.length}',
-        );
-        print(
-          '   ⏱️  Extraction time: ${functionDecl.metadata['extractionDuration']}ms',
-        );
+        print('   🎨 [WIDGET] Components: ${extractionData.components.length}');
       } else {
-        // Pure function metadata
-        functionDecl.metadata['pureFunctionData'] =
-            extractionData.pureFunctionData;
-        functionDecl.metadata['functionDataType'] =
-            extractionData.pureFunctionData?.type.name ?? 'unknown';
-        functionDecl.metadata['functionAnalysis'] = extractionData.analysis;
-
-        print(
-          '   🏷️  [PURE FUNCTION] Type: ${extractionData.pureFunctionData?.type.name}',
-        );
-        print(
-          '   ⏱️  Extraction time: ${functionDecl.metadata['extractionDuration']}ms',
-        );
+        print('   📢 [PURE FUNCTION] Type: ${extractionData.metadata.type}');
       }
 
+      final durationMs = DateTime.now().difference(startTime).inMilliseconds;
+      print('   ⏱️  Extraction time: ${durationMs}ms');
+
       // =========================================================================
-      // PHASE 6: Store in appropriate collection
+      // PHASE 7: Store components in collections
       // =========================================================================
 
-      if (isWidgetFunc) {
+      if (extractionData.isWidgetFunction) {
         functionComponents[funcId] = extractionData.components;
       } else if (extractionData.pureFunctionData != null) {
-        // Store pure function data in same map for consistency
         functionComponents[funcId] = [extractionData.pureFunctionData!];
       }
 
       // =========================================================================
-      // PHASE 7: Additional widget analysis (if applicable)
+      // PHASE 8: Widget analysis (if applicable)
       // =========================================================================
 
       if (isWidgetFunc && bodyStatements.isNotEmpty) {
@@ -485,10 +481,20 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       _topLevelFunctions.add(functionDecl);
       print('   ✅ [Added to top-level functions]');
     } catch (e, st) {
-      // Error recovery
       print('   ❌ Error processing function: $e');
+      print('   Stack: $st');
 
-      // Create minimal FunctionDecl for recovery
+      // Error recovery with empty FunctionBody
+      final fallbackBody = FunctionBodyIR(
+        statements: [],
+        expressions: [],
+        extractionData: FunctionExtractionData.error(
+          errorMessage: e.toString(),
+          functionName: funcName,
+          statements: [],
+        ),
+      );
+
       final fallbackDecl = FunctionDecl(
         id: funcId,
         name: funcName,
@@ -497,7 +503,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           node.name.offset,
         ),
         parameters: _extractParameters(node.functionExpression.parameters),
-        body: [],
+        body: fallbackBody,
         sourceLocation: _extractSourceLocation(node, node.name.offset),
       );
 
@@ -505,252 +511,9 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       fallbackDecl.metadata['stackTrace'] = st.toString();
 
       _topLevelFunctions.add(fallbackDecl);
-
-      // if (_strictMode) rethrow;
     }
 
     super.visitFunctionDeclaration(node);
-  }
-
-  // ============================================================================
-  // HELPER: Symmetric extraction router
-  // ============================================================================
-
-  ({
-    String extractionType,
-    List<FlutterComponent> components,
-    FlutterComponent? pureFunctionData,
-    Map<String, dynamic> analysis,
-  })
-  _extractFunction({
-    required FunctionDeclaration node,
-    required String funcName,
-    required String funcId,
-    required bool isWidgetFunc,
-    required List<StatementIR> bodyStatements,
-  }) {
-    if (bodyStatements.isEmpty) {
-      print('   ⚠️  Empty function body');
-      return (
-        extractionType: 'empty',
-        components: [],
-        pureFunctionData: null,
-        analysis: {'isEmpty': true},
-      );
-    }
-
-    // =========================================================================
-    // IF WIDGET: Extract FlutterComponents
-    // =========================================================================
-
-    if (isWidgetFunc) {
-      return _extractWidgetFunction(
-        node: node,
-        funcName: funcName,
-        funcId: funcId,
-        bodyStatements: bodyStatements,
-      );
-    }
-
-    // =========================================================================
-    // ELSE: Extract Pure Function Data
-    // =========================================================================
-
-    return _extractPureFunctionData(
-      node: node,
-      funcName: funcName,
-      funcId: funcId,
-      bodyStatements: bodyStatements,
-    );
-  }
-
-  // ============================================================================
-  // WIDGET EXTRACTION
-  // ============================================================================
-
-  ({
-    String extractionType,
-    List<FlutterComponent> components,
-    FlutterComponent? pureFunctionData,
-    Map<String, dynamic> analysis,
-  })
-  _extractWidgetFunction({
-    required FunctionDeclaration node,
-    required String funcName,
-    required String funcId,
-    required List<StatementIR> bodyStatements,
-  }) {
-    print('   🎨 [ComponentExtraction] WIDGET FUNCTION');
-
-    final components = <FlutterComponent>[];
-    final analysis = <String, dynamic>{};
-    int returnCount = 0;
-    int variableCount = 0;
-
-    for (final stmt in bodyStatements) {
-      // Return statements - primary widget source
-      if (stmt is ReturnStmt && stmt.expression != null) {
-        returnCount++;
-        try {
-          final component = componentExtractor.extract(
-            stmt.expression,
-            hint: 'return_statement',
-          );
-
-          components.add(component);
-          print('      ✅ ${component.describe()}');
-
-          // Print component tree for debugging
-          _printComponentTree(component, depth: 3);
-        } catch (e) {
-          print('      ❌ Extraction failed: $e');
-
-          components.add(
-            UnsupportedComponent(
-              id: builder.generateId('unsupported'),
-              sourceCode: stmt.expression.toString(),
-              sourceLocation: _makeSourceLocation(stmt.sourceLocation.offset),
-              reason: 'Exception: $e',
-            ),
-          );
-        }
-      }
-      // Variable assignments - might contain widgets
-      else if (stmt is VariableDeclarationStmt && stmt.initializer != null) {
-        variableCount++;
-        try {
-          final component = componentExtractor.extract(
-            stmt.initializer,
-            hint: 'variable_assignment',
-          );
-
-          // Only add if actually a widget-related component
-          if (component is! UnsupportedComponent) {
-            components.add(component);
-            print('      ✅ ${component.describe()} in ${stmt.name}');
-          }
-        } catch (_) {
-          // Silently skip non-widget variables
-        }
-      }
-    }
-
-    analysis['componentCount'] = components.length;
-    analysis['returnStatementCount'] = returnCount;
-    analysis['variableDeclarationCount'] = variableCount;
-    analysis['hasComplexLogic'] = bodyStatements.length > 1;
-    analysis['statementsCount'] = bodyStatements.length;
-
-    print(
-      '   🎨 [ComponentExtraction] Extracted ${components.length} components',
-    );
-
-    return (
-      extractionType: 'widget',
-      components: components,
-      pureFunctionData: null,
-      analysis: analysis,
-    );
-  }
-
-  // ============================================================================
-  // PURE FUNCTION EXTRACTION
-  // ============================================================================
-
-  ({
-    String extractionType,
-    List<FlutterComponent> components,
-    FlutterComponent? pureFunctionData,
-    Map<String, dynamic> analysis,
-  })
-  _extractPureFunctionData({
-    required FunctionDeclaration node,
-    required String funcName,
-    required String funcId,
-    required List<StatementIR> bodyStatements,
-  }) {
-    print('   🔢 [PureFunctionExtraction] PURE FUNCTION');
-
-    try {
-      final pureFunctionData = pureFunctionExtractor.extract(
-        node: node,
-        functionName: funcName,
-        bodyStatements: bodyStatements,
-      );
-
-      print('      ✅ ${pureFunctionData.describe()}');
-
-      final analysis = <String, dynamic>{
-        ...?pureFunctionData.metadata.cast<String, dynamic>(),
-      };
-
-      analysis['functionDataType'] = pureFunctionData.type.name;
-      analysis['statementsCount'] = bodyStatements.length;
-
-      return (
-        extractionType: 'pure_function',
-        components: [],
-        pureFunctionData: pureFunctionData,
-        analysis: analysis,
-      );
-    } catch (e) {
-      print('      ❌ Extraction failed: $e');
-
-      // Fallback: generic helper extraction
-      final fallbackData = pureFunctionExtractor.extract(
-        node: node,
-        functionName: funcName,
-        bodyStatements: bodyStatements,
-      );
-
-      return (
-        extractionType: 'pure_function_fallback',
-        components: [],
-        pureFunctionData: fallbackData,
-        analysis: {
-          'error': e.toString(),
-          'usedFallback': true,
-          'statementsCount': bodyStatements.length,
-        },
-      );
-    }
-  }
-
-  // ============================================================================
-  // HELPER: Print component tree for debugging
-  // ============================================================================
-
-  void _printComponentTree(FlutterComponent comp, {int depth = 0}) {
-    final indent = '   ' * depth;
-    print('$indent${comp.describe()}');
-
-    for (final child in comp.getChildren()) {
-      _printComponentTree(child, depth: depth + 1);
-    }
-  }
-
-  // ============================================================================
-  // HELPER: Create source location from offset
-  // ============================================================================
-
-  SourceLocationIR _makeSourceLocation(int offset) {
-    int line = 1, column = 1;
-    for (int i = 0; i < offset && i < fileContent.length; i++) {
-      if (fileContent[i] == '\n') {
-        line++;
-        column = 1;
-      } else {
-        column++;
-      }
-    }
-    return SourceLocationIR(
-      id: builder.generateId('loc'),
-      file: filePath,
-      line: line,
-      column: column,
-      offset: offset,
-      length: 0,
-    );
   }
   // =========================================================================
   // CLASS DECLARATIONS
@@ -768,38 +531,80 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       final fields = _extractClassFields(node);
       final (:methods, :constructors) = _extractMethodsAndConstructors(node);
       final classComponents = <FlutterComponent>[];
-      // Analyze widget methods
+
+      // =========================================================================
+      // Analyze widget methods and extract components
+      // =========================================================================
+
       for (final method in methods) {
-        if (method.metadata['isWidgetMethod'] == true) {
+        // Check if this is a widget method
+        final isWidgetMethod =
+            method.isWidgetFunction == true ||
+            method.metadata['isWidgetMethod'] == true;
+
+        if (isWidgetMethod) {
           print(
-            '   ðŸ"Š [ComponentSystem] Analyzing widget method: ${method.name}',
+            '   📊 [ComponentSystem] Analyzing widget method: ${method.name}',
           );
 
-          // Try to extract components from method body
-          for (final stmt in method.body!) {
-            if (stmt is ReturnStmt && stmt.expression != null) {
-              try {
-                final component = componentExtractor.extract(
-                  stmt.expression,
-                  hint: 'method_return',
-                );
+          // ✅ NEW: Access FunctionBody and its extraction data
+          if (method.body != null) {
+            final functionBody = method.body!;
 
-                classComponents.add(component);
-                print('      âœ… ${component.describe()}');
-              } catch (e) {
-                print('      âŒ Failed: $e');
+            // Method 1: Use extraction data (preferred)
+            if (functionBody.extractionData != null) {
+              final extractionData = functionBody.extractionData!;
+
+              if (extractionData.isWidgetFunction) {
+                classComponents.addAll(extractionData.components);
+                print(
+                  '      ✅ Extracted ${extractionData.components.length} components via extraction data',
+                );
               }
             }
+            // Method 2: Fallback - extract from statements
+            else if (functionBody.statements.isNotEmpty) {
+              print('      ℹ️  No extraction data, analyzing statements...');
+
+              for (final stmt in functionBody.statements) {
+                if (stmt is ReturnStmt && stmt.expression != null) {
+                  try {
+                    final component = componentExtractor.extract(
+                      stmt.expression,
+                      hint: 'method_return',
+                    );
+
+                    classComponents.add(component);
+                    print('      ✅ ${component.describe()}');
+                  } catch (e) {
+                    print('      ❌ Failed to extract component: $e');
+                  }
+                }
+              }
+            } else {
+              print('      ℹ️  Method has no statements to analyze');
+            }
+          } else {
+            print('      ℹ️  Method body is null (abstract/external)');
           }
         }
       }
 
+      // =========================================================================
       // Store class components
+      // =========================================================================
+
       if (classComponents.isNotEmpty) {
         final classId = builder.generateId('class', className);
         this.classComponents[classId] = classComponents;
-        print('   âœ… Stored ${classComponents.length} components');
+        print(
+          '   ✅ Stored ${classComponents.length} components for $className',
+        );
       }
+
+      // =========================================================================
+      // Create ClassDecl
+      // =========================================================================
 
       final classDecl = ClassDecl(
         id: builder.generateId('class', className),
@@ -820,13 +625,14 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       );
 
       // =========================================================================
-      // ✅ Widget detection for class using WidgetProducerDetector
+      // Widget detection for class using WidgetProducerDetector
       // =========================================================================
+
       if (widgetDetector != null) {
         final classElement = node.declaredFragment?.element;
         if (classElement != null) {
           if (widgetDetector!.producesWidget(classElement)) {
-            print('   âœ… [WIDGET CLASS] $className');
+            print('   ✅ [WIDGET CLASS] $className');
 
             final chain = _getInheritanceChain(classElement);
             String category = 'custom';
@@ -847,12 +653,34 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
               chain: chain,
               hasBuild: hasBuild,
             );
+
+            // ✅ Attach extracted components to class metadata
+            if (classComponents.isNotEmpty) {
+              classDecl.metadata['widgetComponents'] = classComponents;
+              classDecl.metadata['componentCount'] = classComponents.length;
+            }
           }
         }
       }
 
       _classes.add(classDecl);
       super.visitClassDeclaration(node);
+    } catch (e, st) {
+      print('   ❌ Error processing class: $e');
+      print('   Stack: $st');
+
+      // Error recovery - still add class but mark it
+      final fallbackClassDecl = ClassDecl(
+        id: builder.generateId('class', node.name.lexeme),
+        name: node.name.lexeme,
+        fields: [],
+        methods: [],
+        constructors: [],
+        sourceLocation: _extractSourceLocation(node, node.name.offset),
+      );
+
+      fallbackClassDecl.metadata['extractionError'] = e.toString();
+      _classes.add(fallbackClassDecl);
     } finally {
       _popScope();
       _currentClass = null;
@@ -931,6 +759,14 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     print('      Const: ${member.constKeyword != null}');
     print('      Factory: ${member.factoryKeyword != null}');
 
+    // Create FunctionBody for constructor
+    final constructorBody = FunctionBodyIR(
+      statements: bodyStatements,
+      expressions: [],
+      extractionData:
+          null, // Constructors typically don't need component extraction
+    );
+
     final constructorDecl = ConstructorDecl(
       id: builder.generateId(
         'ctor',
@@ -946,7 +782,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       ),
       isConst: member.constKeyword != null,
       isFactory: member.factoryKeyword != null,
-      body: bodyStatements,
+      body: constructorBody,
       documentation: _extractDocumentation(member),
       annotations: _extractAnnotations(member.metadata),
       sourceLocation: _extractSourceLocation(
@@ -968,7 +804,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     final constructors = <ConstructorDecl>[];
     final className = node.name.lexeme;
 
-    // Extract constructors first (unchanged logic)
+    // Extract constructors
     for (final member in node.members) {
       if (member is ConstructorDeclaration) {
         final constructor = _extractSingleConstructor(member, className);
@@ -976,14 +812,14 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       }
     }
 
-    // Extract methods with full symmetric extraction (widget + pure functions)
+    // Extract methods with full symmetric extraction
     for (final member in node.members) {
       if (member is! MethodDeclaration) continue;
 
       final methodName = member.name.lexeme;
       final methodId = builder.generateId('method', '$className.$methodName');
 
-      print('Function/Method [Method] $methodName() in class $className');
+      print('🔧 [Method] $methodName() in class $className');
       final extractionStartTime = DateTime.now();
 
       try {
@@ -998,29 +834,45 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
             if (isWidgetFunc) {
               widgetKind = _getWidgetKind(methodElement);
               print(
-                '   Success [WIDGET METHOD] $methodName - Kind: ${widgetKind?.displayName()}',
+                '   ✅ [WIDGET METHOD] $methodName - Kind: ${widgetKind?.displayName()}',
               );
             }
           }
         }
 
-        // PHASE 2: Extract body statements (always done — shared by both paths)
+        // PHASE 2: Extract body statements AND expressions
         final bodyStatements = _statementExtractor.extractBodyStatements(
           member.body,
         );
-        print('   Package Body statements: ${bodyStatements.length}');
 
-        // PHASE 3: Unified symmetric extraction (widget or pure function)
-        final extractionData = _extractMethod(
+        final bodyExpressions = _statementExtractor.extractBodyExpressions(
+          member.body,
+        );
+
+        print('   📦 Body statements: ${bodyStatements.length}');
+        print('   📦 Body expressions: ${bodyExpressions.length}');
+
+        // PHASE 3: Extract rich method data
+        final extractionData = WidgetFunctionExtractor.extractMethod(
           node: member,
           funcName: methodName,
           funcId: methodId,
           isWidgetFunc: isWidgetFunc,
           bodyStatements: bodyStatements,
+          bodyExpressions: bodyExpressions,
           className: className,
+          pureFunctionExtractor: pureFunctionExtractor,
+          builder: builder,
         );
 
-        // PHASE 4: Create MethodDecl
+        // PHASE 4: Create FunctionBody with extraction data
+        final methodBody = FunctionBodyIR(
+          statements: bodyStatements,
+          expressions: bodyExpressions,
+          extractionData: extractionData,
+        );
+
+        // PHASE 5: Create MethodDecl with FunctionBody
         final methodDecl = MethodDecl(
           id: methodId,
           name: methodName,
@@ -1029,7 +881,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
             member.name.offset,
           ),
           parameters: _extractParameters(member.parameters),
-          body: bodyStatements,
+          body: methodBody,
           isAsync: member.body.isAsynchronous,
           isGenerator: member.body.isGenerator,
           isStatic: member.isStatic,
@@ -1043,51 +895,39 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           className: className,
         );
 
-        // PHASE 5: Attach rich metadata (same structure as top-level functions)
-        final durationMs = DateTime.now()
-            .difference(extractionStartTime)
-            .inMilliseconds;
-        methodDecl.metadata
-          ..['extractionType'] = extractionData.extractionType
-          ..['extractionDuration'] = durationMs;
-
+        // PHASE 6: Mark as widget and attach metadata
         if (isWidgetFunc) {
-          // Widget method path
           methodDecl.markAsWidgetFunction(isWidgetFun: true);
           if (widgetKind != null) {
             methodDecl.metadata['widgetKind'] = widgetKind;
-            methodDecl.returnType =
-                widgetKind; // Optional: override inferred type
           }
-
-          methodDecl.metadata
-            ..['components'] = extractionData.components
-            ..['componentCount'] = extractionData.components.length
-            ..['widgetAnalysis'] = extractionData.analysis;
-
           print(
-            '   Label [WIDGET METHOD] Components: ${extractionData.components.length}',
+            '   🎨 [WIDGET METHOD] Components: ${extractionData.components.length}',
           );
-          print('   Timer Extraction time: ${durationMs}ms');
         } else {
-          // Pure method path
-          methodDecl.metadata
-            ..['pureFunctionData'] = extractionData.pureFunctionData
-            ..['functionDataType'] =
-                extractionData.pureFunctionData?.type.name ?? 'unknown'
-            ..['functionAnalysis'] = extractionData.analysis;
-
-          print(
-            '   Label [PURE METHOD] Type: ${extractionData.pureFunctionData?.type.name ?? 'unknown'}',
-          );
-          print('   Timer Extraction time: ${durationMs}ms');
+          print('   📢 [PURE METHOD] Type: ${extractionData.metadata.type}');
         }
+
+        final durationMs = DateTime.now()
+            .difference(extractionStartTime)
+            .inMilliseconds;
+        print('   ⏱️  Extraction time: ${durationMs}ms');
 
         methods.add(methodDecl);
       } catch (e, stack) {
-        // Graceful fallback — never crash the entire pass
-        print('   Error Error extracting method $className.$methodName: $e');
-        print('   Document Stack: $stack');
+        print('   ❌ Error extracting method $className.$methodName: $e');
+        print('   Stack: $stack');
+
+        // Error recovery
+        final fallbackBody = FunctionBodyIR(
+          statements: [],
+          expressions: [],
+          extractionData: FunctionExtractionData.error(
+            errorMessage: e.toString(),
+            functionName: methodName,
+            statements: [],
+          ),
+        );
 
         final fallbackDecl = MethodDecl(
           id: methodId,
@@ -1097,7 +937,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
             member.name.offset,
           ),
           parameters: _extractParameters(member.parameters),
-          body: [],
+          body: fallbackBody,
           isAsync: member.body.isAsynchronous,
           isGenerator: member.body.isGenerator,
           isStatic: member.isStatic,
@@ -1118,106 +958,6 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
     return (methods: methods, constructors: constructors);
   }
-
-  ({
-    String extractionType,
-    List<FlutterComponent> components,
-    FlutterComponent? pureFunctionData,
-    Map<String, dynamic> analysis,
-  })
-  _extractMethod({
-    required MethodDeclaration node,
-    required String funcName,
-    required String funcId,
-    required bool isWidgetFunc,
-    required List<StatementIR> bodyStatements,
-    required String className,
-  }) {
-    if (bodyStatements.isEmpty) {
-      print('   ⚠️  Empty function body');
-      return (
-        extractionType: 'empty',
-        components: [],
-        pureFunctionData: null,
-        analysis: {'isEmpty': true},
-      );
-    }
-
-    // =========================================================================
-    // ELSE: Extract Pure Function Data
-    // =========================================================================
-
-    return _extractPureMethodData(
-      node: node,
-      funcName: funcName,
-      funcId: funcId,
-      bodyStatements: bodyStatements,
-      className: className,
-    );
-  }
-
-  ({
-    String extractionType,
-    List<FlutterComponent> components,
-    FlutterComponent? pureFunctionData,
-    Map<String, dynamic> analysis,
-  })
-  _extractPureMethodData({
-    required MethodDeclaration node,
-    required String funcName,
-    required String funcId,
-    required List<StatementIR> bodyStatements,
-    required String className,
-  }) {
-    print('   🔢 [PureFunctionExtraction] PURE FUNCTION');
-
-    try {
-      final pureFunctionData = pureFunctionExtractor.extractMethod(
-        node: node,
-        className: className,
-        functionName: funcName,
-        bodyStatements: bodyStatements,
-      );
-
-      print('      ✅ ${pureFunctionData.describe()}');
-
-      final analysis = <String, dynamic>{
-        ...pureFunctionData.metadata.cast<String, dynamic>(),
-      };
-
-      analysis['functionDataType'] = pureFunctionData.type.name;
-      analysis['statementsCount'] = bodyStatements.length;
-
-      return (
-        extractionType: 'pure_function',
-        components: [],
-        pureFunctionData: pureFunctionData,
-        analysis: analysis,
-      );
-    } catch (e) {
-      print('      ❌ Extraction failed: $e');
-
-      // Fallback: generic helper extraction
-      final fallbackData = pureFunctionExtractor.extractMethod(
-        node: node,
-        className: className,
-        functionName: funcName,
-        bodyStatements: bodyStatements,
-      );
-
-      return (
-        extractionType: 'pure_function_fallback',
-        components: [],
-        pureFunctionData: fallbackData,
-        analysis: {
-          'error': e.toString(),
-          'usedFallback': true,
-          'statementsCount': bodyStatements.length,
-        },
-      );
-    }
-  }
-
   // =========================================================================
   // ✅ NEW HELPER: Get widget kind from element (returns TypeIR)
   // =========================================================================

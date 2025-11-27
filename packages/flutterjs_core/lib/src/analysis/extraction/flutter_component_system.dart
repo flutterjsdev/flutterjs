@@ -7,6 +7,8 @@
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:meta/meta.dart';
+
+import 'component_registry.dart';
 /// ============================================================================
 /// flutter_component_system.dart
 /// COMPREHENSIVE FLUTTER COMPONENT HANDLER SYSTEM
@@ -644,204 +646,6 @@ class BuilderPropertyBinding extends PropertyBinding {
 // 5. COMPONENT EXTRACTOR (Main Handler)
 // ============================================================================
 
-class ComponentExtractor {
-  final String filePath;
-  final String fileContent;
-  final ComponentRegistry registry;
-  final String id;
-
-  // ID generator
-  int _idCounter = 0;
-
-  ComponentExtractor({
-    required this.filePath,
-    required this.fileContent,
-    required this.id,
-    ComponentRegistry? registry,
-  }) : registry = registry ?? ComponentRegistry();
-
-  String _generateId(String prefix) => '${prefix}_${++_idCounter}';
-
-  SourceLocationIR _makeLocation(int offset, int length) {
-    int line = 1, column = 1;
-    for (int i = 0; i < offset && i < fileContent.length; i++) {
-      if (fileContent[i] == '\n') {
-        line++;
-        column = 1;
-      } else {
-        column++;
-      }
-    }
-    return SourceLocationIR(
-      id: id,
-      file: filePath,
-      line: line,
-      column: column,
-      offset: offset,
-      length: length,
-    );
-  }
-
-  /// Main extraction method - handles ANY component
-  FlutterComponent extract(dynamic astNode, {String? hint}) {
-    try {
-      // Try to detect component type
-      final component = _detectAndExtract(astNode, hint);
-      return component;
-    } catch (e) {
-      // Fallback to unsupported
-      return UnsupportedComponent(
-        id: _generateId('unsupported'),
-        sourceCode: astNode.toString(),
-        sourceLocation: _makeLocation(0, 0),
-        reason: 'Error during extraction: $e',
-      );
-    }
-  }
-
-  FlutterComponent _detectAndExtract(dynamic node, String? hint) {
-    // Widget creation
-    if (registry.isWidgetCreation(node)) {
-      return _extractWidget(node);
-    }
-
-    // Conditional (ternary or if)
-    if (registry.isConditional(node)) {
-      return _extractConditional(node);
-    }
-
-    // Loop (for, forEach, while)
-    if (registry.isLoop(node)) {
-      return _extractLoop(node);
-    }
-
-    // Collection (list, map, set)
-    if (registry.isCollection(node)) {
-      return _extractCollection(node);
-    }
-
-    // Builder function
-    if (registry.isBuilder(node)) {
-      return _extractBuilder(node);
-    }
-
-    // Callback function
-    if (registry.isCallback(node)) {
-      return _extractCallback(node);
-    }
-
-    // Unknown
-    return UnsupportedComponent(
-      id: _generateId('unsupported'),
-      sourceCode: node.toString(),
-      sourceLocation: _makeLocation(0, 0),
-      reason: 'No extractor matched this component type',
-    );
-  }
-
-  FlutterComponent _extractWidget(dynamic node) {
-    final widgetName = registry.getWidgetName(node);
-    final ctor = registry.getConstructorName(node);
-    final isConst = registry.isConst(node);
-    final properties = registry.getProperties(node);
-
-    final children = <FlutterComponent>[];
-    final childElements = registry.getChildElements(node);
-
-    for (final child in childElements) {
-      children.add(extract(child));
-    }
-
-    return WidgetComponent(
-      id: _generateId('widget_$widgetName'),
-      widgetName: widgetName,
-      constructorName: ctor,
-      sourceLocation: _makeLocation(0, 0),
-      isConst: isConst,
-      properties: properties,
-      children: children,
-    );
-  }
-
-  FlutterComponent _extractConditional(dynamic node) {
-    final condition = registry.getCondition(node);
-    final thenNode = registry.getThenBranch(node);
-    final elseNode = registry.getElseBranch(node);
-    final isTernary = registry.isTernary(node);
-
-    return ConditionalComponent(
-      id: _generateId('conditional'),
-      conditionCode: condition,
-      thenComponent: extract(thenNode),
-      elseComponent: elseNode != null ? extract(elseNode) : null,
-      sourceLocation: _makeLocation(0, 0),
-      isTernary: isTernary,
-    );
-  }
-
-  FlutterComponent _extractLoop(dynamic node) {
-    final loopKind = registry.getLoopKind(node);
-    final loopVar = registry.getLoopVariable(node);
-    final iterable = registry.getIterable(node);
-    final condition = registry.getLoopCondition(node);
-    final bodyNode = registry.getLoopBody(node);
-
-    return LoopComponent(
-      id: _generateId('loop_$loopKind'),
-      loopKind: loopKind,
-      loopVariable: loopVar,
-      iterableCode: iterable,
-      conditionCode: condition,
-      bodyComponent: extract(bodyNode),
-      sourceLocation: _makeLocation(0, 0),
-    );
-  }
-
-  FlutterComponent _extractCollection(dynamic node) {
-    final kind = registry.getCollectionKind(node);
-    final hasSpread = registry.hasSpread(node);
-    final elements = registry.getCollectionElements(node);
-
-    final componentElements = <FlutterComponent>[];
-    for (final elem in elements) {
-      componentElements.add(extract(elem));
-    }
-
-    return CollectionComponent(
-      id: _generateId('collection_$kind'),
-      collectionKind: kind,
-      elements: componentElements,
-      sourceLocation: _makeLocation(0, 0),
-      hasSpread: hasSpread,
-    );
-  }
-
-  FlutterComponent _extractBuilder(dynamic node) {
-    final name = registry.getBuilderName(node);
-    final params = registry.getBuilderParameters(node);
-    final isAsync = registry.isAsyncBuilder(node);
-
-    return BuilderComponent(
-      id: _generateId('builder_$name'),
-      builderName: name,
-      parameters: params,
-      isAsync: isAsync,
-      sourceLocation: _makeLocation(0, 0),
-    );
-  }
-
-  FlutterComponent _extractCallback(dynamic node) {
-    final name = registry.getCallbackName(node);
-    final params = registry.getCallbackParameters(node);
-
-    return BuilderComponent(
-      id: _generateId('callback_$name'),
-      builderName: name,
-      parameters: params,
-      sourceLocation: _makeLocation(0, 0),
-    );
-  }
-}
 
 // ============================================================================
 // 6. COMPONENT REGISTRY (Extensible Detection)
@@ -955,9 +759,7 @@ class ComponentRegistry {
 }
 
 /// Interface for custom detectors
-abstract class ComponentDetector {
-  dynamic call(String method, dynamic node);
-}
+
 
 // ============================================================================
 // 7. HOT RELOAD SUPPORT
