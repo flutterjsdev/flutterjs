@@ -6,10 +6,10 @@
 
 import 'package:collection/collection.dart';
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
-import 'package:flutterjs_core/src/flutter_to_js/src/flutter_prop_converters.dart';
-import 'package:flutterjs_core/src/flutter_to_js/src/utils/code_gen_error.dart';
-import '../../../ast_it.dart';
+import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:flutterjs_gen/src/flutter_to_js/src/utils/code_gen_error.dart';
 import 'expression_code_generator.dart';
+import 'flutter_prop_converters.dart';
 import 'statement_code_generator.dart';
 import 'utils/indenter.dart';
 import 'widget_instantiation_code_gen.dart';

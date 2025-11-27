@@ -10,7 +10,7 @@ environment:
 
 # Add regular dependencies here.
 dependencies:
-  analyzer: ^9.0.0
+  analyzer: ^8.4.1
   path: ^1.9.0
   dev_utils:
     path: ../dev_utils

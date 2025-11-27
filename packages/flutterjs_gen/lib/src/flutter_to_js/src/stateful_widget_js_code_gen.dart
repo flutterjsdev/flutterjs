@@ -5,10 +5,10 @@
 // Handles widget class, state class, lifecycle methods, and reactive state
 // ============================================================================
 
-import 'package:flutterjs_core/src/flutter_to_js/src/utils/indenter.dart';
 
-import '../../../ast_it.dart';
-import '../../ir/expressions/cascade_expression_ir.dart';
+import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
+import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:flutterjs_gen/src/flutter_to_js/src/utils/indenter.dart';
 import '../flutter_to_js.dart';
 import 'build_method_code_gen.dart';
 import 'flutter_prop_converters.dart';

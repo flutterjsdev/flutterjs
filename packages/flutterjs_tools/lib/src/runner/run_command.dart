@@ -12,6 +12,8 @@ import 'package:path/path.dart' as path;
 import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:flutterjs_gen/src/flutter_to_js/src/file_code_gen.dart';
+import 'package:flutterjs_gen/src/flutter_to_js/src/flutter_prop_converters.dart';
 
 /// ============================================================================
 /// RunCommand

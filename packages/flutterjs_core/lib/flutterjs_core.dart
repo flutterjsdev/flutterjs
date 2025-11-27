@@ -56,5 +56,3 @@ export 'src/analysis/passes/flow_analysis_pass.dart';
 export 'src/analysis/passes/symbol_resolution.dart';
 export 'src/analysis/passes/type_inference_pass.dart';
 export 'src/analysis/passes/validation_pass.dart';
-export 'src/flutter_to_js/flutter_to_js.dart'
-    hide ControlFlowGraph, ValidationResult;

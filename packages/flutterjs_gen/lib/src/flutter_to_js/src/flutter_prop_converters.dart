@@ -8,7 +8,7 @@
 
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 
-import '../../../ast_it.dart';
+import 'package:flutterjs_core/flutterjs_core.dart';
 import 'expression_code_generator.dart';
 
 // ============================================================================

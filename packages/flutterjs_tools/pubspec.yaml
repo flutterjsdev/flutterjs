@@ -19,6 +19,8 @@ dependencies:
     path: ../dev_utils
   dev_tools:
     path: ../dev_tools
+  flutterjs_gen:
+    path: ../flutterjs_gen
   args: ^2.7.0
   analyzer: ^8.4.1
 

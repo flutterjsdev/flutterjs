@@ -3,7 +3,10 @@
 // ============================================================================
 
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
-import '../../../flutterjs_core.dart';
+
+import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:flutterjs_core/ast_it.dart';
+import 'package:flutterjs_gen/src/flutter_to_js/flutter_to_js.dart';
 import 'js_optimizer.dart';
 import 'stateless_widget_js_code_gen.dart';
 import 'utils/indenter.dart';

@@ -5,9 +5,10 @@
 // Handles widget class, constructor with props, methods, and build()
 // ============================================================================
 
-import 'package:flutterjs_core/src/flutter_to_js/src/utils/code_gen_error.dart';
 
-import '../../../ast_it.dart';
+
+import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:flutterjs_gen/src/flutter_to_js/src/utils/code_gen_error.dart';
 import 'build_method_code_gen.dart';
 import 'flutter_prop_converters.dart';
 import 'function_code_generator.dart';

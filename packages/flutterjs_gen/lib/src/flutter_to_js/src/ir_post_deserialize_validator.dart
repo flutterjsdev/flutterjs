@@ -4,9 +4,8 @@
 // Validates and analyzes IR before code generation begins
 // Uses actual predefined types from the codebase
 // ============================================================================
+import 'package:flutterjs_core/flutterjs_core.dart';
 
-import '../../../ast_it.dart';
-//
 
 // ============================================================================
 // error & REPORT CLASSES
