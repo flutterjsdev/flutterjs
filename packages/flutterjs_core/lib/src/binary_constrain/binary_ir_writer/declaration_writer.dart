@@ -427,20 +427,35 @@ mixin DeclarationWriter {
   }
 
   void writeAnnotation(AnnotationIR ann) {
-    writeUint32(getStringRef(ann.name));
+    printlog('[WRITE ANNOTATION] START: ${ann.name}');
 
-    writeUint32(ann.arguments.length);
-    for (final arg in ann.arguments) {
-      writeExpression(arg);
+    try {
+      writeUint32(getStringRef(ann.name));
+      printlog('[WRITE ANNOTATION] Name written');
+
+      writeUint32(ann.arguments.length);
+      printlog('[WRITE ANNOTATION] Argument count: ${ann.arguments.length}');
+
+      for (final arg in ann.arguments) {
+        writeExpression(arg);
+      }
+
+      writeUint32(ann.namedArguments.length);
+      printlog(
+        '[WRITE ANNOTATION] Named argument count: ${ann.namedArguments.length}',
+      );
+
+      for (final entry in ann.namedArguments.entries) {
+        writeUint32(getStringRef(entry.key));
+        writeExpression(entry.value);
+      }
+
+      writeSourceLocation(ann.sourceLocation);
+      printlog('[WRITE ANNOTATION] END');
+    } catch (e) {
+      printlog('[WRITE ANNOTATION ERROR] ${ann.name}: $e');
+      rethrow;
     }
-
-    writeUint32(ann.namedArguments.length);
-    for (final entry in ann.namedArguments.entries) {
-      writeUint32(getStringRef(entry.key));
-      writeExpression(entry.value);
-    }
-
-    writeSourceLocation(ann.sourceLocation);
   }
 
   void writeFunctionDecl(FunctionDecl func);

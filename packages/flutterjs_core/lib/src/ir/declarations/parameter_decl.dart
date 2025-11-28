@@ -128,7 +128,7 @@ class ParameterDecl extends IRNode {
 /// Type parameter declaration (e.g., <T extends Comparable>)
 ///
 @immutable
-class TypeParameterDecl {
+class TypeParameterDecl extends IRNode {
   /// Type parameter name
   final String name;
 
@@ -156,7 +156,14 @@ class TypeParameterDecl {
     return name;
   }
 
-  const TypeParameterDecl({required this.name, this.bound, this.lowerBound});
+  TypeParameterDecl({
+    required this.name,
+    this.bound,
+    this.lowerBound,
+    required super.id,
+    required super.sourceLocation,
+    super.metadata,
+  });
 
   @override
   String toString() => declaration;

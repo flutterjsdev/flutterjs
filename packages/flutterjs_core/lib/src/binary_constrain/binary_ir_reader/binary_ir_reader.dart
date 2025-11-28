@@ -483,173 +483,162 @@ class BinaryIRReader
     printlog('[READ WIDGET-OUTPUTS] END - $count outputs');
   }
 
+  // ============================================================================
+  // COMPLETE SECTION: _readFileIRData - SYMMETRIC WITH WRITER
+  // ============================================================================
+
   DartFile _readFileIRData() {
-    printlog(
-      '[READ FILE IR DATA] START - offset: $_offset, file data start: $_fileIRDataStartOffset',
-    );
+    try {
+      _fileIRDataStartOffset = _offset;
+      _logOffsetProgress('FILE IR DATA START');
 
-    final filePath = readStringRef();
-    final contentHash = readStringRef();
-    final libraryName = readStringRef();
+      // ========== SECTION 1: Basic File Metadata ==========
+      _assertValidBoundary('FILE METADATA');
 
-    final builder = DartFileBuilder(filePath: filePath)
-      ..withContentHash(contentHash)
-      ..withLibrary(libraryName);
+      final filePath = readStringRef();
+      final contentHash = readStringRef();
+      final libraryName = readStringRef();
+      final analyzedAt = readUint64();
 
-    final analyzedAt = readUint64();
+      _logOffsetProgress('AFTER METADATA');
 
-    // Read imports
-    final importCount = readUint32();
-    printlog('[READ FILE IR] Import count: $importCount at offset: $_offset');
-    for (int i = 0; i < importCount; i++) {
-      try {
-        builder.addImport(readImportStmt());
-      } catch (e) {
-        throw SerializationException(
-          'Error reading import $i/$importCount: $e',
-          offset: _offset,
-        );
-      }
-    }
+      final builder = DartFileBuilder(filePath: filePath)
+        ..withContentHash(contentHash)
+        ..withLibrary(libraryName);
 
-    // Read exports
-    final exportCount = readUint32();
-    printlog('[READ FILE IR] Export count: $exportCount at offset: $_offset');
-    for (int i = 0; i < exportCount; i++) {
-      try {
-        builder.addExport(readExportStmt());
-      } catch (e) {
-        throw SerializationException(
-          'Error reading export $i/$exportCount: $e',
-          offset: _offset,
-        );
-      }
-    }
+      // ========== SECTION 2: Imports ==========
+      _assertValidBoundary('IMPORTS');
+      _validateCountField('importCount');
 
-    // Read variables
-    final varCount = readUint32();
-    printlog('[READ FILE IR] Variable count: $varCount at offset: $_offset');
-    for (int i = 0; i < varCount; i++) {
-      try {
-        builder.addVariable(readVariableDecl());
-      } catch (e) {
-        throw SerializationException(
-          'Error reading variable $i/$varCount: $e',
-          offset: _offset,
-        );
-      }
-    }
+      final importCount = readUint32();
+      printlog('  - Importing $importCount items');
 
-    // Read functions
-    final funcCount = readUint32();
-    printlog(
-      '[READ FILE IR] Function count: $funcCount at offset: $_offset, remaining bytes: ${_data.lengthInBytes - _offset}',
-    );
-    for (int i = 0; i < funcCount; i++) {
-      try {
-        builder.addFunction(readFunctionDecl());
-      } catch (e) {
-        throw SerializationException(
-          'Error reading function $i/$funcCount at offset $_offset: $e',
-          offset: _offset,
-        );
-      }
-    }
-
-    printlog('[DEBUG] After reading function:');
-    printlog('[DEBUG]   Current offset: $_offset');
-    printlog(
-      '[DEBUG]   Expected class count offset: should align to 4-byte boundary',
-    );
-
-    // Show next 32 bytes
-    final nextBytes = _data.buffer.asUint8List(
-      _offset,
-      Math.min(32, _data.lengthInBytes - _offset),
-    );
-    printlog(
-      '[DEBUG]   Next 32 bytes (hex): ${nextBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
-    );
-
-    // Parse as if first 4 bytes are class count
-    final classCountBytes = nextBytes.sublist(0, 4);
-    final parsedClassCount =
-        classCountBytes[0] |
-        (classCountBytes[1] << 8) |
-        (classCountBytes[2] << 16) |
-        (classCountBytes[3] << 24);
-    printlog('[DEBUG]   If first 4 bytes are class count: $parsedClassCount');
-
-    // What should be there
-    printlog('[DEBUG] Expected: class count = 3 (03 00 00 00)');
-    printlog(
-      '[DEBUG] Actual bytes at offset: ${nextBytes.sublist(0, 4).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
-    );
-
-    // ✅ CRITICAL: Read classes with enhanced diagnostics
-    final classCount = readUint32();
-    printlog(
-      '[HEX DUMP] At offset 1262: ${_data.buffer.asUint8List(1262, 32).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
-    );
-    printlog(
-      '[READ FILE IR] Class count: $classCount at offset: $_offset, '
-      'remaining bytes: ${_data.lengthInBytes - _offset}, '
-      'string table size: ${_stringTable.length}',
-    );
-
-    if (classCount > 1000) {
-      throw SerializationException(
-        'Unreasonable class count: $classCount (likely corrupted data or misalignment)',
-        offset: _offset - 4,
-      );
-    }
-
-    for (int i = 0; i < classCount; i++) {
-      try {
-        printlog(
-          '[CLASS READ] Reading class $i/$classCount at offset: $_offset, '
-          'remaining: ${_data.lengthInBytes - _offset} bytes',
-        );
-        builder.addClass(readClassDecl());
-      } catch (e) {
-        printlog(
-          '[CLASS ERROR] Failed at class $i/$classCount at offset $_offset',
-        );
-        printlog(
-          '[CLASS ERROR] Remaining data: ${_data.lengthInBytes - _offset} bytes',
-        );
-
-        // Enhanced error context
-        if (e is SerializationException) {
+      for (int i = 0; i < importCount; i++) {
+        try {
+          builder.addImport(readImportStmt());
+        } catch (e) {
           throw SerializationException(
-            'Error reading class $i/$classCount at offset $_offset: ${e.message} '
-            '(String table: ${_stringTable.length} entries, range: $_stringTableStartOffset-$_stringTableEndOffset)',
-            offset: e.offset,
+            'Error reading import $i/$importCount: $e',
+            offset: _offset,
           );
         }
+      }
+      _logOffsetProgress('AFTER IMPORTS', expectedBytes: importCount);
+
+      // ========== SECTION 3: Exports ==========
+      _assertValidBoundary('EXPORTS');
+      _validateCountField('exportCount');
+
+      final exportCount = readUint32();
+      printlog('  - Exporting $exportCount items');
+
+      for (int i = 0; i < exportCount; i++) {
+        try {
+          builder.addExport(readExportStmt());
+        } catch (e) {
+          throw SerializationException(
+            'Error reading export $i/$exportCount: $e',
+            offset: _offset,
+          );
+        }
+      }
+      _logOffsetProgress('AFTER EXPORTS', expectedBytes: exportCount);
+
+      // ========== SECTION 4: Variables ==========
+      _assertValidBoundary('VARIABLES');
+      _validateCountField('varCount');
+
+      final varCount = readUint32();
+      printlog('  - Reading $varCount variables');
+
+      for (int i = 0; i < varCount; i++) {
+        try {
+          builder.addVariable(readVariableDecl());
+        } catch (e) {
+          throw SerializationException(
+            'Error reading variable $i/$varCount: $e',
+            offset: _offset,
+          );
+        }
+      }
+      _logOffsetProgress('AFTER VARIABLES', expectedBytes: varCount);
+
+      // ========== SECTION 5: Functions ==========
+      _assertValidBoundary('FUNCTIONS');
+      _validateCountField('funcCount');
+
+      final funcCount = readUint32();
+      printlog('  - Reading $funcCount functions');
+
+      for (int i = 0; i < funcCount; i++) {
+        try {
+          printlog('  - Function $i/$funcCount at offset: $_offset');
+          builder.addFunction(readFunctionDecl());
+          _logOffsetProgress('AFTER FUNCTION $i', expectedBytes: 1);
+        } catch (e) {
+          throw SerializationException(
+            'Error reading function $i/$funcCount: $e',
+            offset: _offset,
+          );
+        }
+      }
+      _logOffsetProgress('AFTER FUNCTIONS', expectedBytes: funcCount);
+
+      // ========== SECTION 6: Classes ==========
+      printlog('\n[CRITICAL] About to read class count at offset: $_offset');
+      _assertValidBoundary('CLASSES');
+      _validateCountField('classCount');
+
+      final classCount = readUint32();
+      printlog('  - Reading $classCount classes');
+
+      if (classCount > 10000) {
         throw SerializationException(
-          'Error reading class $i/$classCount at offset $_offset: $e',
-          offset: _offset,
+          'Unreasonable class count: $classCount (likely corrupted)',
+          offset: _offset - 4,
         );
       }
-    }
 
-    // Read issues
-    final issueCount = readUint32();
-    printlog('[READ FILE IR] Issue count: $issueCount at offset: $_offset');
-    for (int i = 0; i < issueCount; i++) {
-      try {
-        builder.addIssue(_readAnalysisIssue());
-      } catch (e) {
-        throw SerializationException(
-          'Error reading issue $i/$issueCount: $e',
-          offset: _offset,
-        );
+      for (int i = 0; i < classCount; i++) {
+        try {
+          printlog('  - Class $i/$classCount at offset: $_offset');
+          builder.addClass(readClassDecl());
+          _logOffsetProgress('AFTER CLASS $i', expectedBytes: 1);
+        } catch (e) {
+          throw SerializationException(
+            'Error reading class $i/$classCount: $e',
+            offset: _offset,
+          );
+        }
       }
-    }
+      _logOffsetProgress('AFTER CLASSES', expectedBytes: classCount);
 
-    printlog('[READ FILE IR DATA] END');
-    return builder.build();
+      // ========== SECTION 7: Issues ==========
+      _assertValidBoundary('ISSUES');
+      _validateCountField('issueCount');
+
+      final issueCount = readUint32();
+      printlog('  - Reading $issueCount issues');
+
+      for (int i = 0; i < issueCount; i++) {
+        try {
+          builder.addIssue(_readAnalysisIssue());
+        } catch (e) {
+          throw SerializationException(
+            'Error reading issue $i/$issueCount: $e',
+            offset: _offset,
+          );
+        }
+      }
+      _logOffsetProgress('AFTER ISSUES', expectedBytes: issueCount);
+
+      printlog('[READ FILE IR DATA] COMPLETE');
+      return builder.build();
+    } catch (e) {
+      printlog('[READ FILE IR DATA ERROR] $e');
+      _dumpHexAround(_offset);
+      rethrow;
+    }
   }
 
   void _attachWidgetMetadata(DartFile fileIR) {
@@ -1096,259 +1085,340 @@ class BinaryIRReader
   // ============================================================================
   @override
   FunctionDecl readFunctionDecl() {
-    // ========== SECTION 1: Basic Metadata ==========
-    final id = readStringRef();
-    final name = readStringRef();
-    final returnTypeName = readStringRef();
-    final returnType = simpleTypeIR(returnTypeName, false);
+    printlog('[READ FUNCTION] START at offset: $_offset');
 
-    // ========== SECTION 2: Documentation & Annotations ==========
-    final hasDocumentation = readByte() != 0;
-    String? documentation;
-    if (hasDocumentation) {
-      documentation = readStringRef();
-    }
+    try {
+      // ========== SECTION 1: Basic Metadata ==========
+      final id = readStringRef();
+      final name = readStringRef();
+      final returnTypeName = readStringRef();
+      final returnType = simpleTypeIR(returnTypeName, false);
+      printlog('[READ FUNCTION] Section 1: id=$id, name=$name');
 
-    // ========== SECTION 3: Type Parameters ==========
-    final typeParameterCount = readUint32();
-    final typeParameters = <TypeParameterIR>[];
-    for (int i = 0; i < typeParameterCount; i++) {
-      final tpName = readStringRef();
-      final hasBound = readByte() != 0;
-      TypeIR? bound;
-      if (hasBound) {
-        bound = readType();
+      // ========== SECTION 2: Documentation & Annotations ==========
+      final hasDocumentation = readByte() != 0;
+      String? documentation;
+      if (hasDocumentation) {
+        documentation = readStringRef();
       }
-      typeParameters.add(TypeParameterIR(name: tpName, bound: bound));
-    }
 
-    // ========== SECTION 4: Parameters ==========
-    final paramCount = readUint32();
-    final parameters = <ParameterDecl>[];
-    for (int i = 0; i < paramCount; i++) {
-      parameters.add(readParameterDecl());
-    }
+      final annotationCount = readUint32();
+      final annotations = <AnnotationIR>[];
+      for (int i = 0; i < annotationCount; i++) {
+        annotations.add(readAnnotation());
+      }
+      printlog('[READ FUNCTION] Section 2: annotations=$annotationCount');
 
-    // ========== SECTION 5: Source Location ==========
-    final sourceLocation = readSourceLocation();
+      // ========== SECTION 3: Type Parameters ==========
+      final typeParameterCount = readUint32();
+      final typeParameters = <TypeParameterDecl>[];
+      for (int i = 0; i < typeParameterCount; i++) {
+        final tpName = readStringRef();
+        final hasBound = readByte() != 0;
+        TypeIR? bound;
+        if (hasBound) {
+          bound = readType();
+        }
 
-    // ========== SECTION 6: Type-Specific Data ==========
-    final funcType = readByte(); // 0=regular, 1=constructor, 2=method
+        // Create a default source location for the type parameter
+        final tpSourceLocation = SourceLocationIR(
+          id: 'loc_type_param_$tpName',
+          file: 'builtin',
+          line: 0,
+          column: 0,
+          offset: 0,
+          length: 0,
+        );
 
-    if (funcType == 1) {
-      // ========== CONSTRUCTOR ==========
-      final constructorClass = readStringRef();
-
-      final hasConstructorName = readByte() != 0;
-      final constructorName = hasConstructorName ? readStringRef() : null;
-
-      final isConst = readByte() != 0;
-      final isFactory = readByte() != 0;
-
-      // Initializers
-      final initCount = readUint32();
-      final initializers = <ConstructorInitializer>[];
-      for (int i = 0; i < initCount; i++) {
-        final fieldName = readStringRef();
-        final isThisField = readByte() != 0;
-        final value = readExpression();
-        final initSourceLocation = readSourceLocation();
-        initializers.add(
-          ConstructorInitializer(
-            fieldName: fieldName,
-            value: value,
-            isThisField: isThisField,
-            sourceLocation: initSourceLocation,
+        typeParameters.add(
+          TypeParameterDecl(
+            // ✓ REMOVED: lowerBound: 0,
+            id: 'type_param_${tpName}_$i',
+            name: tpName,
+            bound: bound,
+            sourceLocation: tpSourceLocation,
+            // lowerBound is optional - don't include it unless you have a value
           ),
         );
       }
 
-      // Super call
-      final hasSuperCall = readByte() != 0;
-      SuperConstructorCall? superCall;
-      if (hasSuperCall) {
-        final hasSuperConstructorName = readByte() != 0;
-        final superConstructorName = hasSuperConstructorName
+      printlog('[READ FUNCTION] Section 3: typeParameters=$typeParameterCount');
+
+      // ========== SECTION 4: Parameters ==========
+      final paramCount = readUint32();
+      final parameters = <ParameterDecl>[];
+      for (int i = 0; i < paramCount; i++) {
+        parameters.add(readParameterDecl());
+      }
+      printlog('[READ FUNCTION] Section 4: parameters=$paramCount');
+
+      // ========== SECTION 5: Source Location ==========
+      final sourceLocation = readSourceLocation();
+      printlog('[READ FUNCTION] Section 5: sourceLocation at offset $_offset');
+
+      // ========== SECTION 6: Type-Specific Data ==========
+      final funcType = readByte(); // 0=regular, 1=constructor, 2=method
+      printlog('[READ FUNCTION] Section 6: funcType=$funcType');
+
+      if (funcType == 1) {
+        // ========== CONSTRUCTOR ==========
+        final constructorClass = readStringRef();
+
+        final hasConstructorName = readByte() != 0;
+        final constructorName = hasConstructorName ? readStringRef() : null;
+
+        final isConst = readByte() != 0;
+        final isFactory = readByte() != 0;
+
+        // Initializers
+        final initCount = readUint32();
+        final initializers = <ConstructorInitializer>[];
+        for (int i = 0; i < initCount; i++) {
+          final fieldName = readStringRef();
+          final isThisField = readByte() != 0;
+          final value = readExpression();
+          final initSourceLocation = readSourceLocation();
+          initializers.add(
+            ConstructorInitializer(
+              fieldName: fieldName,
+              value: value,
+              isThisField: isThisField,
+              sourceLocation: initSourceLocation,
+            ),
+          );
+        }
+
+        // Super call
+        final hasSuperCall = readByte() != 0;
+        SuperConstructorCall? superCall;
+        if (hasSuperCall) {
+          final hasSuperConstructorName = readByte() != 0;
+          final superConstructorName = hasSuperConstructorName
+              ? readStringRef()
+              : null;
+          final superArgCount = readUint32();
+          final superArgs = <ExpressionIR>[];
+          for (int i = 0; i < superArgCount; i++) {
+            superArgs.add(readExpression());
+          }
+          final superNamedArgCount = readUint32();
+          final superNamedArgs = <String, ExpressionIR>{};
+          for (int i = 0; i < superNamedArgCount; i++) {
+            final key = readStringRef();
+            final value = readExpression();
+            superNamedArgs[key] = value;
+          }
+          final superSourceLocation = readSourceLocation();
+          superCall = SuperConstructorCall(
+            constructorName: superConstructorName,
+            arguments: superArgs,
+            namedArguments: superNamedArgs,
+            sourceLocation: superSourceLocation,
+          );
+        }
+
+        // Redirected call
+        final hasRedirectedCall = readByte() != 0;
+        RedirectedConstructorCall? redirectedCall;
+        if (hasRedirectedCall) {
+          final hasRedirectedConstructorName = readByte() != 0;
+          final redirectedConstructorName = hasRedirectedConstructorName
+              ? readStringRef()
+              : null;
+          final redirectedArgCount = readUint32();
+          final redirectedArgs = <ExpressionIR>[];
+          for (int i = 0; i < redirectedArgCount; i++) {
+            redirectedArgs.add(readExpression());
+          }
+          final redirectedNamedArgCount = readUint32();
+          final redirectedNamedArgs = <String, ExpressionIR>{};
+          for (int i = 0; i < redirectedNamedArgCount; i++) {
+            final key = readStringRef();
+            final value = readExpression();
+            redirectedNamedArgs[key] = value;
+          }
+          final redirectedSourceLocation = readSourceLocation();
+          redirectedCall = RedirectedConstructorCall(
+            constructorName: redirectedConstructorName,
+            arguments: redirectedArgs,
+            namedArguments: redirectedNamedArgs,
+            sourceLocation: redirectedSourceLocation,
+          );
+        }
+
+        // ========== SECTION 7: Function Body ==========
+        final hasBody = readByte() != 0;
+        FunctionBodyIR? functionBody;
+        if (hasBody) {
+          functionBody = _readFunctionBody();
+        }
+
+        return ConstructorDecl(
+          id: id,
+          name: constructorName ?? '',
+          constructorClass: constructorClass,
+          constructorName: constructorName,
+          parameters: parameters,
+          isConst: isConst,
+          isFactory: isFactory,
+          sourceLocation: sourceLocation,
+          body: functionBody,
+          initializers: initializers,
+          superCall: superCall,
+          redirectedCall: redirectedCall,
+          documentation: documentation,
+          annotations: annotations,
+          typeParameters: typeParameters,
+        );
+      } else if (funcType == 2) {
+        // ========== METHOD ==========
+        final hasClassName = readByte() != 0;
+        final className = hasClassName ? readStringRef() : null;
+
+        final hasOverriddenSignature = readByte() != 0;
+        final overriddenSignature = hasOverriddenSignature
             ? readStringRef()
             : null;
-        final superArgCount = readUint32();
-        final superArgs = <ExpressionIR>[];
-        for (int i = 0; i < superArgCount; i++) {
-          superArgs.add(readExpression());
+
+        final isAsync = readByte() != 0;
+        final isGenerator = readByte() != 0;
+
+        // ========== SECTION 7: Function Body ==========
+        final hasBody = readByte() != 0;
+        FunctionBodyIR? functionBody;
+        if (hasBody) {
+          functionBody = _readFunctionBody();
         }
-        final superNamedArgCount = readUint32();
-        final superNamedArgs = <String, ExpressionIR>{};
-        for (int i = 0; i < superNamedArgCount; i++) {
-          final key = readStringRef();
-          final value = readExpression();
-          superNamedArgs[key] = value;
+
+        return MethodDecl(
+          id: id,
+          name: name,
+          returnType: returnType,
+          parameters: parameters,
+          isAsync: isAsync,
+          isGenerator: isGenerator,
+          sourceLocation: sourceLocation,
+          className: className,
+          overriddenSignature: overriddenSignature,
+          body: functionBody,
+          documentation: documentation,
+          annotations: annotations,
+          typeParameters: typeParameters,
+        );
+      } else {
+        // ========== REGULAR FUNCTION ==========
+
+        // ========== SECTION 7: Function Body ==========
+        final hasBody = readByte() != 0;
+        FunctionBodyIR? functionBody;
+        if (hasBody) {
+          functionBody = _readFunctionBody();
         }
-        final superSourceLocation = readSourceLocation();
-        superCall = SuperConstructorCall(
-          constructorName: superConstructorName,
-          arguments: superArgs,
-          namedArguments: superNamedArgs,
-          sourceLocation: superSourceLocation,
+
+        return FunctionDecl(
+          id: id,
+          name: name,
+          returnType: returnType,
+          parameters: parameters,
+          isAsync: false,
+          isGenerator: false,
+          sourceLocation: sourceLocation,
+          body: functionBody,
+          documentation: documentation,
+          annotations: annotations,
+          typeParameters: typeParameters,
         );
       }
-
-      // Redirected call
-      final hasRedirectedCall = readByte() != 0;
-      RedirectedConstructorCall? redirectedCall;
-      if (hasRedirectedCall) {
-        final hasRedirectedConstructorName = readByte() != 0;
-        final redirectedConstructorName = hasRedirectedConstructorName
-            ? readStringRef()
-            : null;
-        final redirectedArgCount = readUint32();
-        final redirectedArgs = <ExpressionIR>[];
-        for (int i = 0; i < redirectedArgCount; i++) {
-          redirectedArgs.add(readExpression());
-        }
-        final redirectedNamedArgCount = readUint32();
-        final redirectedNamedArgs = <String, ExpressionIR>{};
-        for (int i = 0; i < redirectedNamedArgCount; i++) {
-          final key = readStringRef();
-          final value = readExpression();
-          redirectedNamedArgs[key] = value;
-        }
-        final redirectedSourceLocation = readSourceLocation();
-        redirectedCall = RedirectedConstructorCall(
-          constructorName: redirectedConstructorName,
-          arguments: redirectedArgs,
-          namedArguments: redirectedNamedArgs,
-          sourceLocation: redirectedSourceLocation,
-        );
-      }
-
-      // ========== SECTION 7: Function Body with FunctionExtractionData ==========
-      final hasBody = readByte() != 0;
-      FunctionBodyIR? functionBody;
-      if (hasBody) {
-        final stmtCount = readUint32();
-        final statements = <StatementIR>[];
-        for (int i = 0; i < stmtCount; i++) {
-          statements.add(readStatement());
-        }
-
-        // Read extraction data
-        final hasExtractionData = readByte() != 0;
-        FunctionExtractionData? extractionData;
-        if (hasExtractionData) {
-          extractionData = readFunctionExtractionData();
-        }
-
-        functionBody = FunctionBodyIR(
-          statements: statements,
-          expressions: [],
-          extractionData: extractionData,
-        );
-      }
-
-      return ConstructorDecl(
-        id: id,
-        name: constructorName ?? '',
-        constructorClass: constructorClass,
-        constructorName: constructorName,
-        parameters: parameters,
-        isConst: isConst,
-        isFactory: isFactory,
-        sourceLocation: sourceLocation,
-        body: functionBody,
-        initializers: initializers,
-        superCall: superCall,
-        redirectedCall: redirectedCall,
-        documentation: documentation,
-      );
-    } else if (funcType == 2) {
-      // ========== METHOD ==========
-      final hasClassName = readByte() != 0;
-      final className = hasClassName ? readStringRef() : null;
-
-      final hasOverriddenSignature = readByte() != 0;
-      final overriddenSignature = hasOverriddenSignature
-          ? readStringRef()
-          : null;
-
-      final isAsync = readByte() != 0;
-      final isGenerator = readByte() != 0;
-
-      // ========== SECTION 7: Function Body with FunctionExtractionData ==========
-      final hasBody = readByte() != 0;
-      FunctionBodyIR? functionBody;
-      if (hasBody) {
-        final stmtCount = readUint32();
-        final statements = <StatementIR>[];
-        for (int i = 0; i < stmtCount; i++) {
-          statements.add(readStatement());
-        }
-
-        // Read extraction data
-        final hasExtractionData = readByte() != 0;
-        FunctionExtractionData? extractionData;
-        if (hasExtractionData) {
-          extractionData = readFunctionExtractionData();
-        }
-
-        functionBody = FunctionBodyIR(
-          statements: statements,
-          expressions: [],
-          extractionData: extractionData,
-        );
-      }
-
-      return MethodDecl(
-        id: id,
-        name: name,
-        returnType: returnType,
-        parameters: parameters,
-        isAsync: isAsync,
-        isGenerator: isGenerator,
-        sourceLocation: sourceLocation,
-        className: className,
-        overriddenSignature: overriddenSignature,
-        body: functionBody,
-        documentation: documentation,
-      );
-    } else {
-      // ========== REGULAR FUNCTION ==========
-
-      // ========== SECTION 7: Function Body with FunctionExtractionData ==========
-      final hasBody = readByte() != 0;
-      FunctionBodyIR? functionBody;
-      if (hasBody) {
-        final stmtCount = readUint32();
-        final statements = <StatementIR>[];
-        for (int i = 0; i < stmtCount; i++) {
-          statements.add(readStatement());
-        }
-
-        // Read extraction data
-        final hasExtractionData = readByte() != 0;
-        FunctionExtractionData? extractionData;
-        if (hasExtractionData) {
-          extractionData = readFunctionExtractionData();
-        }
-
-        functionBody = FunctionBodyIR(
-          statements: statements,
-          expressions: [],
-          extractionData: extractionData,
-        );
-      }
-
-      return FunctionDecl(
-        id: id,
-        name: name,
-        returnType: returnType,
-        parameters: parameters,
-        isAsync: false,
-        isGenerator: false,
-        sourceLocation: sourceLocation,
-        body: functionBody,
-        documentation: documentation,
-      );
+    } catch (e) {
+      printlog('[READ FUNCTION ERROR] at offset $_offset: $e');
+      rethrow;
     }
+  }
+
+  FunctionBodyIR _readFunctionBody() {
+    printlog('[READ FUNCTION BODY] START at offset: $_offset');
+
+    try {
+      // ========== Read statements count + statements ==========
+      final stmtCount = readUint32();
+      printlog('[READ FUNCTION BODY] Statement count: $stmtCount');
+
+      final statements = <StatementIR>[];
+      for (int i = 0; i < stmtCount; i++) {
+        try {
+          statements.add(readStatement());
+        } catch (e) {
+          throw SerializationException(
+            'Error reading statement $i/$stmtCount at offset $_offset: $e',
+            offset: _offset,
+          );
+        }
+      }
+
+      // ========== Read expressions count + expressions ==========
+      // THIS IS CRITICAL - MUST MATCH WRITER
+      final exprCount = readUint32();
+      printlog('[READ FUNCTION BODY] Expression count: $exprCount');
+
+      final expressions = <ExpressionIR>[];
+      for (int i = 0; i < exprCount; i++) {
+        try {
+          expressions.add(readExpression());
+        } catch (e) {
+          throw SerializationException(
+            'Error reading expression $i/$exprCount at offset $_offset: $e',
+            offset: _offset,
+          );
+        }
+      }
+
+      // ========== Read extraction data flag + data ==========
+      final hasExtractionData = readByte() != 0;
+      printlog('[READ FUNCTION BODY] Has extraction data: $hasExtractionData');
+
+      FunctionExtractionData? extractionData;
+      if (hasExtractionData) {
+        extractionData = readFunctionExtractionData();
+      }
+
+      printlog('[READ FUNCTION BODY] END at offset: $_offset');
+
+      return FunctionBodyIR(
+        statements: statements,
+        expressions: expressions,
+        extractionData: extractionData,
+      );
+    } catch (e) {
+      printlog('[READ FUNCTION BODY ERROR] at offset $_offset: $e');
+      rethrow;
+    }
+  }
+
+  AnnotationIR readAnnotation() {
+    final name = readStringRef();
+
+    final argCount = readUint32();
+    final arguments = <ExpressionIR>[];
+    for (int i = 0; i < argCount; i++) {
+      arguments.add(readExpression());
+    }
+
+    final namedArgCount = readUint32();
+    final namedArguments = <String, ExpressionIR>{};
+    for (int i = 0; i < namedArgCount; i++) {
+      final key = readStringRef();
+      final value = readExpression();
+      namedArguments[key] = value;
+    }
+
+    final sourceLocation = readSourceLocation();
+
+    return AnnotationIR(
+      name: name,
+      arguments: arguments,
+      namedArguments: namedArguments,
+      sourceLocation: sourceLocation,
+    );
   }
 
   @override
@@ -1459,7 +1529,7 @@ class BinaryIRReader
     );
   }
 
-@override
+  @override
   FunctionExtractionData readFunctionExtractionData() {
     try {
       // Read extraction type
@@ -2027,6 +2097,96 @@ class BinaryIRReader
       components: components,
       sourceLocation: sourceLocation,
       analysis: analysis,
+    );
+  }
+
+  // ============================================================================
+  // ADD TO: binary_ir_reader.dart
+  // Validation helpers to detect misalignment
+  // ============================================================================
+
+  /// Validate that the next bytes look like a valid count
+  bool _validateCountField(String fieldName) {
+    if (_offset + 4 > _data.lengthInBytes) {
+      printlog('[VALIDATE] ERROR: Not enough bytes for $fieldName count');
+      return false;
+    }
+
+    final countBytes = _data.buffer.asUint8List(_offset, 4);
+    final count =
+        countBytes[0] |
+        (countBytes[1] << 8) |
+        (countBytes[2] << 16) |
+        (countBytes[3] << 24);
+
+    if (count > 100000) {
+      printlog(
+        '[VALIDATE] WARNING: $fieldName count suspiciously large: $count (0x${count.toRadixString(16)})',
+      );
+      _dumpHexAround(_offset);
+      return false;
+    }
+
+    printlog('[VALIDATE] $fieldName count OK: $count');
+    return true;
+  }
+
+  /// Dump hex around current offset for debugging
+  void _dumpHexAround(int offset) {
+    printlog('\n=== HEX DUMP AROUND OFFSET $offset ===');
+
+    final startOffset = (offset - 16).clamp(0, _data.lengthInBytes);
+    final endOffset = (offset + 64).clamp(0, _data.lengthInBytes);
+    final dumpBytes = _data.buffer.asUint8List(
+      startOffset,
+      endOffset - startOffset,
+    );
+
+    for (int i = 0; i < dumpBytes.length; i += 16) {
+      final chunk = dumpBytes.sublist(i, (i + 16).clamp(0, dumpBytes.length));
+      final hex = chunk
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join(' ');
+      final ascii = chunk
+          .map((b) => (b >= 32 && b < 127) ? String.fromCharCode(b) : '.')
+          .join('');
+
+      final addr = (startOffset + i).toString().padLeft(5, '0');
+      final marker = (startOffset + i == offset) ? ' ← OFFSET' : '';
+      printlog('  $addr: $hex | $ascii$marker');
+    }
+
+    printlog('=== END HEX DUMP ===\n');
+  }
+
+  /// Verify we're at a valid boundary before reading critical counts
+  void _assertValidBoundary(String sectionName) {
+    printlog('\n[BOUNDARY CHECK] Section: $sectionName at offset: $_offset');
+
+    // Check for unreasonable offset
+    if (_offset > _data.lengthInBytes) {
+      throw SerializationException(
+        'Offset out of bounds: $_offset > ${_data.lengthInBytes}',
+        offset: _offset,
+      );
+    }
+
+    // Check alignment
+    if ((_offset % 4) != 0) {
+      printlog(
+        '[BOUNDARY CHECK] WARNING: Offset $_offset not 4-byte aligned (offset % 4 = ${_offset % 4})',
+      );
+    }
+
+    // Dump the area
+    _dumpHexAround(_offset);
+    printlog('[BOUNDARY CHECK] Done\n');
+  }
+
+  /// Compare write and read offsets for debugging
+  void _logOffsetProgress(String stage, {int expectedBytes = 0}) {
+    printlog(
+      '[OFFSET] $stage: offset=$_offset, remaining=${_data.lengthInBytes - _offset} bytes, expected=$expectedBytes',
     );
   }
 }

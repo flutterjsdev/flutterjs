@@ -220,6 +220,7 @@ mixin StatementWriter {
   void writeExpressionStatement(ExpressionStmt stmt) {
     writeExpression(stmt.expression);
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeVariableDeclarationStatement(VariableDeclarationStmt stmt) {
@@ -237,6 +238,7 @@ mixin StatementWriter {
     writeByte(stmt.isConst ? 1 : 0);
     writeByte(stmt.isLate ? 1 : 0);
     writeSourceLocation(stmt.sourceLocation);
+    _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeReturnStatement(ReturnStmt stmt) {
@@ -245,6 +247,7 @@ mixin StatementWriter {
       writeExpression(stmt.expression!);
     }
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeBreakStatement(BreakStmt stmt) {
@@ -253,6 +256,7 @@ mixin StatementWriter {
       writeUint32(getStringRef(stmt.label!));
     }
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeContinueStatement(ContinueStmt stmt) {
@@ -261,11 +265,13 @@ mixin StatementWriter {
       writeUint32(getStringRef(stmt.label!));
     }
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeThrowStatement(ThrowStmt stmt) {
     writeExpression(stmt.exceptionExpression);
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeAssertStatement(AssertStatementIR stmt) {
@@ -275,10 +281,12 @@ mixin StatementWriter {
       writeExpression(stmt.message!);
     }
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeEmptyStatement(EmptyStatementIR stmt) {
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeBlockStatement(BlockStmt stmt) {
@@ -287,6 +295,7 @@ mixin StatementWriter {
       writeStatement(s);
     }
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeIfStatement(IfStmt stmt) {
@@ -297,6 +306,7 @@ mixin StatementWriter {
       writeStatement(stmt.elseBranch!);
     }
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeForStatement(ForStmt stmt) {
@@ -322,6 +332,7 @@ mixin StatementWriter {
     }
     writeStatement(stmt.body);
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeForEachStatement(ForEachStmt stmt) {
@@ -334,18 +345,21 @@ mixin StatementWriter {
     writeStatement(stmt.body);
     writeByte(stmt.isAsync ? 1 : 0);
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeWhileStatement(WhileStmt stmt) {
     writeExpression(stmt.condition);
     writeStatement(stmt.body);
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeDoWhileStatement(DoWhileStmt stmt) {
     writeStatement(stmt.body);
     writeExpression(stmt.condition);
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeSwitchStatement(SwitchStmt stmt) {
@@ -362,6 +376,7 @@ mixin StatementWriter {
       }
     }
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeSwitchCase(SwitchCaseStmt switchCase) {
@@ -390,6 +405,7 @@ mixin StatementWriter {
       writeStatement(stmt.finallyBlock!);
     }
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeCatchClause(CatchClauseStmt catchClause) {
@@ -412,17 +428,20 @@ mixin StatementWriter {
     writeUint32(getStringRef(stmt.label));
     writeStatement(stmt.statement);
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeYieldStatement(YieldStatementIR stmt) {
     writeExpression(stmt.value);
     writeByte(stmt.isYieldEach ? 1 : 0);
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeFunctionDeclarationStatement(FunctionDeclarationStatementIR stmt) {
     writeFunctionDecl(stmt.function);
     writeSourceLocation(stmt.sourceLocation);
+     _writeStatementMetadata(stmt);  // ✅ ADD THIS
   }
 
   void writeImportStmt(ImportStmt import) {
@@ -488,5 +507,15 @@ mixin StatementWriter {
     writeSourceLocation(export.sourceLocation);
     printlog('[WRITE EXPORT] After sourceLocation: ${buffer.length}');
     printlog('[WRITE EXPORT] END');
+  }
+
+   // ✅ FIXED: Write statement ID and metadata
+  void _writeStatementMetadata(StatementIR stmt) {
+    writeUint32(getStringRef(stmt.id));
+    writeUint32(stmt.metadata.length);
+    for (final entry in stmt.metadata.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
+    }
   }
 }

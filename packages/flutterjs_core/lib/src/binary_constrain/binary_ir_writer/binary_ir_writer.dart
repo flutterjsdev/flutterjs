@@ -539,114 +539,179 @@ class BinaryIRWriter
   // FILE IR DATA WRITING
   // =========================================================================
 
+  // ============================================================================
+  // COMPLETE SECTION: _writeFileIRData - VERIFIED SYMMETRIC ORDER
+  // ============================================================================
+
   void _writeFileIRData(DartFile fileIR) {
     try {
       _irDataStartOffset = _buffer.length;
       printlog('[WRITE FILE IR DATA] START - offset: $_irDataStartOffset');
 
+      // ========== SECTION 1: Basic File Metadata ==========
+      printlog('[SECTION 1] File metadata at offset: ${_buffer.length}');
+
       writeUint32(getStringRef(fileIR.filePath));
+      printlog('  - filePath written at: ${_buffer.length - 4}');
+
       writeUint32(getStringRef(fileIR.contentHash));
+      printlog('  - contentHash written at: ${_buffer.length - 4}');
+
       writeUint32(getStringRef(fileIR.library ?? "<unknown>"));
+      printlog('  - library written at: ${_buffer.length - 4}');
+
       writeUint64(DateTime.now().millisecondsSinceEpoch);
+      printlog('  - analyzedAt written at: ${_buffer.length - 8}');
 
-      // âœ… Imports
+      // ========== SECTION 2: Imports ==========
+      printlog('[SECTION 2] Imports at offset: ${_buffer.length}');
       writeUint32(fileIR.imports.length);
-      printlog('[WRITE FILE IR] Imports: ${fileIR.imports.length}');
-      for (final import in fileIR.imports) {
-        writeImportStmt(import);
-      }
-
-      // âœ… Exports
-      writeUint32(fileIR.exports.length);
-      printlog('[WRITE FILE IR] Exports: ${fileIR.exports.length}');
-      for (final export in fileIR.exports) {
-        writeExportStmt(export);
-      }
-
-      // âœ… Variables
-      writeUint32(fileIR.variableDeclarations.length);
       printlog(
-        '[WRITE FILE IR] Variables: ${fileIR.variableDeclarations.length}',
+        '  - importCount: ${fileIR.imports.length} at: ${_buffer.length - 4}',
       );
-      for (final variable in fileIR.variableDeclarations) {
-        writeVariableDecl(variable);
-      }
 
-      // âœ… Functions (TOP-LEVEL)
-      writeUint32(fileIR.functionDeclarations.length);
-      printlog(
-        '[WRITE FILE IR] Functions: ${fileIR.functionDeclarations.length}',
-      );
-      for (int i = 0; i < fileIR.functionDeclarations.length; i++) {
+      for (int i = 0; i < fileIR.imports.length; i++) {
         try {
-          printlog(
-            '[WRITE FILE IR] Function $i/${fileIR.functionDeclarations.length}: '
-            '${fileIR.functionDeclarations[i].name}',
-          );
-          writeFunctionDecl(fileIR.functionDeclarations[i]);
+          writeImportStmt(fileIR.imports[i]);
+          printlog('  - import $i written');
         } catch (e) {
-          printlog('[WRITE FILE IR ERROR] Function $i: $e');
-          rethrow;
+          throw SerializationException(
+            'Error writing import $i: $e',
+            offset: _buffer.length,
+            context: 'import_write',
+          );
         }
       }
 
-      // âœ… Classes
-      printlog('[WRITE FILE IR] Classes: ${fileIR.classDeclarations.length}');
-      printlog('[DEBUG] Before writing classes:');
-      printlog('  Classes to write: ${fileIR.classDeclarations.length}');
-      printlog('  String table size: ${_stringTable.length}');
-      printlog('  Buffer offset: ${_buffer.length}');
+      // ========== SECTION 3: Exports ==========
+      printlog('[SECTION 3] Exports at offset: ${_buffer.length}');
+      writeUint32(fileIR.exports.length);
+      printlog(
+        '  - exportCount: ${fileIR.exports.length} at: ${_buffer.length - 4}',
+      );
 
-      // Verify each class ID is in the string table
+      for (int i = 0; i < fileIR.exports.length; i++) {
+        try {
+          writeExportStmt(fileIR.exports[i]);
+          printlog('  - export $i written');
+        } catch (e) {
+          throw SerializationException(
+            'Error writing export $i: $e',
+            offset: _buffer.length,
+            context: 'export_write',
+          );
+        }
+      }
+
+      // ========== SECTION 4: Variables ==========
+      printlog('[SECTION 4] Variables at offset: ${_buffer.length}');
+      writeUint32(fileIR.variableDeclarations.length);
+      printlog(
+        '  - varCount: ${fileIR.variableDeclarations.length} at: ${_buffer.length - 4}',
+      );
+
+      for (int i = 0; i < fileIR.variableDeclarations.length; i++) {
+        try {
+          writeVariableDecl(fileIR.variableDeclarations[i]);
+          printlog('  - variable $i written');
+        } catch (e) {
+          throw SerializationException(
+            'Error writing variable $i: $e',
+            offset: _buffer.length,
+            context: 'variable_write',
+          );
+        }
+      }
+
+      // ========== SECTION 5: Functions (Top-Level) ==========
+      printlog('[SECTION 5] Functions at offset: ${_buffer.length}');
+      writeUint32(fileIR.functionDeclarations.length);
+      printlog(
+        '  - funcCount: ${fileIR.functionDeclarations.length} at: ${_buffer.length - 4}',
+      );
+
+      for (int i = 0; i < fileIR.functionDeclarations.length; i++) {
+        try {
+          printlog(
+            '  - Writing function $i/${fileIR.functionDeclarations.length}: '
+            '${fileIR.functionDeclarations[i].name}',
+          );
+          writeFunctionDecl(fileIR.functionDeclarations[i]);
+          printlog('  - function $i complete at offset: ${_buffer.length}');
+        } catch (e) {
+          printlog('[FUNCTION WRITE ERROR] Function $i: $e');
+          throw SerializationException(
+            'Error writing function $i: $e',
+            offset: _buffer.length,
+            context: 'function_write',
+          );
+        }
+      }
+
+      // ========== SECTION 6: Classes ==========
+      printlog('[SECTION 6] Classes at offset: ${_buffer.length}');
+
+      // Verify all class IDs are in string table
       for (int i = 0; i < fileIR.classDeclarations.length; i++) {
         final classDecl = fileIR.classDeclarations[i];
-
         if (!_stringIndices.containsKey(classDecl.id)) {
-          printlog('\nâŒ CLASS ID NOT IN STRING TABLE:');
-          printlog('   Class: ${classDecl.name}');
-          printlog('   ID: "${classDecl.id}"');
-          printlog('   Problem: This ID was never added to string table!');
-
           throw SerializationException(
-            'Class ID "${classDecl.id}" not in string table. '
-            'This should have been collected in collectStringsFromClass(). '
-            'String table has ${_stringTable.length} strings.',
+            'Class ID "${classDecl.id}" not in string table for class ${classDecl.name}',
             offset: _buffer.length,
             context: 'class_id_missing',
           );
         }
-
-        final idx = _stringIndices[classDecl.id]!;
-        printlog('[Class $i] ID index: $idx, name: ${classDecl.name}');
       }
 
       writeUint32(fileIR.classDeclarations.length);
-      printlog('[WRITE FILE IR] After classCount: ${_buffer.length}');
+      printlog(
+        '  - classCount: ${fileIR.classDeclarations.length} at: ${_buffer.length - 4}',
+      );
 
       for (int i = 0; i < fileIR.classDeclarations.length; i++) {
         try {
           printlog(
-            '[WRITE FILE IR] Class $i/${fileIR.classDeclarations.length}: '
+            '  - Writing class $i/${fileIR.classDeclarations.length}: '
             '${fileIR.classDeclarations[i].name}',
           );
           writeClassDecl(fileIR.classDeclarations[i]);
+          printlog('  - class $i complete at offset: ${_buffer.length}');
         } catch (e) {
-          printlog('[WRITE FILE IR ERROR] Class $i: $e');
-          rethrow;
+          printlog('[CLASS WRITE ERROR] Class $i: $e');
+          throw SerializationException(
+            'Error writing class $i: $e',
+            offset: _buffer.length,
+            context: 'class_write',
+          );
         }
       }
-      printlog('[WRITE FILE IR] After classes: ${_buffer.length}');
 
-      // âœ… Issues
+      // ========== SECTION 7: Analysis Issues ==========
+      printlog('[SECTION 7] Issues at offset: ${_buffer.length}');
       writeUint32(fileIR.analysisIssues.length);
-      printlog('[WRITE FILE IR] Issues: ${fileIR.analysisIssues.length}');
-      for (final issue in fileIR.analysisIssues) {
-        writeAnalysisIssue(issue);
+      printlog(
+        '  - issueCount: ${fileIR.analysisIssues.length} at: ${_buffer.length - 4}',
+      );
+
+      for (int i = 0; i < fileIR.analysisIssues.length; i++) {
+        try {
+          writeAnalysisIssue(fileIR.analysisIssues[i]);
+          printlog('  - issue $i written');
+        } catch (e) {
+          throw SerializationException(
+            'Error writing issue $i: $e',
+            offset: _buffer.length,
+            context: 'issue_write',
+          );
+        }
       }
-      printlog('[WRITE FILE IR] After issues: ${_buffer.length}');
-      printlog('[WRITE FILE IR DATA] END');
+
+      printlog('[WRITE FILE IR DATA] END at offset: ${_buffer.length}');
+      printlog(
+        '[WRITE FILE IR DATA] Total bytes written: ${_buffer.length - _irDataStartOffset}',
+      );
     } catch (e) {
-      printlog('[WRITE FILE IR ERROR] $e');
+      printlog('[WRITE FILE IR DATA ERROR] $e');
       rethrow;
     }
   }
@@ -1079,11 +1144,10 @@ class BinaryIRWriter
         );
       }
 
-      // ========== SECTION 7: Function Body + Extraction Data ==========
+      // ========== SECTION 7: Function Body ==========
+      // THIS MUST MATCH READER EXACTLY
       writeFunctionBody(func.body);
-      printlog(
-        '[WRITE FUNCTION] Section 7 (body/extraction) at offset ${buffer.length}',
-      );
+      printlog('[WRITE FUNCTION] Section 7 (body) at offset ${buffer.length}');
 
       printlog(
         '[WRITE FUNCTION] END - ${func.name} at offset ${buffer.length}',
@@ -1097,15 +1161,18 @@ class BinaryIRWriter
   // ============================================================================
   // NEW METHOD: Write FunctionBody with extraction data
   // ============================================================================
+  @override
   void writeFunctionBody(FunctionBodyIR? body) {
     writeByte(body != null ? 1 : 0);
 
     if (body == null) {
-      printlog('[FUNCTION BODY] null body');
+      printlog('[FUNCTION BODY] null body at offset: ${buffer.length}');
       return;
     }
 
-    // ========== Write statements ==========
+    printlog('[FUNCTION BODY] START at offset: ${buffer.length}');
+
+    // ========== Write statements count + statements ==========
     writeUint32(body.statements.length);
     printlog('[FUNCTION BODY] Statements: ${body.statements.length}');
 
@@ -1118,7 +1185,8 @@ class BinaryIRWriter
       }
     }
 
-    // ========== Write expressions ==========
+    // ========== Write expressions count + expressions ==========
+    // THIS IS CRITICAL - READER MUST READ THIS TOO
     writeUint32(body.expressions.length);
     printlog('[FUNCTION BODY] Expressions: ${body.expressions.length}');
 
@@ -1131,7 +1199,7 @@ class BinaryIRWriter
       }
     }
 
-    // ========== Write extraction data ==========
+    // ========== Write extraction data flag + data ==========
     writeByte(body.extractionData != null ? 1 : 0);
     printlog(
       '[FUNCTION BODY] Has extraction data: ${body.extractionData != null}',
@@ -1140,6 +1208,8 @@ class BinaryIRWriter
     if (body.extractionData != null) {
       writeExtractionData(body.extractionData!);
     }
+
+    printlog('[FUNCTION BODY] END at offset: ${buffer.length}');
   }
 
   void writeExtractionData(FunctionExtractionData data) {
@@ -1244,6 +1314,13 @@ class BinaryIRWriter
     for (final child in widget.children) {
       writeFlutterComponent(child);
     }
+
+    // ✅ ADD THIS: Widget metadata
+    writeUint32(widget.metadata.length);
+    for (final entry in widget.metadata.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
+    }
   }
 
   void writeConditionalComponent(ConditionalComponent cond) {
@@ -1258,6 +1335,13 @@ class BinaryIRWriter
     if (cond.elseComponent != null) {
       writeFlutterComponent(cond.elseComponent!);
     }
+
+    // ✅ ADD THIS: Conditional metadata
+    writeUint32(cond.metadata.length);
+    for (final entry in cond.metadata.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
+    }
   }
 
   void writeLoopComponent(LoopComponent loop) {
@@ -1269,6 +1353,13 @@ class BinaryIRWriter
     writeSourceLocation(loop.sourceLocation);
 
     writeFlutterComponent(loop.bodyComponent);
+
+    // ✅ ADD THIS: Loop metadata
+    writeUint32(loop.metadata.length);
+    for (final entry in loop.metadata.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
+    }
   }
 
   void writeCollectionComponent(CollectionComponent coll) {
@@ -1280,6 +1371,13 @@ class BinaryIRWriter
     writeUint32(coll.elements.length);
     for (final elem in coll.elements) {
       writeFlutterComponent(elem);
+    }
+
+    // ✅ ADD THIS: Collection metadata
+    writeUint32(coll.metadata.length);
+    for (final entry in coll.metadata.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
     }
   }
 
@@ -1295,6 +1393,13 @@ class BinaryIRWriter
     }
 
     writeUint32(getStringRef(builder.bodyDescription ?? ''));
+
+    // ✅ ADD THIS: Builder metadata
+    writeUint32(builder.metadata.length);
+    for (final entry in builder.metadata.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
+    }
   }
 
   void writeUnsupportedComponent(UnsupportedComponent unsupported) {
@@ -1302,6 +1407,13 @@ class BinaryIRWriter
     writeUint32(getStringRef(unsupported.sourceCode));
     writeUint32(getStringRef(unsupported.reason ?? ''));
     writeSourceLocation(unsupported.sourceLocation);
+
+    // ✅ ADD THIS: Unsupported metadata
+    writeUint32(unsupported.metadata.length);
+    for (final entry in unsupported.metadata.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
+    }
   }
 
   void writeContainerFallbackComponent(ContainerFallbackComponent container) {
@@ -1312,6 +1424,13 @@ class BinaryIRWriter
     writeByte(container.wrappedComponent != null ? 1 : 0);
     if (container.wrappedComponent != null) {
       writeFlutterComponent(container.wrappedComponent!);
+    }
+
+    // ✅ ADD THIS: Container metadata
+    writeUint32(container.metadata.length);
+    for (final entry in container.metadata.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
     }
   }
 

@@ -213,6 +213,17 @@ mixin ExpressionWriter {
 
   void writeExpression(ExpressionIR expr);
 
+  // ✅ HELPER: Write expression metadata consistently
+  void _writeExpressionMetadata(ExpressionIR expr) {
+    writeUint32(getStringRef(expr.id));
+    writeType(expr.resultType);
+    writeUint32(expr.metadata.length);
+    for (final entry in expr.metadata.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
+    }
+  }
+
   // ✓ UPDATED: Widget tracking added
   void writeInstanceCreationExpression(InstanceCreationExpressionIR expr) {
     writeType(expr.type);
@@ -237,6 +248,7 @@ mixin ExpressionWriter {
 
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeLiteralExpression(LiteralExpressionIR expr) {
@@ -268,6 +280,7 @@ mixin ExpressionWriter {
     writeExpression(expr.right);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeUnaryExpression(UnaryExpressionIR expr) {
@@ -276,6 +289,7 @@ mixin ExpressionWriter {
     writeByte(expr.isPrefix ? 1 : 0);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeCompoundAssignmentExpression(CompoundAssignmentExpressionIR expr) {
@@ -284,6 +298,7 @@ mixin ExpressionWriter {
     writeExpression(expr.value);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeAssignmentExpression(AssignmentExpressionIR expr) {
@@ -291,6 +306,7 @@ mixin ExpressionWriter {
     writeExpression(expr.value);
     writeSourceLocation(expr.sourceLocation);
     writeType(expr.resultType);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeIndexAccessExpression(IndexAccessExpressionIR expr) {
@@ -299,6 +315,7 @@ mixin ExpressionWriter {
     writeType(expr.resultType);
     writeByte(expr.isNullAware ? 1 : 0);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeCascadeExpression(CascadeExpressionIR expr) {
@@ -309,6 +326,7 @@ mixin ExpressionWriter {
     }
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeCastExpression(CastExpressionIR expr) {
@@ -316,6 +334,7 @@ mixin ExpressionWriter {
     writeType(expr.targetType);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeTypeCheckExpression(TypeCheckExpr expr) {
@@ -324,18 +343,21 @@ mixin ExpressionWriter {
     writeByte(expr.isNegated ? 1 : 0);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeAwaitExpression(AwaitExpr expr) {
     writeExpression(expr.futureExpression);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeThrowExpression(ThrowExpr expr) {
     writeExpression(expr.exceptionExpression);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeNullAwareAccessExpression(NullAwareAccessExpressionIR expr) {
@@ -347,6 +369,7 @@ mixin ExpressionWriter {
     }
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeNullCoalescingExpression(NullCoalescingExpressionIR expr) {
@@ -354,6 +377,7 @@ mixin ExpressionWriter {
     writeExpression(expr.right);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeMethodCallExpression(MethodCallExpressionIR expr) {
@@ -375,6 +399,7 @@ mixin ExpressionWriter {
     writeByte(expr.isCascade ? 1 : 0);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeFunctionCallExpression(FunctionCallExpr expr) {
@@ -394,6 +419,7 @@ mixin ExpressionWriter {
     }
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeStringInterpolationExpression(
@@ -410,6 +436,7 @@ mixin ExpressionWriter {
     }
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writePropertyAccessExpression(PropertyAccessExpressionIR expr) {
@@ -418,6 +445,7 @@ mixin ExpressionWriter {
     writeByte(expr.isNullAware ? 1 : 0);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeConditionalExpression(ConditionalExpressionIR expr) {
@@ -426,6 +454,7 @@ mixin ExpressionWriter {
     writeExpression(expr.elseExpression);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeListLiteralExpression(ListExpressionIR expr) {
@@ -436,6 +465,7 @@ mixin ExpressionWriter {
     writeByte(expr.isConst ? 1 : 0);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeMapLiteralExpression(MapExpressionIR expr) {
@@ -447,6 +477,7 @@ mixin ExpressionWriter {
     writeByte(expr.isConst ? 1 : 0);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeSetExpression(SetExpressionIR expr) {
@@ -456,22 +487,26 @@ mixin ExpressionWriter {
     }
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeThisExpression(ThisExpressionIR expr) {
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeSuperExpression(SuperExpressionIR expr) {
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeParenthesizedExpression(ParenthesizedExpressionIR expr) {
     writeExpression(expr.innerExpression);
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 
   void writeLambdaExpression(LambdaExpr expr) {
@@ -495,5 +530,6 @@ mixin ExpressionWriter {
     }
     writeType(expr.resultType);
     writeSourceLocation(expr.sourceLocation);
+     _writeExpressionMetadata(expr);  // ✅ ADD THIS
   }
 }
