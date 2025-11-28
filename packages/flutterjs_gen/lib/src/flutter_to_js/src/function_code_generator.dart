@@ -176,13 +176,13 @@ class FunctionCodeGen {
     buffer.writeln('$header ${func.name}($params) {');
     indenter.indent();
 
-    // ✅ FIXED: body is now List<StatementIR>?
+    // âœ… FIXED: body is now FunctionBodyIR?
     if (func.body == null) {
       buffer.writeln(indenter.line('// TODO: Implement ${func.name}'));
-    } else if (func.body!.isEmpty) {
+    } else if (func.body!.statements.isEmpty) {
       buffer.writeln(indenter.line('// Empty function body'));
     } else {
-      for (final stmt in func.body!) {
+      for (final stmt in func.body!.statements) {
         buffer.writeln(stmtGen.generate(stmt));
       }
     }
@@ -246,15 +246,15 @@ class FunctionCodeGen {
 
     indenter.indent();
 
-    // ✅ FIXED: body is now List<StatementIR>?
+    // âœ… FIXED: body is now FunctionBodyIR?
     if (method.body == null) {
       if (!method.isAbstract) {
         buffer.writeln(indenter.line('// TODO: Implement ${method.name}'));
       }
-    } else if (method.body!.isEmpty) {
+    } else if (method.body!.statements.isEmpty) {
       buffer.writeln(indenter.line('// Empty method body'));
     } else {
-      for (final stmt in method.body!) {
+      for (final stmt in method.body!.statements) {
         buffer.writeln(stmtGen.generate(stmt));
       }
     }
@@ -287,13 +287,13 @@ class FunctionCodeGen {
       buffer.writeln(indenter.line('this.${param.name} = ${param.name};'));
     }
 
-    // ✅ FIXED: body is now List<StatementIR>?
+    // âœ… FIXED: body is now FunctionBodyIR?
     if (ctor.body == null) {
       buffer.writeln(indenter.line('// TODO: Constructor body'));
-    } else if (ctor.body!.isEmpty) {
+    } else if (ctor.body!.statements.isEmpty) {
       buffer.writeln(indenter.line('// Empty constructor body'));
     } else {
-      for (final stmt in ctor.body!) {
+      for (final stmt in ctor.body!.statements) {
         buffer.writeln(stmtGen.generate(stmt));
       }
     }
@@ -309,17 +309,18 @@ class FunctionCodeGen {
   // =========================================================================
 
   /// ✅ FIXED: Analyze body to determine its type
-  FunctionBodyType _analyzeBodyType(List<StatementIR>? body) {
+  FunctionBodyType _analyzeBodyType(FunctionBodyIR? body) {
     if (body == null) {
       return FunctionBodyType.none;
     }
 
-    if (body.isEmpty) {
+    // Check statements list length
+    if (body.statements.isEmpty) {
       return FunctionBodyType.empty;
     }
 
-    if (body.length == 1) {
-      final stmt = body.first;
+    if (body.statements.length == 1) {
+      final stmt = body.statements.first;
 
       // Single return statement
       if (stmt is ReturnStmt) {
@@ -333,7 +334,7 @@ class FunctionCodeGen {
     }
 
     // Multiple statements
-    if (body.length > 1) {
+    if (body.statements.length > 1) {
       return FunctionBodyType.multipleStatements;
     }
 
@@ -341,7 +342,7 @@ class FunctionCodeGen {
   }
 
   /// ✅ FIXED: Check if body can be converted to arrow function
-  bool _canBeArrowFunction(FunctionBodyType bodyType, List<StatementIR>? body) {
+  bool _canBeArrowFunction(FunctionBodyType bodyType, FunctionBodyIR? body) {
     // Only singleReturn or singleExpression can be arrow functions
     if (bodyType == FunctionBodyType.singleReturn ||
         bodyType == FunctionBodyType.singleExpression) {
@@ -354,21 +355,21 @@ class FunctionCodeGen {
 
   /// ✅ FIXED: Extract expression from single-statement body
   ExpressionIR? _extractExpressionFromBody(
-    List<StatementIR>? body,
+    FunctionBodyIR? body,
     FunctionBodyType bodyType,
   ) {
-    if (body == null || body.isEmpty) {
+    if (body == null || body.statements.isEmpty) {
       return null;
     }
 
     try {
       if (bodyType == FunctionBodyType.singleReturn) {
-        final stmt = body.first;
+        final stmt = body.statements.first;
         if (stmt is ReturnStmt) {
           return stmt.expression;
         }
       } else if (bodyType == FunctionBodyType.singleExpression) {
-        final stmt = body.first;
+        final stmt = body.statements.first;
         if (stmt is ExpressionStmt) {
           return stmt.expression;
         }

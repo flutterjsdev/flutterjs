@@ -1,9 +1,3 @@
-// ============================================================================
-// COMPREHENSIVE FLUTTER COMPONENT HANDLER SYSTEM
-// ============================================================================
-// Handles: Widgets, Builders, Functions, Lists, Loops, Conditionals, etc.
-// Features: Normalization, Hot Reload Support, Extensibility, Fallbacks
-// ============================================================================
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:meta/meta.dart';

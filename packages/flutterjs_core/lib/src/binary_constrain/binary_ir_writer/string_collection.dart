@@ -1,7 +1,9 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:flutterjs_core/src/analysis/extraction/flutter_component_system.dart';
+import 'package:flutterjs_core/src/analysis/extraction/symmetric_function_extraction.dart';
 /// ============================================================================
 /// string_collection.dart
-/// String Collection — Centralized Interning Pool for IR → Binary Serialization
+/// String Collection – Centralized Interning Pool for IR → Binary Serialization
 /// ============================================================================
 ///
 /// Maintains a **global pooled string table** used throughout the FlutterJS IR
@@ -156,10 +158,10 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///
 
 mixin StringCollectionPhase {
-  // âœ… Abstract getters that must be provided by implementing class
+  // Ã¢Å"â€¦ Abstract getters that must be provided by implementing class
   List<String> get stringTable;
   bool get isVerbose;
-  // âœ… FIXED: Use getter to access verbose flag
+  // Ã¢Å"â€¦ FIXED: Use getter to access verbose flag
   bool get _verbose => isVerbose;
   List<String> get _stringTable => stringTable;
 
@@ -222,7 +224,7 @@ mixin StringCollectionPhase {
       collectStringsFromVariable(variable);
     }
 
-    // ✅ THIS MUST BE CALLED
+    // âœ… THIS MUST BE CALLED
     printlog('[COLLECT] Classes: ${fileIR.classDeclarations.length}');
     for (int i = 0; i < fileIR.classDeclarations.length; i++) {
       final cls = fileIR.classDeclarations[i];
@@ -233,13 +235,304 @@ mixin StringCollectionPhase {
     printlog('[COLLECT] Issues: ${fileIR.analysisIssues.length}');
     collectStringsFromAnalysisIssues(fileIR);
 
-    printlog('[COLLECT] ✅ String table size: ${stringTable.length}');
+    printlog('[COLLECT] âœ… String table size: ${stringTable.length}');
     if (_verbose) {
       debugPrintStringTable();
     }
   }
 
-  // âœ… Core statement string collection - Parameter is nullable
+  // ============================================================================
+  // ENHANCED: collectStringsFromFunction - NOW COLLECTS ALL FUNCTION DATA
+  // ============================================================================
+  void collectStringsFromFunctionEnhanced(FunctionDecl func) {
+    printlog('[COLLECT FUNCTION] START - ${func.name}');
+
+    // âœ… SECTION 1: Basic Metadata
+    addString(func.id);
+    addString(func.name);
+    addString(func.returnType.displayName());
+    addString(func.sourceLocation.file);
+    printlog('[COLLECT FUNCTION] Basic metadata collected');
+
+    // âœ… SECTION 2: Documentation & Annotations
+    if (func.documentation != null) {
+      addString(func.documentation!);
+      printlog('[COLLECT FUNCTION] Documentation: "${func.documentation!}"');
+    }
+
+    // Collect annotation names
+    for (final ann in func.annotations) {
+      addString(ann.name);
+      for (final arg in ann.arguments) {
+        collectStringsFromExpression(arg);
+      }
+      for (final entry in ann.namedArguments.entries) {
+        addString(entry.key);
+        collectStringsFromExpression(entry.value);
+      }
+    }
+    printlog('[COLLECT FUNCTION] Annotations collected: ${func.annotations.length}');
+
+    // âœ… SECTION 3: Type Parameters
+    for (final tp in func.typeParameters) {
+      addString(tp.name);
+      if (tp.bound != null) {
+        addString(tp.bound!.displayName());
+      }
+    }
+    printlog('[COLLECT FUNCTION] Type parameters collected: ${func.typeParameters.length}');
+
+    // âœ… SECTION 4: Parameters
+    for (final param in func.parameters) {
+      addString(param.id);
+      addString(param.name);
+      addString(param.type.displayName());
+      addString(param.sourceLocation.file);
+      if (param.defaultValue != null) {
+        collectStringsFromExpression(param.defaultValue);
+      }
+    }
+    printlog('[COLLECT FUNCTION] Parameters collected: ${func.parameters.length}');
+
+    // âœ… SECTION 6: Type-Specific Data (Constructor/Method specific)
+    if (func is ConstructorDecl) {
+      if (func.constructorClass != null) {
+        addString(func.constructorClass!);
+      }
+      if (func.constructorName != null) {
+        addString(func.constructorName!);
+      }
+
+      // Initializers
+      for (final init in func.initializers) {
+        addString(init.fieldName);
+        collectStringsFromExpression(init.value);
+        addString(init.sourceLocation.file);
+      }
+      printlog('[COLLECT FUNCTION] Constructor initializers collected: ${func.initializers.length}');
+
+      // Super call
+      if (func.superCall != null) {
+        if (func.superCall!.constructorName != null) {
+          addString(func.superCall!.constructorName!);
+        }
+        for (final arg in func.superCall!.arguments) {
+          collectStringsFromExpression(arg);
+        }
+        for (final entry in func.superCall!.namedArguments.entries) {
+          addString(entry.key);
+          collectStringsFromExpression(entry.value);
+        }
+        addString(func.superCall!.sourceLocation.file);
+      }
+      printlog('[COLLECT FUNCTION] Super call collected');
+
+      // Redirected call
+      if (func.redirectedCall != null) {
+        if (func.redirectedCall!.constructorName != null) {
+          addString(func.redirectedCall!.constructorName!);
+        }
+        for (final arg in func.redirectedCall!.arguments) {
+          collectStringsFromExpression(arg);
+        }
+        for (final entry in func.redirectedCall!.namedArguments.entries) {
+          addString(entry.key);
+          collectStringsFromExpression(entry.value);
+        }
+        addString(func.redirectedCall!.sourceLocation.file);
+      }
+      printlog('[COLLECT FUNCTION] Redirected call collected');
+    } else if (func is MethodDecl) {
+      if (func.className != null) {
+        addString(func.className!);
+      }
+      if (func.overriddenSignature != null) {
+        addString(func.overriddenSignature!);
+      }
+      printlog('[COLLECT FUNCTION] Method-specific data collected');
+    }
+
+    // âœ… SECTION 7: Function Body + Extraction Data
+    if (func.body != null) {
+      // Collect from statements
+      collectStringsFromStatements(func.body!.statements);
+      printlog('[COLLECT FUNCTION] Body statements collected: ${func.body!.statements.length}');
+
+      // Collect from expressions in body
+      for (final expr in func.body!.expressions) {
+        collectStringsFromExpression(expr);
+      }
+      printlog('[COLLECT FUNCTION] Body expressions collected: ${func.body!.expressions.length}');
+
+      // âœ… COLLECT FROM EXTRACTION DATA
+      if (func.body!.extractionData != null) {
+        collectStringsFromExtractionData(func.body!.extractionData!);
+        printlog('[COLLECT FUNCTION] Extraction data collected');
+      }
+    }
+
+    printlog('[COLLECT FUNCTION] END - ${func.name}');
+  }
+
+  // ============================================================================
+  // NEW: collectStringsFromExtractionData - Collects all extraction strings
+  // ============================================================================
+  void collectStringsFromExtractionData(FunctionExtractionData data) {
+    printlog('[COLLECT EXTRACTION] START');
+
+    // Extraction type
+    addString(data.extractionType);
+
+    // Components
+    for (final component in data.components) {
+      collectStringsFromFlutterComponent(component);
+    }
+
+    // Pure function data
+    if (data.pureFunctionData != null) {
+      collectStringsFromFlutterComponent(data.pureFunctionData!);
+    }
+
+    // Analysis map
+    for (final entry in data.analysis.entries) {
+      addString(entry.key);
+      addString(entry.value.toString());
+    }
+
+    // Metadata
+    addString(data.metadata.name);
+    addString(data.metadata.type);
+    if (data.metadata.returnType != null) {
+      addString(data.metadata.returnType!);
+    }
+
+    // Diagnostics
+    for (final diag in data.diagnostics) {
+      addString(diag.message);
+      if (diag.code != null && diag.code!.isNotEmpty) {
+        addString(diag.code!);
+      }
+    }
+
+    printlog('[COLLECT EXTRACTION] END - ${data.components.length} components');
+  }
+
+  // ============================================================================
+  // EXISTING (but needed for extraction data)
+  // ============================================================================
+  void collectStringsFromFlutterComponent(FlutterComponent component) {
+    addString(component.id);
+    addString(component.describe());
+    addString(component.sourceLocation.file);
+
+    if (component is WidgetComponent) {
+      addString(component.widgetName);
+      if (component.constructorName != null) {
+        addString(component.constructorName!);
+      }
+      for (final prop in component.properties) {
+        addString(prop.name);
+        addString(prop.value);
+      }
+      for (final child in component.children) {
+        collectStringsFromFlutterComponent(child);
+      }
+    } else if (component is ConditionalComponent) {
+      addString(component.conditionCode);
+      collectStringsFromFlutterComponent(component.thenComponent);
+      if (component.elseComponent != null) {
+        collectStringsFromFlutterComponent(component.elseComponent!);
+      }
+    } else if (component is LoopComponent) {
+      addString(component.loopKind);
+      if (component.loopVariable != null) {
+        addString(component.loopVariable!);
+      }
+      if (component.iterableCode != null) {
+        addString(component.iterableCode!);
+      }
+      if (component.conditionCode != null) {
+        addString(component.conditionCode!);
+      }
+      collectStringsFromFlutterComponent(component.bodyComponent);
+    } else if (component is CollectionComponent) {
+      addString(component.collectionKind);
+      for (final elem in component.elements) {
+        collectStringsFromFlutterComponent(elem);
+      }
+    } else if (component is BuilderComponent) {
+      addString(component.builderName);
+      for (final param in component.parameters) {
+        addString(param);
+      }
+      if (component.bodyDescription != null) {
+        addString(component.bodyDescription!);
+      }
+    } else if (component is UnsupportedComponent) {
+      addString(component.sourceCode);
+      if (component.reason != null) {
+        addString(component.reason!);
+      }
+    } else if (component is ComputationFunctionData) {
+      addString(component.displayName);
+      addString(component.inputType);
+      addString(component.outputType);
+      for (final entry in component.analysis.entries) {
+        addString(entry.key);
+        addString(entry.value.toString());
+      }
+    } else if (component is ValidationFunctionData) {
+      addString(component.displayName);
+      addString(component.targetType);
+      addString(component.returnType);
+      for (final rule in component.validationRules) {
+        addString(rule);
+      }
+      for (final entry in component.analysis.entries) {
+        addString(entry.key);
+        addString(entry.value.toString());
+      }
+    } else if (component is FactoryFunctionData) {
+      addString(component.displayName);
+      addString(component.producedType);
+      for (final param in component.parameters) {
+        addString(param);
+      }
+      for (final field in component.initializedFields) {
+        addString(field);
+      }
+      for (final entry in component.analysis.entries) {
+        addString(entry.key);
+        addString(entry.value.toString());
+      }
+    } else if (component is HelperFunctionData) {
+      addString(component.displayName);
+      addString(component.purpose);
+      for (final effect in component.sideEffects) {
+        addString(effect);
+      }
+      for (final entry in component.analysis.entries) {
+        addString(entry.key);
+        addString(entry.value.toString());
+      }
+    } else if (component is MixedFunctionData) {
+      addString(component.displayName);
+      for (final subComponent in component.components) {
+        collectStringsFromFlutterComponent(subComponent);
+      }
+      for (final entry in component.analysis.entries) {
+        addString(entry.key);
+        addString(entry.value.toString());
+      }
+    } else if (component is ContainerFallbackComponent) {
+      addString(component.reason);
+      if (component.wrappedComponent != null) {
+        collectStringsFromFlutterComponent(component.wrappedComponent!);
+      }
+    }
+  }
+
+  // Ã¢Å"â€¦ Core statement string collection - Parameter is nullable
   void collectStringsFromStatement(StatementIR? stmt) {
     if (stmt == null) return;
 

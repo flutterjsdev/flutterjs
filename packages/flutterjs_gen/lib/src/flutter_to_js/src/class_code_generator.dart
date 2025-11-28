@@ -295,10 +295,11 @@ class ClassCodeGen {
         }
       }
 
-      if (ctor.body != null && ctor.body!.isNotEmpty) {
+      if (ctor.body != null && ctor.body!.statements.isNotEmpty) {
+        // todo:: we need to handle ExpressionIR also
         try {
           // body is already a List<StatementIR>
-          for (final stmt in ctor.body!) {
+          for (final stmt in ctor.body!.statements) {
             try {
               final stmtCode = stmtGen.generate(stmt);
               buffer.writeln(stmtCode);
@@ -384,8 +385,8 @@ class ClassCodeGen {
     indenter.indent();
 
     // ✅ FIXED: body is now List<StatementIR>?
-    if (method.body != null && method.body!.isNotEmpty) {
-      for (final stmt in method.body!) {
+    if (method.body != null && method.body!.statements.isNotEmpty) {
+      for (final stmt in method.body!.statements) {
         buffer.writeln(stmtGen.generate(stmt));
       }
     } else {
@@ -418,9 +419,9 @@ class ClassCodeGen {
     indenter.indent();
 
     // ✅ FIXED: body is now List<StatementIR>? - iterate directly
-    if (method.body != null && method.body!.isNotEmpty) {
-      // body is already a List<StatementIR> - no type casting needed
-      for (final stmt in method.body!) {
+    if (method.body != null && method.body!.statements.isNotEmpty) {
+      // body is FunctionBodyIR - iterate over statements list
+      for (final stmt in method.body!.statements) {
         buffer.writeln(stmtGen.generate(stmt));
       }
     } else {

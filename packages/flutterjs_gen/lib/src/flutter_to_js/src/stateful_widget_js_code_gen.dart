@@ -5,7 +5,6 @@
 // Handles widget class, state class, lifecycle methods, and reactive state
 // ============================================================================
 
-
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/src/flutter_to_js/src/utils/indenter.dart';
@@ -517,7 +516,7 @@ class StatefulWidgetJSCodeGen {
         final methodBody = lifecycleMapping.initState!.body;
         if (bodyType == LifecycleBodyType.hasStatements && methodBody != null) {
           // ✓ FIXED: Indent each statement line properly
-          for (final stmt in methodBody) {
+          for (final stmt in methodBody.statements) {
             final stmtCode = stmtCodeGen.generate(stmt);
             for (final line in stmtCode.split('\n')) {
               if (line.isNotEmpty) {
@@ -563,7 +562,7 @@ class StatefulWidgetJSCodeGen {
         final methodBody = lifecycleMapping.dispose!.body;
         if (bodyType == LifecycleBodyType.hasStatements && methodBody != null) {
           // ✓ FIXED: Indent each statement line properly
-          for (final stmt in methodBody) {
+          for (final stmt in methodBody.statements) {
             // Skip super.dispose() if already present
             if (stmt is! ExpressionStmt ||
                 !_isSuperCall(stmt.expression, 'dispose')) {
@@ -614,7 +613,7 @@ class StatefulWidgetJSCodeGen {
       final methodBody = lifecycleMapping.didUpdateWidget!.body;
       if (bodyType == LifecycleBodyType.hasStatements && methodBody != null) {
         // ✓ FIXED: Indent each statement line properly
-        for (final stmt in methodBody) {
+        for (final stmt in methodBody.statements) {
           if (stmt is! ExpressionStmt ||
               !_isSuperCall(stmt.expression, 'didUpdateWidget')) {
             final stmtCode = stmtCodeGen.generate(stmt);
@@ -660,7 +659,7 @@ class StatefulWidgetJSCodeGen {
       final methodBody = lifecycleMapping.didChangeDependencies!.body;
       if (bodyType == LifecycleBodyType.hasStatements && methodBody != null) {
         // ✓ FIXED: Indent each statement line properly
-        for (final stmt in methodBody) {
+        for (final stmt in methodBody.statements) {
           if (stmt is! ExpressionStmt ||
               !_isSuperCall(stmt.expression, 'didChangeDependencies')) {
             final stmtCode = stmtCodeGen.generate(stmt);
@@ -777,12 +776,12 @@ class StatefulWidgetJSCodeGen {
   // =========================================================================
 
   /// ✅ FIXED: Analyze lifecycle method body type
-  LifecycleBodyType _analyzeLifecycleBody(List<StatementIR>? body) {
+  LifecycleBodyType _analyzeLifecycleBody(FunctionBodyIR? body) {
     if (body == null) {
       return LifecycleBodyType.none;
     }
 
-    if (body.isEmpty) {
+    if (body.statements.isEmpty) {
       return LifecycleBodyType.empty;
     }
 
@@ -797,44 +796,6 @@ class StatefulWidgetJSCodeGen {
       }
     }
     return false;
-  }
-
-  String _describeLifecycleBodyType(LifecycleBodyType type) {
-    switch (type) {
-      case LifecycleBodyType.none:
-        return 'none (no body)';
-      case LifecycleBodyType.empty:
-        return 'empty (0 statements)';
-      case LifecycleBodyType.hasStatements:
-        return 'hasStatements (1+ statements)';
-      case LifecycleBodyType.unknown:
-        return 'unknown';
-    }
-  }
-
-  /// ✓ NEW: Get statement count from lifecycle body
-  int _getLifecycleStatementCount(List<StatementIR>? body) {
-    return body?.length ?? 0;
-  }
-
-  /// ✓ NEW: Check if lifecycle body contains specific statement type
-  bool _lifecycleHasStatementType<T extends StatementIR>(
-    List<StatementIR>? body,
-  ) {
-    if (body == null || body.isEmpty) return false;
-    return body.any((stmt) => stmt is T);
-  }
-
-  /// ✓ NEW: Get first statement of specific type
-  T? _getFirstLifecycleStatement<T extends StatementIR>(
-    List<StatementIR>? body,
-  ) {
-    if (body == null || body.isEmpty) return null;
-    try {
-      return body.firstWhere((stmt) => stmt is T) as T;
-    } catch (e) {
-      return null;
-    }
   }
 
   void _generateBuildMethod(StringBuffer buffer) {
@@ -870,23 +831,6 @@ class StatefulWidgetJSCodeGen {
   // =========================================================================
   // UTILITY METHODS
   // =========================================================================
-
-  String _getDefaultValue(TypeIR type) {
-    final typeName = type.displayName();
-
-    return switch (typeName) {
-      'int' => '0',
-      'double' => '0.0',
-      'String' => '""',
-      'bool' => 'false',
-      'List' => '[]',
-      'Map' => '{}',
-      'Set' => 'new Set()',
-      'Future' => 'Promise.resolve(null)',
-      'Stream' => 'null',
-      _ => 'null',
-    };
-  }
 
   /// Get all warnings
   List<CodeGenWarning> getWarnings() => List.unmodifiable(warnings);

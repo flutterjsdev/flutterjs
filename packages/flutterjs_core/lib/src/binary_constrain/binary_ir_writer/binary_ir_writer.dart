@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:flutterjs_core/src/analysis/extraction/flutter_component_system.dart';
+import 'package:flutterjs_core/src/analysis/extraction/symmetric_function_extraction.dart';
 import 'package:flutterjs_core/src/ir/core/source_location.dart';
 import 'package:flutterjs_core/src/ir/declarations/import_export_stmt.dart';
 import 'package:flutterjs_core/src/ir/expressions/expression_ir.dart';
@@ -44,20 +46,20 @@ import 'validator_file.dart';
 ///
 /// # Purpose
 ///
-/// BinaryIRWriter is the **master serializer** for structured IR.  
+/// BinaryIRWriter is the **master serializer** for structured IR.
 /// It transforms the in-memory IR graph into:
 ///
-/// - Deterministic  
-/// - Compact  
-/// - Versioned  
-/// - Validated  
+/// - Deterministic
+/// - Compact
+/// - Versioned
+/// - Validated
 ///
 /// binary output.
 ///
 /// This output is consumed by:
-/// - The FlutterJS JavaScript generator  
-/// - Binary → IR decoders  
-/// - Developer tooling  
+/// - The FlutterJS JavaScript generator
+/// - Binary → IR decoders
+/// - Developer tooling
 ///
 ///
 /// # Responsibilities
@@ -81,10 +83,10 @@ import 'validator_file.dart';
 ///
 /// All IR strings must pass through `StringCollection` before writing indices.
 /// BinaryIRWriter ensures:
-/// - Widget names  
-/// - Type names  
-/// - Variable identifiers  
-/// - Property keys  
+/// - Widget names
+/// - Type names
+/// - Variable identifiers
+/// - Property keys
 ///
 /// are registered **before** numeric references are written.
 ///
@@ -92,9 +94,9 @@ import 'validator_file.dart';
 /// ## 3. Ensures Deterministic Ordering
 ///
 /// Ordering rules enforced:
-/// - Types are written before declarations  
-/// - Declarations before bodies  
-/// - Expression definitions before usage  
+/// - Types are written before declarations
+/// - Declarations before bodies
+/// - Expression definitions before usage
 ///
 /// This guarantees reproducible builds.
 ///
@@ -108,10 +110,10 @@ import 'validator_file.dart';
 /// ## 5. Error Checking
 ///
 /// Writer validates:
-/// - Missing IR sections  
-/// - Invalid references  
-/// - Empty mandatory structures  
-/// - Duplicate identifiers causing schema conflict  
+/// - Missing IR sections
+/// - Invalid references
+/// - Empty mandatory structures
+/// - Duplicate identifiers causing schema conflict
 ///
 ///
 /// # High-Level Serialization Flow
@@ -154,10 +156,10 @@ import 'validator_file.dart';
 ///
 /// # Notes
 ///
-/// - Must be updated whenever IR schema changes.  
-/// - Works closely with validators to ensure correctness.  
-/// - Performance-sensitive: avoid unnecessary traversal or string lookups.  
-/// - Output must remain binary-compatible across versions.  
+/// - Must be updated whenever IR schema changes.
+/// - Works closely with validators to ensure correctness.
+/// - Performance-sensitive: avoid unnecessary traversal or string lookups.
+/// - Output must remain binary-compatible across versions.
 ///
 ///
 /// ============================================================================
@@ -540,45 +542,67 @@ class BinaryIRWriter
   void _writeFileIRData(DartFile fileIR) {
     try {
       _irDataStartOffset = _buffer.length;
-      printlog('[WRITE FILE IR DATA] START');
+      printlog('[WRITE FILE IR DATA] START - offset: $_irDataStartOffset');
 
       writeUint32(getStringRef(fileIR.filePath));
       writeUint32(getStringRef(fileIR.contentHash));
       writeUint32(getStringRef(fileIR.library ?? "<unknown>"));
       writeUint64(DateTime.now().millisecondsSinceEpoch);
 
+      // âœ… Imports
       writeUint32(fileIR.imports.length);
+      printlog('[WRITE FILE IR] Imports: ${fileIR.imports.length}');
       for (final import in fileIR.imports) {
         writeImportStmt(import);
       }
 
+      // âœ… Exports
       writeUint32(fileIR.exports.length);
+      printlog('[WRITE FILE IR] Exports: ${fileIR.exports.length}');
       for (final export in fileIR.exports) {
         writeExportStmt(export);
       }
 
+      // âœ… Variables
       writeUint32(fileIR.variableDeclarations.length);
+      printlog(
+        '[WRITE FILE IR] Variables: ${fileIR.variableDeclarations.length}',
+      );
       for (final variable in fileIR.variableDeclarations) {
         writeVariableDecl(variable);
       }
 
+      // âœ… Functions (TOP-LEVEL)
       writeUint32(fileIR.functionDeclarations.length);
-      for (final func in fileIR.functionDeclarations) {
-        writeFunctionDecl(func);
+      printlog(
+        '[WRITE FILE IR] Functions: ${fileIR.functionDeclarations.length}',
+      );
+      for (int i = 0; i < fileIR.functionDeclarations.length; i++) {
+        try {
+          printlog(
+            '[WRITE FILE IR] Function $i/${fileIR.functionDeclarations.length}: '
+            '${fileIR.functionDeclarations[i].name}',
+          );
+          writeFunctionDecl(fileIR.functionDeclarations[i]);
+        } catch (e) {
+          printlog('[WRITE FILE IR ERROR] Function $i: $e');
+          rethrow;
+        }
       }
 
-      // ✅ NEW DEBUG: Before writing classes
-      printlog('\n[DEBUG] Before writing classes:');
-      printlog('Classes to write: ${fileIR.classDeclarations.length}');
-      printlog('String table size: ${_stringTable.length}');
-      printlog('Valid indices: 0-${_stringTable.length - 1}');
+      // âœ… Classes
+      printlog('[WRITE FILE IR] Classes: ${fileIR.classDeclarations.length}');
+      printlog('[DEBUG] Before writing classes:');
+      printlog('  Classes to write: ${fileIR.classDeclarations.length}');
+      printlog('  String table size: ${_stringTable.length}');
+      printlog('  Buffer offset: ${_buffer.length}');
 
-      // ✅ VERIFY each class ID is in the string table
+      // Verify each class ID is in the string table
       for (int i = 0; i < fileIR.classDeclarations.length; i++) {
         final classDecl = fileIR.classDeclarations[i];
 
         if (!_stringIndices.containsKey(classDecl.id)) {
-          printlog('\n❌ CLASS ID NOT IN STRING TABLE:');
+          printlog('\nâŒ CLASS ID NOT IN STRING TABLE:');
           printlog('   Class: ${classDecl.name}');
           printlog('   ID: "${classDecl.id}"');
           printlog('   Problem: This ID was never added to string table!');
@@ -599,12 +623,23 @@ class BinaryIRWriter
       writeUint32(fileIR.classDeclarations.length);
       printlog('[WRITE FILE IR] After classCount: ${_buffer.length}');
 
-      for (final classDecl in fileIR.classDeclarations) {
-        writeClassDecl(classDecl);
+      for (int i = 0; i < fileIR.classDeclarations.length; i++) {
+        try {
+          printlog(
+            '[WRITE FILE IR] Class $i/${fileIR.classDeclarations.length}: '
+            '${fileIR.classDeclarations[i].name}',
+          );
+          writeClassDecl(fileIR.classDeclarations[i]);
+        } catch (e) {
+          printlog('[WRITE FILE IR ERROR] Class $i: $e');
+          rethrow;
+        }
       }
       printlog('[WRITE FILE IR] After classes: ${_buffer.length}');
 
+      // âœ… Issues
       writeUint32(fileIR.analysisIssues.length);
+      printlog('[WRITE FILE IR] Issues: ${fileIR.analysisIssues.length}');
       for (final issue in fileIR.analysisIssues) {
         writeAnalysisIssue(issue);
       }
@@ -898,139 +933,603 @@ class BinaryIRWriter
   // FUNCTION DECLARATION WRITER - CLEAN & SYNCHRONIZED
   // ============================================================================
   @override
-  // ============================================================================
-  // FUNCTION DECLARATION WRITER - CLEAN & SYNCHRONIZED
-  // ============================================================================
   void writeFunctionDecl(FunctionDecl func) {
     printlog(
       '[WRITE FUNCTION] START - ${func.name} at offset ${buffer.length}',
     );
 
-    // ========== SECTION 1: Basic Metadata ==========
-    writeUint32(getStringRef(func.id));
-    writeUint32(getStringRef(func.name));
-    writeUint32(getStringRef(func.returnType.displayName()));
+    try {
+      // ========== SECTION 1: Basic Metadata ==========
+      writeUint32(getStringRef(func.id));
+      writeUint32(getStringRef(func.name));
+      writeUint32(getStringRef(func.returnType.displayName()));
+      printlog(
+        '[WRITE FUNCTION] Section 1 (metadata) at offset ${buffer.length}',
+      );
 
-    // ========== SECTION 2: Documentation ==========
-    writeByte(func.documentation != null ? 1 : 0);
-    if (func.documentation != null) {
-      writeUint32(getStringRef(func.documentation!));
-    }
-
-    // ========== SECTION 3: Type Parameters ==========
-    writeUint32(func.typeParameters.length);
-    for (final tp in func.typeParameters) {
-      writeUint32(getStringRef(tp.name));
-      writeByte(tp.bound != null ? 1 : 0);
-      if (tp.bound != null) {
-        writeType(tp.bound!);
-      }
-    }
-
-    // ========== SECTION 4: Parameters ==========
-    writeUint32(func.parameters.length);
-    for (final param in func.parameters) {
-      writeParameterDecl(param);
-    }
-
-    // ========== SECTION 5: Source Location ==========
-    writeSourceLocation(func.sourceLocation);
-
-    // ========== SECTION 6: Type-Specific Data ==========
-    if (func is ConstructorDecl) {
-      writeByte(1); // isConstructor flag
-
-      writeUint32(getStringRef(func.constructorClass ?? ''));
-      writeByte(func.constructorName != null ? 1 : 0);
-      if (func.constructorName != null) {
-        writeUint32(getStringRef(func.constructorName!));
+      // ========== SECTION 2: Documentation & Annotations ==========
+      writeByte(func.documentation != null ? 1 : 0);
+      if (func.documentation != null) {
+        writeUint32(getStringRef(func.documentation!));
       }
 
-      writeByte(func.isConst ? 1 : 0);
-      writeByte(func.isFactory ? 1 : 0);
-
-      // Initializers
-      writeUint32(func.initializers.length);
-      for (final init in func.initializers) {
-        writeUint32(getStringRef(init.fieldName));
-        writeByte(init.isThisField ? 1 : 0);
-        writeExpression(init.value);
-        writeSourceLocation(init.sourceLocation);
-      }
-
-      // Super call
-      writeByte(func.superCall != null ? 1 : 0);
-      if (func.superCall != null) {
-        writeByte(func.superCall!.constructorName != null ? 1 : 0);
-        if (func.superCall!.constructorName != null) {
-          writeUint32(getStringRef(func.superCall!.constructorName!));
-        }
-        writeUint32(func.superCall!.arguments.length);
-        for (final arg in func.superCall!.arguments) {
-          writeExpression(arg);
-        }
-        writeUint32(func.superCall!.namedArguments.length);
-        for (final entry in func.superCall!.namedArguments.entries) {
-          writeUint32(getStringRef(entry.key));
-          writeExpression(entry.value);
-        }
-        writeSourceLocation(func.superCall!.sourceLocation);
-      }
-
-      // Redirected call
-      writeByte(func.redirectedCall != null ? 1 : 0);
-      if (func.redirectedCall != null) {
-        writeByte(func.redirectedCall!.constructorName != null ? 1 : 0);
-        if (func.redirectedCall!.constructorName != null) {
-          writeUint32(getStringRef(func.redirectedCall!.constructorName!));
-        }
-        writeUint32(func.redirectedCall!.arguments.length);
-        for (final arg in func.redirectedCall!.arguments) {
-          writeExpression(arg);
-        }
-        writeUint32(func.redirectedCall!.namedArguments.length);
-        for (final entry in func.redirectedCall!.namedArguments.entries) {
-          writeUint32(getStringRef(entry.key));
-          writeExpression(entry.value);
-        }
-        writeSourceLocation(func.redirectedCall!.sourceLocation);
-      }
-
-      printlog('[WRITE FUNCTION] Constructor-specific data written');
-    } else if (func is MethodDecl) {
-      writeByte(2); // isMethod flag (2 instead of 1 to avoid confusion)
-
-      writeByte(func.className != null ? 1 : 0);
-      if (func.className != null) {
-        writeUint32(getStringRef(func.className!));
-      }
-
-      writeByte(func.overriddenSignature != null ? 1 : 0);
-      if (func.overriddenSignature != null) {
-        writeUint32(getStringRef(func.overriddenSignature!));
-      }
-
-      writeByte(func.isAsync ? 1 : 0);
-      writeByte(func.isGenerator ? 1 : 0);
-
-      printlog('[WRITE FUNCTION] Method-specific data written');
-    } else {
-      writeByte(0); // Regular function
-    }
-
-    // ========== SECTION 7: Function Body ==========
-    writeByte(func.body != null ? 1 : 0);
-    if (func.body != null) {
-      writeUint32(func.body!.length);
-      for (final stmt in func.body!) {
-        writeStatement(stmt);
+      // Annotations
+      writeUint32(func.annotations.length);
+      for (final ann in func.annotations) {
+        writeAnnotation(ann);
       }
       printlog(
-        '[WRITE FUNCTION] Body statements written: ${func.body!.length}',
+        '[WRITE FUNCTION] Section 2 (documentation/annotations) at offset ${buffer.length}',
       );
+
+      // ========== SECTION 3: Type Parameters ==========
+      writeUint32(func.typeParameters.length);
+      for (final tp in func.typeParameters) {
+        writeUint32(getStringRef(tp.name));
+        writeByte(tp.bound != null ? 1 : 0);
+        if (tp.bound != null) {
+          writeType(tp.bound!);
+        }
+      }
+      printlog(
+        '[WRITE FUNCTION] Section 3 (typeParameters) at offset ${buffer.length}',
+      );
+
+      // ========== SECTION 4: Parameters ==========
+      writeUint32(func.parameters.length);
+      for (final param in func.parameters) {
+        writeParameterDecl(param);
+      }
+      printlog(
+        '[WRITE FUNCTION] Section 4 (parameters) at offset ${buffer.length}',
+      );
+
+      // ========== SECTION 5: Source Location ==========
+      writeSourceLocation(func.sourceLocation);
+      printlog(
+        '[WRITE FUNCTION] Section 5 (sourceLocation) at offset ${buffer.length}',
+      );
+
+      // ========== SECTION 6: Type-Specific Data ==========
+      if (func is ConstructorDecl) {
+        writeByte(1); // isConstructor flag
+
+        writeUint32(getStringRef(func.constructorClass ?? ''));
+        writeByte(func.constructorName != null ? 1 : 0);
+        if (func.constructorName != null) {
+          writeUint32(getStringRef(func.constructorName!));
+        }
+
+        writeByte(func.isConst ? 1 : 0);
+        writeByte(func.isFactory ? 1 : 0);
+
+        // Initializers
+        writeUint32(func.initializers.length);
+        for (final init in func.initializers) {
+          writeUint32(getStringRef(init.fieldName));
+          writeByte(init.isThisField ? 1 : 0);
+          writeExpression(init.value);
+          writeSourceLocation(init.sourceLocation);
+        }
+
+        // Super call
+        writeByte(func.superCall != null ? 1 : 0);
+        if (func.superCall != null) {
+          writeByte(func.superCall!.constructorName != null ? 1 : 0);
+          if (func.superCall!.constructorName != null) {
+            writeUint32(getStringRef(func.superCall!.constructorName!));
+          }
+          writeUint32(func.superCall!.arguments.length);
+          for (final arg in func.superCall!.arguments) {
+            writeExpression(arg);
+          }
+          writeUint32(func.superCall!.namedArguments.length);
+          for (final entry in func.superCall!.namedArguments.entries) {
+            writeUint32(getStringRef(entry.key));
+            writeExpression(entry.value);
+          }
+          writeSourceLocation(func.superCall!.sourceLocation);
+        }
+
+        // Redirected call
+        writeByte(func.redirectedCall != null ? 1 : 0);
+        if (func.redirectedCall != null) {
+          writeByte(func.redirectedCall!.constructorName != null ? 1 : 0);
+          if (func.redirectedCall!.constructorName != null) {
+            writeUint32(getStringRef(func.redirectedCall!.constructorName!));
+          }
+          writeUint32(func.redirectedCall!.arguments.length);
+          for (final arg in func.redirectedCall!.arguments) {
+            writeExpression(arg);
+          }
+          writeUint32(func.redirectedCall!.namedArguments.length);
+          for (final entry in func.redirectedCall!.namedArguments.entries) {
+            writeUint32(getStringRef(entry.key));
+            writeExpression(entry.value);
+          }
+          writeSourceLocation(func.redirectedCall!.sourceLocation);
+        }
+
+        printlog(
+          '[WRITE FUNCTION] Section 6 (constructor-specific) at offset ${buffer.length}',
+        );
+      } else if (func is MethodDecl) {
+        writeByte(2); // isMethod flag
+
+        writeByte(func.className != null ? 1 : 0);
+        if (func.className != null) {
+          writeUint32(getStringRef(func.className!));
+        }
+
+        writeByte(func.overriddenSignature != null ? 1 : 0);
+        if (func.overriddenSignature != null) {
+          writeUint32(getStringRef(func.overriddenSignature!));
+        }
+
+        writeByte(func.isAsync ? 1 : 0);
+        writeByte(func.isGenerator ? 1 : 0);
+
+        printlog(
+          '[WRITE FUNCTION] Section 6 (method-specific) at offset ${buffer.length}',
+        );
+      } else {
+        writeByte(0); // Regular function
+        printlog(
+          '[WRITE FUNCTION] Section 6 (regular function) at offset ${buffer.length}',
+        );
+      }
+
+      // ========== SECTION 7: Function Body + Extraction Data ==========
+      writeFunctionBody(func.body);
+      printlog(
+        '[WRITE FUNCTION] Section 7 (body/extraction) at offset ${buffer.length}',
+      );
+
+      printlog(
+        '[WRITE FUNCTION] END - ${func.name} at offset ${buffer.length}',
+      );
+    } catch (e) {
+      printlog('[WRITE FUNCTION ERROR] ${func.name}: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================================
+  // NEW METHOD: Write FunctionBody with extraction data
+  // ============================================================================
+  void writeFunctionBody(FunctionBodyIR? body) {
+    writeByte(body != null ? 1 : 0);
+
+    if (body == null) {
+      printlog('[FUNCTION BODY] null body');
+      return;
     }
 
-    printlog('[WRITE FUNCTION] END - ${func.name} at offset ${buffer.length}');
+    // ========== Write statements ==========
+    writeUint32(body.statements.length);
+    printlog('[FUNCTION BODY] Statements: ${body.statements.length}');
+
+    for (int i = 0; i < body.statements.length; i++) {
+      try {
+        writeStatement(body.statements[i]);
+      } catch (e) {
+        printlog('[FUNCTION BODY ERROR] Statement $i: $e');
+        rethrow;
+      }
+    }
+
+    // ========== Write expressions ==========
+    writeUint32(body.expressions.length);
+    printlog('[FUNCTION BODY] Expressions: ${body.expressions.length}');
+
+    for (int i = 0; i < body.expressions.length; i++) {
+      try {
+        writeExpression(body.expressions[i]);
+      } catch (e) {
+        printlog('[FUNCTION BODY ERROR] Expression $i: $e');
+        rethrow;
+      }
+    }
+
+    // ========== Write extraction data ==========
+    writeByte(body.extractionData != null ? 1 : 0);
+    printlog(
+      '[FUNCTION BODY] Has extraction data: ${body.extractionData != null}',
+    );
+
+    if (body.extractionData != null) {
+      writeExtractionData(body.extractionData!);
+    }
+  }
+
+  void writeExtractionData(FunctionExtractionData data) {
+    printlog('[EXTRACTION DATA] Writing: ${data.extractionType}');
+
+    // Write extraction type
+    writeUint32(getStringRef(data.extractionType));
+
+    // Write components count and data
+    writeUint32(data.components.length);
+    printlog('[EXTRACTION DATA] Components: ${data.components.length}');
+
+    for (final component in data.components) {
+      writeFlutterComponent(component);
+    }
+
+    // Write pure function data flag
+    writeByte(data.pureFunctionData != null ? 1 : 0);
+    if (data.pureFunctionData != null) {
+      writePureFunctionComponent(data.pureFunctionData!);
+    }
+
+    // Write analysis data
+    writeUint32(data.analysis.length);
+    printlog('[EXTRACTION DATA] Analysis entries: ${data.analysis.length}');
+
+    for (final entry in data.analysis.entries) {
+      writeUint32(getStringRef(entry.key));
+      // Write value as string representation
+      final valueStr = entry.value.toString();
+      writeUint32(getStringRef(valueStr));
+    }
+
+    // Write metadata
+    writeExtractionMetadata(data.metadata);
+
+    // Write metrics
+    writeExtractionMetrics(data.metrics);
+
+    // Write validation
+    writeExtractionValidation(data.validation);
+
+    // Write diagnostics
+    writeUint32(data.diagnostics.length);
+    for (final diag in data.diagnostics) {
+      writeExtractionDiagnostic(diag);
+    }
+
+    printlog('[EXTRACTION DATA] Complete');
+  }
+
+  void writeFlutterComponent(FlutterComponent component) {
+    if (component is WidgetComponent) {
+      writeByte(0);
+      writeWidgetComponent(component);
+    } else if (component is ConditionalComponent) {
+      writeByte(1);
+      writeConditionalComponent(component);
+    } else if (component is LoopComponent) {
+      writeByte(2);
+      writeLoopComponent(component);
+    } else if (component is CollectionComponent) {
+      writeByte(3);
+      writeCollectionComponent(component);
+    } else if (component is BuilderComponent) {
+      writeByte(4);
+      writeBuilderComponent(component);
+    } else if (component is UnsupportedComponent) {
+      writeByte(5);
+      writeUnsupportedComponent(component);
+    } else if (component is ContainerFallbackComponent) {
+      writeByte(6);
+      writeContainerFallbackComponent(component);
+    } else {
+      writeByte(5); // Fallback to unsupported
+      writeUnsupportedComponent(
+        UnsupportedComponent(
+          id: component.id,
+          sourceCode: component.describe(),
+          reason: 'Unknown component type: ${component.runtimeType}',
+          sourceLocation: component.sourceLocation,
+        ),
+      );
+    }
+  }
+
+  void writeWidgetComponent(WidgetComponent widget) {
+    writeUint32(getStringRef(widget.id));
+    writeUint32(getStringRef(widget.widgetName));
+    writeUint32(getStringRef(widget.constructorName ?? ''));
+    writeByte(widget.isConst ? 1 : 0);
+    writeSourceLocation(widget.sourceLocation);
+
+    // Write properties
+    writeUint32(widget.properties.length);
+    for (final prop in widget.properties) {
+      writePropertyBinding(prop);
+    }
+
+    // Write children
+    writeUint32(widget.children.length);
+    for (final child in widget.children) {
+      writeFlutterComponent(child);
+    }
+  }
+
+  void writeConditionalComponent(ConditionalComponent cond) {
+    writeUint32(getStringRef(cond.id));
+    writeUint32(getStringRef(cond.conditionCode));
+    writeByte(cond.isTernary ? 1 : 0);
+    writeSourceLocation(cond.sourceLocation);
+
+    writeFlutterComponent(cond.thenComponent);
+
+    writeByte(cond.elseComponent != null ? 1 : 0);
+    if (cond.elseComponent != null) {
+      writeFlutterComponent(cond.elseComponent!);
+    }
+  }
+
+  void writeLoopComponent(LoopComponent loop) {
+    writeUint32(getStringRef(loop.id));
+    writeUint32(getStringRef(loop.loopKind));
+    writeUint32(getStringRef(loop.loopVariable ?? ''));
+    writeUint32(getStringRef(loop.iterableCode ?? ''));
+    writeUint32(getStringRef(loop.conditionCode ?? ''));
+    writeSourceLocation(loop.sourceLocation);
+
+    writeFlutterComponent(loop.bodyComponent);
+  }
+
+  void writeCollectionComponent(CollectionComponent coll) {
+    writeUint32(getStringRef(coll.id));
+    writeUint32(getStringRef(coll.collectionKind));
+    writeByte(coll.hasSpread ? 1 : 0);
+    writeSourceLocation(coll.sourceLocation);
+
+    writeUint32(coll.elements.length);
+    for (final elem in coll.elements) {
+      writeFlutterComponent(elem);
+    }
+  }
+
+  void writeBuilderComponent(BuilderComponent builder) {
+    writeUint32(getStringRef(builder.id));
+    writeUint32(getStringRef(builder.builderName));
+    writeByte(builder.isAsync ? 1 : 0);
+    writeSourceLocation(builder.sourceLocation);
+
+    writeUint32(builder.parameters.length);
+    for (final param in builder.parameters) {
+      writeUint32(getStringRef(param));
+    }
+
+    writeUint32(getStringRef(builder.bodyDescription ?? ''));
+  }
+
+  void writeUnsupportedComponent(UnsupportedComponent unsupported) {
+    writeUint32(getStringRef(unsupported.id));
+    writeUint32(getStringRef(unsupported.sourceCode));
+    writeUint32(getStringRef(unsupported.reason ?? ''));
+    writeSourceLocation(unsupported.sourceLocation);
+  }
+
+  void writeContainerFallbackComponent(ContainerFallbackComponent container) {
+    writeUint32(getStringRef(container.id));
+    writeUint32(getStringRef(container.reason));
+    writeSourceLocation(container.sourceLocation);
+
+    writeByte(container.wrappedComponent != null ? 1 : 0);
+    if (container.wrappedComponent != null) {
+      writeFlutterComponent(container.wrappedComponent!);
+    }
+  }
+
+  void writePropertyBinding(PropertyBinding binding) {
+    if (binding is LiteralPropertyBinding) {
+      writeByte(0);
+      writeUint32(getStringRef(binding.name));
+      writeUint32(getStringRef(binding.value));
+    } else if (binding is CallbackPropertyBinding) {
+      writeByte(1);
+      writeUint32(getStringRef(binding.name));
+      writeUint32(getStringRef(binding.value));
+      writeByte(binding.isAsync ? 1 : 0);
+      writeUint32(binding.parameters.length);
+      for (final param in binding.parameters) {
+        writeUint32(getStringRef(param));
+      }
+    } else if (binding is BuilderPropertyBinding) {
+      writeByte(2);
+      writeUint32(getStringRef(binding.name));
+      writeUint32(getStringRef(binding.value));
+      writeUint32(binding.parameters.length);
+      for (final param in binding.parameters) {
+        writeUint32(getStringRef(param));
+      }
+    }
+  }
+
+  void writePureFunctionComponent(FlutterComponent component) {
+    if (component is ComputationFunctionData) {
+      writeByte(0);
+      writeComputationFunctionData(component);
+    } else if (component is ValidationFunctionData) {
+      writeByte(1);
+      writeValidationFunctionData(component);
+    } else if (component is FactoryFunctionData) {
+      writeByte(2);
+      writeFactoryFunctionData(component);
+    } else if (component is HelperFunctionData) {
+      writeByte(3);
+      writeHelperFunctionData(component);
+    } else if (component is MixedFunctionData) {
+      writeByte(4);
+      writeMixedFunctionData(component);
+    }
+  }
+
+  void writeComputationFunctionData(ComputationFunctionData data) {
+    writeUint32(getStringRef(data.id));
+    writeUint32(getStringRef(data.displayName));
+    writeUint32(getStringRef(data.inputType));
+    writeUint32(getStringRef(data.outputType));
+    writeUint32(data.loopDepth);
+    writeUint32(data.conditionalDepth);
+    writeSourceLocation(data.sourceLocation);
+
+    // Write analysis map
+    writeUint32(data.analysis.length);
+    for (final entry in data.analysis.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
+    }
+
+    // Write computation steps
+    writeUint32(data.computationSteps.length);
+    for (final step in data.computationSteps) {
+      writeStatement(step);
+    }
+  }
+
+  void writeValidationFunctionData(ValidationFunctionData data) {
+    writeUint32(getStringRef(data.id));
+    writeUint32(getStringRef(data.displayName));
+    writeUint32(getStringRef(data.targetType));
+    writeUint32(getStringRef(data.returnType));
+    writeSourceLocation(data.sourceLocation);
+
+    // Write validation rules
+    writeUint32(data.validationRules.length);
+    for (final rule in data.validationRules) {
+      writeUint32(getStringRef(rule));
+    }
+
+    // Write analysis map
+    writeUint32(data.analysis.length);
+    for (final entry in data.analysis.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
+    }
+
+    // Write validation steps
+    writeUint32(data.validationSteps.length);
+    for (final step in data.validationSteps) {
+      writeStatement(step);
+    }
+  }
+
+  void writeFactoryFunctionData(FactoryFunctionData data) {
+    writeUint32(getStringRef(data.id));
+    writeUint32(getStringRef(data.displayName));
+    writeUint32(getStringRef(data.producedType));
+    writeSourceLocation(data.sourceLocation);
+
+    // Write parameters
+    writeUint32(data.parameters.length);
+    for (final param in data.parameters) {
+      writeUint32(getStringRef(param));
+    }
+
+    // Write initialized fields
+    writeUint32(data.initializedFields.length);
+    for (final field in data.initializedFields) {
+      writeUint32(getStringRef(field));
+    }
+
+    // Write analysis map
+    writeUint32(data.analysis.length);
+    for (final entry in data.analysis.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
+    }
+
+    // Write creation steps
+    writeUint32(data.creationSteps.length);
+    for (final step in data.creationSteps) {
+      writeStatement(step);
+    }
+  }
+
+  void writeHelperFunctionData(HelperFunctionData data) {
+    writeUint32(getStringRef(data.id));
+    writeUint32(getStringRef(data.displayName));
+    writeUint32(getStringRef(data.purpose));
+    writeSourceLocation(data.sourceLocation);
+
+    // Write side effects
+    writeUint32(data.sideEffects.length);
+    for (final effect in data.sideEffects) {
+      writeUint32(getStringRef(effect));
+    }
+
+    // Write analysis map
+    writeUint32(data.analysis.length);
+    for (final entry in data.analysis.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
+    }
+
+    // Write steps
+    writeUint32(data.steps.length);
+    for (final step in data.steps) {
+      writeStatement(step);
+    }
+  }
+
+  void writeMixedFunctionData(MixedFunctionData data) {
+    writeUint32(getStringRef(data.id));
+    writeUint32(getStringRef(data.displayName));
+    writeSourceLocation(data.sourceLocation);
+
+    // Write components
+    writeUint32(data.components.length);
+    for (final component in data.components) {
+      writeFlutterComponent(component);
+    }
+
+    // Write analysis map
+    writeUint32(data.analysis.length);
+    for (final entry in data.analysis.entries) {
+      writeUint32(getStringRef(entry.key));
+      writeUint32(getStringRef(entry.value.toString()));
+    }
+  }
+
+  // ============================================================================
+  // NEW METHOD: Write ExtractionValidation
+  // ============================================================================
+
+  void writeExtractionValidation(ExtractionValidation validation) {
+    writeByte(validation.isValid ? 1 : 0);
+
+    writeUint32(validation.errors.length);
+    for (final error in validation.errors) {
+      writeUint32(getStringRef(error));
+    }
+  }
+
+  // ============================================================================
+  // NEW METHOD: Write ExtractionDiagnostic
+  // ============================================================================
+
+  void writeExtractionDiagnostic(ExtractionDiagnostic diagnostic) {
+    writeByte(diagnostic.level.index);
+    writeUint32(getStringRef(diagnostic.message));
+    writeUint32(getStringRef(diagnostic.code ?? ''));
+  }
+
+  void writeExtractionMetadata(FunctionMetadata metadata) {
+    writeUint32(getStringRef(metadata.name));
+    writeUint32(getStringRef(metadata.type));
+    writeByte(metadata.isAsync ? 1 : 0);
+    writeByte(metadata.isGenerator ? 1 : 0);
+
+    writeByte(metadata.returnType != null ? 1 : 0);
+    if (metadata.returnType != null) {
+      writeUint32(getStringRef(metadata.returnType!));
+    }
+  }
+
+  // ============================================================================
+  // NEW METHOD: Write ExtractionMetrics
+  // ============================================================================
+
+  void writeExtractionMetrics(ExtractionMetrics metrics) {
+    writeUint64(metrics.duration.inMilliseconds);
+    writeUint32(metrics.componentsExtracted);
+    writeUint32(metrics.expressionsAnalyzed);
+    writeUint32(metrics.statementsProcessed);
   }
 
   @override
@@ -1178,7 +1677,143 @@ class BinaryIRWriter
     }
   }
 
-  @override
+  void collectStringsFromExtractionData(FunctionExtractionData data) {
+    addString(data.extractionType);
+
+    for (final component in data.components) {
+      collectStringsFromFlutterComponent(component);
+    }
+
+    if (data.pureFunctionData != null) {
+      collectStringsFromFlutterComponent(data.pureFunctionData!);
+    }
+
+    for (final entry in data.analysis.entries) {
+      addString(entry.key);
+      addString(entry.value.toString());
+    }
+
+    addString(data.metadata.name);
+    addString(data.metadata.type);
+    if (data.metadata.returnType != null) {
+      addString(data.metadata.returnType!);
+    }
+
+    for (final diag in data.diagnostics) {
+      addString(diag.message);
+      if (diag.code != null) {
+        addString(diag.code);
+      }
+    }
+  }
+
+  void collectStringsFromFlutterComponent(FlutterComponent component) {
+    addString(component.id);
+    addString(component.describe());
+    addString(component.sourceLocation.file);
+
+    if (component is WidgetComponent) {
+      addString(component.widgetName);
+      if (component.constructorName != null) {
+        addString(component.constructorName!);
+      }
+      for (final prop in component.properties) {
+        addString(prop.name);
+        addString(prop.value);
+      }
+      for (final child in component.children) {
+        collectStringsFromFlutterComponent(child);
+      }
+    } else if (component is ConditionalComponent) {
+      addString(component.conditionCode);
+      collectStringsFromFlutterComponent(component.thenComponent);
+      if (component.elseComponent != null) {
+        collectStringsFromFlutterComponent(component.elseComponent!);
+      }
+    } else if (component is LoopComponent) {
+      addString(component.loopKind);
+      if (component.loopVariable != null) {
+        addString(component.loopVariable!);
+      }
+      if (component.iterableCode != null) {
+        addString(component.iterableCode!);
+      }
+      if (component.conditionCode != null) {
+        addString(component.conditionCode!);
+      }
+      collectStringsFromFlutterComponent(component.bodyComponent);
+    } else if (component is CollectionComponent) {
+      addString(component.collectionKind);
+      for (final elem in component.elements) {
+        collectStringsFromFlutterComponent(elem);
+      }
+    } else if (component is BuilderComponent) {
+      addString(component.builderName);
+      for (final param in component.parameters) {
+        addString(param);
+      }
+      if (component.bodyDescription != null) {
+        addString(component.bodyDescription!);
+      }
+    } else if (component is UnsupportedComponent) {
+      addString(component.sourceCode);
+      if (component.reason != null) {
+        addString(component.reason!);
+      }
+    } else if (component is ComputationFunctionData) {
+      addString(component.displayName);
+      addString(component.inputType);
+      addString(component.outputType);
+      for (final entry in component.analysis.entries) {
+        addString(entry.key);
+        addString(entry.value.toString());
+      }
+    } else if (component is ValidationFunctionData) {
+      addString(component.displayName);
+      addString(component.targetType);
+      addString(component.returnType);
+      for (final rule in component.validationRules) {
+        addString(rule);
+      }
+      for (final entry in component.analysis.entries) {
+        addString(entry.key);
+        addString(entry.value.toString());
+      }
+    } else if (component is FactoryFunctionData) {
+      addString(component.displayName);
+      addString(component.producedType);
+      for (final param in component.parameters) {
+        addString(param);
+      }
+      for (final field in component.initializedFields) {
+        addString(field);
+      }
+      for (final entry in component.analysis.entries) {
+        addString(entry.key);
+        addString(entry.value.toString());
+      }
+    } else if (component is HelperFunctionData) {
+      addString(component.displayName);
+      addString(component.purpose);
+      for (final effect in component.sideEffects) {
+        addString(effect);
+      }
+      for (final entry in component.analysis.entries) {
+        addString(entry.key);
+        addString(entry.value.toString());
+      }
+    } else if (component is MixedFunctionData) {
+      addString(component.displayName);
+      for (final subComponent in component.components) {
+        collectStringsFromFlutterComponent(subComponent);
+      }
+      for (final entry in component.analysis.entries) {
+        addString(entry.key);
+        addString(entry.value.toString());
+      }
+    }
+  }
+
   @override
   void collectStringsFromClass(ClassDecl classDecl) {
     // ✅ MUST collect class ID and name FIRST
@@ -1234,9 +1869,15 @@ class BinaryIRWriter
         }
       }
 
-      // ✅ MUST collect from method body
+      // ✅ MUST collect from method body - NOW WITH EXTRACTION DATA!
       if (method.body != null) {
-        collectStringsFromStatements(method.body!);
+        collectStringsFromStatements(method.body!.statements);
+        collectStringsFromExpressions(method.body!.expressions);
+
+        // ✅ NEW: Collect from extraction data in FunctionBodyIR
+        if (method.body!.extractionData != null) {
+          collectStringsFromExtractionData(method.body!.extractionData!);
+        }
       }
     }
 
@@ -1266,10 +1907,23 @@ class BinaryIRWriter
         collectStringsFromExpression(init.value);
       }
 
-      // ✅ MUST collect from constructor body
+      // ✅ MUST collect from constructor body - NOW WITH EXTRACTION DATA!
       if (constructor.body != null) {
-        collectStringsFromStatements(constructor.body!);
+        collectStringsFromStatements(constructor.body!.statements);
+        collectStringsFromExpressions(constructor.body!.expressions);
+
+        // ✅ NEW: Collect from extraction data in FunctionBodyIR
+        if (constructor.body!.extractionData != null) {
+          collectStringsFromExtractionData(constructor.body!.extractionData!);
+        }
       }
+    }
+  }
+
+  // ✅ Helper method to collect from list of expressions
+  void collectStringsFromExpressions(List<ExpressionIR> expressions) {
+    for (final expr in expressions) {
+      collectStringsFromExpression(expr);
     }
   }
 
@@ -1441,7 +2095,6 @@ class BinaryIRWriter
   @override
   void collectStringsFromFunction(FunctionDecl func) {
     printlog('[COLLECT FUNCTION] ${func.name}');
-
     addString(func.id);
     addString(func.name);
     addString(func.returnType.displayName());
@@ -1472,6 +2125,20 @@ class BinaryIRWriter
       }
     }
 
+    // ✅ UPDATED: Collect from function body with new FunctionBodyIR structure
+    if (func.body != null) {
+      // ✅ Collect from statements list
+      collectStringsFromStatements(func.body!.statements);
+
+      // ✅ Collect from expressions list
+      collectStringsFromExpressions(func.body!.expressions);
+
+      // ✅ Collect from extraction data
+      if (func.body!.extractionData != null) {
+        collectStringsFromExtractionData(func.body!.extractionData!);
+      }
+    }
+
     if (func is ConstructorDecl) {
       if (func.constructorClass != null) {
         addString(func.constructorClass!);
@@ -1483,28 +2150,6 @@ class BinaryIRWriter
         addString(init.fieldName);
         collectStringsFromExpression(init.value);
       }
-
-      if (func.superCall != null) {
-        for (final arg in func.superCall!.arguments) {
-          collectStringsFromExpression(arg);
-        }
-        for (final arg in func.superCall!.namedArguments.values) {
-          collectStringsFromExpression(arg);
-        }
-      }
-
-      if (func.redirectedCall != null) {
-        for (final arg in func.redirectedCall!.arguments) {
-          collectStringsFromExpression(arg);
-        }
-        for (final arg in func.redirectedCall!.namedArguments.values) {
-          collectStringsFromExpression(arg);
-        }
-      }
-
-      if (func.body != null) {
-        collectStringsFromStatements(func.body!);
-      }
     }
 
     if (func is MethodDecl) {
@@ -1514,12 +2159,6 @@ class BinaryIRWriter
       if (func.overriddenSignature != null) {
         addString(func.overriddenSignature!);
       }
-      if (func.body != null) {
-        collectStringsFromStatements(func.body!);
-      }
-    }
-    if (func.body != null && func is! ConstructorDecl && func is! MethodDecl) {
-      collectStringsFromStatements(func.body!);
     }
   }
 }

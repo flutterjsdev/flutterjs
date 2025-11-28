@@ -5,8 +5,6 @@
 // Handles widget class, constructor with props, methods, and build()
 // ============================================================================
 
-
-
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/src/flutter_to_js/src/utils/code_gen_error.dart';
 import 'build_method_code_gen.dart';
@@ -660,7 +658,7 @@ class StatelessWidgetJSCodeGen {
       } else if (stmtCount > 0) {
         // ✓ FIXED: Generate statements with proper indentation
         if (method.body != null) {
-          for (final stmt in method.body!) {
+          for (final stmt in method.body!.statements) {
             try {
               final stmtCode = stmtCodeGen.generate(stmt);
               // ✓ FIXED: Split and indent each line
@@ -754,15 +752,15 @@ class StatelessWidgetJSCodeGen {
   // =========================================================================
 
   /// ✅ FIXED: Analyze method body type (List<StatementIR>?)
-  MethodBodyType _analyzeMethodBody(List<StatementIR>? body) {
+  MethodBodyType _analyzeMethodBody(FunctionBodyIR? body) {
     if (body == null) {
       return MethodBodyType.none;
     }
-    if (body.isEmpty) {
+    if (body.statements.isEmpty) {
       return MethodBodyType.empty;
     }
     // If we get here, body has statements
-    if (body.length == 1) {
+    if (body.statements.length == 1) {
       return MethodBodyType.singleStatement;
     }
     return MethodBodyType.multipleStatements;
@@ -785,25 +783,17 @@ class StatelessWidgetJSCodeGen {
   }
 
   /// ✅ FIXED: Get statement count from method body
-  int _getMethodStatementCount(List<StatementIR>? body) {
-    return body?.length ?? 0;
+  int _getMethodStatementCount(FunctionBodyIR? body) {
+    return body?.statements.length ?? 0;
   }
 
   /// ✅ FIXED: Check if method body contains specific statement type
-  bool _methodHasStatementType<T extends StatementIR>(List<StatementIR>? body) {
-    if (body == null || body.isEmpty) return false;
-    return body.any((stmt) => stmt is T);
+  bool _methodHasStatementType<T extends StatementIR>(FunctionBodyIR? body) {
+    if (body == null || body.statements.isEmpty) return false;
+    return body.statements.any((stmt) => stmt is T);
   }
 
-  /// ✓ NEW: Get first statement of specific type
-  T? _getFirstMethodStatement<T extends StatementIR>(List<StatementIR>? body) {
-    if (body == null || body.isEmpty) return null;
-    try {
-      return body.firstWhere((stmt) => stmt is T) as T;
-    } catch (e) {
-      return null;
-    }
-  }
+ 
 
   // =========================================================================
   // REPORTING

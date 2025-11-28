@@ -1,4 +1,5 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
+
 /// ============================================================================
 /// declaration_reader.dart
 /// Declaration Reader — Reconstructs Declarations in the FlutterJS IR
@@ -8,11 +9,11 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 /// binary IR format produced by `declaration_writer.dart`.
 ///
 /// A *declaration* represents any named entity in the FlutterJS IR:
-/// - variables  
-/// - function/method declarations  
-/// - parameters  
-/// - fields  
-/// - class-level items  
+/// - variables
+/// - function/method declarations
+/// - parameters
+/// - fields
+/// - class-level items
 ///
 /// This reader is the exact inverse of the declaration writer and guarantees
 /// the complete, accurate reconstruction of the IR’s symbol table.
@@ -20,13 +21,13 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///
 /// # Purpose
 ///
-/// Declarations define the **names, types, and scopes** of the entire IR.  
+/// Declarations define the **names, types, and scopes** of the entire IR.
 ///
 /// Without reconstructing declarations correctly:
-/// - expressions cannot resolve references  
-/// - statements cannot map to correct variables  
-/// - type information breaks  
-/// - UI generation becomes impossible  
+/// - expressions cannot resolve references
+/// - statements cannot map to correct variables
+/// - type information breaks
+/// - UI generation becomes impossible
 ///
 /// This module restores the symbol structure used throughout the IR graph.
 ///
@@ -37,10 +38,10 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///
 /// Each declaration begins with a binary tag:
 ///
-/// - variable declaration  
-/// - function declaration  
-/// - class member  
-/// - parameter declaration  
+/// - variable declaration
+/// - function declaration
+/// - class member
+/// - parameter declaration
 ///
 /// Controls the decoding path.
 ///
@@ -62,21 +63,21 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 /// ```
 ///
 /// Supports:
-/// - primitive types  
-/// - nullable types  
-/// - generics  
-/// - function types  
+/// - primitive types
+/// - nullable types
+/// - generics
+/// - function types
 ///
 ///
 /// ## 4. Read Modifiers & Flags
 ///
 /// Includes attributes such as:
-/// - const  
-/// - final  
-/// - static  
-/// - required  
-/// - optional  
-/// - visibility modifiers  
+/// - const
+/// - final
+/// - static
+/// - required
+/// - optional
+/// - visibility modifiers
 ///
 /// Ensures decoding matches the encoding schema.
 ///
@@ -90,26 +91,26 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 /// ```
 ///
 /// Handles:
-/// - literal initializers  
-/// - computed values  
-/// - builder expressions  
+/// - literal initializers
+/// - computed values
+/// - builder expressions
 ///
 ///
 /// ## 6. Read Function Declarations
 ///
 /// Includes:
-/// - return type  
-/// - parameters  
-/// - async / sync modifier  
-/// - function body (via statement reader)  
+/// - return type
+/// - parameters
+/// - async / sync modifier
+/// - function body (via statement reader)
 ///
 ///
 /// ## 7. Integrate Into IR Symbol Table
 ///
 /// Reader ensures:
-/// - declarations are assigned stable indices  
-/// - references can resolve immediately  
-/// - parent-scope is tracked  
+/// - declarations are assigned stable indices
+/// - references can resolve immediately
+/// - parent-scope is tracked
 ///
 ///
 /// # Example Binary Structure
@@ -134,24 +135,24 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 /// ```
 ///
 /// Called by:
-/// - `binary_ir_reader.dart`  
-/// - function / widget deserializers  
+/// - `binary_ir_reader.dart`
+/// - function / widget deserializers
 ///
 ///
 /// # Error Handling
 ///
 /// Throws:
-/// - malformed declaration tag  
-/// - invalid string reference  
-/// - missing type information  
-/// - invalid initializer expression  
+/// - malformed declaration tag
+/// - invalid string reference
+/// - missing type information
+/// - invalid initializer expression
 ///
 ///
 /// # Notes
 ///
-/// - Must stay symmetrical with declaration_writer.dart.  
-/// - Declaration order must match writer’s deterministic output.  
-/// - Ensure parameters are read before body statements.  
+/// - Must stay symmetrical with declaration_writer.dart.
+/// - Declaration order must match writer’s deterministic output.
+/// - Ensure parameters are read before body statements.
 ///
 ///
 /// ============================================================================
@@ -170,6 +171,7 @@ mixin DeclarationReader {
   StatementIR readStatement(); // ✅ Need this for reading function bodies
   ParameterDecl readParameterDecl();
   MethodDecl readMethodDecl();
+  FunctionExtractionData readFunctionExtractionData();
 
   ImportStmt readImportStmt() {
     final uri = readStringRef();
@@ -341,6 +343,7 @@ mixin DeclarationReader {
   }
 
   // ✅ FIXED: Read constructor body statements and initializers
+  @override
   ConstructorDecl readConstructorDecl() {
     final id = readStringRef();
     final constructorClass = readStringRef();
@@ -359,7 +362,7 @@ mixin DeclarationReader {
 
     final sourceLocation = readSourceLocation();
 
-    // ✅ NEW: Read constructor initializers
+    // ✓ NEW: Read constructor initializers
     final initCount = readUint32();
     final initializers = <ConstructorInitializer>[];
     for (int i = 0; i < initCount; i++) {
@@ -377,15 +380,28 @@ mixin DeclarationReader {
       );
     }
 
-    // ✅ NEW: Read constructor body statements
+    // ✓ NEW: Read constructor body statements with extraction data
     final hasBody = readByte() != 0;
-    List<StatementIR>? body;
+    FunctionBodyIR? functionBody;
     if (hasBody) {
       final stmtCount = readUint32();
-      body = <StatementIR>[];
+      final statements = <StatementIR>[];
       for (int i = 0; i < stmtCount; i++) {
-        body.add(readStatement());
+        statements.add(readStatement());
       }
+
+      // ✓ NEW: Read extraction data
+      final hasExtractionData = readByte() != 0;
+      FunctionExtractionData? extractionData;
+      if (hasExtractionData) {
+        extractionData = readFunctionExtractionData();
+      }
+
+      functionBody = FunctionBodyIR(
+        statements: statements,
+        expressions: [],
+        extractionData: extractionData,
+      );
     }
 
     return ConstructorDecl(
@@ -397,8 +413,8 @@ mixin DeclarationReader {
       isConst: isConst,
       isFactory: isFactory,
       sourceLocation: sourceLocation,
-      body: body, // ✅ NOW INCLUDED
-      initializers: initializers, // ✅ NOW INCLUDED
+      body: functionBody, // ✓ NOW INCLUDED
+      initializers: initializers, // ✓ NOW INCLUDED
     );
   }
 }

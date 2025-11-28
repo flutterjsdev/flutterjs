@@ -9,14 +9,18 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:flutterjs_core/src/analysis/extraction/widget_function_extractor.dart';
 import 'package:flutterjs_core/src/ir/flutter/widget_metadata.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_reader/declaration_reader.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_reader/expression_reader.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_reader/reader.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_reader/type_reader.dart';
 
+import '../../analysis/extraction/flutter_component_system.dart';
+import '../../analysis/extraction/symmetric_function_extraction.dart';
 import '../binary_ir_writer/ir_relationship_registry.dart';
 import 'statement_reader.dart';
+
 /// ============================================================================
 /// binary_ir_reader.dart
 /// Binary IR Reader — Reconstructs FlutterJS IR From Binary Format
@@ -40,21 +44,21 @@ import 'statement_reader.dart';
 ///
 /// # Purpose
 ///
-/// The FlutterJS compiler stores IR in a **compact binary format**.  
+/// The FlutterJS compiler stores IR in a **compact binary format**.
 /// BinaryIRReader turns that byte stream back into a fully structured IR tree:
 ///
-/// - widget metadata  
-/// - declarations  
-/// - types  
-/// - statements  
-/// - expressions  
-/// - relationships  
+/// - widget metadata
+/// - declarations
+/// - types
+/// - statements
+/// - expressions
+/// - relationships
 ///
 /// This enables:
-/// - debugging  
-/// - JS code generation  
-/// - visualization tools  
-/// - re-analysis or incremental rebuilds  
+/// - debugging
+/// - JS code generation
+/// - visualization tools
+/// - re-analysis or incremental rebuilds
 ///
 ///
 /// # Responsibilities
@@ -71,20 +75,20 @@ import 'statement_reader.dart';
 /// ## 2. Read and Verify Binary Headers
 ///
 /// Validates:
-/// - magic number  
-/// - binary schema version  
-/// - section layout  
+/// - magic number
+/// - binary schema version
+/// - section layout
 ///
 /// Failure results in:
-/// - `BinaryFormatException`  
+/// - `BinaryFormatException`
 ///
 ///
 /// ## 3. Read String Table
 ///
 /// Reads:
-/// - string count  
-/// - UTF-8 blobs  
-/// - rebuilds StringTable mapping  
+/// - string count
+/// - UTF-8 blobs
+/// - rebuilds StringTable mapping
 ///
 /// All named IR components depend on this table.
 ///
@@ -97,18 +101,18 @@ import 'statement_reader.dart';
 /// ```
 ///
 /// Rebuilds:
-/// - primitives  
-/// - class types  
-/// - function types  
-/// - generic structures  
+/// - primitives
+/// - class types
+/// - function types
+/// - generic structures
 ///
 ///
 /// ## 5. Deserialize Declarations
 ///
 /// Reads:
-/// - variable declarations  
-/// - function definitions  
-/// - constructor signatures  
+/// - variable declarations
+/// - function definitions
+/// - constructor signatures
 ///
 /// via:
 /// ```dart
@@ -137,9 +141,9 @@ import 'statement_reader.dart';
 /// ## 8. Deserialize Relationships
 ///
 /// Loads IR graph edges:
-/// - parent → child  
-/// - declaration → reference  
-/// - type → usage  
+/// - parent → child
+/// - declaration → reference
+/// - type → usage
 ///
 /// Ensures IR graph integrity.
 ///
@@ -147,9 +151,9 @@ import 'statement_reader.dart';
 /// ## 9. Build Complete IR Tree
 ///
 /// Once all sections are decoded:
-/// - nodes are linked  
-/// - parent/child structure restored  
-/// - declarations tied to references  
+/// - nodes are linked
+/// - parent/child structure restored
+/// - declarations tied to references
 ///
 ///
 /// # Example Usage
@@ -163,17 +167,17 @@ import 'statement_reader.dart';
 /// # Error Handling
 ///
 /// Throws:
-/// - `BinaryFormatException`  
-/// - `IRValidationException` (if semantic issues found)  
-/// - `RangeError` for string/offset violations  
+/// - `BinaryFormatException`
+/// - `IRValidationException` (if semantic issues found)
+/// - `RangeError` for string/offset violations
 ///
 ///
 /// # Notes
 ///
-/// - Must remain 100% symmetric with Binary IR Writer.  
-/// - Changes in encoding require matching updates here.  
-/// - Must rebuild relationships *after* nodes are read.  
-/// - Decoder must gracefully detect broken or partial binaries.  
+/// - Must remain 100% symmetric with Binary IR Writer.
+/// - Changes in encoding require matching updates here.
+/// - Must rebuild relationships *after* nodes are read.
+/// - Decoder must gracefully detect broken or partial binaries.
 ///
 ///
 /// ============================================================================
@@ -1087,7 +1091,6 @@ class BinaryIRReader
     );
   }
 
-  @override
   // ============================================================================
   // FUNCTION DECLARATION READER - CLEAN & SYNCHRONIZED
   // ============================================================================
@@ -1105,12 +1108,6 @@ class BinaryIRReader
     if (hasDocumentation) {
       documentation = readStringRef();
     }
-
-    // final annotationCount = readUint32();
-    // final annotations = <AnnotationIR>[];
-    // for (int i = 0; i < annotationCount; i++) {
-    //   annotations.add(readAnnotation());
-    // }
 
     // ========== SECTION 3: Type Parameters ==========
     final typeParameterCount = readUint32();
@@ -1224,15 +1221,28 @@ class BinaryIRReader
         );
       }
 
-      // ========== SECTION 7: Function Body ==========
+      // ========== SECTION 7: Function Body with FunctionExtractionData ==========
       final hasBody = readByte() != 0;
-      List<StatementIR>? body;
+      FunctionBodyIR? functionBody;
       if (hasBody) {
         final stmtCount = readUint32();
-        body = <StatementIR>[];
+        final statements = <StatementIR>[];
         for (int i = 0; i < stmtCount; i++) {
-          body.add(readStatement());
+          statements.add(readStatement());
         }
+
+        // Read extraction data
+        final hasExtractionData = readByte() != 0;
+        FunctionExtractionData? extractionData;
+        if (hasExtractionData) {
+          extractionData = readFunctionExtractionData();
+        }
+
+        functionBody = FunctionBodyIR(
+          statements: statements,
+          expressions: [],
+          extractionData: extractionData,
+        );
       }
 
       return ConstructorDecl(
@@ -1244,7 +1254,7 @@ class BinaryIRReader
         isConst: isConst,
         isFactory: isFactory,
         sourceLocation: sourceLocation,
-        body: body,
+        body: functionBody,
         initializers: initializers,
         superCall: superCall,
         redirectedCall: redirectedCall,
@@ -1263,15 +1273,28 @@ class BinaryIRReader
       final isAsync = readByte() != 0;
       final isGenerator = readByte() != 0;
 
-      // ========== SECTION 7: Function Body ==========
+      // ========== SECTION 7: Function Body with FunctionExtractionData ==========
       final hasBody = readByte() != 0;
-      List<StatementIR>? body;
+      FunctionBodyIR? functionBody;
       if (hasBody) {
         final stmtCount = readUint32();
-        body = <StatementIR>[];
+        final statements = <StatementIR>[];
         for (int i = 0; i < stmtCount; i++) {
-          body.add(readStatement());
+          statements.add(readStatement());
         }
+
+        // Read extraction data
+        final hasExtractionData = readByte() != 0;
+        FunctionExtractionData? extractionData;
+        if (hasExtractionData) {
+          extractionData = readFunctionExtractionData();
+        }
+
+        functionBody = FunctionBodyIR(
+          statements: statements,
+          expressions: [],
+          extractionData: extractionData,
+        );
       }
 
       return MethodDecl(
@@ -1284,21 +1307,34 @@ class BinaryIRReader
         sourceLocation: sourceLocation,
         className: className,
         overriddenSignature: overriddenSignature,
-        body: body,
+        body: functionBody,
         documentation: documentation,
       );
     } else {
       // ========== REGULAR FUNCTION ==========
 
-      // ========== SECTION 7: Function Body ==========
+      // ========== SECTION 7: Function Body with FunctionExtractionData ==========
       final hasBody = readByte() != 0;
-      List<StatementIR>? body;
+      FunctionBodyIR? functionBody;
       if (hasBody) {
         final stmtCount = readUint32();
-        body = <StatementIR>[];
+        final statements = <StatementIR>[];
         for (int i = 0; i < stmtCount; i++) {
-          body.add(readStatement());
+          statements.add(readStatement());
         }
+
+        // Read extraction data
+        final hasExtractionData = readByte() != 0;
+        FunctionExtractionData? extractionData;
+        if (hasExtractionData) {
+          extractionData = readFunctionExtractionData();
+        }
+
+        functionBody = FunctionBodyIR(
+          statements: statements,
+          expressions: [],
+          extractionData: extractionData,
+        );
       }
 
       return FunctionDecl(
@@ -1309,7 +1345,7 @@ class BinaryIRReader
         isAsync: false,
         isGenerator: false,
         sourceLocation: sourceLocation,
-        body: body,
+        body: functionBody,
         documentation: documentation,
       );
     }
@@ -1360,7 +1396,7 @@ class BinaryIRReader
     final isGetter = readByte() != 0;
     final isSetter = readByte() != 0;
 
-    // ✅ NEW: Read Widget type flag
+    // ✓ NEW: Read Widget type flag
     final isWidgetReturn = readByte() != 0;
 
     // CRITICAL: Read parameter count
@@ -1382,16 +1418,28 @@ class BinaryIRReader
 
     final sourceLocation = readSourceLocation();
 
-    // ✅ CRITICAL FIX: Always read method body statements
-    // This was the bug - abstract methods still have body flags in the binary format
+    // ✓ CRITICAL FIX: Always read method body statements with extraction data
     final hasBody = readByte() != 0;
-    List<StatementIR>? body;
+    FunctionBodyIR? functionBody;
     if (hasBody) {
       final stmtCount = readUint32();
-      body = <StatementIR>[];
+      final statements = <StatementIR>[];
       for (int i = 0; i < stmtCount; i++) {
-        body.add(readStatement());
+        statements.add(readStatement());
       }
+
+      // ✓ NEW: Read extraction data
+      final hasExtractionData = readByte() != 0;
+      FunctionExtractionData? extractionData;
+      if (hasExtractionData) {
+        extractionData = readFunctionExtractionData();
+      }
+
+      functionBody = FunctionBodyIR(
+        statements: statements,
+        expressions: [],
+        extractionData: extractionData,
+      );
     }
 
     return MethodDecl(
@@ -1406,8 +1454,579 @@ class BinaryIRReader
       isGetter: isGetter,
       isSetter: isSetter,
       sourceLocation: sourceLocation,
-      body: body, // ✅ NOW INCLUDED
-      isWidgetReturnType: isWidgetReturn, // ✅ NEW FIELD
+      body: functionBody, // ✓ NOW INCLUDED
+      isWidgetReturnType: isWidgetReturn, // ✓ NEW FIELD
+    );
+  }
+
+@override
+  FunctionExtractionData readFunctionExtractionData() {
+    try {
+      // Read extraction type
+      final extractionType = readStringRef();
+
+      // Read component count
+      final componentCount = readUint32();
+      final components = <FlutterComponent>[];
+      for (int i = 0; i < componentCount; i++) {
+        components.add(_readFlutterComponent());
+      }
+
+      // Read pure function data flag
+      final hasPureFunctionData = readByte() != 0;
+      FlutterComponent? pureFunctionData;
+      if (hasPureFunctionData) {
+        pureFunctionData = _readPureFunctionComponent();
+      }
+
+      // Read analysis map
+      final analysisMapSize = readUint32();
+      final analysis = <String, dynamic>{};
+      for (int i = 0; i < analysisMapSize; i++) {
+        final key = readStringRef();
+        final value = readStringRef(); // Simplified: stored as string
+        analysis[key] = value;
+      }
+
+      // Read metadata
+      final metadata = _readFunctionMetadata();
+
+      // Read metrics
+      final metrics = _readExtractionMetrics();
+
+      // Read validation
+      final validation = _readExtractionValidation();
+
+      // Read diagnostics
+      final diagnosticCount = readUint32();
+      final diagnostics = <ExtractionDiagnostic>[];
+      for (int i = 0; i < diagnosticCount; i++) {
+        diagnostics.add(_readExtractionDiagnostic());
+      }
+
+      printlog(
+        '[READ EXTRACTION DATA] Type: $extractionType, Components: $componentCount',
+      );
+
+      return FunctionExtractionData(
+        extractionType: extractionType,
+        components: components,
+        pureFunctionData: pureFunctionData,
+        analysis: analysis,
+        expressions: [],
+        statements: [],
+        metadata: metadata,
+        metrics: metrics,
+        validation: validation,
+        diagnostics: diagnostics,
+      );
+    } catch (e) {
+      throw SerializationException(
+        'Failed to read extraction data: $e',
+        offset: _offset,
+      );
+    }
+  }
+
+  FlutterComponent _readPureFunctionComponent() {
+    final pureFuncType = readByte();
+
+    switch (pureFuncType) {
+      case 0: // ComputationFunctionData
+        return _readComputationFunctionData();
+      case 1: // ValidationFunctionData
+        return _readValidationFunctionData();
+      case 2: // FactoryFunctionData
+        return _readFactoryFunctionData();
+      case 3: // HelperFunctionData
+        return _readHelperFunctionData();
+      case 4: // MixedFunctionData
+        return _readMixedFunctionData();
+      default:
+        throw SerializationException(
+          'Unknown pure function type: $pureFuncType',
+          offset: _offset - 1,
+        );
+    }
+  }
+
+  FlutterComponent _readFlutterComponent() {
+    final componentType = readByte();
+
+    switch (componentType) {
+      case 0: // WidgetComponent
+        return _readWidgetComponent();
+      case 1: // ConditionalComponent
+        return _readConditionalComponent();
+      case 2: // LoopComponent
+        return _readLoopComponent();
+      case 3: // CollectionComponent
+        return _readCollectionComponent();
+      case 4: // BuilderComponent
+        return _readBuilderComponent();
+      case 5: // UnsupportedComponent
+        return _readUnsupportedComponent();
+      case 6: // ContainerFallbackComponent
+        return _readContainerFallbackComponent();
+      default:
+        throw SerializationException(
+          'Unknown component type: $componentType',
+          offset: _offset - 1,
+        );
+    }
+  }
+
+  ContainerFallbackComponent _readContainerFallbackComponent() {
+    final id = readStringRef();
+    final reason = readStringRef();
+    final sourceLocation = readSourceLocation();
+
+    final hasWrapped = readByte() != 0;
+    FlutterComponent? wrappedComponent;
+    if (hasWrapped) {
+      wrappedComponent = _readFlutterComponent();
+    }
+
+    return ContainerFallbackComponent(
+      id: id,
+      reason: reason,
+      sourceLocation: sourceLocation,
+      wrappedComponent: wrappedComponent,
+    );
+  }
+
+  CollectionComponent _readCollectionComponent() {
+    final id = readStringRef();
+    final collectionKind = readStringRef();
+    final hasSpread = readByte() != 0;
+    final sourceLocation = readSourceLocation();
+
+    final elemCount = readUint32();
+    final elements = <FlutterComponent>[];
+    for (int i = 0; i < elemCount; i++) {
+      elements.add(_readFlutterComponent());
+    }
+
+    return CollectionComponent(
+      id: id,
+      collectionKind: collectionKind,
+      elements: elements,
+      hasSpread: hasSpread,
+      sourceLocation: sourceLocation,
+    );
+  }
+
+  BuilderComponent _readBuilderComponent() {
+    final id = readStringRef();
+    final builderName = readStringRef();
+    final isAsync = readByte() != 0;
+    final sourceLocation = readSourceLocation();
+
+    final paramCount = readUint32();
+    final parameters = <String>[];
+    for (int i = 0; i < paramCount; i++) {
+      parameters.add(readStringRef());
+    }
+
+    final bodyDescription = readStringRef();
+
+    return BuilderComponent(
+      id: id,
+      builderName: builderName,
+      parameters: parameters,
+      isAsync: isAsync,
+      sourceLocation: sourceLocation,
+      bodyDescription: bodyDescription.isEmpty ? null : bodyDescription,
+    );
+  }
+
+  UnsupportedComponent _readUnsupportedComponent() {
+    final id = readStringRef();
+    final sourceCode = readStringRef();
+    final reason = readStringRef();
+    final sourceLocation = readSourceLocation();
+
+    return UnsupportedComponent(
+      id: id,
+      sourceCode: sourceCode,
+      reason: reason.isEmpty ? null : reason,
+      sourceLocation: sourceLocation,
+    );
+  }
+
+  LoopComponent _readLoopComponent() {
+    final id = readStringRef();
+    final loopKind = readStringRef();
+    final loopVariable = readStringRef();
+    final iterableCode = readStringRef();
+    final conditionCode = readStringRef();
+    final sourceLocation = readSourceLocation();
+
+    final bodyComponent = _readFlutterComponent();
+
+    return LoopComponent(
+      id: id,
+      loopKind: loopKind,
+      loopVariable: loopVariable.isEmpty ? null : loopVariable,
+      iterableCode: iterableCode.isEmpty ? null : iterableCode,
+      conditionCode: conditionCode.isEmpty ? null : conditionCode,
+      bodyComponent: bodyComponent,
+      sourceLocation: sourceLocation,
+    );
+  }
+
+  ConditionalComponent _readConditionalComponent() {
+    final id = readStringRef();
+    final conditionCode = readStringRef();
+    final isTernary = readByte() != 0;
+    final sourceLocation = readSourceLocation();
+
+    final thenComponent = _readFlutterComponent();
+    final hasElse = readByte() != 0;
+    FlutterComponent? elseComponent;
+    if (hasElse) {
+      elseComponent = _readFlutterComponent();
+    }
+
+    return ConditionalComponent(
+      id: id,
+      conditionCode: conditionCode,
+      thenComponent: thenComponent,
+      elseComponent: elseComponent,
+      isTernary: isTernary,
+      sourceLocation: sourceLocation,
+    );
+  }
+
+  FunctionMetadata _readFunctionMetadata() {
+    final name = readStringRef();
+    final type = readStringRef();
+    final isAsync = readByte() != 0;
+    final isGenerator = readByte() != 0;
+    final returnType = readStringRef();
+
+    return FunctionMetadata(
+      name: name,
+      type: type,
+      isAsync: isAsync,
+      isGenerator: isGenerator,
+      returnType: returnType.isEmpty ? null : returnType,
+    );
+  }
+
+  ExtractionMetrics _readExtractionMetrics() {
+    final durationMs = readUint64();
+    final componentsExtracted = readUint32();
+    final expressionsAnalyzed = readUint32();
+    final statementsProcessed = readUint32();
+
+    return ExtractionMetrics(
+      duration: Duration(milliseconds: durationMs.toInt()),
+      componentsExtracted: componentsExtracted,
+      expressionsAnalyzed: expressionsAnalyzed,
+      statementsProcessed: statementsProcessed,
+    );
+  }
+
+  ExtractionValidation _readExtractionValidation() {
+    final isValid = readByte() != 0;
+    final errorCount = readUint32();
+    final errors = <String>[];
+    for (int i = 0; i < errorCount; i++) {
+      errors.add(readStringRef());
+    }
+
+    return ExtractionValidation(isValid: isValid, errors: errors);
+  }
+
+  ExtractionDiagnostic _readExtractionDiagnostic() {
+    final levelIndex = readByte();
+    final level = DiagnosticLevel.values[levelIndex];
+    final message = readStringRef();
+    final code = readStringRef();
+
+    return ExtractionDiagnostic(
+      level: level,
+      message: message,
+      code: code.isEmpty ? "" : code,
+    );
+  }
+
+  WidgetComponent _readWidgetComponent() {
+    final id = readStringRef();
+    final widgetName = readStringRef();
+    final constructorName = readStringRef();
+    final isConst = readByte() != 0;
+    final sourceLocation = readSourceLocation();
+
+    // Read properties
+    final propCount = readUint32();
+    final properties = <PropertyBinding>[];
+    for (int i = 0; i < propCount; i++) {
+      properties.add(_readPropertyBinding());
+    }
+
+    // Read children
+    final childCount = readUint32();
+    final children = <FlutterComponent>[];
+    for (int i = 0; i < childCount; i++) {
+      children.add(_readFlutterComponent());
+    }
+
+    return WidgetComponent(
+      id: id,
+      widgetName: widgetName,
+      constructorName: constructorName.isEmpty ? null : constructorName,
+      properties: properties,
+      children: children,
+      isConst: isConst,
+      sourceLocation: sourceLocation,
+    );
+  }
+
+  PropertyBinding _readPropertyBinding() {
+    final bindingType = readByte();
+
+    switch (bindingType) {
+      case 0: // LiteralPropertyBinding
+        final name = readStringRef();
+        final value = readStringRef();
+        return LiteralPropertyBinding(name: name, value: value);
+
+      case 1: // CallbackPropertyBinding
+        final name = readStringRef();
+        final value = readStringRef();
+        final isAsync = readByte() != 0;
+        final paramCount = readUint32();
+        final parameters = <String>[];
+        for (int i = 0; i < paramCount; i++) {
+          parameters.add(readStringRef());
+        }
+        return CallbackPropertyBinding(
+          name: name,
+          value: value,
+          parameters: parameters,
+          isAsync: isAsync,
+        );
+
+      case 2: // BuilderPropertyBinding
+        final name = readStringRef();
+        final value = readStringRef();
+        final paramCount = readUint32();
+        final parameters = <String>[];
+        for (int i = 0; i < paramCount; i++) {
+          parameters.add(readStringRef());
+        }
+        return BuilderPropertyBinding(
+          name: name,
+          value: value,
+          parameters: parameters,
+        );
+
+      default:
+        throw SerializationException(
+          'Unknown property binding type: $bindingType',
+          offset: _offset - 1,
+        );
+    }
+  }
+
+  ComputationFunctionData _readComputationFunctionData() {
+    final id = readStringRef();
+    final displayName = readStringRef();
+    final inputType = readStringRef();
+    final outputType = readStringRef();
+    final loopDepth = readUint32();
+    final conditionalDepth = readUint32();
+    final sourceLocation = readSourceLocation();
+
+    // Read analysis map
+    final analysisSize = readUint32();
+    final analysis = <String, dynamic>{};
+    for (int i = 0; i < analysisSize; i++) {
+      final key = readStringRef();
+      final value = readStringRef();
+      analysis[key] = value;
+    }
+
+    // Note: computation steps are simplified here - in full implementation,
+    // you'd read the full StatementIR list
+    final stepCount = readUint32();
+    final steps = <StatementIR>[];
+    for (int i = 0; i < stepCount; i++) {
+      steps.add(readStatement());
+    }
+
+    return ComputationFunctionData(
+      id: id,
+      displayName: displayName,
+      inputType: inputType,
+      outputType: outputType,
+      computationSteps: steps,
+      sourceLocation: sourceLocation,
+      loopDepth: loopDepth.toInt(),
+      conditionalDepth: conditionalDepth.toInt(),
+      analysis: analysis,
+    );
+  }
+
+  ValidationFunctionData _readValidationFunctionData() {
+    final id = readStringRef();
+    final displayName = readStringRef();
+    final targetType = readStringRef();
+    final returnType = readStringRef();
+    final sourceLocation = readSourceLocation();
+
+    // Read validation rules
+    final ruleCount = readUint32();
+    final rules = <String>[];
+    for (int i = 0; i < ruleCount; i++) {
+      rules.add(readStringRef());
+    }
+
+    // Read analysis map
+    final analysisSize = readUint32();
+    final analysis = <String, dynamic>{};
+    for (int i = 0; i < analysisSize; i++) {
+      final key = readStringRef();
+      final value = readStringRef();
+      analysis[key] = value;
+    }
+
+    // Read validation steps
+    final stepCount = readUint32();
+    final steps = <StatementIR>[];
+    for (int i = 0; i < stepCount; i++) {
+      steps.add(readStatement());
+    }
+
+    return ValidationFunctionData(
+      id: id,
+      displayName: displayName,
+      targetType: targetType,
+      validationRules: rules,
+      returnType: returnType,
+      validationSteps: steps,
+      sourceLocation: sourceLocation,
+      analysis: analysis,
+    );
+  }
+
+  FactoryFunctionData _readFactoryFunctionData() {
+    final id = readStringRef();
+    final displayName = readStringRef();
+    final producedType = readStringRef();
+    final sourceLocation = readSourceLocation();
+
+    // Read parameters
+    final paramCount = readUint32();
+    final parameters = <String>[];
+    for (int i = 0; i < paramCount; i++) {
+      parameters.add(readStringRef());
+    }
+
+    // Read initialized fields
+    final fieldCount = readUint32();
+    final initializedFields = <String>[];
+    for (int i = 0; i < fieldCount; i++) {
+      initializedFields.add(readStringRef());
+    }
+
+    // Read analysis map
+    final analysisSize = readUint32();
+    final analysis = <String, dynamic>{};
+    for (int i = 0; i < analysisSize; i++) {
+      final key = readStringRef();
+      final value = readStringRef();
+      analysis[key] = value;
+    }
+
+    // Read creation steps
+    final stepCount = readUint32();
+    final steps = <StatementIR>[];
+    for (int i = 0; i < stepCount; i++) {
+      steps.add(readStatement());
+    }
+
+    return FactoryFunctionData(
+      id: id,
+      displayName: displayName,
+      producedType: producedType,
+      parameters: parameters,
+      creationSteps: steps,
+      initializedFields: initializedFields,
+      sourceLocation: sourceLocation,
+      analysis: analysis,
+    );
+  }
+
+  HelperFunctionData _readHelperFunctionData() {
+    final id = readStringRef();
+    final displayName = readStringRef();
+    final purpose = readStringRef();
+    final sourceLocation = readSourceLocation();
+
+    // Read side effects
+    final effectCount = readUint32();
+    final sideEffects = <String>[];
+    for (int i = 0; i < effectCount; i++) {
+      sideEffects.add(readStringRef());
+    }
+
+    // Read analysis map
+    final analysisSize = readUint32();
+    final analysis = <String, dynamic>{};
+    for (int i = 0; i < analysisSize; i++) {
+      final key = readStringRef();
+      final value = readStringRef();
+      analysis[key] = value;
+    }
+
+    // Read steps
+    final stepCount = readUint32();
+    final steps = <StatementIR>[];
+    for (int i = 0; i < stepCount; i++) {
+      steps.add(readStatement());
+    }
+
+    return HelperFunctionData(
+      id: id,
+      displayName: displayName,
+      sideEffects: sideEffects,
+      steps: steps,
+      purpose: purpose,
+      sourceLocation: sourceLocation,
+      analysis: analysis,
+    );
+  }
+
+  MixedFunctionData _readMixedFunctionData() {
+    final id = readStringRef();
+    final displayName = readStringRef();
+    final sourceLocation = readSourceLocation();
+
+    // Read component count
+    final componentCount = readUint32();
+    final components = <FlutterComponent>[];
+    for (int i = 0; i < componentCount; i++) {
+      components.add(_readFlutterComponent());
+    }
+
+    // Read analysis map
+    final analysisSize = readUint32();
+    final analysis = <String, dynamic>{};
+    for (int i = 0; i < analysisSize; i++) {
+      final key = readStringRef();
+      final value = readStringRef();
+      analysis[key] = value;
+    }
+
+    return MixedFunctionData(
+      id: id,
+      displayName: displayName,
+      components: components,
+      sourceLocation: sourceLocation,
+      analysis: analysis,
     );
   }
 }

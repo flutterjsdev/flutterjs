@@ -8,7 +8,7 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 /// ============================================================================
 ///
 /// Responsible for writing **all declaration-level IR structures** to the
-/// binary output.  
+/// binary output.
 ///
 /// A *declaration* represents any named construct in the FlutterJS IR:
 /// - Variables
@@ -20,23 +20,23 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 /// This writer ensures each declaration is translated into a compact and stable
 /// binary format consistent with the global IR schema.
 ///
-/// It is invoked by the master orchestrator:  
-/// → `binary_ir_writer.dart`  
+/// It is invoked by the master orchestrator:
+/// → `binary_ir_writer.dart`
 ///
 ///
 /// # Purpose
 ///
 /// In FlutterJS IR, declarations define the "vocabulary" of the UI execution
-/// environment.  
+/// environment.
 ///
 /// This module converts these declarations into binary form by encoding:
 ///
-/// - identifiers  
-/// - annotations  
-/// - declaration type  
-/// - parent scope  
-/// - assigned expressions  
-/// - declaration visibility  
+/// - identifiers
+/// - annotations
+/// - declaration type
+/// - parent scope
+/// - assigned expressions
+/// - declaration visibility
 ///
 ///
 /// # Responsibilities
@@ -77,25 +77,25 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 /// ## 4. Serialize Function & Method Declarations
 ///
 /// Includes:
-/// - parameter list  
-/// - parameter types  
-/// - return type  
-/// - async/async* markers  
-/// - function body → forwarded to `statement_writer.dart`  
+/// - parameter list
+/// - parameter types
+/// - return type
+/// - async/async* markers
+/// - function body → forwarded to `statement_writer.dart`
 ///
 ///
 /// ## 5. Ordering Guarantees
 ///
 /// Declarations must be written in a deterministic order to ensure:
-/// - reproducible binary output  
-/// - stable indices  
+/// - reproducible binary output
+/// - stable indices
 ///
 /// The order typically enforced:
 ///
-/// 1. Type declarations  
-/// 2. Global declarations  
-/// 3. Class members  
-/// 4. Local declarations  
+/// 1. Type declarations
+/// 2. Global declarations
+/// 3. Class members
+/// 4. Local declarations
 ///
 ///
 /// # Binary Structure Example
@@ -129,10 +129,10 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 /// # Integration
 ///
 /// Works closely with:
-/// - `type_writer.dart`  
-/// - `expression_writer.dart`  
-/// - `statement_writer.dart`  
-/// - `string_collection.dart`  
+/// - `type_writer.dart`
+/// - `expression_writer.dart`
+/// - `statement_writer.dart`
+/// - `string_collection.dart`
 ///
 /// Ensures each string and type is registered and referenced correctly.
 ///
@@ -140,10 +140,10 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 /// # Error Handling
 ///
 /// Throws validation errors when:
-/// - a declaration is missing a required name  
-/// - an invalid type reference is used  
-/// - a function body references undeclared symbols  
-/// - modifiers conflict (e.g., const + mutable)  
+/// - a declaration is missing a required name
+/// - an invalid type reference is used
+/// - a function body references undeclared symbols
+/// - modifiers conflict (e.g., const + mutable)
 ///
 ///
 /// # Notes
@@ -156,7 +156,6 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///
 /// ============================================================================
 ///
-
 
 mixin DeclarationWriter {
   void writeByte(int value);
@@ -176,6 +175,7 @@ mixin DeclarationWriter {
 
   // ✅ Abstract method signatures that must be implemented by mixins
   void collectStringsFromExpression(ExpressionIR? expr);
+  void writeFunctionBody(FunctionBodyIR? body);
   void collectStringsFromStatements(
     List<StatementIR>? stmts,
   ); // ✅ Nullable parameter
@@ -330,35 +330,48 @@ mixin DeclarationWriter {
     printlog('  [METHOD START] ${method.name} at offset: $startOffset');
 
     try {
-      // ID
+      // ========== SECTION 1: Basic Metadata ==========
       final idRef = getStringRef(method.id);
       writeUint32(idRef);
       printlog('  [METHOD] After id ($idRef): ${_buffer.length}');
 
-      // Name
       final nameRef = getStringRef(method.name);
       writeUint32(nameRef);
       printlog('  [METHOD] After name ($nameRef): ${_buffer.length}');
 
-      // Return type - full type info including generics
       writeType(method.returnType);
       printlog('  [METHOD] After returnType: ${_buffer.length}');
 
-      // Widget type flag - indicates this is a Widget-returning method
-      final isWidgetReturn = _isWidgetType(method.returnType);
-      writeByte(isWidgetReturn ? 1 : 0);
-      printlog('  [METHOD] Is Widget type: $isWidgetReturn');
+      // ========== SECTION 2: Documentation & Annotations ==========
+      writeByte(method.documentation != null ? 1 : 0);
+      if (method.documentation != null) {
+        writeUint32(getStringRef(method.documentation!));
+      }
+      printlog('  [METHOD] After documentation: ${_buffer.length}');
 
-      // Flags
-      writeByte(method.isAsync ? 1 : 0);
-      writeByte(method.isGenerator ? 1 : 0);
-      writeByte(method.isStatic ? 1 : 0);
-      writeByte(method.isAbstract ? 1 : 0);
-      writeByte(method.isGetter ? 1 : 0);
-      writeByte(method.isSetter ? 1 : 0);
-      printlog('  [METHOD] After flags: ${_buffer.length}');
+      // Annotations
+      writeUint32(method.annotations.length);
+      for (final ann in method.annotations) {
+        writeAnnotation(ann);
+      }
+      printlog(
+        '  [METHOD] After annotations (${method.annotations.length}): ${_buffer.length}',
+      );
 
-      // Parameters
+      // ========== SECTION 3: Type Parameters ==========
+      writeUint32(method.typeParameters.length);
+      for (final tp in method.typeParameters) {
+        writeUint32(getStringRef(tp.name));
+        writeByte(tp.bound != null ? 1 : 0);
+        if (tp.bound != null) {
+          writeType(tp.bound!);
+        }
+      }
+      printlog(
+        '  [METHOD] After typeParameters (${method.typeParameters.length}): ${_buffer.length}',
+      );
+
+      // ========== SECTION 4: Parameters ==========
       printlog('  [METHOD] params count: ${method.parameters.length}');
       writeUint32(method.parameters.length);
       printlog('  [METHOD] After paramCount write: ${_buffer.length}');
@@ -373,36 +386,35 @@ mixin DeclarationWriter {
       }
       printlog('  [METHOD] After parameters loop: ${_buffer.length}');
 
-      // Source location
+      // ========== SECTION 5: Source Location ==========
       writeSourceLocation(method.sourceLocation);
       printlog('  [METHOD] After sourceLocation: ${_buffer.length}');
 
-      // Body - properly handle both Widget methods and regular methods
-      writeByte(method.body != null ? 1 : 0);
-      printlog('  [METHOD] Body exists flag written');
+      // ========== SECTION 6: Type-Specific Data (Method = funcType 2) ==========
+      writeByte(2); // isMethod flag
 
-      if (method.body != null) {
-        writeUint32(method.body!.length);
-        printlog('  [METHOD] Body statement count: ${method.body!.length}');
-
-        if (method.body!.isEmpty && isWidgetReturn) {
-          printlog(
-            '  [METHOD] WARNING: Empty body for Widget-returning method: ${method.name}',
-          );
-        }
-
-        for (int i = 0; i < method.body!.length; i++) {
-          final stmtStartOffset = _buffer.length;
-          writeStatement(method.body![i]);
-          final stmtEndOffset = _buffer.length;
-          printlog(
-            '  [METHOD] Statement $i written: ${stmtEndOffset - stmtStartOffset} bytes',
-          );
-        }
-        printlog('  [METHOD] All ${method.body!.length} statements written');
-      } else {
-        printlog('  [METHOD] ${method.name} has null body');
+      writeByte(method.className != null ? 1 : 0);
+      if (method.className != null) {
+        writeUint32(getStringRef(method.className!));
       }
+
+      writeByte(method.overriddenSignature != null ? 1 : 0);
+      if (method.overriddenSignature != null) {
+        writeUint32(getStringRef(method.overriddenSignature!));
+      }
+
+      writeByte(method.isAsync ? 1 : 0);
+      writeByte(method.isGenerator ? 1 : 0);
+
+      // Widget return flag
+      final isWidgetReturn = _isWidgetType(method.returnType);
+      writeByte(isWidgetReturn ? 1 : 0);
+
+      printlog('[METHOD] Method-specific data written');
+
+      // ========== SECTION 7: Function Body + Extraction Data ==========
+      // âœ… NOW DELEGATES TO writeFunctionBody()
+      writeFunctionBody(method.body);
 
       final endOffset = _buffer.length;
       printlog(
@@ -434,38 +446,123 @@ mixin DeclarationWriter {
   void writeFunctionDecl(FunctionDecl func);
 
   void writeConstructorDecl(ConstructorDecl constructor) {
-    writeUint32(getStringRef(constructor.id));
-    writeUint32(getStringRef(constructor.constructorClass ?? "<unknown>"));
+    final startOffset = _buffer.length;
+    printlog('  [CONSTRUCTOR START] at offset: $startOffset');
 
-    writeByte(constructor.constructorName != null ? 1 : 0);
-    if (constructor.constructorName != null) {
-      writeUint32(getStringRef(constructor.constructorName!));
-    }
+    try {
+      // ========== SECTION 1: Basic Metadata ==========
+      writeUint32(getStringRef(constructor.id));
+      writeUint32(getStringRef(constructor.name));
+      writeUint32(getStringRef(constructor.returnType.displayName()));
+      printlog('  [CONSTRUCTOR] After basic metadata: ${_buffer.length}');
 
-    writeByte(constructor.isConst ? 1 : 0);
-    writeByte(constructor.isFactory ? 1 : 0);
-
-    writeUint32(constructor.parameters.length);
-    for (final param in constructor.parameters) {
-      writeParameterDecl(param);
-    }
-
-    writeSourceLocation(constructor.sourceLocation);
-
-    writeUint32(constructor.initializers.length);
-    for (final init in constructor.initializers) {
-      writeUint32(getStringRef(init.fieldName));
-      writeByte(init.isThisField ? 1 : 0);
-      writeExpression(init.value);
-      writeSourceLocation(init.sourceLocation);
-    }
-
-    writeByte(constructor.body != null ? 1 : 0);
-    if (constructor.body != null) {
-      writeUint32(constructor.body!.length);
-      for (final stmt in constructor.body!) {
-        writeStatement(stmt);
+      // ========== SECTION 2: Documentation & Annotations ==========
+      writeByte(constructor.documentation != null ? 1 : 0);
+      if (constructor.documentation != null) {
+        writeUint32(getStringRef(constructor.documentation!));
       }
+      printlog('  [CONSTRUCTOR] After documentation: ${_buffer.length}');
+
+      // ========== SECTION 3: Type Parameters ==========
+      writeUint32(constructor.typeParameters.length);
+      for (final tp in constructor.typeParameters) {
+        writeUint32(getStringRef(tp.name));
+        writeByte(tp.bound != null ? 1 : 0);
+        if (tp.bound != null) {
+          writeType(tp.bound!);
+        }
+      }
+      printlog('  [CONSTRUCTOR] After typeParameters: ${_buffer.length}');
+
+      // ========== SECTION 4: Parameters ==========
+      writeUint32(constructor.parameters.length);
+      for (final param in constructor.parameters) {
+        writeParameterDecl(param);
+      }
+      printlog('  [CONSTRUCTOR] After parameters: ${_buffer.length}');
+
+      // ========== SECTION 5: Source Location ==========
+      writeSourceLocation(constructor.sourceLocation);
+      printlog('  [CONSTRUCTOR] After sourceLocation: ${_buffer.length}');
+
+      // ========== SECTION 6: Type-Specific Data (Constructor = funcType 1) ==========
+      writeByte(1); // isConstructor flag
+
+      writeUint32(getStringRef(constructor.constructorClass ?? ''));
+      writeByte(constructor.constructorName != null ? 1 : 0);
+      if (constructor.constructorName != null) {
+        writeUint32(getStringRef(constructor.constructorName!));
+      }
+
+      writeByte(constructor.isConst ? 1 : 0);
+      writeByte(constructor.isFactory ? 1 : 0);
+
+      // âœ… Initializers
+      writeUint32(constructor.initializers.length);
+      for (final init in constructor.initializers) {
+        writeUint32(getStringRef(init.fieldName));
+        writeByte(init.isThisField ? 1 : 0);
+        writeExpression(init.value);
+        writeSourceLocation(init.sourceLocation);
+      }
+      printlog(
+        '  [CONSTRUCTOR] After initializers (${constructor.initializers.length}): ${_buffer.length}',
+      );
+
+      // âœ… Super call
+      writeByte(constructor.superCall != null ? 1 : 0);
+      if (constructor.superCall != null) {
+        writeByte(constructor.superCall!.constructorName != null ? 1 : 0);
+        if (constructor.superCall!.constructorName != null) {
+          writeUint32(getStringRef(constructor.superCall!.constructorName!));
+        }
+        writeUint32(constructor.superCall!.arguments.length);
+        for (final arg in constructor.superCall!.arguments) {
+          writeExpression(arg);
+        }
+        writeUint32(constructor.superCall!.namedArguments.length);
+        for (final entry in constructor.superCall!.namedArguments.entries) {
+          writeUint32(getStringRef(entry.key));
+          writeExpression(entry.value);
+        }
+        writeSourceLocation(constructor.superCall!.sourceLocation);
+      }
+      printlog('  [CONSTRUCTOR] After superCall: ${_buffer.length}');
+
+      // âœ… Redirected call
+      writeByte(constructor.redirectedCall != null ? 1 : 0);
+      if (constructor.redirectedCall != null) {
+        writeByte(constructor.redirectedCall!.constructorName != null ? 1 : 0);
+        if (constructor.redirectedCall!.constructorName != null) {
+          writeUint32(
+            getStringRef(constructor.redirectedCall!.constructorName!),
+          );
+        }
+        writeUint32(constructor.redirectedCall!.arguments.length);
+        for (final arg in constructor.redirectedCall!.arguments) {
+          writeExpression(arg);
+        }
+        writeUint32(constructor.redirectedCall!.namedArguments.length);
+        for (final entry
+            in constructor.redirectedCall!.namedArguments.entries) {
+          writeUint32(getStringRef(entry.key));
+          writeExpression(entry.value);
+        }
+        writeSourceLocation(constructor.redirectedCall!.sourceLocation);
+      }
+      printlog('  [CONSTRUCTOR] After redirectedCall: ${_buffer.length}');
+
+      // ========== SECTION 7: Function Body + Extraction Data ==========
+      // âœ… NOW DELEGATES TO writeFunctionBody()
+      writeFunctionBody(constructor.body);
+
+      final endOffset = _buffer.length;
+      printlog(
+        '  [CONSTRUCTOR END] ${endOffset - startOffset} bytes ($startOffset-$endOffset)\n',
+      );
+    } catch (e) {
+      printlog('  [CONSTRUCTOR ERROR] at offset $_buffer.length: $e');
+      rethrow;
     }
   }
 
