@@ -405,6 +405,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         statements: bodyStatements,
         expressions: bodyExpressions,
         extractionData: extractionData,
+        id: builder.generateId('func_body', funcName),
+        sourceLocation: _extractSourceLocation(node, node.name.offset),
       );
 
       // =========================================================================
@@ -488,6 +490,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       final fallbackBody = FunctionBodyIR(
         statements: [],
         expressions: [],
+        id: builder.generateId('func_body', funcName),
+        sourceLocation: _extractSourceLocation(node, node.name.offset),
         extractionData: FunctionExtractionData.error(
           errorMessage: e.toString(),
           functionName: funcName,
@@ -761,6 +765,14 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
     // Create FunctionBody for constructor
     final constructorBody = FunctionBodyIR(
+      id: builder.generateId(
+        'ctor_body',
+        '$className.${constructorName.isNotEmpty ? constructorName : 'new'}',
+      ),
+      sourceLocation: _extractSourceLocation(
+        member,
+        member.name?.offset ?? member.offset,
+      ),
       statements: bodyStatements,
       expressions: [],
       extractionData:
@@ -867,6 +879,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
         // PHASE 4: Create FunctionBody with extraction data
         final methodBody = FunctionBodyIR(
+          id: builder.generateId('ctor_body', '$className.$methodName.body'),
+          sourceLocation: _extractSourceLocation(member, member.name.offset),
           statements: bodyStatements,
           expressions: bodyExpressions,
           extractionData: extractionData,
@@ -922,6 +936,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         final fallbackBody = FunctionBodyIR(
           statements: [],
           expressions: [],
+          id: builder.generateId('ctor_body', '$className.$methodName.body'),
+          sourceLocation: _extractSourceLocation(member, member.name.offset),
           extractionData: FunctionExtractionData.error(
             errorMessage: e.toString(),
             functionName: methodName,

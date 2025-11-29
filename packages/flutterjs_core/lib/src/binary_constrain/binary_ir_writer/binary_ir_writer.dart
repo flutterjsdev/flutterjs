@@ -1197,7 +1197,25 @@ class BinaryIRWriter
 
     printlog('[FUNCTION BODY] START at offset: ${buffer.length}');
 
-    // ✓ IMMEDIATELY write statements count - NO other data before this
+    // âœ… NEW: Write optional sourceLocation flag
+    // Only write if body has explicit (non-default) sourceLocation
+    final hasExplicitSourceLocation =
+        body.sourceLocation.file != 'unknown' &&
+        body.sourceLocation.file.isNotEmpty;
+
+    writeByte(hasExplicitSourceLocation ? 1 : 0);
+    printlog(
+      '[FUNCTION BODY] Has explicit sourceLocation: $hasExplicitSourceLocation',
+    );
+
+    if (hasExplicitSourceLocation) {
+      writeSourceLocation(body.sourceLocation);
+      printlog(
+        '[FUNCTION BODY] Wrote sourceLocation at offset: ${buffer.length - 20}',
+      );
+    }
+
+    // âœ" THEN: Write statements count - NO OTHER DATA BEFORE THIS
     writeUint32(body.statements.length);
     printlog(
       '[FUNCTION BODY] Statement count: ${body.statements.length} at offset: ${buffer.length - 4}',
@@ -1212,7 +1230,7 @@ class BinaryIRWriter
       }
     }
 
-    // ✓ Then write expressions count
+    // âœ" Then write expressions count
     writeUint32(body.expressions.length);
     printlog(
       '[FUNCTION BODY] Expression count: ${body.expressions.length} at offset: ${buffer.length - 4}',
@@ -1227,7 +1245,7 @@ class BinaryIRWriter
       }
     }
 
-    // ✓ Then write extraction data flag
+    // âœ" Then write extraction data flag
     writeByte(body.extractionData != null ? 1 : 0);
     printlog(
       '[FUNCTION BODY] Has extraction data: ${body.extractionData != null}',
@@ -1854,6 +1872,7 @@ class BinaryIRWriter
     }
   }
 
+@override
   void collectStringsFromFlutterComponent(FlutterComponent component) {
     addString(component.id);
     addString(component.describe());
@@ -2242,6 +2261,8 @@ class BinaryIRWriter
   @override
   void collectStringsFromFunction(FunctionDecl func) {
     printlog('[COLLECT FUNCTION] ${func.name}');
+
+    // Basic metadata
     addString(func.id);
     addString(func.name);
     addString(func.returnType.displayName());
@@ -2251,6 +2272,7 @@ class BinaryIRWriter
       addString(func.documentation!);
     }
 
+    // Parameters
     for (final param in func.parameters) {
       addString(param.id);
       addString(param.name);
@@ -2261,10 +2283,19 @@ class BinaryIRWriter
       }
     }
 
+    // âœ… ENHANCED: Collect annotation arguments and named args
     for (final ann in func.annotations) {
       addString(ann.name);
+      for (final arg in ann.arguments) {
+        collectStringsFromExpression(arg);
+      }
+      for (final entry in ann.namedArguments.entries) {
+        addString(entry.key);
+        collectStringsFromExpression(entry.value);
+      }
     }
 
+    // Type parameters
     for (final tp in func.typeParameters) {
       addString(tp.name);
       if (tp.bound != null) {
@@ -2272,20 +2303,7 @@ class BinaryIRWriter
       }
     }
 
-    // ✅ UPDATED: Collect from function body with new FunctionBodyIR structure
-    if (func.body != null) {
-      // ✅ Collect from statements list
-      collectStringsFromStatements(func.body!.statements);
-
-      // ✅ Collect from expressions list
-      collectStringsFromExpressions(func.body!.expressions);
-
-      // ✅ Collect from extraction data
-      if (func.body!.extractionData != null) {
-        collectStringsFromExtractionData(func.body!.extractionData!);
-      }
-    }
-
+    // Constructor-specific
     if (func is ConstructorDecl) {
       if (func.constructorClass != null) {
         addString(func.constructorClass!);
@@ -2293,12 +2311,46 @@ class BinaryIRWriter
       if (func.constructorName != null) {
         addString(func.constructorName!);
       }
+
+      // âœ… ENHANCED: Initializer details
       for (final init in func.initializers) {
         addString(init.fieldName);
         collectStringsFromExpression(init.value);
+        addString(init.sourceLocation.file);
+      }
+
+      // âœ… ENHANCED: Super call details
+      if (func.superCall != null) {
+        if (func.superCall!.constructorName != null) {
+          addString(func.superCall!.constructorName!);
+        }
+        for (final arg in func.superCall!.arguments) {
+          collectStringsFromExpression(arg);
+        }
+        for (final entry in func.superCall!.namedArguments.entries) {
+          addString(entry.key);
+          collectStringsFromExpression(entry.value);
+        }
+        addString(func.superCall!.sourceLocation.file);
+      }
+
+      // âœ… ENHANCED: Redirected call details
+      if (func.redirectedCall != null) {
+        if (func.redirectedCall!.constructorName != null) {
+          addString(func.redirectedCall!.constructorName!);
+        }
+        for (final arg in func.redirectedCall!.arguments) {
+          collectStringsFromExpression(arg);
+        }
+        for (final entry in func.redirectedCall!.namedArguments.entries) {
+          addString(entry.key);
+          collectStringsFromExpression(entry.value);
+        }
+        addString(func.redirectedCall!.sourceLocation.file);
       }
     }
 
+    // Method-specific
     if (func is MethodDecl) {
       if (func.className != null) {
         addString(func.className!);
@@ -2307,7 +2359,52 @@ class BinaryIRWriter
         addString(func.overriddenSignature!);
       }
     }
+
+    // âœ… Function body + extraction data
+    if (func.body != null) {
+      collectStringsFromFunctionBody(func.body);
+    }
   }
+
+  void collectStringsFromFunctionBody(FunctionBodyIR? body) {
+  if (body == null) return;
+
+  printlog('[COLLECT BODY] START - body id: ${body.id}');
+
+  // âœ… CRITICAL: Add the body's ID to string table
+  addString(body.id);
+  printlog('[COLLECT BODY] Added body ID: ${body.id}');
+
+  // Add sourceLocation file if explicit (not 'unknown')
+  if (body.sourceLocation.file != 'unknown' && body.sourceLocation.file.isNotEmpty) {
+    addString(body.sourceLocation.file);
+    printlog('[COLLECT BODY] Added sourceLocation file: ${body.sourceLocation.file}');
+  }
+
+  // Collect from all statements
+  printlog('[COLLECT BODY] Processing ${body.statements.length} statements');
+  for (final stmt in body.statements) {
+    collectStringsFromStatement(stmt);
+  }
+  printlog('[COLLECT BODY] Collected from statements');
+
+  // Collect from all expressions
+  printlog('[COLLECT BODY] Processing ${body.expressions.length} expressions');
+  for (final expr in body.expressions) {
+    collectStringsFromExpression(expr);
+  }
+  printlog('[COLLECT BODY] Collected from expressions');
+
+  // Collect from extraction data if present
+  if (body.extractionData != null) {
+    printlog('[COLLECT BODY] Collecting from extraction data');
+    collectStringsFromExtractionData(body.extractionData!);
+    printlog('[COLLECT BODY] Extraction data collected');
+  }
+
+  printlog('[COLLECT BODY] END');
+}
+
 }
 
 /// Enhanced exception with context information

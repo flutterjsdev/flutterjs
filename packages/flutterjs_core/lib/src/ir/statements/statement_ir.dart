@@ -64,6 +64,15 @@ abstract class StatementIR extends IRNode {
 
   /// Check if this statement contains any widgets
   bool hasWidgets() => widgetUsages != null && widgetUsages!.isNotEmpty;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'sourceLocation': sourceLocation.toJson(),
+      'metadata': metadata,
+      'widgetUsages': widgetUsages?.map((w) => w.toJson()).toList(),
+    };
+  }
 }
 
 // =============================================================================
@@ -84,6 +93,12 @@ class ExpressionStmt extends StatementIR {
 
   @override
   String toShortString() => expression.toShortString();
+  @override
+  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['expression'] = expression.toJson();
+    return baseJson;
+  }
 }
 
 @immutable
@@ -119,6 +134,21 @@ class VariableDeclarationStmt extends StatementIR {
     final typeStr = type != null ? '${type!.displayName} ' : '';
     return '$modifier $typeStr$name${initializer != null ? ' = ${initializer!.toShortString()}' : ''}';
   }
+
+  @override
+  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson.addAll({
+      'name': name,
+      'type': type?.toJson(),
+      'initializer': initializer?.toJson(),
+      'isFinal': isFinal,
+      'isConst': isConst,
+      'isLate': isLate,
+      'isMutable': isMutable,
+    });
+    return baseJson;
+  }
 }
 
 @immutable
@@ -136,6 +166,13 @@ class ReturnStmt extends StatementIR {
   @override
   String toShortString() =>
       'return${expression != null ? ' ${expression!.toShortString()}' : ''}';
+
+  @override
+  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['expression'] = expression?.toJson();
+    return baseJson;
+  }
 }
 
 @immutable
@@ -152,6 +189,13 @@ class BreakStmt extends StatementIR {
 
   @override
   String toShortString() => 'break${label != null ? ' $label' : ''}';
+
+  @override
+  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['label'] = label;
+    return baseJson;
+  }
 }
 
 @immutable
@@ -168,6 +212,13 @@ class ContinueStmt extends StatementIR {
 
   @override
   String toShortString() => 'continue${label != null ? ' $label' : ''}';
+
+  @override
+  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['label'] = label;
+    return baseJson;
+  }
 }
 
 @immutable
@@ -184,6 +235,12 @@ class ThrowStmt extends StatementIR {
 
   @override
   String toShortString() => 'throw ${exceptionExpression.toShortString()}';
+  @override
+  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['exceptionExpression'] = exceptionExpression.toJson();
+    return baseJson;
+  }
 }
 
 // =============================================================================
@@ -219,6 +276,13 @@ class BlockStmt extends StatementIR {
     }
 
     return widgets;
+  }
+
+    @override
+  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['statements'] = statements.map((s) => s.toJson()).toList();
+    return baseJson;
   }
 }
 
@@ -260,6 +324,15 @@ class IfStmt extends StatementIR {
 
     return widgets;
   }
+
+
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['condition'] = condition.toJson();
+    baseJson['thenBranch'] = thenBranch.toJson();
+    baseJson['elseBranch'] = elseBranch?.toJson();
+    return baseJson;
+  }
 }
 
 @immutable
@@ -282,6 +355,17 @@ class ForStmt extends StatementIR {
 
   @override
   String toShortString() => 'for (...) { ... }';
+
+
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['initialization'] = initialization?.toJson();
+    baseJson['condition'] = condition?.toJson();
+    baseJson['updaters'] = updaters.map((u) => u.toJson()).toList();
+    baseJson['body'] = body.toJson();
+    return baseJson;
+
+  }
 }
 
 @immutable
@@ -307,6 +391,16 @@ class ForEachStmt extends StatementIR {
   @override
   String toShortString() =>
       'for${isAsync ? ' await' : ''} ($loopVariable in ${iterable.toShortString()}) { ... }';
+
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['loopVariable'] = loopVariable;
+    baseJson['loopVariableType'] = loopVariableType?.toJson();
+    baseJson['iterable'] = iterable.toJson();
+    baseJson['body'] = body.toJson();
+    baseJson['isAsync'] = isAsync;
+    return baseJson;
+  }
 }
 
 @immutable
@@ -325,6 +419,13 @@ class WhileStmt extends StatementIR {
 
   @override
   String toShortString() => 'while (${condition.toShortString()}) { ... }';
+
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['condition'] = condition.toJson();
+    baseJson['body'] = body.toJson();
+    return baseJson;
+  }
 }
 
 @immutable
@@ -343,6 +444,12 @@ class DoWhileStmt extends StatementIR {
 
   @override
   String toShortString() => 'do { ... } while (${condition.toShortString()})';
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['body'] = body.toJson();
+    baseJson['condition'] = condition.toJson();
+    return baseJson;
+  }
 }
 
 @immutable
@@ -364,10 +471,18 @@ class SwitchStmt extends StatementIR {
   @override
   String toShortString() =>
       'switch (${expression.toShortString()}) { ${cases.length} cases }';
+
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['expression'] = expression.toJson();
+    baseJson['cases'] = cases.map((c) => c.toJson()).toList();
+    baseJson['defaultCase'] = defaultCase?.toJson();
+    return baseJson;
+  }
 }
 
 @immutable
-class SwitchCaseStmt extends IRNode {
+class SwitchCaseStmt extends StatementIR {
   final List<ExpressionIR>? patterns;
   final List<StatementIR> statements;
   final bool isDefault;
@@ -386,6 +501,15 @@ class SwitchCaseStmt extends IRNode {
     if (isDefault) return 'default: ...';
     return 'case: ...';
   }
+
+  @override  
+  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['patterns'] = patterns?.map((p) => p.toJson()).toList();
+    baseJson['statements'] = statements.map((s) => s.toJson()).toList();
+    baseJson['isDefault'] = isDefault;
+    return baseJson;
+  } 
 }
 
 @immutable
@@ -407,6 +531,14 @@ class TryStmt extends StatementIR {
   @override
   String toShortString() =>
       'try { ... } catch (${catchClauses.length} clauses)${finallyBlock != null ? ' finally { ... }' : ''}';
+
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['tryBlock'] = tryBlock.toJson();
+    baseJson['catchClauses'] = catchClauses.map((c) => c.toJson()).toList();
+    baseJson['finallyBlock'] = finallyBlock?.toJson();
+    return baseJson;
+  }
 }
 
 @immutable
@@ -429,6 +561,14 @@ class CatchClauseStmt extends StatementIR {
 
   @override
   String toShortString() => 'catch (${exceptionParameter ?? 'error'}) { ... }';
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['exceptionType'] = exceptionType?.toJson();
+    baseJson['exceptionParameter'] = exceptionParameter;
+    baseJson['stackTraceParameter'] = stackTraceParameter;
+    baseJson['body'] = body.toJson();
+    return baseJson;
+  }
 }
 
 // =============================================================================
@@ -453,6 +593,13 @@ class AssertStatementIR extends StatementIR {
   String toShortString() => message != null
       ? 'assert(${condition.toShortString()}, ${message!.toShortString()})'
       : 'assert(${condition.toShortString()})';
+
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['condition'] = condition.toJson();
+    baseJson['message'] = message?.toJson();
+    return baseJson;
+  }
 }
 
 @immutable
@@ -466,6 +613,11 @@ class EmptyStatementIR extends StatementIR {
 
   @override
   String toShortString() => ';';
+
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    return baseJson;
+  }
 }
 
 @immutable
@@ -485,6 +637,13 @@ class YieldStatementIR extends StatementIR {
   @override
   String toShortString() =>
       'yield${isYieldEach ? '*' : ''} ${value.toShortString()}';
+
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['value'] = value.toJson();
+    baseJson['isYieldEach'] = isYieldEach;
+    return baseJson;
+  }
 }
 
 @immutable
@@ -503,6 +662,13 @@ class LabeledStatementIR extends StatementIR {
 
   @override
   String toShortString() => '$label: ${statement.toShortString()}';
+
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['label'] = label;
+    baseJson['statement'] = statement.toJson();
+    return baseJson;
+  }
 }
 
 @immutable
@@ -519,6 +685,12 @@ class FunctionDeclarationStatementIR extends StatementIR {
 
   @override
   String toShortString() => 'function ${function.name}() { ... }';
+
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
+    baseJson['function'] = function.toJson();
+    return baseJson;
+  }
 }
 
 // =============================================================================
@@ -594,6 +766,21 @@ class WidgetUsageIR extends StatementIR {
     }
 
     return sb.toString();
+  }
+
+  @override  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();  
+    baseJson.addAll({
+      'widgetName': widgetName,
+      'constructorName': constructorName,
+      'properties': properties,
+      'statementType': statementType,
+      'assignedToVariable': assignedToVariable,
+      'parentWidget': parentWidget,
+      'positionalArgs': positionalArgs,
+      'isConditional': isConditional,
+    });
+    return baseJson;
   }
 }
 

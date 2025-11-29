@@ -282,15 +282,17 @@ class HtmlStylesJsonReader {
 
 .json-content {
     flex: 1;
-    padding: 0 8px;
+    padding: 0 10px;
     display: flex;
-    gap: 4px;
+    gap: 6px;
     align-items: center;
     word-break: break-all;
+    color: #e0e0e0;
 }
 
 .json-nested {
     display: block;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .json-nested.json-nested-hidden {
@@ -298,26 +300,30 @@ class HtmlStylesJsonReader {
 }
 
 .json-size {
-    background: rgba(76, 175, 80, 0.2);
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.25) 0%, rgba(56, 142, 60, 0.15) 100%);
     color: #81c784;
-    padding: 2px 6px;
-    border-radius: 3px;
+    padding: 3px 8px;
+    border-radius: 4px;
     font-size: 10px;
-    font-weight: 600;
+    font-weight: 700;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.2px;
 }
 
 .json-index {
     color: #64b5f6;
-    font-weight: 600;
-    background: rgba(100, 181, 246, 0.1);
-    padding: 2px 4px;
-    border-radius: 2px;
+    font-weight: 700;
+    background: rgba(100, 181, 246, 0.12);
+    padding: 2px 6px;
+    border-radius: 4px;
     flex-shrink: 0;
+    border: 1px solid rgba(100, 181, 246, 0.2);
 }
 
 .json-key {
-    color: #ff9800;
-    font-weight: 600;
+    color: #ffa726;
+    font-weight: 700;
     flex-shrink: 0;
 }
 
@@ -331,16 +337,17 @@ class HtmlStylesJsonReader {
 
 .json-boolean {
     color: #42a5f5;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .json-null {
     color: #90a4ae;
     font-style: italic;
+    opacity: 0.7;
 }
 
 .json-punctuation {
-    color: #b0bec5;
+    color: #90caf9;
 }
 
 .json-error-state {
@@ -385,6 +392,52 @@ class HtmlStylesJsonReader {
 
 .json-display-wrapper::-webkit-scrollbar-thumb:hover {
     background: rgba(66, 165, 245, 0.5);
+}
+
+/* ✅ NEW: JSON Viewer Footer */
+.json-viewer-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 20px;
+    padding: 12px 16px;
+    background: linear-gradient(180deg, #252535 0%, #1f1f2a 100%);
+    border-top: 1px solid rgba(66, 165, 245, 0.15);
+    flex-shrink: 0;
+    font-size: 11px;
+}
+
+.footer-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(66, 165, 245, 0.08);
+    border-radius: 6px;
+    border-left: 3px solid rgba(66, 165, 245, 0.4);
+}
+
+.footer-label {
+    color: #999;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.footer-value {
+    color: #42a5f5;
+    font-weight: 700;
+    min-width: 30px;
+}
+
+/* ✅ Improve nested visibility */
+.json-nested {
+    display: block;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.json-nested.json-nested-hidden {
+    display: none;
 }
   ''';
 }

@@ -172,6 +172,7 @@ mixin DeclarationReader {
   ParameterDecl readParameterDecl();
   MethodDecl readMethodDecl();
   FunctionExtractionData readFunctionExtractionData();
+  ConstructorDecl readConstructorDecl();
 
   ImportStmt readImportStmt() {
     final uri = readStringRef();
@@ -343,78 +344,4 @@ mixin DeclarationReader {
   }
 
   // ✅ FIXED: Read constructor body statements and initializers
-  @override
-  ConstructorDecl readConstructorDecl() {
-    final id = readStringRef();
-    final constructorClass = readStringRef();
-
-    final hasName = readByte() != 0;
-    final constructorName = hasName ? readStringRef() : null;
-
-    final isConst = readByte() != 0;
-    final isFactory = readByte() != 0;
-
-    final paramCount = readUint32();
-    final parameters = <ParameterDecl>[];
-    for (int i = 0; i < paramCount; i++) {
-      parameters.add(readParameterDecl());
-    }
-
-    final sourceLocation = readSourceLocation();
-
-    // ✓ NEW: Read constructor initializers
-    final initCount = readUint32();
-    final initializers = <ConstructorInitializer>[];
-    for (int i = 0; i < initCount; i++) {
-      final fieldName = readStringRef();
-      final isThisField = readByte() != 0;
-      final value = readExpression();
-      final initSourceLocation = readSourceLocation();
-      initializers.add(
-        ConstructorInitializer(
-          fieldName: fieldName,
-          value: value,
-          isThisField: isThisField,
-          sourceLocation: initSourceLocation,
-        ),
-      );
-    }
-
-    // ✓ NEW: Read constructor body statements with extraction data
-    final hasBody = readByte() != 0;
-    FunctionBodyIR? functionBody;
-    if (hasBody) {
-      final stmtCount = readUint32();
-      final statements = <StatementIR>[];
-      for (int i = 0; i < stmtCount; i++) {
-        statements.add(readStatement());
-      }
-
-      // ✓ NEW: Read extraction data
-      final hasExtractionData = readByte() != 0;
-      FunctionExtractionData? extractionData;
-      if (hasExtractionData) {
-        extractionData = readFunctionExtractionData();
-      }
-
-      functionBody = FunctionBodyIR(
-        statements: statements,
-        expressions: [],
-        extractionData: extractionData,
-      );
-    }
-
-    return ConstructorDecl(
-      id: id,
-      name: constructorName ?? '',
-      constructorClass: constructorClass,
-      constructorName: constructorName,
-      parameters: parameters,
-      isConst: isConst,
-      isFactory: isFactory,
-      sourceLocation: sourceLocation,
-      body: functionBody, // ✓ NOW INCLUDED
-      initializers: initializers, // ✓ NOW INCLUDED
-    );
-  }
 }

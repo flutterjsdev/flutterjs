@@ -422,6 +422,7 @@ class FunctionDecl extends IRNode {
       'parameters': parameters.map((p) => p.toJson()).toList(),
       'isAsync': isAsync,
       'isGenerator': isGenerator,
+      'body': body?.toJson(),
       'isSyncGenerator': isSyncGenerator,
       'typeParameters': typeParameters.map((tp) => tp.toJson()).toList(),
       'sourceLocation': sourceLocation.toJson(),
@@ -507,6 +508,7 @@ class MethodDecl extends FunctionDecl {
       'returnType': returnType.toJson(),
       'parameters': parameters.map((p) => p.toJson()).toList(),
       'isAsync': isAsync,
+      'body': body?.toJson(),
       'isGenerator': isGenerator,
       'isSyncGenerator': isSyncGenerator,
       'typeParameters': typeParameters.map((tp) => tp.toJson()).toList(),
@@ -736,7 +738,7 @@ class RedirectedConstructorCall {
 }
 
 @immutable
-class FunctionBodyIR {
+class FunctionBodyIR extends IRNode {
   /// Statements in function body
   final List<StatementIR> statements;
 
@@ -750,6 +752,8 @@ class FunctionBodyIR {
   final bool isEmpty;
 
   FunctionBodyIR({
+    required super.id,
+    required super.sourceLocation,
     this.statements = const [],
     this.expressions = const [],
     this.extractionData,
@@ -792,6 +796,9 @@ class FunctionBodyIR {
     return {
       'statementCount': statements.length,
       'expressionCount': expressions.length,
+      'statements': statements.map((s) => s.toJson()).toList(),
+      'expressions': expressions.map((e) => e.toJson()).toList(),
+      'extractionData': extractionData?.toJson() ?? {},
       'isEmpty': isEmpty,
       'totalItems': totalItems,
       'hasWidgetComponents': hasWidgetComponents,
@@ -846,19 +853,17 @@ class FunctionExtractionData {
 
   int get totalExtracted => components.length + expressions.length;
 
-  Map<String, dynamic> toJson() => {
-    'extractionType': extractionType,
-    'componentCount': components.length,
-    'isValid': isSuccessful,
-  };
-
-  static FunctionExtractionData error({String? functionName, String? errorMessage, statements}) => FunctionExtractionData(
+  static FunctionExtractionData error({
+    String? functionName,
+    String? errorMessage,
+    statements,
+  }) => FunctionExtractionData(
     analysis: {},
     components: [],
     extractionType: 'error',
     expressions: [],
     metadata: FunctionMetadata(
-      name: functionName??"<unknown>",
+      name: functionName ?? "<unknown>",
       type: '',
       isAsync: false,
       isGenerator: false,
@@ -880,33 +885,55 @@ class FunctionExtractionData {
     diagnostics: [],
   );
 
- static FunctionExtractionData empty({String? functionName}) => FunctionExtractionData(
-    analysis: {},
-    components: [],
-    extractionType: 'empty',
-    expressions: [],
-    metadata: FunctionMetadata(
-      name: functionName??"<unknown>",
-      type: '',
-      isAsync: false,
-      isGenerator: false,
-    ),
-    metrics: ExtractionMetrics(
-      duration: Duration.zero,
-      componentsExtracted: 0,
-      expressionsAnalyzed: 0,
-      errorsEncountered: 0,
-      statementsProcessed: 0,
-    ),
-    statements: [],
-    validation: ExtractionValidation(
-      isValid: false,
-      errors: ['No extraction data'],
-      warnings: [],
-    ),
-    pureFunctionData: null,
-    diagnostics: [],
-  );
+  static FunctionExtractionData empty({String? functionName}) =>
+      FunctionExtractionData(
+        analysis: {},
+        components: [],
+        extractionType: 'empty',
+        expressions: [],
+        metadata: FunctionMetadata(
+          name: functionName ?? "<unknown>",
+          type: '',
+          isAsync: false,
+          isGenerator: false,
+        ),
+        metrics: ExtractionMetrics(
+          duration: Duration.zero,
+          componentsExtracted: 0,
+          expressionsAnalyzed: 0,
+          errorsEncountered: 0,
+          statementsProcessed: 0,
+        ),
+        statements: [],
+        validation: ExtractionValidation(
+          isValid: false,
+          errors: ['No extraction data'],
+          warnings: [],
+        ),
+        pureFunctionData: null,
+        diagnostics: [],
+      );
+
+  Map<String, dynamic> toJson() => {
+    'extractionType': extractionType,
+    'components': components.map((c) => c.toJson()).toList(),
+    'pureFunctionData': pureFunctionData?.toJson(),
+    'analysis': analysis,
+    'expressions': expressions.map((e) => e.toJson()).toList(),
+    'statements': statements.map((s) => s.toJson()).toList(),
+    'metadata': metadata.toJson(),
+    'metrics': metrics.toJson(),
+    'validation': validation.toJson(),
+    'diagnostics': diagnostics
+        .map(
+          (d) => {
+            'level': d.level.toString().split('.').last,
+            'message': d.message,
+            'code': d.code,
+          },
+        )
+        .toList(),
+  };
 }
 
 @immutable
@@ -936,6 +963,10 @@ class FunctionMetadata {
     'type': type,
     'isAsync': isAsync,
     'isGenerator': isGenerator,
+    if (returnType != null) 'returnType': returnType,
+    'parameterTypes': parameterTypes,
+    if (documentation != null) 'documentation': documentation,
+    if (annotations.isNotEmpty) 'annotations': annotations,
   };
 }
 
