@@ -1219,7 +1219,13 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         bound = _extractTypeFromAnnotation(tp.bound, tp.offset);
       }
 
-      return TypeParameterDecl(name: tp.name.lexeme, bound: bound);
+      return TypeParameterDecl(
+        sourceLocation: _extractSourceLocation(tp, tp.offset),
+        id: builder.generateId('typeparam', tp.name.lexeme),
+
+        name: tp.name.lexeme,
+        bound: bound,
+      );
     }).toList();
   }
 

@@ -4,6 +4,7 @@
 // ============================================================================
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:dev_tools/dev_tools.dart';
 import 'package:args/command_runner.dart';
@@ -21,46 +22,46 @@ import 'package:flutterjs_gen/src/flutter_to_js/src/flutter_prop_converters.dart
 ///
 /// A full end-to-end pipeline for:
 ///
-///   ✔ Dart Analysis  
-///   ✔ IR Generation  
-///   ✔ IR Validation  
-///   ✔ IR → JavaScript Conversion  
-///   ✔ Optimization (0–3)  
-///   ✔ Reporting  
+///   ✔ Dart Analysis
+///   ✔ IR Generation
+///   ✔ IR Validation
+///   ✔ IR → JavaScript Conversion
+///   ✔ Optimization (0–3)
+///   ✔ Reporting
 ///   ✔ DevTools IR Viewer (live server)
 ///
 /// This is the most powerful and feature-complete command in the Flutter.js CLI.
 /// Its goal is to take a Flutter project directory and produce:
 ///
-///   - Binary IR files (`.ir`)  
-///   - JavaScript module files (`.js`)  
-///   - Detailed analysis & conversion reports  
-///   - Live DevTools IR viewer on a local server  
+///   - Binary IR files (`.ir`)
+///   - JavaScript module files (`.js`)
+///   - Detailed analysis & conversion reports
+///   - Live DevTools IR viewer on a local server
 ///
 ///
 /// # Overview of Pipeline Phases
 ///
 /// ## **Phase 0 – Pre-Analysis Setup**
-///  - Directory resolution  
-///  - Cache clearing  
-///  - Parser bootstrapping  
+///  - Directory resolution
+///  - Cache clearing
+///  - Parser bootstrapping
 ///
 /// ## **Phase 1 – Static Analysis**
 /// Using `ProjectAnalyzer`:
-///  - File change detection  
-///  - AST parsing  
-///  - Semantic checks  
-///  - Error reporting  
+///  - File change detection
+///  - AST parsing
+///  - Semantic checks
+///  - Error reporting
 ///
 /// Output: List of Dart files to convert
 ///
 /// ## **Phase 2 – IR Generation (Passes 1–5)**
 ///
-/// Pass 1: Declaration Discovery  
-/// Pass 2: Symbol Resolution  
-/// Pass 3: Type Inference  
-/// Pass 4: Control-Flow Analysis  
-/// Pass 5: Validation & Diagnostics  
+/// Pass 1: Declaration Discovery
+/// Pass 2: Symbol Resolution
+/// Pass 3: Type Inference
+/// Pass 4: Control-Flow Analysis
+/// Pass 5: Validation & Diagnostics
 ///
 /// Output: A complete `IRGenerationResults` object.
 ///
@@ -71,10 +72,10 @@ import 'package:flutterjs_gen/src/flutter_to_js/src/flutter_prop_converters.dart
 ///
 ///
 /// ## **Phase 4–6 – IR → JavaScript Conversion**
-///  - File-level code generation  
-///  - Optional validation  
-///  - Optimization levels 0–3  
-///  - Per-file conversion reports  
+///  - File-level code generation
+///  - Optional validation
+///  - Optimization levels 0–3
+///  - Per-file conversion reports
 ///
 /// Output: one `.js` file per Dart file.
 ///
@@ -83,10 +84,10 @@ import 'package:flutterjs_gen/src/flutter_to_js/src/flutter_prop_converters.dart
 ///
 /// This command includes an embedded DevTools server which:
 ///
-///   • Watches IR directory live  
-///   • Reloads when new IR is generated  
-///   • Visualizes declarations, CFGs, state fields, lifecycle, etc.  
-///   • Opens automatically unless `--devtools-no-open` is passed  
+///   • Watches IR directory live
+///   • Reloads when new IR is generated
+///   • Visualizes declarations, CFGs, state fields, lifecycle, etc.
+///   • Opens automatically unless `--devtools-no-open` is passed
 ///
 /// The server is started **before** analysis so that files appear live as soon
 /// as they are generated.
@@ -95,31 +96,31 @@ import 'package:flutterjs_gen/src/flutter_to_js/src/flutter_prop_converters.dart
 /// # CLI Flags
 ///
 /// ## Project Control
-/// - `--project` (`-p`)  
-/// - `--source` (`-s`)  
+/// - `--project` (`-p`)
+/// - `--source` (`-s`)
 ///
 /// ## Analysis Control
-/// - `--skip-analysis`  
-/// - `--incremental` (enabled default)  
-/// - `--all` (forces full rebuild)  
+/// - `--skip-analysis`
+/// - `--incremental` (enabled default)
+/// - `--all` (forces full rebuild)
 ///
 /// ## Parallelism
-/// - `--parallel`  
-/// - `--max-parallelism=<n>`  
+/// - `--parallel`
+/// - `--max-parallelism=<n>`
 ///
 /// ## IR Output
-/// - `--json` (machine-readable output)  
-/// - `--generate-reports`  
-/// - `--strict` (exit 1 on any issue)  
+/// - `--json` (machine-readable output)
+/// - `--generate-reports`
+/// - `--strict` (exit 1 on any issue)
 ///
 /// ## JS Conversion
-/// - `--to-js`  
-/// - `--js-optimization-level=0–3`  
-/// - `--validate-output`  
+/// - `--to-js`
+/// - `--js-optimization-level=0–3`
+/// - `--validate-output`
 ///
 /// ## DevTools
-/// - `--devtools-port=<port>`  
-/// - `--devtools-no-open`  
+/// - `--devtools-port=<port>`
+/// - `--devtools-no-open`
 ///
 ///
 /// # Execution Workflow
@@ -134,30 +135,29 @@ import 'package:flutterjs_gen/src/flutter_to_js/src/flutter_prop_converters.dart
 ///
 /// # Error Handling
 ///
-/// - Every phase is wrapped with detailed verbose diagnostics.  
-/// - Any exception during IR or JS generation is logged.  
+/// - Every phase is wrapped with detailed verbose diagnostics.
+/// - Any exception during IR or JS generation is logged.
 /// - With `--strict`, the process exits with non-zero status if **any** issue
-///   or warning is collected.  
+///   or warning is collected.
 ///
 ///
 /// # Summary
 ///
-/// `RunCommand` is the heart of the Flutter.js command-line tool.  
+/// `RunCommand` is the heart of the Flutter.js command-line tool.
 /// It unifies:
 ///
-///   • full static analysis  
-///   • multi-pass IR generation  
-///   • incremental & parallel conversion  
-///   • cross-file dependency analysis  
-///   • optimized JavaScript output  
-///   • human-readable + JSON reporting  
-///   • optional strict mode for CI pipelines  
-///   • a fully integrated DevTools visualization server  
+///   • full static analysis
+///   • multi-pass IR generation
+///   • incremental & parallel conversion
+///   • cross-file dependency analysis
+///   • optimized JavaScript output
+///   • human-readable + JSON reporting
+///   • optional strict mode for CI pipelines
+///   • a fully integrated DevTools visualization server
 ///
 /// This is the recommended command for end users and CI to produce all artifacts
 /// required for Flutter.js runtime execution.
 ///
-
 
 class RunCommand extends Command<void> {
   RunCommand({required this.verbose, required this.verboseHelp}) {
@@ -445,7 +445,7 @@ class RunCommand extends Command<void> {
       await reportFile.parent.create(recursive: true);
 
       await reportFile.writeAsString(
-        "____________________________________________\n--------------------below is json--------------------\n${irResults.toJson()}",
+        printPrettyJson(irResults.toJson()),
       );
 
       // ===== PHASE 4-6: IR TO JAVASCRIPT (with validation & optimization) =====
@@ -522,6 +522,11 @@ class RunCommand extends Command<void> {
         // Don't stop the server - keep it running for analysis
       }
     }
+  }
+
+  String printPrettyJson(Map<String, dynamic> data) {
+    const JsonEncoder encoder = JsonEncoder.withIndent('  ');
+    return encoder.convert(data);
   }
 
   // ✅ NEW: Start DevTools Server

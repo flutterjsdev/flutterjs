@@ -414,6 +414,7 @@ mixin DeclarationWriter {
 
       // ========== SECTION 7: Function Body + Extraction Data ==========
       // âœ… NOW DELEGATES TO writeFunctionBody()
+      writeByte(method.body != null ? 1 : 0);
       writeFunctionBody(method.body);
 
       final endOffset = _buffer.length;
@@ -430,27 +431,25 @@ mixin DeclarationWriter {
     printlog('[WRITE ANNOTATION] START: ${ann.name}');
 
     try {
+      // ✓ Write annotation name
       writeUint32(getStringRef(ann.name));
-      printlog('[WRITE ANNOTATION] Name written');
 
+      // ✓ Write positional arguments
       writeUint32(ann.arguments.length);
-      printlog('[WRITE ANNOTATION] Argument count: ${ann.arguments.length}');
-
       for (final arg in ann.arguments) {
         writeExpression(arg);
       }
 
+      // ✓ Write named arguments
       writeUint32(ann.namedArguments.length);
-      printlog(
-        '[WRITE ANNOTATION] Named argument count: ${ann.namedArguments.length}',
-      );
-
       for (final entry in ann.namedArguments.entries) {
         writeUint32(getStringRef(entry.key));
         writeExpression(entry.value);
       }
 
+      // ✓ Write source location
       writeSourceLocation(ann.sourceLocation);
+
       printlog('[WRITE ANNOTATION] END');
     } catch (e) {
       printlog('[WRITE ANNOTATION ERROR] ${ann.name}: $e');
@@ -569,6 +568,8 @@ mixin DeclarationWriter {
 
       // ========== SECTION 7: Function Body + Extraction Data ==========
       // âœ… NOW DELEGATES TO writeFunctionBody()
+
+      writeByte(constructor.body != null ? 1 : 0);
       writeFunctionBody(constructor.body);
 
       final endOffset = _buffer.length;

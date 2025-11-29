@@ -12,7 +12,6 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
-
 class BinaryIRServer {
   final int port;
   final String host;
@@ -28,6 +27,11 @@ class BinaryIRServer {
 
   // ✅ PERFORMANCE METRICS
   final Map<String, AnalysisMetrics> _metrics = {};
+
+  // ✅ NEW: Add this line after _analyses
+  final Map<String, dynamic> _jsonDataCache = {}; // Cache parsed JSON data
+  final Map<String, JsonAnalysisResult> _jsonAnalyses =
+      {}; // Cache JSON analysis results
 
   // ✅ ERROR TRACKING
   final List<AnalysisError> _errorLog = [];
@@ -54,213 +58,217 @@ class BinaryIRServer {
   }
   // ✅ REPLACE the _handleUpload method in ir_server.dart with this:
 
- // ============================================================================
-// CORRECTED: _handleUpload method with proper shelf_multipart API
-// ============================================================================
+  // ============================================================================
+  // CORRECTED: _handleUpload method with proper shelf_multipart API
+  // ============================================================================
 
-// ============================================================================
-// PRODUCTION-READY: Robust multipart parsing with edge case handling
-// ============================================================================
+  // ============================================================================
+  // PRODUCTION-READY: Robust multipart parsing with edge case handling
+  // ============================================================================
 
-Future<Response> _handleUpload(Request request) async {
-  try {
-    print('📤 Upload started...');
-    
-    // ✅ STEP 1: Validate content-type
-    final contentType = request.headers['content-type'] ?? '';
-    if (!contentType.contains('multipart/form-data')) {
-      return _errorResponseJson({
-        'success': false,
-        'error': 'Invalid content-type. Expected multipart/form-data',
-        'received': contentType,
-      }, 400);
-    }
-
-    // ✅ STEP 2: Extract boundary safely
-    final boundaryMatch = RegExp(r'boundary=([^\s;]+)').firstMatch(contentType);
-    if (boundaryMatch == null) {
-      return _errorResponseJson({
-        'success': false,
-        'error': 'Missing boundary in multipart request',
-      }, 400);
-    }
-
-    String boundary = boundaryMatch.group(1)!.replaceAll('"', '');
-    if (boundary.isEmpty) {
-      return _errorResponseJson({
-        'success': false,
-        'error': 'Empty boundary value',
-      }, 400);
-    }
-
-    print('✅ Boundary extracted: $boundary');
-
-    // ✅ STEP 3: Read body with size limit
-    const maxRequestSize = 105 * 1024 * 1024; // 105MB to allow 100MB files + headers
-    final bodyBytes = <int>[];
-    
+  Future<Response> _handleUpload(Request request) async {
     try {
-      await for (final chunk in request.read()) {
-        bodyBytes.addAll(chunk);
-        if (bodyBytes.length > maxRequestSize) {
-          return _errorResponseJson({
-            'success': false,
-            'error': 'Request body exceeds maximum size (100MB)',
-          }, 413);
-        }
+      print('📤 Upload started...');
+
+      // ✅ STEP 1: Validate content-type
+      final contentType = request.headers['content-type'] ?? '';
+      if (!contentType.contains('multipart/form-data')) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'Invalid content-type. Expected multipart/form-data',
+          'received': contentType,
+        }, 400);
       }
-    } catch (e) {
-      return _errorResponseJson({
-        'success': false,
-        'error': 'Failed to read request body: ${e.toString()}',
-      }, 400);
-    }
 
-    if (bodyBytes.isEmpty) {
-      return _errorResponseJson({
-        'success': false,
-        'error': 'Empty request body',
-      }, 400);
-    }
+      // ✅ STEP 2: Extract boundary safely
+      final boundaryMatch = RegExp(
+        r'boundary=([^\s;]+)',
+      ).firstMatch(contentType);
+      if (boundaryMatch == null) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'Missing boundary in multipart request',
+        }, 400);
+      }
 
-    print('📊 Body received: ${bodyBytes.length} bytes');
+      String boundary = boundaryMatch.group(1)!.replaceAll('"', '');
+      if (boundary.isEmpty) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'Empty boundary value',
+        }, 400);
+      }
 
-    // ✅ STEP 4: Parse multipart with robust boundary detection
-    final parser = MultipartParser(
-      Uint8List.fromList(bodyBytes),
-      boundary,
-    );
+      print('✅ Boundary extracted: $boundary');
 
-    final parseResult = parser.parse();
-    if (!parseResult['success']) {
-      return _errorResponseJson({
-        'success': false,
-        'error': parseResult['error'] ?? 'Multipart parsing failed',
-      }, 400);
-    }
+      // ✅ STEP 3: Read body with size limit
+      const maxRequestSize =
+          105 * 1024 * 1024; // 105MB to allow 100MB files + headers
+      final bodyBytes = <int>[];
 
-    final fileNameExtracted = parseResult['filename'] as String?;
-    final fileDataExtracted = parseResult['data'] as Uint8List?;
+      try {
+        await for (final chunk in request.read()) {
+          bodyBytes.addAll(chunk);
+          if (bodyBytes.length > maxRequestSize) {
+            return _errorResponseJson({
+              'success': false,
+              'error': 'Request body exceeds maximum size (100MB)',
+            }, 413);
+          }
+        }
+      } catch (e) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'Failed to read request body: ${e.toString()}',
+        }, 400);
+      }
 
-    if (fileNameExtracted == null || fileNameExtracted.isEmpty) {
-      return _errorResponseJson({
-        'success': false,
-        'error': 'No filename found in multipart upload',
-      }, 400);
-    }
+      if (bodyBytes.isEmpty) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'Empty request body',
+        }, 400);
+      }
 
-    if (fileDataExtracted == null || fileDataExtracted.isEmpty) {
-      return _errorResponseJson({
-        'success': false,
-        'error': 'No file data found in multipart upload',
-      }, 400);
-    }
+      print('📊 Body received: ${bodyBytes.length} bytes');
 
-    print('📄 File: $fileNameExtracted (${fileDataExtracted.length} bytes)');
+      // ✅ STEP 4: Parse multipart with robust boundary detection
+      final parser = MultipartParser(Uint8List.fromList(bodyBytes), boundary);
 
-    // ✅ STEP 5: Validate file
-    if (!fileNameExtracted.toLowerCase().endsWith('.ir')) {
-      return _errorResponseJson({
-        'success': false,
-        'error': 'Invalid file type. Only .ir files are allowed',
-        'filename': fileNameExtracted,
-      }, 400);
-    }
+      final parseResult = parser.parse();
+      if (!parseResult['success']) {
+        return _errorResponseJson({
+          'success': false,
+          'error': parseResult['error'] ?? 'Multipart parsing failed',
+        }, 400);
+      }
 
-    const maxFileSize = 100 * 1024 * 1024; // 100MB
-    if (fileDataExtracted.length > maxFileSize) {
-      return _errorResponseJson({
-        'success': false,
-        'error': 'File exceeds maximum size (100MB)',
-        'size': fileDataExtracted.length,
-      }, 413);
-    }
+      final fileNameExtracted = parseResult['filename'] as String?;
+      final fileDataExtracted = parseResult['data'] as Uint8List?;
 
-    // ✅ STEP 6: Store and analyze
-    final fileId = DateTime.now().millisecondsSinceEpoch.toString();
-    _uploadedFiles[fileId] = fileDataExtracted;
+      if (fileNameExtracted == null || fileNameExtracted.isEmpty) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'No filename found in multipart upload',
+        }, 400);
+      }
 
-    final metrics = AnalysisMetrics(fileId: fileId);
-    _metrics[fileId] = metrics;
-    metrics.recordPhase('READ_FILE', fileDataExtracted.length);
+      if (fileDataExtracted == null || fileDataExtracted.isEmpty) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'No file data found in multipart upload',
+        }, 400);
+      }
 
-    print('🔍 Starting analysis for: $fileId');
+      print('📄 File: $fileNameExtracted (${fileDataExtracted.length} bytes)');
 
-    try {
-      await _analyzeFileStream(fileId, fileDataExtracted, fileNameExtracted).drain();
-      await Future.delayed(Duration(milliseconds: 150));
+      // ✅ STEP 5: Validate file
+      if (!fileNameExtracted.toLowerCase().endsWith('.ir')) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'Invalid file type. Only .ir files are allowed',
+          'filename': fileNameExtracted,
+        }, 400);
+      }
+
+      const maxFileSize = 100 * 1024 * 1024; // 100MB
+      if (fileDataExtracted.length > maxFileSize) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'File exceeds maximum size (100MB)',
+          'size': fileDataExtracted.length,
+        }, 413);
+      }
+
+      // ✅ STEP 6: Store and analyze
+      final fileId = DateTime.now().millisecondsSinceEpoch.toString();
+      _uploadedFiles[fileId] = fileDataExtracted;
+
+      final metrics = AnalysisMetrics(fileId: fileId);
+      _metrics[fileId] = metrics;
+      metrics.recordPhase('READ_FILE', fileDataExtracted.length);
+
+      print('🔍 Starting analysis for: $fileId');
+
+      try {
+        await _analyzeFileStream(
+          fileId,
+          fileDataExtracted,
+          fileNameExtracted,
+        ).drain();
+        await Future.delayed(Duration(milliseconds: 150));
+      } catch (e, st) {
+        print('❌ Analysis error: $e');
+        _logError('ANALYSIS_ERROR', e.toString(), st.toString(), 'api/upload');
+        return _errorResponseJson({
+          'success': false,
+          'error': 'Analysis failed: ${e.toString()}',
+        }, 500);
+      }
+
+      // ✅ STEP 7: Retrieve and validate analysis
+      final analysis = _analyses[fileId];
+      if (analysis == null) {
+        _logError(
+          'ANALYSIS_NOT_FOUND',
+          'No result after stream',
+          '',
+          'api/upload',
+        );
+        return _errorResponseJson({
+          'success': false,
+          'error': 'Analysis result not found',
+        }, 500);
+      }
+
+      if (!analysis.success) {
+        return _errorResponseJson({
+          'success': false,
+          'error': analysis.error ?? 'Unknown analysis error',
+        }, 400);
+      }
+
+      metrics.recordPhase('COMPLETE', analysis.totalLines);
+      metrics.recordSuccess();
+
+      print('✅ Upload complete!');
+
+      // ✅ STEP 8: Return success
+      return Response.ok(
+        jsonEncode({
+          'success': true,
+          'fileId': fileId,
+          'fileName': fileNameExtracted,
+          'size': fileDataExtracted.length,
+          'analysis': analysis.toJson(),
+          'metrics': metrics.toJson(),
+        }),
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          'access-control-allow-origin': '*',
+        },
+      );
     } catch (e, st) {
-      print('❌ Analysis error: $e');
-      _logError('ANALYSIS_ERROR', e.toString(), st.toString(), 'api/upload');
-      return _errorResponseJson({
-        'success': false,
-        'error': 'Analysis failed: ${e.toString()}',
-      }, 500);
+      print('❌ FATAL: $e\n$st');
+      _logError('UPLOAD_FATAL', e.toString(), st.toString(), 'api/upload');
+
+      return Response(
+        500,
+        body: jsonEncode({'success': false, 'error': 'Internal server error'}),
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
     }
+  }
 
-    // ✅ STEP 7: Retrieve and validate analysis
-    final analysis = _analyses[fileId];
-    if (analysis == null) {
-      _logError('ANALYSIS_NOT_FOUND', 'No result after stream', '', 'api/upload');
-      return _errorResponseJson({
-        'success': false,
-        'error': 'Analysis result not found',
-      }, 500);
-    }
-
-    if (!analysis.success) {
-      return _errorResponseJson({
-        'success': false,
-        'error': analysis.error ?? 'Unknown analysis error',
-      }, 400);
-    }
-
-    metrics.recordPhase('COMPLETE', analysis.totalLines);
-    metrics.recordSuccess();
-
-    print('✅ Upload complete!');
-
-    // ✅ STEP 8: Return success
-    return Response.ok(
-      jsonEncode({
-        'success': true,
-        'fileId': fileId,
-        'fileName': fileNameExtracted,
-        'size': fileDataExtracted.length,
-        'analysis': analysis.toJson(),
-        'metrics': metrics.toJson(),
-      }),
-      headers: {
-        'content-type': 'application/json; charset=utf-8',
-        'access-control-allow-origin': '*',
-      },
-    );
-
-  } catch (e, st) {
-    print('❌ FATAL: $e\n$st');
-    _logError('UPLOAD_FATAL', e.toString(), st.toString(), 'api/upload');
-    
+  /// Helper to send JSON error responses
+  Response _errorResponseJson(Map<String, dynamic> json, int statusCode) {
     return Response(
-      500,
-      body: jsonEncode({
-        'success': false,
-        'error': 'Internal server error',
-      }),
+      statusCode,
+      body: jsonEncode(json),
       headers: {'content-type': 'application/json; charset=utf-8'},
     );
   }
-}
 
-
-
-/// Helper to send JSON error responses
-Response _errorResponseJson(Map<String, dynamic> json, int statusCode) {
-  return Response(
-    statusCode,
-    body: jsonEncode(json),
-    headers: {'content-type': 'application/json; charset=utf-8'},
-  );
-}
   // ✅ ALSO UPDATE Response error helper
   Response _errorResponse(String message, int statusCode) {
     final response = {
@@ -774,7 +782,8 @@ Response _errorResponseJson(Map<String, dynamic> json, int statusCode) {
       final files = dir.listSync(recursive: false);
 
       for (final file in files) {
-        if (file is File && file.path.endsWith('.ir')) {
+        if (file is File &&
+            (file.path.endsWith('.ir') || file.path.endsWith('.json'))) {
           try {
             _availableFiles.add(
               IRFileInfo(
@@ -865,6 +874,15 @@ Response _errorResponseJson(Map<String, dynamic> json, int statusCode) {
         return await _handleLoadFromPath(request);
       }
 
+      // ✅ NEW: Add these routes before the 404 error
+      if (path == 'api/upload-json' && method == 'POST') {
+        return await _handleJsonUpload(request);
+      }
+
+      if (path == 'api/json-files' && method == 'GET') {
+        return _handleListJsonFiles();
+      }
+
       // ✅ NEW: API endpoint for metrics
       if (path == 'api/metrics' && method == 'GET') {
         return _handleMetrics();
@@ -911,6 +929,277 @@ Response _errorResponseJson(Map<String, dynamic> json, int statusCode) {
     } catch (e) {
       _logError('LIST_FILES_ERROR', e.toString(), '', 'api/files');
       return _errorResponse('Failed to list files: $e', 500);
+    }
+  }
+
+  // ✅ NEW: Add this complete method
+  Future<Response> _handleJsonUpload(Request request) async {
+    try {
+      print('📤 JSON Upload started...');
+
+      final contentType = request.headers['content-type'] ?? '';
+      if (!contentType.contains('multipart/form-data')) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'Invalid content-type. Expected multipart/form-data',
+        }, 400);
+      }
+
+      final boundaryMatch = RegExp(
+        r'boundary=([^\s;]+)',
+      ).firstMatch(contentType);
+      if (boundaryMatch == null) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'Missing boundary in multipart request',
+        }, 400);
+      }
+
+      String boundary = boundaryMatch.group(1)!.replaceAll('"', '');
+      const maxRequestSize = 60 * 1024 * 1024; // 60MB for JSON
+
+      final bodyBytes = <int>[];
+      await for (final chunk in request.read()) {
+        bodyBytes.addAll(chunk);
+        if (bodyBytes.length > maxRequestSize) {
+          return _errorResponseJson({
+            'success': false,
+            'error': 'Request body exceeds maximum size (50MB)',
+          }, 413);
+        }
+      }
+
+      if (bodyBytes.isEmpty) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'Empty request body',
+        }, 400);
+      }
+
+      final parser = MultipartParser(Uint8List.fromList(bodyBytes), boundary);
+      final parseResult = parser.parse();
+
+      if (!parseResult['success']) {
+        return _errorResponseJson({
+          'success': false,
+          'error': parseResult['error'] ?? 'Multipart parsing failed',
+        }, 400);
+      }
+
+      final fileName = parseResult['filename'] as String?;
+      final fileData = parseResult['data'] as Uint8List?;
+
+      if (fileName == null || fileName.isEmpty) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'No filename found',
+        }, 400);
+      }
+
+      if (!fileName.toLowerCase().endsWith('.json')) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'Invalid file type. Only .json files are allowed',
+        }, 400);
+      }
+
+      if (fileData == null || fileData.isEmpty) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'No file data found',
+        }, 400);
+      }
+
+      const maxFileSize = 50 * 1024 * 1024;
+      if (fileData.length > maxFileSize) {
+        return _errorResponseJson({
+          'success': false,
+          'error': 'File exceeds maximum size (50MB)',
+        }, 413);
+      }
+
+      // ✅ Parse and analyze JSON
+      final fileId = DateTime.now().millisecondsSinceEpoch.toString();
+      _uploadedFiles[fileId] = fileData;
+
+      final metrics = AnalysisMetrics(fileId: fileId);
+      _metrics[fileId] = metrics;
+      metrics.recordPhase('READ_FILE', fileData.length);
+
+      try {
+        final jsonString = utf8.decode(fileData);
+        final jsonData = jsonDecode(jsonString);
+
+        _jsonDataCache[fileId] = jsonData;
+
+        final analysis = _analyzeJsonData(fileId, jsonData, fileName);
+        _jsonAnalyses[fileId] = analysis;
+
+        metrics.recordPhase('PARSE_JSON', _getJsonItemCount(jsonData));
+        metrics.recordSuccess();
+
+        print('✅ JSON Upload complete!');
+
+        return Response.ok(
+          jsonEncode({
+            'success': true,
+            'fileId': fileId,
+            'fileName': fileName,
+            'size': fileData.length,
+            'analysis': analysis.toJson(),
+            'metrics': metrics.toJson(),
+          }),
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            'access-control-allow-origin': '*',
+          },
+        );
+      } catch (e) {
+        _logError('JSON_PARSE_ERROR', e.toString(), '', 'api/upload-json');
+        return _errorResponseJson({
+          'success': false,
+          'error': 'Invalid JSON format: ${e.toString()}',
+        }, 400);
+      }
+    } catch (e, st) {
+      print('❌ JSON Upload Error: $e\n$st');
+      _logError(
+        'JSON_UPLOAD_ERROR',
+        e.toString(),
+        st.toString(),
+        'api/upload-json',
+      );
+
+      return Response(
+        500,
+        body: jsonEncode({'success': false, 'error': 'Internal server error'}),
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+  }
+
+  // ✅ NEW: Analyze JSON structure
+  JsonAnalysisResult _analyzeJsonData(
+    String fileId,
+    dynamic jsonData,
+    String fileName,
+  ) {
+    final result = JsonAnalysisResult(
+      fileId: fileId,
+      fileName: fileName,
+      startTime: DateTime.now(),
+    );
+
+    try {
+      final stats = _analyzeJsonStructure(jsonData);
+
+      result.setAnalysis(
+        topLevelType: jsonData is List ? 'Array' : 'Object',
+        itemCount: stats['itemCount'] as int,
+        maxDepth: stats['maxDepth'] as int,
+        totalSize: jsonEncode(jsonData).length,
+        keys: stats['keys'] as List<String>,
+        structure: stats['structure'] as Map<String, dynamic>,
+      );
+
+      result.success = true;
+    } catch (e) {
+      result.success = false;
+      result.error = e.toString();
+    }
+
+    return result;
+  }
+
+  // ✅ NEW: Analyze JSON structure recursively
+  Map<String, dynamic> _analyzeJsonStructure(
+    dynamic data, {
+    int depth = 0,
+    int maxDepth = 0,
+  }) {
+    if (depth > maxDepth) maxDepth = depth;
+
+    List<String> keys = [];
+    Map<String, dynamic> structure = {};
+    int itemCount = 0;
+
+    if (data is Map) {
+      keys = data.keys.cast<String>().toList();
+      itemCount = data.length;
+
+      data.forEach((key, value) {
+        final type = _getJsonType(value);
+        structure[key] = {
+          'type': type,
+          'value': value is Map || value is List ? '...' : value,
+        };
+      });
+    } else if (data is List) {
+      itemCount = data.length;
+      if (data.isNotEmpty) {
+        structure['[0]'] = {
+          'type': _getJsonType(data[0]),
+          'value': data[0] is Map || data[0] is List ? '...' : data[0],
+        };
+      }
+    }
+
+    return {
+      'itemCount': itemCount,
+      'maxDepth': maxDepth,
+      'keys': keys,
+      'structure': structure,
+    };
+  }
+
+  // ✅ NEW: Get JSON value type
+  String _getJsonType(dynamic value) {
+    if (value == null) return 'null';
+    if (value is bool) return 'boolean';
+    if (value is int) return 'integer';
+    if (value is double) return 'number';
+    if (value is String) return 'string';
+    if (value is List) return 'array';
+    if (value is Map) return 'object';
+    return 'unknown';
+  }
+
+  // ✅ NEW: Get total JSON item count
+  int _getJsonItemCount(dynamic data) {
+    if (data is Map) return data.length;
+    if (data is List) return data.length;
+    return 1;
+  }
+
+  // ✅ NEW: List available JSON files
+  Response _handleListJsonFiles() {
+    try {
+      final jsonFiles = _availableFiles
+          .where((f) => f.name.endsWith('.json'))
+          .toList();
+
+      return Response.ok(
+        jsonEncode({
+          'success': true,
+          'count': jsonFiles.length,
+          'files': jsonFiles
+              .map(
+                (f) => {
+                  'path': f.path,
+                  'name': f.name,
+                  'size': f.size,
+                  'sizeKB': (f.size / 1024).toStringAsFixed(2),
+                  'modified': f.modified.toIso8601String(),
+                  'cached': _jsonDataCache.containsKey(f.path),
+                },
+              )
+              .toList(),
+        }),
+        headers: {'content-type': 'application/json'},
+      );
+    } catch (e) {
+      _logError('LIST_JSON_ERROR', e.toString(), '', 'api/json-files');
+      return _errorResponse('Failed to list JSON files: $e', 500);
     }
   }
 
@@ -1401,15 +1690,14 @@ class MultipartParser {
         // ✅ Extract file content (handle binary data)
         final content = _extractFileContent(part, doubleCrlfBytes, crlfBytes);
         if (content != null && content.isNotEmpty) {
-          return {
-            'success': true,
-            'filename': filename,
-            'data': content,
-          };
+          return {'success': true, 'filename': filename, 'data': content};
         }
       }
 
-      return {'success': false, 'error': 'No file part found in multipart data'};
+      return {
+        'success': false,
+        'error': 'No file part found in multipart data',
+      };
     } catch (e, st) {
       print('Parse error: $e\n$st');
       return {'success': false, 'error': 'Parsing error: ${e.toString()}'};
@@ -1498,7 +1786,7 @@ class MultipartParser {
     }
 
     final contentStart = headerEnd + doubleCrlfBytes.length;
-    
+
     // Find trailing CRLF (end of content before next boundary)
     int contentEnd = part.length;
     for (int i = part.length - crlfBytes.length; i >= contentStart; i--) {
@@ -1523,3 +1811,56 @@ class MultipartParser {
   }
 }
 
+// ✅ NEW: JSON Analysis Result
+class JsonAnalysisResult {
+  final String fileId;
+  final String fileName;
+  final DateTime startTime;
+  bool success = false;
+  String? error;
+
+  String? topLevelType;
+  int? itemCount;
+  int? maxDepth;
+  int? totalSize;
+  List<String>? keys;
+  Map<String, dynamic>? structure;
+
+  JsonAnalysisResult({
+    required this.fileId,
+    required this.fileName,
+    required this.startTime,
+  });
+
+  void setAnalysis({
+    required String topLevelType,
+    required int itemCount,
+    required int maxDepth,
+    required int totalSize,
+    required List<String> keys,
+    required Map<String, dynamic> structure,
+  }) {
+    this.topLevelType = topLevelType;
+    this.itemCount = itemCount;
+    this.maxDepth = maxDepth;
+    this.totalSize = totalSize;
+    this.keys = keys;
+    this.structure = structure;
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'success': success,
+      'error': error,
+      'fileId': fileId,
+      'fileName': fileName,
+      'topLevelType': topLevelType,
+      'itemCount': itemCount,
+      'maxDepth': maxDepth,
+      'totalSize': totalSize,
+      'keys': keys,
+      'structure': structure,
+      'duration': DateTime.now().difference(startTime).inMilliseconds,
+    };
+  }
+}

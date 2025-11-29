@@ -1102,12 +1102,20 @@ class BinaryIRReader
         documentation = readStringRef();
       }
 
+      printlog('[READ FUNCTION] Before annotation count at offset: $_offset');
       final annotationCount = readUint32();
+      printlog(
+        '[READ FUNCTION] Annotation count: $annotationCount at offset: ${_offset - 4}',
+      );
+
       final annotations = <AnnotationIR>[];
       for (int i = 0; i < annotationCount; i++) {
+        printlog('[READ FUNCTION] Reading annotation $i/$annotationCount');
         annotations.add(readAnnotation());
+        printlog('[READ FUNCTION] Annotation $i complete at offset: $_offset');
       }
-      printlog('[READ FUNCTION] Section 2: annotations=$annotationCount');
+
+      printlog('[READ FUNCTION] After annotations at offset: $_offset');
 
       // ========== SECTION 3: Type Parameters ==========
       final typeParameterCount = readUint32();
@@ -1337,11 +1345,30 @@ class BinaryIRReader
 
   FunctionBodyIR _readFunctionBody() {
     printlog('[READ FUNCTION BODY] START at offset: $_offset');
+    printlog('[DEBUG BEFORE BODY] Offset: $_offset');
+
+    printlog('[DEBUG BEFORE BODY] Next 16 bytes (hex):');
+    if (_offset + 16 <= _data.lengthInBytes) {
+      final nextBytes = _data.buffer.asUint8List(_offset, 16);
+      final hex = nextBytes
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join(' ');
+      printlog('  $hex');
+    }
 
     try {
-      // ========== Read statements count + statements ==========
+      // ✓ Read statements count immediately - FIRST THING
       final stmtCount = readUint32();
-      printlog('[READ FUNCTION BODY] Statement count: $stmtCount');
+      printlog(
+        '[READ FUNCTION BODY] Statement count: $stmtCount at offset: ${_offset - 4}',
+      );
+
+      if (stmtCount > 10000) {
+        throw SerializationException(
+          'Unreasonable statement count: $stmtCount',
+          offset: _offset - 4,
+        );
+      }
 
       final statements = <StatementIR>[];
       for (int i = 0; i < stmtCount; i++) {
@@ -1349,16 +1376,24 @@ class BinaryIRReader
           statements.add(readStatement());
         } catch (e) {
           throw SerializationException(
-            'Error reading statement $i/$stmtCount at offset $_offset: $e',
+            'Error reading statement $i/$stmtCount: $e',
             offset: _offset,
           );
         }
       }
 
-      // ========== Read expressions count + expressions ==========
-      // THIS IS CRITICAL - MUST MATCH WRITER
+      // ✓ Then read expressions count
       final exprCount = readUint32();
-      printlog('[READ FUNCTION BODY] Expression count: $exprCount');
+      printlog(
+        '[READ FUNCTION BODY] Expression count: $exprCount at offset: ${_offset - 4}',
+      );
+
+      if (exprCount > 10000) {
+        throw SerializationException(
+          'Unreasonable expression count: $exprCount',
+          offset: _offset - 4,
+        );
+      }
 
       final expressions = <ExpressionIR>[];
       for (int i = 0; i < exprCount; i++) {
@@ -1366,13 +1401,13 @@ class BinaryIRReader
           expressions.add(readExpression());
         } catch (e) {
           throw SerializationException(
-            'Error reading expression $i/$exprCount at offset $_offset: $e',
+            'Error reading expression $i/$exprCount: $e',
             offset: _offset,
           );
         }
       }
 
-      // ========== Read extraction data flag + data ==========
+      // ✓ Then read extraction data flag
       final hasExtractionData = readByte() != 0;
       printlog('[READ FUNCTION BODY] Has extraction data: $hasExtractionData');
 
@@ -1390,35 +1425,52 @@ class BinaryIRReader
       );
     } catch (e) {
       printlog('[READ FUNCTION BODY ERROR] at offset $_offset: $e');
+      _dumpHexAround(_offset);
       rethrow;
     }
   }
 
   AnnotationIR readAnnotation() {
-    final name = readStringRef();
+    printlog('[READ ANNOTATION] START at offset: $_offset');
 
-    final argCount = readUint32();
-    final arguments = <ExpressionIR>[];
-    for (int i = 0; i < argCount; i++) {
-      arguments.add(readExpression());
+    try {
+      // ✓ Read annotation name
+      final name = readStringRef();
+      printlog('[READ ANNOTATION] Name: $name');
+
+      // ✓ Read positional arguments
+      final argCount = readUint32();
+      final arguments = <ExpressionIR>[];
+      for (int i = 0; i < argCount; i++) {
+        arguments.add(readExpression());
+      }
+      printlog('[READ ANNOTATION] Arguments: $argCount');
+
+      // ✓ Read named arguments
+      final namedArgCount = readUint32();
+      final namedArguments = <String, ExpressionIR>{};
+      for (int i = 0; i < namedArgCount; i++) {
+        final key = readStringRef();
+        final value = readExpression();
+        namedArguments[key] = value;
+      }
+      printlog('[READ ANNOTATION] Named arguments: $namedArgCount');
+
+      // ✓ Read source location
+      final sourceLocation = readSourceLocation();
+
+      printlog('[READ ANNOTATION] END at offset: $_offset');
+
+      return AnnotationIR(
+        name: name,
+        arguments: arguments,
+        namedArguments: namedArguments,
+        sourceLocation: sourceLocation,
+      );
+    } catch (e) {
+      printlog('[READ ANNOTATION ERROR] at offset $_offset: $e');
+      rethrow;
     }
-
-    final namedArgCount = readUint32();
-    final namedArguments = <String, ExpressionIR>{};
-    for (int i = 0; i < namedArgCount; i++) {
-      final key = readStringRef();
-      final value = readExpression();
-      namedArguments[key] = value;
-    }
-
-    final sourceLocation = readSourceLocation();
-
-    return AnnotationIR(
-      name: name,
-      arguments: arguments,
-      namedArguments: namedArguments,
-      sourceLocation: sourceLocation,
-    );
   }
 
   @override

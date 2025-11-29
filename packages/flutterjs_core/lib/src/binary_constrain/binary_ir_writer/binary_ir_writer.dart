@@ -1019,10 +1019,23 @@ class BinaryIRWriter
       }
 
       // Annotations
+      printlog('[WRITE FUNCTION] Before annotations');
       writeUint32(func.annotations.length);
-      for (final ann in func.annotations) {
-        writeAnnotation(ann);
+      printlog(
+        '[WRITE FUNCTION] Annotation count: ${func.annotations.length} at offset: ${buffer.length - 4}',
+      );
+
+      for (int i = 0; i < func.annotations.length; i++) {
+        printlog(
+          '[WRITE FUNCTION] Writing annotation $i/${func.annotations.length}',
+        );
+        writeAnnotation(func.annotations[i]);
+        printlog(
+          '[WRITE FUNCTION] Annotation $i complete at offset: ${buffer.length}',
+        );
       }
+
+      printlog('[WRITE FUNCTION] After annotations');
       printlog(
         '[WRITE FUNCTION] Section 2 (documentation/annotations) at offset ${buffer.length}',
       );
@@ -1144,8 +1157,20 @@ class BinaryIRWriter
         );
       }
 
+      printlog('[DEBUG BEFORE BODY] Offset: ${buffer.length}');
+      printlog('[DEBUG BEFORE BODY] Last 16 bytes written (hex):');
+      final allBytes = buffer.toBytes();
+      if (allBytes.length >= 16) {
+        final lastBytes = allBytes.sublist(allBytes.length - 16);
+        final hex = lastBytes
+            .map((b) => b.toRadixString(16).padLeft(2, '0'))
+            .join(' ');
+        printlog('  $hex');
+      }
+
       // ========== SECTION 7: Function Body ==========
       // THIS MUST MATCH READER EXACTLY
+      writeByte(func.body != null ? 1 : 0);
       writeFunctionBody(func.body);
       printlog('[WRITE FUNCTION] Section 7 (body) at offset ${buffer.length}');
 
@@ -1163,7 +1188,7 @@ class BinaryIRWriter
   // ============================================================================
   @override
   void writeFunctionBody(FunctionBodyIR? body) {
-    writeByte(body != null ? 1 : 0);
+    writeByte(body != null ? 1 : 0); // hasBody flag
 
     if (body == null) {
       printlog('[FUNCTION BODY] null body at offset: ${buffer.length}');
@@ -1172,9 +1197,11 @@ class BinaryIRWriter
 
     printlog('[FUNCTION BODY] START at offset: ${buffer.length}');
 
-    // ========== Write statements count + statements ==========
+    // ✓ IMMEDIATELY write statements count - NO other data before this
     writeUint32(body.statements.length);
-    printlog('[FUNCTION BODY] Statements: ${body.statements.length}');
+    printlog(
+      '[FUNCTION BODY] Statement count: ${body.statements.length} at offset: ${buffer.length - 4}',
+    );
 
     for (int i = 0; i < body.statements.length; i++) {
       try {
@@ -1185,10 +1212,11 @@ class BinaryIRWriter
       }
     }
 
-    // ========== Write expressions count + expressions ==========
-    // THIS IS CRITICAL - READER MUST READ THIS TOO
+    // ✓ Then write expressions count
     writeUint32(body.expressions.length);
-    printlog('[FUNCTION BODY] Expressions: ${body.expressions.length}');
+    printlog(
+      '[FUNCTION BODY] Expression count: ${body.expressions.length} at offset: ${buffer.length - 4}',
+    );
 
     for (int i = 0; i < body.expressions.length; i++) {
       try {
@@ -1199,7 +1227,7 @@ class BinaryIRWriter
       }
     }
 
-    // ========== Write extraction data flag + data ==========
+    // ✓ Then write extraction data flag
     writeByte(body.extractionData != null ? 1 : 0);
     printlog(
       '[FUNCTION BODY] Has extraction data: ${body.extractionData != null}',
