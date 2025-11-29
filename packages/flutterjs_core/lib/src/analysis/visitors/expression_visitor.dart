@@ -1,13 +1,13 @@
 import 'dart:math';
 
-import 'expression_ir.dart';
-import 'advanced.dart';
-import 'function_method_calls.dart';
-import 'literals.dart';
-import 'operations.dart';
-import 'vaibales_access.dart';
-import '../statements/statement_ir.dart';
-import '../types/type_ir.dart';
+import '../../ir/expressions/expression_ir.dart';
+import '../../ir/expressions/advanced.dart';
+import '../../ir/expressions/function_method_calls.dart';
+import '../../ir/expressions/literals.dart';
+import '../../ir/expressions/operations.dart';
+import '../../ir/expressions/vaibales_access.dart';
+import '../../ir/statements/statement_ir.dart';
+import '../../ir/types/type_ir.dart';
 
 /// =============================================================================
 ///  EXPRESSION & STATEMENT VISITOR FRAMEWORK

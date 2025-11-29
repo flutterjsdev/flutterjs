@@ -469,7 +469,7 @@ mixin RelationshipWriter {
       continue; // No build method
     }
 
-    if (buildMethod != null && buildMethod.body != null) {
+    if (buildMethod.body != null) {
       // âœ… FIRST: Check extraction data for widget relationships
       if (buildMethod.body!.extractionData != null) {
         final data = buildMethod.body!.extractionData!;

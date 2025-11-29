@@ -213,7 +213,6 @@ mixin StatementWriter {
 
   BytesBuilder get buffer;
 
-  BytesBuilder get _buffer => buffer;
 
   void writeStatement(StatementIR stmt);
 

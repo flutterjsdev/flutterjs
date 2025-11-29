@@ -163,7 +163,6 @@ mixin StringCollectionPhase {
   bool get isVerbose;
   // Ã¢Å"â€¦ FIXED: Use getter to access verbose flag
   bool get _verbose => isVerbose;
-  List<String> get _stringTable => stringTable;
 
   void printlog(String str);
   void addString(String str);
@@ -280,8 +279,8 @@ mixin StringCollectionPhase {
     // Diagnostics
     for (final diag in data.diagnostics) {
       addString(diag.message);
-      if (diag.code != null && diag.code!.isNotEmpty) {
-        addString(diag.code!);
+      if (diag.code.isNotEmpty) {
+        addString(diag.code);
       }
     }
 

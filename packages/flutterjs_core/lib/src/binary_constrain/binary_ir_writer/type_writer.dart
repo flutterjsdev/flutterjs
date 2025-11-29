@@ -201,7 +201,6 @@ mixin TypeWriter {
 
   BytesBuilder get buffer;
 
-  BytesBuilder get _buffer => buffer;
 
   void writeType(TypeIR type) {
     if (type is SimpleTypeIR) {

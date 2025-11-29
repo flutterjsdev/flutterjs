@@ -1671,7 +1671,7 @@ class BinaryIRWriter
   void writeExtractionDiagnostic(ExtractionDiagnostic diagnostic) {
     writeByte(diagnostic.level.index);
     writeUint32(getStringRef(diagnostic.message));
-    writeUint32(getStringRef(diagnostic.code ?? ''));
+    writeUint32(getStringRef(diagnostic.code));
   }
 
   void writeExtractionMetadata(FunctionMetadata metadata) {
@@ -1866,13 +1866,11 @@ class BinaryIRWriter
 
     for (final diag in data.diagnostics) {
       addString(diag.message);
-      if (diag.code != null) {
-        addString(diag.code);
-      }
+      addString(diag.code);
     }
   }
 
-@override
+  @override
   void collectStringsFromFlutterComponent(FlutterComponent component) {
     addString(component.id);
     addString(component.describe());
@@ -2258,6 +2256,117 @@ class BinaryIRWriter
     );
   }
 
+  void writeMethodDecl(MethodDecl method) {
+    final startOffset = _buffer.length;
+    printlog('  [METHOD START] ${method.name} at offset: $startOffset');
+
+    try {
+      // ========== SECTION 1: Basic Metadata ==========
+      final idRef = getStringRef(method.id);
+      writeUint32(idRef);
+      printlog('  [METHOD] After id ($idRef): ${_buffer.length}');
+
+      final nameRef = getStringRef(method.name);
+      writeUint32(nameRef);
+      printlog('  [METHOD] After name ($nameRef): ${_buffer.length}');
+
+      writeType(method.returnType);
+      printlog('  [METHOD] After returnType: ${_buffer.length}');
+
+      // ========== SECTION 2: Documentation & Annotations ==========
+      writeByte(method.documentation != null ? 1 : 0);
+      if (method.documentation != null) {
+        writeUint32(getStringRef(method.documentation!));
+      }
+      printlog('  [METHOD] After documentation: ${_buffer.length}');
+
+      // Annotations
+      writeUint32(method.annotations.length);
+      for (final ann in method.annotations) {
+        writeAnnotation(ann);
+      }
+      printlog(
+        '  [METHOD] After annotations (${method.annotations.length}): ${_buffer.length}',
+      );
+
+      // ========== SECTION 3: Type Parameters ==========
+      writeUint32(method.typeParameters.length);
+      for (final tp in method.typeParameters) {
+        writeUint32(getStringRef(tp.name));
+        writeByte(tp.bound != null ? 1 : 0);
+        if (tp.bound != null) {
+          writeType(tp.bound!);
+        }
+      }
+      printlog(
+        '  [METHOD] After typeParameters (${method.typeParameters.length}): ${_buffer.length}',
+      );
+
+      // ========== SECTION 4: Parameters ==========
+      printlog('  [METHOD] params count: ${method.parameters.length}');
+      writeUint32(method.parameters.length);
+      printlog('  [METHOD] After paramCount write: ${_buffer.length}');
+
+      for (int i = 0; i < method.parameters.length; i++) {
+        final paramStartOffset = _buffer.length;
+        writeParameterDecl(method.parameters[i]);
+        final paramEndOffset = _buffer.length;
+        printlog(
+          '  [METHOD] Param $i: ${paramEndOffset - paramStartOffset} bytes',
+        );
+      }
+      printlog('  [METHOD] After parameters loop: ${_buffer.length}');
+
+      // ========== SECTION 5: Source Location ==========
+      writeSourceLocation(method.sourceLocation);
+      printlog('  [METHOD] After sourceLocation: ${_buffer.length}');
+
+      // ========== SECTION 6: Type-Specific Data (Method = funcType 2) ==========
+      writeByte(2); // isMethod flag
+
+      writeByte(method.className != null ? 1 : 0);
+      if (method.className != null) {
+        writeUint32(getStringRef(method.className!));
+      }
+
+      writeByte(method.overriddenSignature != null ? 1 : 0);
+      if (method.overriddenSignature != null) {
+        writeUint32(getStringRef(method.overriddenSignature!));
+      }
+
+      writeByte(method.isAsync ? 1 : 0);
+      writeByte(method.isGenerator ? 1 : 0);
+
+      // Widget return flag
+      final isWidgetReturn = _isWidgetType(method.returnType);
+      writeByte(isWidgetReturn ? 1 : 0);
+
+      printlog('[METHOD] Method-specific data written');
+
+      // ========== SECTION 7: Function Body + Extraction Data ==========
+      // âœ… NOW DELEGATES TO writeFunctionBody()
+      writeByte(method.body != null ? 1 : 0);
+      writeFunctionBody(method.body);
+
+      final endOffset = _buffer.length;
+      printlog(
+        '  [METHOD END] ${method.name}: ${endOffset - startOffset} bytes\n',
+      );
+    } catch (e) {
+      printlog('  [METHOD ERROR] ${method.name}: $e');
+      rethrow;
+    }
+  }
+
+  /// Helper method to check if return type is Widget or generic Widget variant
+  bool _isWidgetType(TypeIR returnType) {
+    final displayName = returnType.displayName();
+    return displayName == 'Widget' ||
+        displayName.startsWith('State<') ||
+        displayName == 'StatefulWidget' ||
+        displayName == 'StatelessWidget';
+  }
+
   @override
   void collectStringsFromFunction(FunctionDecl func) {
     printlog('[COLLECT FUNCTION] ${func.name}');
@@ -2367,44 +2476,48 @@ class BinaryIRWriter
   }
 
   void collectStringsFromFunctionBody(FunctionBodyIR? body) {
-  if (body == null) return;
+    if (body == null) return;
 
-  printlog('[COLLECT BODY] START - body id: ${body.id}');
+    printlog('[COLLECT BODY] START - body id: ${body.id}');
 
-  // âœ… CRITICAL: Add the body's ID to string table
-  addString(body.id);
-  printlog('[COLLECT BODY] Added body ID: ${body.id}');
+    // âœ… CRITICAL: Add the body's ID to string table
+    addString(body.id);
+    printlog('[COLLECT BODY] Added body ID: ${body.id}');
 
-  // Add sourceLocation file if explicit (not 'unknown')
-  if (body.sourceLocation.file != 'unknown' && body.sourceLocation.file.isNotEmpty) {
-    addString(body.sourceLocation.file);
-    printlog('[COLLECT BODY] Added sourceLocation file: ${body.sourceLocation.file}');
+    // Add sourceLocation file if explicit (not 'unknown')
+    if (body.sourceLocation.file != 'unknown' &&
+        body.sourceLocation.file.isNotEmpty) {
+      addString(body.sourceLocation.file);
+      printlog(
+        '[COLLECT BODY] Added sourceLocation file: ${body.sourceLocation.file}',
+      );
+    }
+
+    // Collect from all statements
+    printlog('[COLLECT BODY] Processing ${body.statements.length} statements');
+    for (final stmt in body.statements) {
+      collectStringsFromStatement(stmt);
+    }
+    printlog('[COLLECT BODY] Collected from statements');
+
+    // Collect from all expressions
+    printlog(
+      '[COLLECT BODY] Processing ${body.expressions.length} expressions',
+    );
+    for (final expr in body.expressions) {
+      collectStringsFromExpression(expr);
+    }
+    printlog('[COLLECT BODY] Collected from expressions');
+
+    // Collect from extraction data if present
+    if (body.extractionData != null) {
+      printlog('[COLLECT BODY] Collecting from extraction data');
+      collectStringsFromExtractionData(body.extractionData!);
+      printlog('[COLLECT BODY] Extraction data collected');
+    }
+
+    printlog('[COLLECT BODY] END');
   }
-
-  // Collect from all statements
-  printlog('[COLLECT BODY] Processing ${body.statements.length} statements');
-  for (final stmt in body.statements) {
-    collectStringsFromStatement(stmt);
-  }
-  printlog('[COLLECT BODY] Collected from statements');
-
-  // Collect from all expressions
-  printlog('[COLLECT BODY] Processing ${body.expressions.length} expressions');
-  for (final expr in body.expressions) {
-    collectStringsFromExpression(expr);
-  }
-  printlog('[COLLECT BODY] Collected from expressions');
-
-  // Collect from extraction data if present
-  if (body.extractionData != null) {
-    printlog('[COLLECT BODY] Collecting from extraction data');
-    collectStringsFromExtractionData(body.extractionData!);
-    printlog('[COLLECT BODY] Extraction data collected');
-  }
-
-  printlog('[COLLECT BODY] END');
-}
-
 }
 
 /// Enhanced exception with context information

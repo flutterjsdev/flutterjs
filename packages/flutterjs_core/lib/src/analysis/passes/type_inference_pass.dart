@@ -5,8 +5,7 @@ import '../../ir/declarations/dart_file_builder.dart';
 import '../../ir/declarations/function_decl.dart';
 import '../../ir/expressions/expression_ir.dart';
 import '../../ir/types/type_ir.dart';
-import '../../ir/declarations/parameter_decl.dart';
-import '../../ir/flutter/state_management.dart';
+
 import '../../ir/declarations/variable_decl.dart';
 import '../../ir/diagnostics/analysis_issue.dart';
 import '../../ir/diagnostics/issue_category.dart';
@@ -716,38 +715,11 @@ class TypeInferencePass {
     ),
   );
 
-  TypeIR _createDynamicType() => DynamicTypeIR(
-    id: 'type_dynamic',
-    sourceLocation: SourceLocationIR(
-      id: 'loc_builtin',
-      file: 'builtin',
-      line: 0,
-      column: 0,
-      offset: 0,
-      length: 0,
-    ),
-  );
+ 
 
-  TypeIR _createListType(TypeIR elementType) => SimpleTypeIR(
-    id: 'type_list',
-    name: 'List<${_extractTypeName(elementType)}>',
-    isNullable: false,
-    sourceLocation: elementType.sourceLocation,
-  );
 
-  TypeIR _createMapType(TypeIR keyType, TypeIR valueType) => SimpleTypeIR(
-    id: 'type_map',
-    name: 'Map<${_extractTypeName(keyType)},${_extractTypeName(valueType)}>',
-    isNullable: false,
-    sourceLocation: keyType.sourceLocation,
-  );
 
-  TypeIR _createSetType(TypeIR elementType) => SimpleTypeIR(
-    id: 'type_set',
-    name: 'Set<${_extractTypeName(elementType)}>',
-    isNullable: false,
-    sourceLocation: elementType.sourceLocation,
-  );
+ 
 
   // =========================================================================
   // TYPE CHECKING UTILITIES
@@ -756,7 +728,6 @@ class TypeInferencePass {
   bool _isStringType(TypeIR type) => _extractTypeName(type) == 'String';
   bool _isIntType(TypeIR type) => _extractTypeName(type) == 'int';
   bool _isDoubleType(TypeIR type) => _extractTypeName(type) == 'double';
-  bool _isBoolType(TypeIR type) => _extractTypeName(type) == 'bool';
 
   String _extractTypeName(TypeIR type) {
     if (type is SimpleTypeIR) return type.name;

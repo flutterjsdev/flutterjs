@@ -5,7 +5,6 @@
 // ============================================================================
 
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/element/element.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import '../passes/statement_extraction_pass.dart';
 import 'component_registry.dart';
@@ -805,36 +804,4 @@ class EnhancedComponentExtractor extends ComponentExtractor {
   }
 }
 
-// ============================================================================
-// INTEGRATION HELPER
-// ============================================================================
 
-/// Register enhanced extractor with better detection
-// void registerEnhancedExtractor(
-//   ComponentRegistry registry,
-//   String filePath,
-//   String fileContent,
-//   String extractorId,
-// ) {
-//   final extractor = EnhancedComponentExtractor(
-//     filePath: filePath,
-//     fileContent: fileContent,
-//     id: extractorId,
-//     registry: registry,
-//   );
-
-//   registry.register('enhanced', extractor);
-// }
-
-/// Create enhanced extractor directly
-EnhancedComponentExtractor createEnhancedExtractor({
-  required String filePath,
-  required String fileContent,
-  required String id,
-}) {
-  return EnhancedComponentExtractor(
-    filePath: filePath,
-    fileContent: fileContent,
-    id: id,
-  );
-}

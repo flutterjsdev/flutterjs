@@ -1,4 +1,3 @@
-import 'package:analyzer/dart/ast/ast.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import '../../ir/expressions/cascade_expression_ir.dart';
 
@@ -196,7 +195,7 @@ class StatementWidgetAnalyzer {
       widgets.add(widget);
 
       // ✅ Recursively extract nested widgets from properties
-      for (final namedArg in (expr.namedArgumentsDetailed ?? [])) {
+      for (final namedArg in (expr.namedArgumentsDetailed )) {
         _extractWidgetsFromExpression(
           namedArg.value,
           widgets,

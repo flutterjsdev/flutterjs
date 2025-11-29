@@ -10,15 +10,11 @@ import 'package:flutterjs_core/src/analysis/visitors/analyzer_widget_detection_s
 import 'package:flutterjs_core/src/analysis/extraction/statement_widget_analyzer.dart';
 import 'package:flutterjs_core/src/analysis/extraction/flutter_component_system.dart'
     show
-        FlutterComponent,
-        ComponentExtractor,
-        ComponentRegistry,
-        UnsupportedComponent;
+        FlutterComponent
+       ;
 import 'package:flutterjs_core/src/analysis/extraction/symmetric_function_extraction.dart'
     show PureFunctionExtractor;
-import 'package:path/path.dart' as path;
 
-import '../extraction/ast_component_adapter.dart';
 import '../extraction/component_extractor.dart';
 import '../extraction/statement_extraction_pass.dart';
 

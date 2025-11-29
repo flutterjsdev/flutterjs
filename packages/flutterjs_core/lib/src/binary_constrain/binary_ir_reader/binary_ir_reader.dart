@@ -203,7 +203,7 @@ class BinaryIRReader
   // ✅ NEW: Tracking for diagnostics
   int _stringTableStartOffset = 0;
   int _stringTableEndOffset = 0;
-  int _fileIRDataStartOffset = 0;
+
 
   /// Deserialize a DartFile IR from binary format
   DartFile readFileIR(Uint8List bytes, {bool verbose = false}) {
@@ -238,7 +238,7 @@ class BinaryIRReader
       _readRelationshipsSection();
 
       // Step 3b: Read IR data
-      _fileIRDataStartOffset = _offset;
+     
       final fileIR = _readFileIRData();
 
       // Step 4: Attach widget metadata
@@ -489,7 +489,7 @@ class BinaryIRReader
 
   DartFile _readFileIRData() {
     try {
-      _fileIRDataStartOffset = _offset;
+  
       _logOffsetProgress('FILE IR DATA START');
 
       // ========== SECTION 1: Basic File Metadata ==========
@@ -498,7 +498,7 @@ class BinaryIRReader
       final filePath = readStringRef();
       final contentHash = readStringRef();
       final libraryName = readStringRef();
-      final analyzedAt = readUint64();
+   
 
       _logOffsetProgress('AFTER METADATA');
 
@@ -943,10 +943,6 @@ class BinaryIRReader
         return readInstanceCreationExpression();
       case BinaryConstants.EXPR_LAMBDA:
         return readLambdaExpression();
-      case BinaryConstants.EXPR_IDENTIFIER:
-        return readIdentifierExpression();
-      case BinaryConstants.OP_NULL_COALESCE:
-        return readNullCoalescingExpression();
       default:
         throw SerializationException(
           'Unknown expression type: 0x${exprType.toRadixString(16)}',
@@ -2253,7 +2249,7 @@ class BinaryIRReader
       // ========== SECTION 1: Basic Metadata ==========
       final id = readStringRef();
       final name = readStringRef();
-      final returnTypeName = readStringRef();
+    
       printlog('[READ CONSTRUCTOR] Basic metadata: id=$id, name=$name');
 
       // ========== SECTION 2: Documentation & Annotations ==========

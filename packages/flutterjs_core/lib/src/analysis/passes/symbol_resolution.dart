@@ -2,11 +2,8 @@ import 'package:collection/collection.dart';
 
 import '../../ir/declarations/class_decl.dart';
 import '../../ir/declarations/dart_file_builder.dart';
-import '../../ir/declarations/function_decl.dart';
 import '../../ir/declarations/import_export_stmt.dart';
 import '../../ir/types/type_ir.dart';
-import '../../ir/declarations/parameter_decl.dart';
-import '../../ir/declarations/variable_decl.dart';
 import '../../ir/diagnostics/analysis_issue.dart';
 import '../../ir/diagnostics/issue_category.dart';
 import '../../ir/core/source_location.dart';

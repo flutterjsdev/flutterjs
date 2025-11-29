@@ -5,8 +5,6 @@
 // ============================================================================
 
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/element/element.dart';
-import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/analysis/extraction/flutter_component_system.dart';
 
 import '../visitors/analyzer_widget_detection_setup.dart';

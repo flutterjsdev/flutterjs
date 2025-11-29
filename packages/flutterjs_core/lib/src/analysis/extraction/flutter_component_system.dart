@@ -742,7 +742,7 @@ class ComponentRegistry {
   List<String> getCallbackParameters(dynamic node) =>
       _call('getCallbackParameters', node) ?? [];
 
-  dynamic? _call(String method, dynamic node) {
+  dynamic _call(String method, dynamic node) {
     for (final detector in detectors.values) {
       try {
         return (detector as dynamic).call(method, node);

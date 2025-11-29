@@ -1,5 +1,4 @@
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 
@@ -56,6 +55,7 @@ class StatementExtractionPass {
 
     // Check ALL possible is relationships
     print('\n--- Is Checks ---');
+    // ignore: unnecessary_type_check
     print('is FunctionBody: ${body is FunctionBody}');
     print('is BlockFunctionBody: ${body is BlockFunctionBody}');
     print('is ExpressionFunctionBody: ${body is ExpressionFunctionBody}');
@@ -226,7 +226,7 @@ class StatementExtractionPass {
         expressions.add(extractExpression(stmt.expression));
         for (final member in stmt.members) {
           if (member is SwitchCase) {
-            expressions.add(extractExpression(member.expression!));
+            expressions.add(extractExpression(member.expression));
             _extractExpressionsFromStatements(member.statements, expressions);
           } else if (member is SwitchDefault) {
             _extractExpressionsFromStatements(member.statements, expressions);
@@ -619,9 +619,9 @@ class StatementExtractionPass {
         cases.add(
           SwitchCaseStmt(
             id: builder.generateId('stmt_case'),
-            patterns: member.expression != null
-                ? [extractExpression(member.expression!)]
-                : null,
+            patterns: 
+                 [extractExpression(member.expression)]
+                ,
             statements: member.statements
                 .map((s) => _extractStatement(s))
                 .whereType<StatementIR>()
@@ -1071,45 +1071,7 @@ class StatementExtractionPass {
     }
   }
 
-  List<WidgetPropertyIR> _extractWidgetProperties(
-    InstanceCreationExpression expr,
-    String className,
-  ) {
-    final properties = <WidgetPropertyIR>[];
-
-    for (final arg in expr.argumentList.arguments) {
-      if (arg is NamedExpression) {
-        final propName = arg.name.label.name;
-        final propValue = extractExpression(arg.expression);
-
-        // Determine if this is a callback
-        final isCallback =
-            propName.startsWith('on') ||
-            propName == 'builder' ||
-            propName == 'itemBuilder';
-
-        properties.add(
-          WidgetPropertyIR(
-            resultType: SimpleTypeIR(
-              id: builder.generateId('type'),
-              name: 'Widget',
-              isNullable: true,
-              sourceLocation: _extractSourceLocation(arg, arg.offset),
-            ),
-            id: builder.generateId('widget_prop_$propName'),
-            propertyName: propName,
-            value: propValue,
-            isCallback: isCallback,
-            sourceLocation: _extractSourceLocation(arg, arg.offset),
-            metadata: {'widgetClass': className, 'isCallback': isCallback},
-          ),
-        );
-      }
-    }
-
-    return properties;
-  }
-
+  
   TypeIR _extractTypeFromAnnotation(
     TypeAnnotation? typeAnnotation,
     int offset,
