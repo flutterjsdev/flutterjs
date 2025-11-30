@@ -1,3 +1,6 @@
+import 'package:flutterjs_core/ast_it.dart';
+import 'package:flutterjs_core/src/ir/expressions/enum_member_access_expression.dart';
+
 import '../../ir/expressions/expression_ir.dart';
 import '../../ir/expressions/advanced.dart';
 import '../../ir/expressions/function_method_calls.dart';
@@ -28,7 +31,8 @@ import 'expression_visitor.dart';
 /// --------
 /// • Handles all expression kinds (literals, operations, calls, etc.)
 /// • Properly walks inside string interpolations
-/// • Ignores literals and constants — only collects IdentifierExpr nodes
+/// • Ignores literals and constants – only collects IdentifierExpr nodes
+/// • Supports Dart 3.0+ enum member access (.center, MainAxisAlignment.center)
 /// • Thread-safe: can be reused across multiple expressions
 /// • Result available via the public `variables` Set<String>
 ///
@@ -46,9 +50,11 @@ import 'expression_visitor.dart';
 /// For declarations, use `VariableDeclarationExtractor` from expression_visitor.dart.
 ///
 /// AUTHOR:  Your Name / Team
-/// UPDATED: 2025-11-26
+/// UPDATED: 2025-11-27
 /// =============================================================================
-/// Collects all variable references
+
+/// Collects all variable references from expressions
+/// ✅ Updated: Includes Dart 3.0+ enum member access support
 class VariableCollector implements ExpressionVisitor<void> {
   final Set<String> variables = {};
 
@@ -195,52 +201,77 @@ class VariableCollector implements ExpressionVisitor<void> {
     _visit(expr.expression);
   }
 
+  // ✅ NEW: Handle Dart 3.0+ enum member access
+  @override
+  void visitEnumMemberAccess(EnumMemberAccessExpressionIR expr) {
+    // Enum member access like .center or MainAxisAlignment.center
+    // Add the enum type name if it's qualified (not shorthand)
+    if (expr.typeName != null) {
+      variables.add(expr.typeName!);
+    }
+    // Add inferred type name if type was inferred from context
+    if (expr.inferredTypeName != null) {
+      variables.add(expr.inferredTypeName!);
+    }
+    // The member name itself (.center) is not a variable reference
+    // It's just a static constant access, so we don't add it
+  }
+
+  // =========================================================================
+  // PRIVATE DISPATCHER
+  // =========================================================================
+
+  /// ✅ UPDATED: Internal dispatcher with EnumMemberAccess support
   void _visit(ExpressionIR expr) {
-    if (expr is IntLiteralExpr)
+    if (expr is IntLiteralExpr) {
       visitIntLiteral(expr);
-    else if (expr is DoubleLiteralExpr)
+    } else if (expr is DoubleLiteralExpr) {
       visitDoubleLiteral(expr);
-    else if (expr is StringLiteralExpr)
+    } else if (expr is StringLiteralExpr) {
       visitStringLiteral(expr);
-    else if (expr is BoolLiteralExpr)
+    } else if (expr is BoolLiteralExpr) {
       visitBoolLiteral(expr);
-    else if (expr is NullLiteralExpr)
+    } else if (expr is NullLiteralExpr) {
       visitNullLiteral(expr);
-    else if (expr is ListLiteralExpr)
+    } else if (expr is ListLiteralExpr) {
       visitListLiteral(expr);
-    else if (expr is MapLiteralExpr)
+    } else if (expr is MapLiteralExpr) {
       visitMapLiteral(expr);
-    else if (expr is SetLiteralExpr)
+    } else if (expr is SetLiteralExpr) {
       visitSetLiteral(expr);
-    else if (expr is IdentifierExpr)
+    } else if (expr is IdentifierExpr) {
       visitIdentifier(expr);
-    else if (expr is PropertyAccessExpr)
+    } else if (expr is PropertyAccessExpr) {
       visitPropertyAccess(expr);
-    else if (expr is IndexAccessExpr)
+    } else if (expr is IndexAccessExpr) {
       visitIndexAccess(expr);
-    else if (expr is BinaryOpExpr)
+    } else if (expr is BinaryOpExpr) {
       visitBinaryOp(expr);
-    else if (expr is UnaryOpExpr)
+    } else if (expr is UnaryOpExpr) {
       visitUnaryOp(expr);
-    else if (expr is AssignmentExpr)
+    } else if (expr is AssignmentExpr) {
       visitAssignment(expr);
-    else if (expr is ConditionalExpr)
+    } else if (expr is ConditionalExpr) {
       visitConditional(expr);
-    else if (expr is FunctionCallExpr)
+    } else if (expr is FunctionCallExpr) {
       visitFunctionCall(expr);
-    else if (expr is MethodCallExpr)
+    } else if (expr is MethodCallExpr) {
       visitMethodCall(expr);
-    else if (expr is ConstructorCallExpr)
+    } else if (expr is ConstructorCallExpr) {
       visitConstructorCall(expr);
-    else if (expr is LambdaExpr)
+    } else if (expr is LambdaExpr) {
       visitLambda(expr);
-    else if (expr is AwaitExpr)
+    } else if (expr is AwaitExpr) {
       visitAwait(expr);
-    else if (expr is ThrowExpr)
+    } else if (expr is ThrowExpr) {
       visitThrow(expr);
-    else if (expr is CastExpr)
+    } else if (expr is CastExpr) {
       visitCast(expr);
-    else if (expr is TypeCheckExpr)
+    } else if (expr is TypeCheckExpr) {
       visitTypeCheck(expr);
+    } else if (expr is EnumMemberAccessExpressionIR) {
+      // ✅ NEW: Handle enum member access
+      visitEnumMemberAccess(expr);
+    }
   }
 }

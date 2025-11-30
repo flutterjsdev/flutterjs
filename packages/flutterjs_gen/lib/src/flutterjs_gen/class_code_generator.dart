@@ -384,8 +384,8 @@ class ClassCodeGen {
 
     indenter.indent();
 
-    // ✅ FIXED: body is now List<StatementIR>?
-    if (method.body != null && method.body!.statements.isNotEmpty) {
+    // ✅ FIXED: Use extension for safe body access
+    if (method.body?.statements.isNotEmpty ?? false) {
       for (final stmt in method.body!.statements) {
         buffer.writeln(stmtGen.generate(stmt));
       }
@@ -442,13 +442,15 @@ class ClassCodeGen {
       return '';
     }
 
-    // Separate parameters by type
+    // ✅ NEW: Separate by type including isPositional
     final required = parameters
         .where((p) => p.isRequired && !p.isNamed)
         .toList();
+
     final optional = parameters
-        .where((p) => !p.isRequired && !p.isNamed)
+        .where((p) => !p.isRequired && !p.isNamed && p.isPositional)
         .toList();
+
     final named = parameters.where((p) => p.isNamed).toList();
 
     final parts = <String>[];
@@ -480,7 +482,6 @@ class ClassCodeGen {
 
     return parts.join(', ');
   }
-
   // =========================================================================
   // ADVANCED CLASS FEATURES
   // =========================================================================

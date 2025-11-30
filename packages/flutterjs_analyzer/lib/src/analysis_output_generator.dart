@@ -2,7 +2,6 @@
 
 import 'dependency_graph.dart';
 import 'type_registry.dart';
-import 'analying_project.dart';
 
 /// Helper class for generating analysis output JSON
 class AnalysisOutputGenerator {

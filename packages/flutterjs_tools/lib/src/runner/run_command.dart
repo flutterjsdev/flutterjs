@@ -8,6 +8,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dev_tools/dev_tools.dart';
 import 'package:args/command_runner.dart';
+import 'package:flutterjs_gen/flutterjs_gen.dart';
+import 'package:flutterjs_tools/src/runner/code_pipleiline.dart';
 import 'package:flutterjs_tools/src/runner/helper.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
@@ -427,7 +429,6 @@ class RunCommand extends Command<void> {
       // ===== PHASE 3: SERIALIZATION =====
       if (!jsonOutput) print('PHASE 3: Serializing IR...\n');
 
-
       // ✅ NEW: Refresh DevTools if server is running
       if (enableDevTools && _devToolsServer != null) {
         if (!jsonOutput) print('  DevTools: IR files ready for analysis\n');
@@ -439,7 +440,7 @@ class RunCommand extends Command<void> {
       await reportFile.writeAsString(printPrettyJson(irResults.toJson()));
 
       // ===== PHASE 4-6: IR TO JAVASCRIPT (with validation & optimization) =====
-      if (toJs && irResults.dartFiles.isNotEmpty) {
+      
         if (!jsonOutput) {
           print(
             'PHASES 4-6: Converting IR to JavaScript with Validation & Optimization\n',
@@ -472,7 +473,7 @@ class RunCommand extends Command<void> {
           if (strictMode) exit(1);
         }
         // Generate report if requested
-      }
+      
 
       // ===== FINAL REPORTING =====
       if (!jsonOutput) {
@@ -762,26 +763,51 @@ class RunCommand extends Command<void> {
     required List<String> warnings,
     required List<String> errors,
   }) async {
+    // =========================================================================
+    // SETUP: Initialize the unified pipeline
+    // =========================================================================
+
+    final pipeline = UnifiedConversionPipeline(
+      config: PipelineConfig(
+        strictMode: argResults!['strict'] as bool? ?? true,
+        verbose: verbose,
+        printLogs: !jsonOutput,
+        optimizationLevel: optimizationLevel,
+      ),
+    );
+
     int filesGenerated = 0;
+    int filesFailed = 0;
+
     final normalizedSourcePath = path.normalize(sourceBasePath);
     final normalizedJsOutputPath = path.normalize(jsOutputPath);
 
-    if (!jsonOutput) print('  Phase 4: File-Level Generation...');
     if (!jsonOutput) {
+      print('  Phase 4: File-Level Generation...');
       print(
         '  Phase 5: Validation & Optimization (Level $optimizationLevel)...',
       );
+      print('  Phase 6: Reporting & Output...\n');
     }
-    if (!jsonOutput) print('  Phase 6: Reporting & Output...\n');
+
+    // =========================================================================
+    // MAIN LOOP: Process each Dart file through the pipeline
+    // =========================================================================
 
     for (final entry in irResults.dartFiles.entries) {
-      try {
-        final dartFilePath = entry.key;
-        final dartFile = entry.value;
+      final dartFilePath = entry.key;
+      final dartFile = entry.value;
 
+      try {
         // Calculate relative path
         final normalizedDartPath = path.normalize(dartFilePath);
-        if (!normalizedDartPath.startsWith(normalizedSourcePath)) continue;
+
+        if (!normalizedDartPath.startsWith(normalizedSourcePath)) {
+          if (verbose) {
+            print('  ⚠️  Skipping: $dartFilePath (outside source path)');
+          }
+          continue;
+        }
 
         final relativePath = path.relative(
           normalizedDartPath,
@@ -796,75 +822,181 @@ class RunCommand extends Command<void> {
         );
         final jsFileName = '$fileNameWithoutExt.js';
 
+        // ===== DETERMINE OUTPUT PATH =====
         final jsOutputFile = relativeDir.isEmpty
             ? File(path.join(normalizedJsOutputPath, jsFileName))
             : File(path.join(normalizedJsOutputPath, relativeDir, jsFileName));
 
-        // ===== PHASE 4: FILE-LEVEL GENERATION =====
-        final fileCodeGen = FileCodeGen(
-          propConverter: FlutterPropConverter(),
-          runtimeRequirements: RuntimeRequirements(),
-        );
+        if (verbose) {
+          print('  Processing: ${path.basename(dartFilePath)}');
+        }
 
-        var jsCode = await fileCodeGen.generate(
-          dartFile,
+        // ===== EXECUTE UNIFIED PIPELINE (Phases 0-6) =====
+        final pipelineResult = await pipeline.executeFullPipeline(
+          dartFile: dartFile,
+          outputPath: jsOutputFile.path,
           validate: validateOutput,
           optimize: optimizationLevel > 0,
           optimizationLevel: optimizationLevel,
         );
 
-        if (verbose) {
-          print(
-            '    Phase 4: ${path.basename(dartFilePath)} - Generated (${jsCode.length} bytes)',
-          );
-        }
-
-        // ===== PHASE 6: OUTPUT & REPORTING =====
-        await jsOutputFile.parent.create(recursive: true);
-        await jsOutputFile.writeAsString(jsCode);
-        filesGenerated++;
-
-        if (verbose) {
-          final sizeKb = (jsCode.length / 1024).toStringAsFixed(2);
-          print(
-            '    Phase 6: ${path.basename(dartFilePath)} - Written ($sizeKb KB) ✓',
-          );
-        }
-
-        // Generate report if requested
-        if (generateReports) {
-          final reportFile = File(
-            path.join(
-              reportsPath,
-              '${fileNameWithoutExt}_conversion_report.json',
-            ),
-          );
-
-          await reportFile.parent.create(recursive: true);
-          await reportFile.writeAsString(
-            _generateConversionReport(dartFile, jsCode, optimizationLevel),
-          );
-
-          await reportFile.writeAsString(
-            "____________________________________________\n--------------------below is json--------------------\n${irResults.toJson()}",
-          );
+        // ===== HANDLE RESULTS =====
+        if (!pipelineResult.success) {
+          filesFailed++;
+          final errorMsg = pipelineResult.errorMessage ?? 'Unknown error';
+          errors.add('${path.basename(dartFilePath)}: $errorMsg');
 
           if (verbose) {
-            print(
-              '    Reports: ${path.basename(dartFilePath)}_conversion_report.json ✓',
-            );
+            print('    ❌ Failed: $errorMsg');
+          }
+
+          // Exit early if strict mode
+          if (argResults!['strict'] as bool? ?? false) {
+            if (!jsonOutput) {
+              print('\n❌ STRICT MODE: Exiting on first error');
+            }
+            exit(1);
+          }
+
+          continue; // Skip to next file
+        }
+
+        // ===== SUCCESS: Generate output and reports =====
+        filesGenerated++;
+
+        // Write JavaScript file
+        await jsOutputFile.parent.create(recursive: true);
+        await jsOutputFile.writeAsString(pipelineResult.code ?? '');
+
+        if (verbose) {
+          final sizeKb = ((pipelineResult.code?.length ?? 0) / 1024)
+              .toStringAsFixed(2);
+          print('    ✅ Generated ($sizeKb KB)');
+        }
+
+        // ===== GENERATE REPORT (if requested) =====
+        if (generateReports && pipelineResult.diagnosticReport != null) {
+          await _generateDetailedReport(
+            dartFile: dartFile,
+            jsCode: pipelineResult.code ?? '',
+            diagnosticReport: pipelineResult.diagnosticReport!,
+            generationReport: pipelineResult.generationReport,
+            statistics: pipelineResult.statistics,
+            fileNameWithoutExt: fileNameWithoutExt,
+            reportsPath: reportsPath,
+            verbose: verbose,
+          );
+        }
+
+        // ===== COLLECT WARNINGS =====
+        if (pipelineResult.diagnosticReport != null) {
+          for (final issue in pipelineResult.diagnosticReport!.issues) {
+            if (issue.severity == DiagnosticSeverity.warning) {
+              warnings.add('${path.basename(dartFilePath)}: ${issue.message}');
+            }
           }
         }
       } catch (e, stackTrace) {
+        filesFailed++;
+        final errorMsg = 'Exception: $e';
+        errors.add('${path.basename(dartFilePath)}: $errorMsg');
+
         if (verbose) {
-          print('    ✗ Error processing ${path.basename(entry.key)}: $e');
+          print('    ❌ Error: $e');
           if (verbose) print('       Stack: $stackTrace');
         }
-        errors.add('${path.basename(entry.key)}: $e');
+
+        // Continue to next file unless strict mode
+        if (argResults!['strict'] as bool? ?? false) {
+          if (!jsonOutput) print('\n❌ STRICT MODE: Exiting on error');
+          exit(1);
+        }
       }
+    }
+    if (!jsonOutput) {
+      print('\n═══════════════════════════════════════════════════════════');
+      print('  Generated: $filesGenerated files ✅');
+      print('  Failed: $filesFailed files ❌');
+      if (warnings.isNotEmpty) {
+        print('  Warnings: ${warnings.length} ⚠️');
+      }
+      if (errors.isNotEmpty) {
+        print('  Errors: ${errors.length} ❌');
+      }
+      print('═══════════════════════════════════════════════════════════\n');
+    }
+
+    // Print pipeline log if verbose
+    if (verbose) {
+      print('\nPipeline Execution Log:');
+      print(pipeline.getFullLog());
     }
 
     return filesGenerated;
+  }
+
+  Future<void> _generateDetailedReport({
+    required DartFile dartFile,
+    required String jsCode,
+    required DiagnosticReport diagnosticReport,
+    required dynamic generationReport,
+    required Map<String, dynamic>? statistics,
+    required String fileNameWithoutExt,
+    required String reportsPath,
+    required bool verbose,
+  }) async {
+    try {
+      final reportContent = {
+        'file': dartFile.filePath,
+        'timestamp': DateTime.now().toIso8601String(),
+        'phases': {
+          'phase_0_diagnostic': {
+            'total_issues': diagnosticReport.totalIssues,
+            'errors': diagnosticReport.errorCount,
+            'warnings': diagnosticReport.warningCount,
+            'fatal': diagnosticReport.fatalCount,
+            'issues': diagnosticReport.issues
+                .map(
+                  (i) => {
+                    'severity': i.severity.name,
+                    'code': i.code,
+                    'message': i.message,
+                    'suggestion': i.suggestion,
+                    'stack':i.stackTrace.toString()
+                  },
+                )
+                .toList(),
+          },
+          'phases_1_3_integration': {
+            'classes': dartFile.classDeclarations.length,
+            'functions': dartFile.functionDeclarations.length,
+            'variables': dartFile.variableDeclarations.length,
+          },
+          'phases_4_6_generation': {
+            'js_code_size': jsCode.length,
+            'optimization_level': statistics?['optimizationLevel'] ?? 0,
+            'duration_ms': statistics?['durationMs'] ?? 0,
+          },
+        },
+      };
+
+      final reportJson = jsonEncode(reportContent);
+
+      final reportFile = File(
+        path.join(reportsPath, '${fileNameWithoutExt}_conversion_report.json'),
+      );
+
+      await reportFile.parent.create(recursive: true);
+      await reportFile.writeAsString(reportJson);
+
+      if (verbose) {
+        print('    📄 Report: ${reportFile.path}');
+      }
+    } catch (e) {
+      if (verbose) {
+        print('    ⚠️  Failed to generate report: $e');
+      }
+    }
   }
 
   // =========================================================================

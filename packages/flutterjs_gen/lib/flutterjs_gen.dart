@@ -16,4 +16,8 @@ export 'src/flutterjs_gen/stateless_widget_js_code_gen.dart' hide FirstWhereOrNu
 export 'src/flutterjs_gen/stateful_widget_js_code_gen.dart'
     hide CodeGenError, WarningSeverity, CodeGenWarning;
 export 'src/flutterjs_gen/special_language_features.dart';
+export 'src/model_to_js_diagnostic.dart';
+export 'src/model_to_js_integration.dart';
+export 'src/flutterjs_gen/js_optimizer.dart';
+
 

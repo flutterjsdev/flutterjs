@@ -5,7 +5,6 @@
 // Handles regular, arrow, async, generators, constructors, getters/setters
 // ============================================================================
 
-
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/src/flutterjs_gen/flutter_prop_converters.dart';
 import 'package:flutterjs_gen/src/utils/code_gen_error.dart';
@@ -391,44 +390,38 @@ class FunctionCodeGen {
       return '';
     }
 
+    // ✅ NEW: Separate by type including isPositional
     final required = parameters
         .where((p) => p.isRequired && !p.isNamed)
         .toList();
+
     final optional = parameters
-        .where((p) => !p.isRequired && !p.isNamed)
+        .where((p) => !p.isRequired && !p.isNamed && p.isPositional)
         .toList();
+
     final named = parameters.where((p) => p.isNamed).toList();
 
     final parts = <String>[];
 
+    // Required positional parameters
     parts.addAll(required.map((p) => p.name));
 
+    // Optional positional parameters with defaults
     for (final param in optional) {
-      String defValue = 'undefined';
-      if (param.defaultValue != null) {
-        final result = propConverter.convertProperty(
-          param.name,
-          param.defaultValue!,
-          param.type.displayName(),
-        );
-        defValue = result.code;
-      }
-      parts.add('${param.name} = $defValue');
+      final def = param.defaultValue != null
+          ? exprGen.generate(param.defaultValue!, parenthesize: false)
+          : 'undefined';
+      parts.add('${param.name} = $def');
     }
 
+    // Named parameters → object destructuring
     if (named.isNotEmpty) {
       final namedParts = named
           .map((p) {
-            String defValue = 'undefined';
-            if (p.defaultValue != null) {
-              final result = propConverter.convertProperty(
-                p.name,
-                p.defaultValue!,
-                p.type.displayName(),
-              );
-              defValue = result.code;
-            }
-            return '${p.name} = $defValue';
+            final def = p.defaultValue != null
+                ? exprGen.generate(p.defaultValue!, parenthesize: false)
+                : 'undefined';
+            return '${p.name} = $def';
           })
           .join(', ');
 
