@@ -5,14 +5,14 @@
 // Handles regular, arrow, async, generators, constructors, getters/setters
 // ============================================================================
 
-import 'package:collection/collection.dart';
+
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_gen/src/flutter_to_js/src/flutter_prop_converters.dart';
-import 'package:flutterjs_gen/src/flutter_to_js/src/utils/code_gen_error.dart';
+import 'package:flutterjs_gen/src/flutterjs_gen/flutter_prop_converters.dart';
+import 'package:flutterjs_gen/src/utils/code_gen_error.dart';
 
 import 'expression_code_generator.dart';
 import 'statement_code_generator.dart';
-import 'utils/indenter.dart';
+import '../utils/indenter.dart';
 
 // ============================================================================
 // CONFIGURATION

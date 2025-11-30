@@ -7,8 +7,8 @@
 
 import 'package:collection/collection.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_gen/src/flutter_to_js/src/stateless_widget_js_code_gen.dart';
-import 'package:flutterjs_gen/src/flutter_to_js/src/utils/code_gen_error.dart'
+import 'package:flutterjs_gen/src/flutterjs_gen/stateless_widget_js_code_gen.dart';
+import 'package:flutterjs_gen/src/utils/code_gen_error.dart'
     hide CodeGenWarning, WarningSeverity;
 import 'package:flutterjs_core/ast_it.dart';
 
