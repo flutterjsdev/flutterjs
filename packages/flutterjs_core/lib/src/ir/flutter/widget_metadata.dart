@@ -2,7 +2,6 @@ library;
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 
-import '../../binary_constrain/binary_ir_writer/ir_relationship_registry.dart';
 
 /// <---------------------------------------------------------------------------->
 /// widget_metadata.dart
@@ -127,20 +126,6 @@ class WidgetMetadata {
     return fieldAccesses[methodId] ?? {};
   }
 
-  /// Create from relationship registry
-  static WidgetMetadata fromRegistry(IRRelationshipRegistry registry) {
-    return WidgetMetadata(
-      buildMethods: Map.from(registry.classBuildOutputs),
-      widgetStateConnections: Map.from(registry.widgetToStateClass),
-      classHierarchy: Map.from(registry.classHierarchy),
-      stateLifecycleMethods: Map.from(registry.stateLifecycleMethods),
-      stateBuildMethods: Map.from(registry.stateBuildMethods),
-      widgetClasses: registry.widgetToStateClass.keys.toSet(),
-      interfaceImplementers: Map.from(registry.interfaceImplementers),
-      methodCalls: Map.from(registry.methodCalls),
-      fieldAccesses: Map.from(registry.fieldAccesses),
-    );
-  }
 
   /// Convert to JSON-friendly format for serialization
   Map<String, dynamic> toJson() => {

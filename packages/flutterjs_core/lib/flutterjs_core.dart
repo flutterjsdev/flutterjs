@@ -49,7 +49,6 @@
 /// <---------------------------------------------------------------------------->
 
 export 'ast_it.dart';
-export 'src/binary_constrain/binary.dart';
 export 'src/analysis/visitors/declaration_pass.dart';
 export 'src/analysis/passes/flow_analysis_pass.dart';
 export 'src/analysis/passes/symbol_resolution.dart';
