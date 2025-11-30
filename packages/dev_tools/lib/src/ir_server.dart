@@ -191,11 +191,11 @@ class BinaryIRServer {
       print('🔍 Starting analysis for: $fileId');
 
       try {
-        await _analyzeFileStream(
-          fileId,
-          fileDataExtracted,
-          fileNameExtracted,
-        ).drain();
+        // await _analyzeFileStream(
+        //   fileId,
+        //   fileDataExtracted,
+        //   fileNameExtracted,
+        // ).drain();
         await Future.delayed(Duration(milliseconds: 150));
       } catch (e, st) {
         print('❌ Analysis error: $e');
@@ -322,11 +322,11 @@ class BinaryIRServer {
 
       // ✅ FIX: WAIT FOR STREAM TO COMPLETE BEFORE CHECKING RESULTS
       try {
-        await _analyzeFileStream(
-          fileId,
-          bytes,
-          file.uri.pathSegments.last,
-        ).drain(); // ✅ Wait until all items are streamed
+        // await _analyzeFileStream(
+        //   fileId,
+        //   bytes,
+        //   file.uri.pathSegments.last,
+        // ).drain(); // ✅ Wait until all items are streamed
 
         // ✅ NOW the analysis should be stored
         await Future.delayed(
@@ -388,387 +388,387 @@ class BinaryIRServer {
   // IMPROVED: Stream analysis with better error handling
   // ============================================================================
 
-  Stream<AnalysisLine> _analyzeFileStream(
-    String fileId,
-    Uint8List bytes,
-    String fileName,
-  ) async* {
-    ProgressiveAnalysisResult? result;
+  // Stream<AnalysisLine> _analyzeFileStream(
+  //   String fileId,
+  //   Uint8List bytes,
+  //   String fileName,
+  // ) async* {
+  //   ProgressiveAnalysisResult? result;
 
-    try {
-      if (verbose) print('🔍 Starting stream analysis: $fileName');
+  //   try {
+  //     if (verbose) print('🔍 Starting stream analysis: $fileName');
 
-      final reader = BinaryIRReader();
-      final dartFile = reader.readFileIR(bytes, verbose: verbose);
+  //     // final reader = BinaryIRReader();
+  //     // final dartFile = reader.readFileIR(bytes, verbose: verbose);
 
-      result = ProgressiveAnalysisResult(
-        fileId: fileId,
-        fileName: fileName,
-        startTime: DateTime.now(),
-      );
+  //     result = ProgressiveAnalysisResult(
+  //       fileId: fileId,
+  //       fileName: fileName,
+  //       startTime: DateTime.now(),
+  //     );
 
-      var lineNum = 1;
+  //     var lineNum = 1;
 
-      // ========== FILE INFORMATION SECTION ==========
-      yield AnalysisLine(
-        lineNum: lineNum++,
-        text: '📄 FILE INFORMATION',
-        status: 'ok',
-        section: 'FILE_INFO',
-        details: {'type': 'header'},
-      );
+  //     // ========== FILE INFORMATION SECTION ==========
+  //     yield AnalysisLine(
+  //       lineNum: lineNum++,
+  //       text: '📄 FILE INFORMATION',
+  //       status: 'ok',
+  //       section: 'FILE_INFO',
+  //       details: {'type': 'header'},
+  //     );
 
-      yield AnalysisLine(
-        lineNum: lineNum++,
-        text: 'Library: ${dartFile.library}',
-        status: 'ok',
-        section: 'FILE_INFO',
-        details: {'library': dartFile.library},
-      );
+  //     yield AnalysisLine(
+  //       lineNum: lineNum++,
+  //       text: 'Library: ${dartFile.library}',
+  //       status: 'ok',
+  //       section: 'FILE_INFO',
+  //       details: {'library': dartFile.library},
+  //     );
 
-      yield AnalysisLine(
-        lineNum: lineNum++,
-        text: 'File Path: ${dartFile.filePath}',
-        status: 'ok',
-        section: 'FILE_INFO',
-        details: {'path': dartFile.filePath},
-      );
+  //     yield AnalysisLine(
+  //       lineNum: lineNum++,
+  //       text: 'File Path: ${dartFile.filePath}',
+  //       status: 'ok',
+  //       section: 'FILE_INFO',
+  //       details: {'path': dartFile.filePath},
+  //     );
 
-      yield AnalysisLine(
-        lineNum: lineNum++,
-        text:
-            'Size: ${(bytes.length / 1024).toStringAsFixed(1)} KB | Hash: ${(dartFile.contentHash).substring(0, 16)}...',
-        status: 'ok',
-        section: 'FILE_INFO',
-        details: {'size': bytes.length, 'hash': dartFile.contentHash},
-      );
+  //     yield AnalysisLine(
+  //       lineNum: lineNum++,
+  //       text:
+  //           'Size: ${(bytes.length / 1024).toStringAsFixed(1)} KB | Hash: ${(dartFile.contentHash).substring(0, 16)}...',
+  //       status: 'ok',
+  //       section: 'FILE_INFO',
+  //       details: {'size': bytes.length, 'hash': dartFile.contentHash},
+  //     );
 
-      result.addPhase('FILE_INFO', 'ok', {
-        'filePath': dartFile.filePath,
-        'contentHash': dartFile.contentHash,
-        'library': dartFile.library ?? '<unknown>',
-        'totalBytes': bytes.length,
-      });
+  //     result.addPhase('FILE_INFO', 'ok', {
+  //       'filePath': dartFile.filePath,
+  //       'contentHash': dartFile.contentHash,
+  //       'library': dartFile.library ?? '<unknown>',
+  //       'totalBytes': bytes.length,
+  //     });
 
-      // ========== STATISTICS SECTION ==========
-      yield AnalysisLine(
-        lineNum: lineNum++,
-        text: '📊 STATISTICS',
-        status: 'pending',
-        section: 'STATISTICS',
-        details: {'type': 'header'},
-      );
+  //     // ========== STATISTICS SECTION ==========
+  //     yield AnalysisLine(
+  //       lineNum: lineNum++,
+  //       text: '📊 STATISTICS',
+  //       status: 'pending',
+  //       section: 'STATISTICS',
+  //       details: {'type': 'header'},
+  //     );
 
-      final stats = {
-        'imports': dartFile.imports.length,
-        'exports': dartFile.exports.length,
-        'variables': dartFile.variableDeclarations.length,
-        'functions': dartFile.functionDeclarations.length,
-        'classes': dartFile.classDeclarations.length,
-        'analysisIssues': dartFile.analysisIssues.length,
-        'totalMethods': (dartFile.classDeclarations).fold(
-          0,
-          (sum, c) => sum + (c.methods.length),
-        ),
-        'totalFields': (dartFile.classDeclarations).fold(
-          0,
-          (sum, c) => sum + (c.fields.length),
-        ),
-      };
+  //     final stats = {
+  //       'imports': dartFile.imports.length,
+  //       'exports': dartFile.exports.length,
+  //       'variables': dartFile.variableDeclarations.length,
+  //       'functions': dartFile.functionDeclarations.length,
+  //       'classes': dartFile.classDeclarations.length,
+  //       'analysisIssues': dartFile.analysisIssues.length,
+  //       'totalMethods': (dartFile.classDeclarations).fold(
+  //         0,
+  //         (sum, c) => sum + (c.methods.length),
+  //       ),
+  //       'totalFields': (dartFile.classDeclarations).fold(
+  //         0,
+  //         (sum, c) => sum + (c.fields.length),
+  //       ),
+  //     };
 
-      yield AnalysisLine(
-        lineNum: lineNum++,
-        text:
-            'Classes: ${stats['classes']} | Methods: ${stats['totalMethods']} | Fields: ${stats['totalFields']}',
-        status: 'ok',
-        section: 'STATISTICS',
-        details: stats,
-      );
+  //     yield AnalysisLine(
+  //       lineNum: lineNum++,
+  //       text:
+  //           'Classes: ${stats['classes']} | Methods: ${stats['totalMethods']} | Fields: ${stats['totalFields']}',
+  //       status: 'ok',
+  //       section: 'STATISTICS',
+  //       details: stats,
+  //     );
 
-      yield AnalysisLine(
-        lineNum: lineNum++,
-        text:
-            'Functions: ${stats['functions']} | Variables: ${stats['variables']}',
-        status: 'ok',
-        section: 'STATISTICS',
-        details: {
-          'functions': stats['functions'],
-          'variables': stats['variables'],
-        },
-      );
+  //     yield AnalysisLine(
+  //       lineNum: lineNum++,
+  //       text:
+  //           'Functions: ${stats['functions']} | Variables: ${stats['variables']}',
+  //       status: 'ok',
+  //       section: 'STATISTICS',
+  //       details: {
+  //         'functions': stats['functions'],
+  //         'variables': stats['variables'],
+  //       },
+  //     );
 
-      yield AnalysisLine(
-        lineNum: lineNum++,
-        text:
-            'Imports: ${stats['imports']} | Exports: ${stats['exports']} | Issues: ${stats['analysisIssues']}',
-        status: stats['analysisIssues'] == 0 ? 'ok' : 'warning',
-        section: 'STATISTICS',
-        details: {
-          'imports': stats['imports'],
-          'issues': stats['analysisIssues'],
-        },
-      );
+  //     yield AnalysisLine(
+  //       lineNum: lineNum++,
+  //       text:
+  //           'Imports: ${stats['imports']} | Exports: ${stats['exports']} | Issues: ${stats['analysisIssues']}',
+  //       status: stats['analysisIssues'] == 0 ? 'ok' : 'warning',
+  //       section: 'STATISTICS',
+  //       details: {
+  //         'imports': stats['imports'],
+  //         'issues': stats['analysisIssues'],
+  //       },
+  //     );
 
-      result.addPhase('STATISTICS', 'ok', stats);
+  //     result.addPhase('STATISTICS', 'ok', stats);
 
-      // ========== IMPORTS SECTION ==========
-      final imports = dartFile.imports;
-      if (imports.isNotEmpty) {
-        yield AnalysisLine(
-          lineNum: lineNum++,
-          text: '📦 IMPORTS (${imports.length})',
-          status: 'pending',
-          section: 'IMPORTS',
-          details: {'count': imports.length, 'type': 'header'},
-        );
+  //     // ========== IMPORTS SECTION ==========
+  //     final imports = dartFile.imports;
+  //     if (imports.isNotEmpty) {
+  //       yield AnalysisLine(
+  //         lineNum: lineNum++,
+  //         text: '📦 IMPORTS (${imports.length})',
+  //         status: 'pending',
+  //         section: 'IMPORTS',
+  //         details: {'count': imports.length, 'type': 'header'},
+  //       );
 
-        for (int i = 0; i < imports.length && i < 15; i++) {
-          final imp = imports[i];
-          yield AnalysisLine(
-            lineNum: lineNum++,
-            text:
-                '├─ ${imp.uri} ${imp.prefix != null ? '(as ${imp.prefix})' : ''} ${imp.isDeferred == true ? '[deferred]' : ''}',
-            status: 'ok',
-            section: 'IMPORTS',
-            details: {
-              'uri': imp.uri,
-              'prefix': imp.prefix,
-              'deferred': imp.isDeferred,
-            },
-          );
-        }
+  //       for (int i = 0; i < imports.length && i < 15; i++) {
+  //         final imp = imports[i];
+  //         yield AnalysisLine(
+  //           lineNum: lineNum++,
+  //           text:
+  //               '├─ ${imp.uri} ${imp.prefix != null ? '(as ${imp.prefix})' : ''} ${imp.isDeferred == true ? '[deferred]' : ''}',
+  //           status: 'ok',
+  //           section: 'IMPORTS',
+  //           details: {
+  //             'uri': imp.uri,
+  //             'prefix': imp.prefix,
+  //             'deferred': imp.isDeferred,
+  //           },
+  //         );
+  //       }
 
-        if (imports.length > 15) {
-          yield AnalysisLine(
-            lineNum: lineNum++,
-            text: '└─ ... and ${imports.length - 15} more imports',
-            status: 'ok',
-            section: 'IMPORTS',
-            details: {'remaining': imports.length - 15},
-          );
-        }
+  //       if (imports.length > 15) {
+  //         yield AnalysisLine(
+  //           lineNum: lineNum++,
+  //           text: '└─ ... and ${imports.length - 15} more imports',
+  //           status: 'ok',
+  //           section: 'IMPORTS',
+  //           details: {'remaining': imports.length - 15},
+  //         );
+  //       }
 
-        result.addPhase(
-          'IMPORTS',
-          'ok',
-          imports
-              .map(
-                (i) => {
-                  'uri': i.uri,
-                  'prefix': i.prefix ?? 'none',
-                  'isDeferred': i.isDeferred,
-                },
-              )
-              .toList(),
-        );
-      }
+  //       result.addPhase(
+  //         'IMPORTS',
+  //         'ok',
+  //         imports
+  //             .map(
+  //               (i) => {
+  //                 'uri': i.uri,
+  //                 'prefix': i.prefix ?? 'none',
+  //                 'isDeferred': i.isDeferred,
+  //               },
+  //             )
+  //             .toList(),
+  //       );
+  //     }
 
-      // ========== CLASSES SECTION ==========
-      final classes = dartFile.classDeclarations;
-      if (classes.isNotEmpty) {
-        yield AnalysisLine(
-          lineNum: lineNum++,
-          text: '🗿 CLASSES (${classes.length})',
-          status: 'pending',
-          section: 'CLASSES',
-          details: {'count': classes.length, 'type': 'header'},
-        );
+  //     // ========== CLASSES SECTION ==========
+  //     final classes = dartFile.classDeclarations;
+  //     if (classes.isNotEmpty) {
+  //       yield AnalysisLine(
+  //         lineNum: lineNum++,
+  //         text: '🗿 CLASSES (${classes.length})',
+  //         status: 'pending',
+  //         section: 'CLASSES',
+  //         details: {'count': classes.length, 'type': 'header'},
+  //       );
 
-        for (int i = 0; i < classes.length && i < 15; i++) {
-          final cls = classes[i];
-          final abstractFlag = cls.isAbstract == true ? '[abstract] ' : '';
-          yield AnalysisLine(
-            lineNum: lineNum++,
-            text:
-                '├─ $abstractFlag${cls.name} [${cls.methods.length} methods | ${cls.fields.length} fields]',
-            status: 'ok',
-            section: 'CLASSES',
-            details: {
-              'name': cls.name,
-              'methods': cls.methods.length,
-              'fields': cls.fields.length,
-            },
-          );
-        }
+  //       for (int i = 0; i < classes.length && i < 15; i++) {
+  //         final cls = classes[i];
+  //         final abstractFlag = cls.isAbstract == true ? '[abstract] ' : '';
+  //         yield AnalysisLine(
+  //           lineNum: lineNum++,
+  //           text:
+  //               '├─ $abstractFlag${cls.name} [${cls.methods.length} methods | ${cls.fields.length} fields]',
+  //           status: 'ok',
+  //           section: 'CLASSES',
+  //           details: {
+  //             'name': cls.name,
+  //             'methods': cls.methods.length,
+  //             'fields': cls.fields.length,
+  //           },
+  //         );
+  //       }
 
-        if (classes.length > 15) {
-          yield AnalysisLine(
-            lineNum: lineNum++,
-            text: '└─ ... and ${classes.length - 15} more classes',
-            status: 'ok',
-            section: 'CLASSES',
-            details: {'remaining': classes.length - 15},
-          );
-        }
+  //       if (classes.length > 15) {
+  //         yield AnalysisLine(
+  //           lineNum: lineNum++,
+  //           text: '└─ ... and ${classes.length - 15} more classes',
+  //           status: 'ok',
+  //           section: 'CLASSES',
+  //           details: {'remaining': classes.length - 15},
+  //         );
+  //       }
 
-        result.addPhase(
-          'CLASSES',
-          'ok',
-          classes
-              .map(
-                (c) => {
-                  'name': c.name,
-                  'methods': c.methods.length,
-                  'fields': c.fields.length,
-                },
-              )
-              .toList(),
-        );
-      }
+  //       result.addPhase(
+  //         'CLASSES',
+  //         'ok',
+  //         classes
+  //             .map(
+  //               (c) => {
+  //                 'name': c.name,
+  //                 'methods': c.methods.length,
+  //                 'fields': c.fields.length,
+  //               },
+  //             )
+  //             .toList(),
+  //       );
+  //     }
 
-      // ========== FUNCTIONS SECTION ==========
-      final functions = dartFile.functionDeclarations;
-      if (functions.isNotEmpty) {
-        yield AnalysisLine(
-          lineNum: lineNum++,
-          text: '⚙️ FUNCTIONS (${functions.length})',
-          status: 'pending',
-          section: 'FUNCTIONS',
-          details: {'count': functions.length, 'type': 'header'},
-        );
+  //     // ========== FUNCTIONS SECTION ==========
+  //     final functions = dartFile.functionDeclarations;
+  //     if (functions.isNotEmpty) {
+  //       yield AnalysisLine(
+  //         lineNum: lineNum++,
+  //         text: '⚙️ FUNCTIONS (${functions.length})',
+  //         status: 'pending',
+  //         section: 'FUNCTIONS',
+  //         details: {'count': functions.length, 'type': 'header'},
+  //       );
 
-        for (int i = 0; i < functions.length && i < 15; i++) {
-          final func = functions[i];
-          final asyncFlag = func.isAsync == true ? '[async] ' : '';
-          yield AnalysisLine(
-            lineNum: lineNum++,
-            text:
-                '├─ $asyncFlag${func.name}(${func.parameters.length} params) → ${func.returnType.displayName()}',
-            status: 'ok',
-            section: 'FUNCTIONS',
-            details: {
-              'name': func.name,
-              'parameters': func.parameters.length,
-              'returnType': func.returnType.displayName(),
-            },
-          );
-        }
+  //       for (int i = 0; i < functions.length && i < 15; i++) {
+  //         final func = functions[i];
+  //         final asyncFlag = func.isAsync == true ? '[async] ' : '';
+  //         yield AnalysisLine(
+  //           lineNum: lineNum++,
+  //           text:
+  //               '├─ $asyncFlag${func.name}(${func.parameters.length} params) → ${func.returnType.displayName()}',
+  //           status: 'ok',
+  //           section: 'FUNCTIONS',
+  //           details: {
+  //             'name': func.name,
+  //             'parameters': func.parameters.length,
+  //             'returnType': func.returnType.displayName(),
+  //           },
+  //         );
+  //       }
 
-        if (functions.length > 15) {
-          yield AnalysisLine(
-            lineNum: lineNum++,
-            text: '└─ ... and ${functions.length - 15} more functions',
-            status: 'ok',
-            section: 'FUNCTIONS',
-            details: {'remaining': functions.length - 15},
-          );
-        }
+  //       if (functions.length > 15) {
+  //         yield AnalysisLine(
+  //           lineNum: lineNum++,
+  //           text: '└─ ... and ${functions.length - 15} more functions',
+  //           status: 'ok',
+  //           section: 'FUNCTIONS',
+  //           details: {'remaining': functions.length - 15},
+  //         );
+  //       }
 
-        result.addPhase(
-          'FUNCTIONS',
-          'ok',
-          functions
-              .map((f) => {'name': f.name, 'parameters': f.parameters.length})
-              .toList(),
-        );
-      }
+  //       result.addPhase(
+  //         'FUNCTIONS',
+  //         'ok',
+  //         functions
+  //             .map((f) => {'name': f.name, 'parameters': f.parameters.length})
+  //             .toList(),
+  //       );
+  //     }
 
-      // ========== VARIABLES SECTION ==========
-      final variables = dartFile.variableDeclarations;
-      if (variables.isNotEmpty) {
-        yield AnalysisLine(
-          lineNum: lineNum++,
-          text: '📝 VARIABLES (${variables.length})',
-          status: 'pending',
-          section: 'VARIABLES',
-          details: {'count': variables.length, 'type': 'header'},
-        );
+  //     // ========== VARIABLES SECTION ==========
+  //     final variables = dartFile.variableDeclarations;
+  //     if (variables.isNotEmpty) {
+  //       yield AnalysisLine(
+  //         lineNum: lineNum++,
+  //         text: '📝 VARIABLES (${variables.length})',
+  //         status: 'pending',
+  //         section: 'VARIABLES',
+  //         details: {'count': variables.length, 'type': 'header'},
+  //       );
 
-        for (int i = 0; i < variables.length && i < 15; i++) {
-          final variable = variables[i];
-          yield AnalysisLine(
-            lineNum: lineNum++,
-            text: '├─ ${variable.name}: ${variable.type.displayName()}',
-            status: 'ok',
-            section: 'VARIABLES',
-            details: {
-              'name': variable.name,
-              'type': variable.type.displayName(),
-            },
-          );
-        }
+  //       for (int i = 0; i < variables.length && i < 15; i++) {
+  //         final variable = variables[i];
+  //         yield AnalysisLine(
+  //           lineNum: lineNum++,
+  //           text: '├─ ${variable.name}: ${variable.type.displayName()}',
+  //           status: 'ok',
+  //           section: 'VARIABLES',
+  //           details: {
+  //             'name': variable.name,
+  //             'type': variable.type.displayName(),
+  //           },
+  //         );
+  //       }
 
-        if (variables.length > 15) {
-          yield AnalysisLine(
-            lineNum: lineNum++,
-            text: '└─ ... and ${variables.length - 15} more variables',
-            status: 'ok',
-            section: 'VARIABLES',
-            details: {'remaining': variables.length - 15},
-          );
-        }
+  //       if (variables.length > 15) {
+  //         yield AnalysisLine(
+  //           lineNum: lineNum++,
+  //           text: '└─ ... and ${variables.length - 15} more variables',
+  //           status: 'ok',
+  //           section: 'VARIABLES',
+  //           details: {'remaining': variables.length - 15},
+  //         );
+  //       }
 
-        result.addPhase(
-          'VARIABLES',
-          'ok',
-          variables
-              .map((v) => {'name': v.name, 'type': v.type.displayName()})
-              .toList(),
-        );
-      }
+  //       result.addPhase(
+  //         'VARIABLES',
+  //         'ok',
+  //         variables
+  //             .map((v) => {'name': v.name, 'type': v.type.displayName()})
+  //             .toList(),
+  //       );
+  //     }
 
-      // ========== FINAL LINE ==========
-      yield AnalysisLine(
-        lineNum: lineNum++,
-        text: '✅ ANALYSIS COMPLETE - ${lineNum - 1} lines analyzed',
-        status: 'ok',
-        section: 'COMPLETE',
-        details: {'totalLines': lineNum - 1},
-      );
+  //     // ========== FINAL LINE ==========
+  //     yield AnalysisLine(
+  //       lineNum: lineNum++,
+  //       text: '✅ ANALYSIS COMPLETE - ${lineNum - 1} lines analyzed',
+  //       status: 'ok',
+  //       section: 'COMPLETE',
+  //       details: {'totalLines': lineNum - 1},
+  //     );
 
-      result.markComplete();
-      result.totalLines = lineNum - 1;
-      result.setFinalAnalysis(
-        fileInfo: {
-          'filePath': dartFile.filePath,
-          'contentHash': dartFile.contentHash,
-          'library': dartFile.library ?? '<unknown>',
-          'totalBytes': bytes.length,
-        },
-        statistics: stats,
-        imports: imports
-            .map((i) => {'uri': i.uri, 'prefix': i.prefix})
-            .toList(),
-        variables: variables
-            .map((v) => {'name': v.name, 'type': v.type.displayName()})
-            .toList(),
-        functions: functions
-            .map((f) => {'name': f.name, 'params': f.parameters.length})
-            .toList(),
-        classes: classes
-            .map((c) => {'name': c.name, 'methods': c.methods.length})
-            .toList(),
+  //     result.markComplete();
+  //     result.totalLines = lineNum - 1;
+  //     result.setFinalAnalysis(
+  //       fileInfo: {
+  //         'filePath': dartFile.filePath,
+  //         'contentHash': dartFile.contentHash,
+  //         'library': dartFile.library ?? '<unknown>',
+  //         'totalBytes': bytes.length,
+  //       },
+  //       statistics: stats,
+  //       imports: imports
+  //           .map((i) => {'uri': i.uri, 'prefix': i.prefix})
+  //           .toList(),
+  //       variables: variables
+  //           .map((v) => {'name': v.name, 'type': v.type.displayName()})
+  //           .toList(),
+  //       functions: functions
+  //           .map((f) => {'name': f.name, 'params': f.parameters.length})
+  //           .toList(),
+  //       classes: classes
+  //           .map((c) => {'name': c.name, 'methods': c.methods.length})
+  //           .toList(),
 
-        importsRaw: imports, // Full ImportStmt objects
-        variablesRaw: variables, // Full VariableDecl objects
-        functionsRaw: functions, // Full FunctionDecl objects
-        classesRaw: classes, // Full ClassDecl objects
-        exportsRaw: dartFile.exports, // Add exports too!
-        issuesRaw: dartFile.analysisIssues, // Add analysis issues!
-      );
+  //       importsRaw: imports, // Full ImportStmt objects
+  //       variablesRaw: variables, // Full VariableDecl objects
+  //       functionsRaw: functions, // Full FunctionDecl objects
+  //       classesRaw: classes, // Full ClassDecl objects
+  //       exportsRaw: dartFile.exports, // Add exports too!
+  //       issuesRaw: dartFile.analysisIssues, // Add analysis issues!
+  //     );
 
-      // ✅ STORE RESULT BEFORE STREAM ENDS
-      _analyses[fileId] = result;
-      if (verbose) print('✅ Analysis stored successfully: $fileId');
-    } catch (e, st) {
-      _logError('ANALYSIS_ERROR', e.toString(), st.toString(), fileId);
+  //     // ✅ STORE RESULT BEFORE STREAM ENDS
+  //     _analyses[fileId] = result;
+  //     if (verbose) print('✅ Analysis stored successfully: $fileId');
+  //   } catch (e, st) {
+  //     _logError('ANALYSIS_ERROR', e.toString(), st.toString(), fileId);
 
-      // ✅ Even on error, store the failed result
-      if (result != null) {
-        result.success = false;
-        result.error = 'Analysis error: ${e.toString()}';
-        _analyses[fileId] = result;
-      }
+  //     // ✅ Even on error, store the failed result
+  //     if (result != null) {
+  //       result.success = false;
+  //       result.error = 'Analysis error: ${e.toString()}';
+  //       _analyses[fileId] = result;
+  //     }
 
-      yield AnalysisLine(
-        lineNum: -1,
-        text: '❌ ERROR: ${e.toString()}',
-        status: 'error',
-        section: 'ERROR',
-        details: {'exception': e.toString()},
-      );
-    }
-  }
+  //     yield AnalysisLine(
+  //       lineNum: -1,
+  //       text: '❌ ERROR: ${e.toString()}',
+  //       status: 'error',
+  //       section: 'ERROR',
+  //       details: {'exception': e.toString()},
+  //     );
+  //   }
+  // }
 
   void _scanForIRFiles() {
     try {

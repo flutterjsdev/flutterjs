@@ -427,14 +427,6 @@ class RunCommand extends Command<void> {
       // ===== PHASE 3: SERIALIZATION =====
       if (!jsonOutput) print('PHASE 3: Serializing IR...\n');
 
-      final irFileCount = await _serializeIR(
-        irResults: irResults,
-        outputPath: irOutputPath,
-        sourceBasePath: absoluteSourcePath,
-        verbose: verbose,
-      );
-
-      if (!jsonOutput) print('  Serialized: $irFileCount files\n');
 
       // ✅ NEW: Refresh DevTools if server is running
       if (enableDevTools && _devToolsServer != null) {
@@ -444,9 +436,7 @@ class RunCommand extends Command<void> {
 
       await reportFile.parent.create(recursive: true);
 
-      await reportFile.writeAsString(
-        printPrettyJson(irResults.toJson()),
-      );
+      await reportFile.writeAsString(printPrettyJson(irResults.toJson()));
 
       // ===== PHASE 4-6: IR TO JAVASCRIPT (with validation & optimization) =====
       if (toJs && irResults.dartFiles.isNotEmpty) {
@@ -489,7 +479,7 @@ class RunCommand extends Command<void> {
         _printFinalResults(
           irResults,
           filesToConvert.length,
-          irFileCount,
+          // irFileCount,
           jsFileCount,
           flutterJsDir,
           allWarnings,
@@ -500,7 +490,7 @@ class RunCommand extends Command<void> {
         _printJsonResults(
           irResults,
           filesToConvert.length,
-          irFileCount,
+          // irFileCount,
           jsFileCount,
         );
       }
@@ -695,8 +685,9 @@ class RunCommand extends Command<void> {
     results.widgetStateBindings.addAll(pass.widgetStateBindings);
     results.providerRegistry.addAll(pass.providerRegistry);
 
-    if (!verbose)
+    if (!verbose) {
       print('    Resolved: ${pass.globalSymbolRegistry.length} symbols');
+    }
   }
 
   Future<void> _runTypeInferencePass({
@@ -776,10 +767,11 @@ class RunCommand extends Command<void> {
     final normalizedJsOutputPath = path.normalize(jsOutputPath);
 
     if (!jsonOutput) print('  Phase 4: File-Level Generation...');
-    if (!jsonOutput)
+    if (!jsonOutput) {
       print(
         '  Phase 5: Validation & Optimization (Level $optimizationLevel)...',
       );
+    }
     if (!jsonOutput) print('  Phase 6: Reporting & Output...\n');
 
     for (final entry in irResults.dartFiles.entries) {
@@ -879,59 +871,6 @@ class RunCommand extends Command<void> {
   // SERIALIZATION & HELPERS
   // =========================================================================
 
-  Future<int> _serializeIR({
-    required IRGenerationResults irResults,
-    required String outputPath,
-    required bool verbose,
-    required String sourceBasePath,
-  }) async {
-    int fileCount = 0;
-    final normalizedOutputPath = path.normalize(outputPath);
-    final normalizedSourcePath = path.normalize(sourceBasePath);
-
-    for (final entry in irResults.dartFiles.entries) {
-      try {
-        final normalizedPath = path.normalize(entry.key);
-        if (!normalizedPath.startsWith(normalizedSourcePath)) continue;
-
-        final relativePath = path.relative(
-          normalizedPath,
-          from: normalizedSourcePath,
-        );
-        var relDir = path.dirname(relativePath);
-        if (relDir == '.') relDir = '';
-
-        final fileNameWithoutExt = path.basenameWithoutExtension(
-          normalizedPath,
-        );
-        final outputFileName = '${fileNameWithoutExt}_ir.ir';
-
-        final outputFile = relDir.isEmpty
-            ? File(path.join(normalizedOutputPath, outputFileName))
-            : File(path.join(normalizedOutputPath, relDir, outputFileName));
-
-        final binaryWriter = BinaryIRWriter();
-        final binaryBytes = binaryWriter.writeFileIR(
-          entry.value,
-          verbose: false,
-        );
-
-        await outputFile.parent.create(recursive: true);
-        await outputFile.writeAsBytes(binaryBytes);
-        fileCount++;
-
-        if (verbose) {
-          final sizeKb = (binaryBytes.length / 1024).toStringAsFixed(2);
-          print('    ✓ ${path.basename(entry.key)} ($sizeKb KB)');
-        }
-      } catch (e, stackTrace) {
-        if (verbose) print('    ✗ ${path.basename(entry.key)}: $e $stackTrace');
-      }
-    }
-
-    return fileCount;
-  }
-
   Future<List<String>> _discoverAllDartFiles(String sourceDir) async {
     final dir = Directory(sourceDir);
     final files = <String>[];
@@ -994,7 +933,7 @@ class RunCommand extends Command<void> {
   void _printFinalResults(
     IRGenerationResults results,
     int filesAnalyzed,
-    int irFiles,
+    // int irFiles,
     int jsFiles,
     String buildPath,
     List<String> warnings,
@@ -1011,7 +950,7 @@ class RunCommand extends Command<void> {
       '└──────────────────────────────────────────────────────────────────────┘',
     );
     print('Files analyzed:    $filesAnalyzed');
-    print('IR files:          $irFiles');
+    print('IR files:          \$irFiles');
     print('JS files:          $jsFiles');
     print('Total declarations: ${_countDeclarations(results)}');
     print('Build output:      $buildPath');
@@ -1044,13 +983,13 @@ class RunCommand extends Command<void> {
   void _printJsonResults(
     IRGenerationResults results,
     int filesAnalyzed,
-    int irFiles,
+    // int irFiles,
     int jsFiles,
   ) {
     final json = {
       'status': 'success',
       'files_analyzed': filesAnalyzed,
-      'ir_files': irFiles,
+      // 'ir_files': irFiles,
       'js_files': jsFiles,
       'declarations': _countDeclarations(results),
       'duration_ms': results.totalDurationMs,
