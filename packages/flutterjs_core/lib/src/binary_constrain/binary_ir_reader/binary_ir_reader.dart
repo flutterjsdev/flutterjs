@@ -9,7 +9,6 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_core/src/analysis/extraction/widget_function_extractor.dart';
 import 'package:flutterjs_core/src/ir/flutter/widget_metadata.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_reader/declaration_reader.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_reader/expression_reader.dart';
@@ -17,7 +16,6 @@ import 'package:flutterjs_core/src/binary_constrain/binary_ir_reader/reader.dart
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_reader/type_reader.dart';
 
 import '../../analysis/extraction/flutter_component_system.dart';
-import '../../analysis/extraction/symmetric_function_extraction.dart';
 import '../binary_ir_writer/ir_relationship_registry.dart';
 import 'statement_reader.dart';
 
@@ -1261,8 +1259,7 @@ class BinaryIRReader
               id: functionBody.id,
               sourceLocation: sourceLocation,
               statements: functionBody.statements,
-              expressions: functionBody.expressions,
-              extractionData: functionBody.extractionData,
+            
             );
           }
         }
@@ -1431,11 +1428,7 @@ class BinaryIRReader
       final hasExtractionData = readByte() != 0;
       printlog('[READ FUNCTION BODY] Has extraction data: $hasExtractionData');
 
-      FunctionExtractionData? extractionData;
-      if (hasExtractionData) {
-        extractionData = readFunctionExtractionData();
-        printlog('[READ FUNCTION BODY] Extraction data read');
-      }
+    
 
       printlog('[READ FUNCTION BODY] END at offset: $_offset');
 
@@ -1444,8 +1437,8 @@ class BinaryIRReader
         id: bodyId,
         sourceLocation: bodySourceLocation!,
         statements: statements,
-        expressions: expressions,
-        extractionData: extractionData,
+    
+    
       );
     } catch (e) {
       printlog('[READ FUNCTION BODY ERROR] at offset $_offset: $e');
@@ -1639,8 +1632,7 @@ class BinaryIRReader
             id: functionBody.id,
             sourceLocation: sourceLocation,
             statements: functionBody.statements,
-            expressions: functionBody.expressions,
-            extractionData: functionBody.extractionData,
+          
           );
         }
       }
@@ -1670,96 +1662,7 @@ class BinaryIRReader
     }
   }
 
-  @override
-  FunctionExtractionData readFunctionExtractionData() {
-    try {
-      // Read extraction type
-      final extractionType = readStringRef();
 
-      // Read component count
-      final componentCount = readUint32();
-      final components = <FlutterComponent>[];
-      for (int i = 0; i < componentCount; i++) {
-        components.add(_readFlutterComponent());
-      }
-
-      // Read pure function data flag
-      final hasPureFunctionData = readByte() != 0;
-      FlutterComponent? pureFunctionData;
-      if (hasPureFunctionData) {
-        pureFunctionData = _readPureFunctionComponent();
-      }
-
-      // Read analysis map
-      final analysisMapSize = readUint32();
-      final analysis = <String, dynamic>{};
-      for (int i = 0; i < analysisMapSize; i++) {
-        final key = readStringRef();
-        final value = readStringRef(); // Simplified: stored as string
-        analysis[key] = value;
-      }
-
-      // Read metadata
-      final metadata = _readFunctionMetadata();
-
-      // Read metrics
-      final metrics = _readExtractionMetrics();
-
-      // Read validation
-      final validation = _readExtractionValidation();
-
-      // Read diagnostics
-      final diagnosticCount = readUint32();
-      final diagnostics = <ExtractionDiagnostic>[];
-      for (int i = 0; i < diagnosticCount; i++) {
-        diagnostics.add(_readExtractionDiagnostic());
-      }
-
-      printlog(
-        '[READ EXTRACTION DATA] Type: $extractionType, Components: $componentCount',
-      );
-
-      return FunctionExtractionData(
-        extractionType: extractionType,
-        components: components,
-        pureFunctionData: pureFunctionData,
-        analysis: analysis,
-        expressions: [],
-        statements: [],
-        metadata: metadata,
-        metrics: metrics,
-        validation: validation,
-        diagnostics: diagnostics,
-      );
-    } catch (e) {
-      throw SerializationException(
-        'Failed to read extraction data: $e',
-        offset: _offset,
-      );
-    }
-  }
-
-  FlutterComponent _readPureFunctionComponent() {
-    final pureFuncType = readByte();
-
-    switch (pureFuncType) {
-      case 0: // ComputationFunctionData
-        return _readComputationFunctionData();
-      case 1: // ValidationFunctionData
-        return _readValidationFunctionData();
-      case 2: // FactoryFunctionData
-        return _readFactoryFunctionData();
-      case 3: // HelperFunctionData
-        return _readHelperFunctionData();
-      case 4: // MixedFunctionData
-        return _readMixedFunctionData();
-      default:
-        throw SerializationException(
-          'Unknown pure function type: $pureFuncType',
-          offset: _offset - 1,
-        );
-    }
-  }
 
   FlutterComponent _readFlutterComponent() {
     final componentType = readByte();
@@ -1909,59 +1812,10 @@ class BinaryIRReader
     );
   }
 
-  FunctionMetadata _readFunctionMetadata() {
-    final name = readStringRef();
-    final type = readStringRef();
-    final isAsync = readByte() != 0;
-    final isGenerator = readByte() != 0;
-    final returnType = readStringRef();
+ 
 
-    return FunctionMetadata(
-      name: name,
-      type: type,
-      isAsync: isAsync,
-      isGenerator: isGenerator,
-      returnType: returnType.isEmpty ? null : returnType,
-    );
-  }
 
-  ExtractionMetrics _readExtractionMetrics() {
-    final durationMs = readUint64();
-    final componentsExtracted = readUint32();
-    final expressionsAnalyzed = readUint32();
-    final statementsProcessed = readUint32();
 
-    return ExtractionMetrics(
-      duration: Duration(milliseconds: durationMs.toInt()),
-      componentsExtracted: componentsExtracted,
-      expressionsAnalyzed: expressionsAnalyzed,
-      statementsProcessed: statementsProcessed,
-    );
-  }
-
-  ExtractionValidation _readExtractionValidation() {
-    final isValid = readByte() != 0;
-    final errorCount = readUint32();
-    final errors = <String>[];
-    for (int i = 0; i < errorCount; i++) {
-      errors.add(readStringRef());
-    }
-
-    return ExtractionValidation(isValid: isValid, errors: errors);
-  }
-
-  ExtractionDiagnostic _readExtractionDiagnostic() {
-    final levelIndex = readByte();
-    final level = DiagnosticLevel.values[levelIndex];
-    final message = readStringRef();
-    final code = readStringRef();
-
-    return ExtractionDiagnostic(
-      level: level,
-      message: message,
-      code: code.isEmpty ? "" : code,
-    );
-  }
 
   WidgetComponent _readWidgetComponent() {
     final id = readStringRef();
@@ -2042,204 +1896,7 @@ class BinaryIRReader
     }
   }
 
-  ComputationFunctionData _readComputationFunctionData() {
-    final id = readStringRef();
-    final displayName = readStringRef();
-    final inputType = readStringRef();
-    final outputType = readStringRef();
-    final loopDepth = readUint32();
-    final conditionalDepth = readUint32();
-    final sourceLocation = readSourceLocation();
 
-    // Read analysis map
-    final analysisSize = readUint32();
-    final analysis = <String, dynamic>{};
-    for (int i = 0; i < analysisSize; i++) {
-      final key = readStringRef();
-      final value = readStringRef();
-      analysis[key] = value;
-    }
-
-    // Note: computation steps are simplified here - in full implementation,
-    // you'd read the full StatementIR list
-    final stepCount = readUint32();
-    final steps = <StatementIR>[];
-    for (int i = 0; i < stepCount; i++) {
-      steps.add(readStatement());
-    }
-
-    return ComputationFunctionData(
-      id: id,
-      displayName: displayName,
-      inputType: inputType,
-      outputType: outputType,
-      computationSteps: steps,
-      sourceLocation: sourceLocation,
-      loopDepth: loopDepth.toInt(),
-      conditionalDepth: conditionalDepth.toInt(),
-      analysis: analysis,
-    );
-  }
-
-  ValidationFunctionData _readValidationFunctionData() {
-    final id = readStringRef();
-    final displayName = readStringRef();
-    final targetType = readStringRef();
-    final returnType = readStringRef();
-    final sourceLocation = readSourceLocation();
-
-    // Read validation rules
-    final ruleCount = readUint32();
-    final rules = <String>[];
-    for (int i = 0; i < ruleCount; i++) {
-      rules.add(readStringRef());
-    }
-
-    // Read analysis map
-    final analysisSize = readUint32();
-    final analysis = <String, dynamic>{};
-    for (int i = 0; i < analysisSize; i++) {
-      final key = readStringRef();
-      final value = readStringRef();
-      analysis[key] = value;
-    }
-
-    // Read validation steps
-    final stepCount = readUint32();
-    final steps = <StatementIR>[];
-    for (int i = 0; i < stepCount; i++) {
-      steps.add(readStatement());
-    }
-
-    return ValidationFunctionData(
-      id: id,
-      displayName: displayName,
-      targetType: targetType,
-      validationRules: rules,
-      returnType: returnType,
-      validationSteps: steps,
-      sourceLocation: sourceLocation,
-      analysis: analysis,
-    );
-  }
-
-  FactoryFunctionData _readFactoryFunctionData() {
-    final id = readStringRef();
-    final displayName = readStringRef();
-    final producedType = readStringRef();
-    final sourceLocation = readSourceLocation();
-
-    // Read parameters
-    final paramCount = readUint32();
-    final parameters = <String>[];
-    for (int i = 0; i < paramCount; i++) {
-      parameters.add(readStringRef());
-    }
-
-    // Read initialized fields
-    final fieldCount = readUint32();
-    final initializedFields = <String>[];
-    for (int i = 0; i < fieldCount; i++) {
-      initializedFields.add(readStringRef());
-    }
-
-    // Read analysis map
-    final analysisSize = readUint32();
-    final analysis = <String, dynamic>{};
-    for (int i = 0; i < analysisSize; i++) {
-      final key = readStringRef();
-      final value = readStringRef();
-      analysis[key] = value;
-    }
-
-    // Read creation steps
-    final stepCount = readUint32();
-    final steps = <StatementIR>[];
-    for (int i = 0; i < stepCount; i++) {
-      steps.add(readStatement());
-    }
-
-    return FactoryFunctionData(
-      id: id,
-      displayName: displayName,
-      producedType: producedType,
-      parameters: parameters,
-      creationSteps: steps,
-      initializedFields: initializedFields,
-      sourceLocation: sourceLocation,
-      analysis: analysis,
-    );
-  }
-
-  HelperFunctionData _readHelperFunctionData() {
-    final id = readStringRef();
-    final displayName = readStringRef();
-    final purpose = readStringRef();
-    final sourceLocation = readSourceLocation();
-
-    // Read side effects
-    final effectCount = readUint32();
-    final sideEffects = <String>[];
-    for (int i = 0; i < effectCount; i++) {
-      sideEffects.add(readStringRef());
-    }
-
-    // Read analysis map
-    final analysisSize = readUint32();
-    final analysis = <String, dynamic>{};
-    for (int i = 0; i < analysisSize; i++) {
-      final key = readStringRef();
-      final value = readStringRef();
-      analysis[key] = value;
-    }
-
-    // Read steps
-    final stepCount = readUint32();
-    final steps = <StatementIR>[];
-    for (int i = 0; i < stepCount; i++) {
-      steps.add(readStatement());
-    }
-
-    return HelperFunctionData(
-      id: id,
-      displayName: displayName,
-      sideEffects: sideEffects,
-      steps: steps,
-      purpose: purpose,
-      sourceLocation: sourceLocation,
-      analysis: analysis,
-    );
-  }
-
-  MixedFunctionData _readMixedFunctionData() {
-    final id = readStringRef();
-    final displayName = readStringRef();
-    final sourceLocation = readSourceLocation();
-
-    // Read component count
-    final componentCount = readUint32();
-    final components = <FlutterComponent>[];
-    for (int i = 0; i < componentCount; i++) {
-      components.add(_readFlutterComponent());
-    }
-
-    // Read analysis map
-    final analysisSize = readUint32();
-    final analysis = <String, dynamic>{};
-    for (int i = 0; i < analysisSize; i++) {
-      final key = readStringRef();
-      final value = readStringRef();
-      analysis[key] = value;
-    }
-
-    return MixedFunctionData(
-      id: id,
-      displayName: displayName,
-      components: components,
-      sourceLocation: sourceLocation,
-      analysis: analysis,
-    );
-  }
 
   @override
   ConstructorDecl readConstructorDecl() {
@@ -2423,8 +2080,8 @@ class BinaryIRReader
             id: functionBody.id,
             sourceLocation: sourceLocation,
             statements: functionBody.statements,
-            expressions: functionBody.expressions,
-            extractionData: functionBody.extractionData,
+  
+        
           );
         }
       }

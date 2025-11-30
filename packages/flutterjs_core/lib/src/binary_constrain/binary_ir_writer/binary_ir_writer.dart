@@ -1197,8 +1197,11 @@ class BinaryIRWriter
 
     printlog('[FUNCTION BODY] START at offset: ${buffer.length}');
 
-    // âœ… NEW: Write optional sourceLocation flag
-    // Only write if body has explicit (non-default) sourceLocation
+    // Write body ID
+    writeUint32(getStringRef(body.id));
+    printlog('[FUNCTION BODY] Wrote body ID: ${body.id}');
+
+    // Write sourceLocation flag
     final hasExplicitSourceLocation =
         body.sourceLocation.file != 'unknown' &&
         body.sourceLocation.file.isNotEmpty;
@@ -1215,12 +1218,13 @@ class BinaryIRWriter
       );
     }
 
-    // âœ" THEN: Write statements count - NO OTHER DATA BEFORE THIS
+    // Write statements count
     writeUint32(body.statements.length);
     printlog(
       '[FUNCTION BODY] Statement count: ${body.statements.length} at offset: ${buffer.length - 4}',
     );
 
+    // Write statements
     for (int i = 0; i < body.statements.length; i++) {
       try {
         writeStatement(body.statements[i]);
@@ -1230,81 +1234,8 @@ class BinaryIRWriter
       }
     }
 
-    // âœ" Then write expressions count
-    writeUint32(body.expressions.length);
-    printlog(
-      '[FUNCTION BODY] Expression count: ${body.expressions.length} at offset: ${buffer.length - 4}',
-    );
-
-    for (int i = 0; i < body.expressions.length; i++) {
-      try {
-        writeExpression(body.expressions[i]);
-      } catch (e) {
-        printlog('[FUNCTION BODY ERROR] Expression $i: $e');
-        rethrow;
-      }
-    }
-
-    // âœ" Then write extraction data flag
-    writeByte(body.extractionData != null ? 1 : 0);
-    printlog(
-      '[FUNCTION BODY] Has extraction data: ${body.extractionData != null}',
-    );
-
-    if (body.extractionData != null) {
-      writeExtractionData(body.extractionData!);
-    }
-
+    printlog('[FUNCTION BODY] Statements complete');
     printlog('[FUNCTION BODY] END at offset: ${buffer.length}');
-  }
-
-  void writeExtractionData(FunctionExtractionData data) {
-    printlog('[EXTRACTION DATA] Writing: ${data.extractionType}');
-
-    // Write extraction type
-    writeUint32(getStringRef(data.extractionType));
-
-    // Write components count and data
-    writeUint32(data.components.length);
-    printlog('[EXTRACTION DATA] Components: ${data.components.length}');
-
-    for (final component in data.components) {
-      writeFlutterComponent(component);
-    }
-
-    // Write pure function data flag
-    writeByte(data.pureFunctionData != null ? 1 : 0);
-    if (data.pureFunctionData != null) {
-      writePureFunctionComponent(data.pureFunctionData!);
-    }
-
-    // Write analysis data
-    writeUint32(data.analysis.length);
-    printlog('[EXTRACTION DATA] Analysis entries: ${data.analysis.length}');
-
-    for (final entry in data.analysis.entries) {
-      writeUint32(getStringRef(entry.key));
-      // Write value as string representation
-      final valueStr = entry.value.toString();
-      writeUint32(getStringRef(valueStr));
-    }
-
-    // Write metadata
-    writeExtractionMetadata(data.metadata);
-
-    // Write metrics
-    writeExtractionMetrics(data.metrics);
-
-    // Write validation
-    writeExtractionValidation(data.validation);
-
-    // Write diagnostics
-    writeUint32(data.diagnostics.length);
-    for (final diag in data.diagnostics) {
-      writeExtractionDiagnostic(diag);
-    }
-
-    printlog('[EXTRACTION DATA] Complete');
   }
 
   void writeFlutterComponent(FlutterComponent component) {
@@ -1651,52 +1582,6 @@ class BinaryIRWriter
     }
   }
 
-  // ============================================================================
-  // NEW METHOD: Write ExtractionValidation
-  // ============================================================================
-
-  void writeExtractionValidation(ExtractionValidation validation) {
-    writeByte(validation.isValid ? 1 : 0);
-
-    writeUint32(validation.errors.length);
-    for (final error in validation.errors) {
-      writeUint32(getStringRef(error));
-    }
-  }
-
-  // ============================================================================
-  // NEW METHOD: Write ExtractionDiagnostic
-  // ============================================================================
-
-  void writeExtractionDiagnostic(ExtractionDiagnostic diagnostic) {
-    writeByte(diagnostic.level.index);
-    writeUint32(getStringRef(diagnostic.message));
-    writeUint32(getStringRef(diagnostic.code));
-  }
-
-  void writeExtractionMetadata(FunctionMetadata metadata) {
-    writeUint32(getStringRef(metadata.name));
-    writeUint32(getStringRef(metadata.type));
-    writeByte(metadata.isAsync ? 1 : 0);
-    writeByte(metadata.isGenerator ? 1 : 0);
-
-    writeByte(metadata.returnType != null ? 1 : 0);
-    if (metadata.returnType != null) {
-      writeUint32(getStringRef(metadata.returnType!));
-    }
-  }
-
-  // ============================================================================
-  // NEW METHOD: Write ExtractionMetrics
-  // ============================================================================
-
-  void writeExtractionMetrics(ExtractionMetrics metrics) {
-    writeUint64(metrics.duration.inMilliseconds);
-    writeUint32(metrics.componentsExtracted);
-    writeUint32(metrics.expressionsAnalyzed);
-    writeUint32(metrics.statementsProcessed);
-  }
-
   @override
   void collectStringsFromExpression(ExpressionIR? expr) {
     if (expr == null) return;
@@ -1839,34 +1724,6 @@ class BinaryIRWriter
     addString(variable.sourceLocation.file);
     if (variable.initializer != null) {
       collectStringsFromExpression(variable.initializer);
-    }
-  }
-
-  void collectStringsFromExtractionData(FunctionExtractionData data) {
-    addString(data.extractionType);
-
-    for (final component in data.components) {
-      collectStringsFromFlutterComponent(component);
-    }
-
-    if (data.pureFunctionData != null) {
-      collectStringsFromFlutterComponent(data.pureFunctionData!);
-    }
-
-    for (final entry in data.analysis.entries) {
-      addString(entry.key);
-      addString(entry.value.toString());
-    }
-
-    addString(data.metadata.name);
-    addString(data.metadata.type);
-    if (data.metadata.returnType != null) {
-      addString(data.metadata.returnType!);
-    }
-
-    for (final diag in data.diagnostics) {
-      addString(diag.message);
-      addString(diag.code);
     }
   }
 
@@ -2036,12 +1893,6 @@ class BinaryIRWriter
       // ✅ MUST collect from method body - NOW WITH EXTRACTION DATA!
       if (method.body != null) {
         collectStringsFromStatements(method.body!.statements);
-        collectStringsFromExpressions(method.body!.expressions);
-
-        // ✅ NEW: Collect from extraction data in FunctionBodyIR
-        if (method.body!.extractionData != null) {
-          collectStringsFromExtractionData(method.body!.extractionData!);
-        }
       }
     }
 
@@ -2074,12 +1925,6 @@ class BinaryIRWriter
       // ✅ MUST collect from constructor body - NOW WITH EXTRACTION DATA!
       if (constructor.body != null) {
         collectStringsFromStatements(constructor.body!.statements);
-        collectStringsFromExpressions(constructor.body!.expressions);
-
-        // ✅ NEW: Collect from extraction data in FunctionBodyIR
-        if (constructor.body!.extractionData != null) {
-          collectStringsFromExtractionData(constructor.body!.extractionData!);
-        }
       }
     }
   }
@@ -2480,7 +2325,7 @@ class BinaryIRWriter
 
     printlog('[COLLECT BODY] START - body id: ${body.id}');
 
-    // âœ… CRITICAL: Add the body's ID to string table
+    // Add the body's ID to string table
     addString(body.id);
     printlog('[COLLECT BODY] Added body ID: ${body.id}');
 
@@ -2499,22 +2344,6 @@ class BinaryIRWriter
       collectStringsFromStatement(stmt);
     }
     printlog('[COLLECT BODY] Collected from statements');
-
-    // Collect from all expressions
-    printlog(
-      '[COLLECT BODY] Processing ${body.expressions.length} expressions',
-    );
-    for (final expr in body.expressions) {
-      collectStringsFromExpression(expr);
-    }
-    printlog('[COLLECT BODY] Collected from expressions');
-
-    // Collect from extraction data if present
-    if (body.extractionData != null) {
-      printlog('[COLLECT BODY] Collecting from extraction data');
-      collectStringsFromExtractionData(body.extractionData!);
-      printlog('[COLLECT BODY] Extraction data collected');
-    }
 
     printlog('[COLLECT BODY] END');
   }

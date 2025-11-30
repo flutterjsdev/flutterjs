@@ -1,6 +1,4 @@
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_core/src/analysis/extraction/flutter_component_system.dart';
-import 'package:flutterjs_core/src/analysis/extraction/symmetric_function_extraction.dart';
 import 'package:flutterjs_core/src/binary_constrain/binary_ir_writer/ir_relationship_registry.dart';
 
 import '../../ir/expressions/cascade_expression_ir.dart';
@@ -219,8 +217,7 @@ mixin RelationshipWriter {
     // Process widget-state connections
     _processWidgetStateConnections(classesById);
 
-    // âœ… NEW: Process extraction data relationships from all functions
-    _processExtractionDataRelationships(fileIR, classesById, methodsById);
+
 
     // Validate relationships
     final errors = _relationships.validateAllRelationships(
@@ -243,217 +240,10 @@ mixin RelationshipWriter {
     }
   }
 
-  void _processExtractionDataRelationships(
-    DartFile fileIR,
-    Map<String, ClassDecl> classesById,
-    Map<String, dynamic> methodsById,
-  ) {
-    printlog('[EXTRACTION RELATIONSHIPS] Processing...');
+ 
 
-    // âœ… Process top-level functions
-    for (final func in fileIR.functionDeclarations) {
-      if (func.body?.extractionData != null) {
-        _processExtractionDataFromFunction(func, null);
-      }
-    }
 
-    // âœ… Process class methods
-    for (final classEntry in classesById.entries) {
-      final classDecl = classEntry.value;
-
-      // Process instance methods
-      for (final method in classDecl.methods) {
-        if (method.body?.extractionData != null) {
-          _processExtractionDataFromFunction(method, classEntry.key);
-        }
-      }
-
-      // Process constructors
-      for (final constructor in classDecl.constructors) {
-        if (constructor.body?.extractionData != null) {
-          _processExtractionDataFromFunction(constructor, classEntry.key);
-        }
-      }
-    }
-
-    printlog('[EXTRACTION RELATIONSHIPS] Complete');
-  }
-
-  void _processExtractionDataFromFunction(FunctionDecl func, String? classId) {
-    final data = func.body!.extractionData!;
-
-    printlog(
-      '[EXTRACTION] ${classId != null ? '$classId.${func.name}' : func.name}: '
-      'type=${data.extractionType}, components=${data.components.length}',
-    );
-
-    // Track widget components created by this function
-    _trackWidgetComponentsFromExtraction(func.id, data);
-
-    // Track nested function relationships
-    _trackNestedFunctionsFromExtraction(func.id, data);
-  }
-
-  void _trackWidgetComponentsFromExtraction(
-    String functionId,
-    FunctionExtractionData data,
-  ) {
-    for (final component in data.components) {
-      _trackComponentWidgets(functionId, component);
-    }
-
-    if (data.pureFunctionData != null) {
-      _trackComponentWidgets(functionId, data.pureFunctionData!);
-    }
-  }
-
-  void _trackComponentWidgets(String functionId, FlutterComponent component) {
-    if (component is WidgetComponent) {
-      addString(component.widgetName);
-      // Track that this function builds this widget
-      _relationships.registerClassBuildOutput(functionId, component.widgetName);
-
-      // Recursively track children
-      for (final child in component.children) {
-        _trackComponentWidgets(functionId, child);
-      }
-    } else if (component is ConditionalComponent) {
-      _trackComponentWidgets(functionId, component.thenComponent);
-      if (component.elseComponent != null) {
-        _trackComponentWidgets(functionId, component.elseComponent!);
-      }
-    } else if (component is LoopComponent) {
-      _trackComponentWidgets(functionId, component.bodyComponent);
-    } else if (component is CollectionComponent) {
-      for (final elem in component.elements) {
-        _trackComponentWidgets(functionId, elem);
-      }
-    } else if (component is ContainerFallbackComponent) {
-      if (component.wrappedComponent != null) {
-        _trackComponentWidgets(functionId, component.wrappedComponent!);
-      }
-    } else if (component is MixedFunctionData) {
-      for (final subComponent in component.components) {
-        _trackComponentWidgets(functionId, subComponent);
-      }
-    }
-  }
-
-  void _trackNestedFunctionsFromExtraction(
-    String functionId,
-    FunctionExtractionData data,
-  ) {
-    // Track pure function types that may represent nested functions
-    if (data.pureFunctionData is ComputationFunctionData) {
-      _trackComputationFunction(
-        functionId,
-        data.pureFunctionData as ComputationFunctionData,
-      );
-    } else if (data.pureFunctionData is ValidationFunctionData) {
-      _trackValidationFunction(
-        functionId,
-        data.pureFunctionData as ValidationFunctionData,
-      );
-    } else if (data.pureFunctionData is FactoryFunctionData) {
-      _trackFactoryFunction(
-        functionId,
-        data.pureFunctionData as FactoryFunctionData,
-      );
-    } else if (data.pureFunctionData is HelperFunctionData) {
-      _trackHelperFunction(
-        functionId,
-        data.pureFunctionData as HelperFunctionData,
-      );
-    }
-  }
-
-  void _trackComputationFunction(
-    String parentFunctionId,
-    ComputationFunctionData data,
-  ) {
-    // Track the computation function as a nested relationship
-    addString(data.displayName);
-    addString(data.inputType);
-    addString(data.outputType);
-
-    for (final entry in data.analysis.entries) {
-      addString(entry.key);
-      addString(entry.value.toString());
-    }
-
-    printlog(
-      '[EXTRACTION] Computation function: ${data.displayName} '
-      '(${data.inputType} → ${data.outputType})',
-    );
-  }
-
-  void _trackValidationFunction(
-    String parentFunctionId,
-    ValidationFunctionData data,
-  ) {
-    addString(data.displayName);
-    addString(data.targetType);
-    addString(data.returnType);
-
-    for (final rule in data.validationRules) {
-      addString(rule);
-    }
-
-    for (final entry in data.analysis.entries) {
-      addString(entry.key);
-      addString(entry.value.toString());
-    }
-
-    printlog(
-      '[EXTRACTION] Validation function: ${data.displayName} '
-      '(target=${data.targetType})',
-    );
-  }
-
-  void _trackHelperFunction(String parentFunctionId, HelperFunctionData data) {
-    addString(data.displayName);
-    addString(data.purpose);
-
-    for (final effect in data.sideEffects) {
-      addString(effect);
-    }
-
-    for (final entry in data.analysis.entries) {
-      addString(entry.key);
-      addString(entry.value.toString());
-    }
-
-    printlog(
-      '[EXTRACTION] Helper function: ${data.displayName} '
-      '(purpose=${data.purpose})',
-    );
-  }
-
-  void _trackFactoryFunction(
-    String parentFunctionId,
-    FactoryFunctionData data,
-  ) {
-    addString(data.displayName);
-    addString(data.producedType);
-
-    for (final param in data.parameters) {
-      addString(param);
-    }
-
-    for (final field in data.initializedFields) {
-      addString(field);
-    }
-
-    for (final entry in data.analysis.entries) {
-      addString(entry.key);
-      addString(entry.value.toString());
-    }
-
-    printlog(
-      '[EXTRACTION] Factory function: ${data.displayName} '
-      '(produces=${data.producedType})',
-    );
-  }
+ 
 
  void _processBuildMethods(Map<String, ClassDecl> classesById) {
   printlog('[BUILD METHODS] Processing...');
@@ -470,21 +260,7 @@ mixin RelationshipWriter {
     }
 
     if (buildMethod.body != null) {
-      // âœ… FIRST: Check extraction data for widget relationships
-      if (buildMethod.body!.extractionData != null) {
-        final data = buildMethod.body!.extractionData!;
-        for (final component in data.components) {
-          if (component is WidgetComponent) {
-            final widgetName = component.widgetName;
-            addString(widgetName);
-            _relationships.registerClassBuildOutput(classDecl.id, widgetName);
-            printlog(
-              '[BUILD METHODS] Class ${classDecl.name} builds ${component.widgetName}',
-            );
-            break; // Usually only one root widget per build
-          }
-        }
-      }
+      
 
       // âœ… FALLBACK: If no extraction data, try to extract from return statement
       if (!_relationships.classBuildOutputs.containsKey(classDecl.id)) {

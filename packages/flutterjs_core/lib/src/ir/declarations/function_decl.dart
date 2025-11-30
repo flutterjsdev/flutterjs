@@ -28,9 +28,7 @@
 /// <---------------------------------------------------------------------------->
 library;
 
-import 'package:flutterjs_core/src/analysis/extraction/flutter_component_system.dart';
 import 'package:meta/meta.dart';
-import '../../analysis/extraction/widget_function_extractor.dart';
 import '../core/source_location.dart';
 import '../expressions/expression_ir.dart';
 import '../core/ir_node.dart';
@@ -742,11 +740,6 @@ class FunctionBodyIR extends IRNode {
   /// Statements in function body
   final List<StatementIR> statements;
 
-  /// Expressions extracted from function body
-  final List<ExpressionIR> expressions;
-
-  /// Extraction data (components, metrics, validation)
-  final FunctionExtractionData? extractionData;
 
   /// Whether body is empty
   final bool isEmpty;
@@ -755,271 +748,30 @@ class FunctionBodyIR extends IRNode {
     required super.id,
     required super.sourceLocation,
     this.statements = const [],
-    this.expressions = const [],
-    this.extractionData,
-  }) : isEmpty = statements.isEmpty && expressions.isEmpty;
+    // this.extractionData,
+  }) : isEmpty = statements.isEmpty;
 
   /// Total items in body
-  int get totalItems => statements.length + expressions.length;
+  int get totalItems => statements.length;
 
-  /// Get all components from extraction data
-  List<FlutterComponent> get components => extractionData?.components ?? [];
-
-  /// Get pure function data if available
-  FlutterComponent? get pureFunctionData => extractionData?.pureFunctionData;
-
-  /// Check if this body produced widgets
-  bool get hasWidgetComponents => extractionData?.isWidgetFunction ?? false;
-
-  /// Get extraction metadata
-  Map<String, dynamic> get metadata => extractionData?.analysis ?? {};
-
-  /// Get performance metrics
-  ExtractionMetrics? get metrics => extractionData?.metrics;
-
-  /// Validate body consistency
-  List<String> validate() {
-    final errors = <String>[];
-
-    if (isEmpty && extractionData == null) {
-      errors.add('Function body is empty with no extraction data');
-    }
-
-    if (extractionData != null && !extractionData!.validation.isValid) {
-      errors.addAll(extractionData!.validation.errors);
-    }
-
-    return errors;
-  }
 
   Map<String, dynamic> toJson() {
     return {
       'statementCount': statements.length,
-      'expressionCount': expressions.length,
+
       'statements': statements.map((s) => s.toJson()).toList(),
-      'expressions': expressions.map((e) => e.toJson()).toList(),
-      'extractionData': extractionData?.toJson() ?? {},
+
+      // 'extractionData': extractionData?.toJson() ?? {},
       'isEmpty': isEmpty,
       'totalItems': totalItems,
-      'hasWidgetComponents': hasWidgetComponents,
-      if (extractionData != null) 'extractionData': extractionData!.toJson(),
-      'metadata': metadata,
-      if (metrics != null) 'metrics': metrics!.toJson(),
+      // 'hasWidgetComponents': hasWidgetComponents,
+      // if (extractionData != null) 'extractionData': extractionData!.toJson(),
+      // 'metadata': metadata,
+      // if (metrics != null) 'metrics': metrics!.toJson(),
     };
   }
 
   @override
-  String toString() =>
-      'FunctionBody(statements: ${statements.length}, expressions: ${expressions.length}, extraction: ${extractionData != null ? extractionData!.extractionType : 'none'})';
+  String toString() => 'FunctionBody(statements: ${statements.length},  })';
 }
 
-/// Extraction data structure (imported from function extractor)
-@immutable
-class FunctionExtractionData {
-  final String extractionType;
-  final List<FlutterComponent> components;
-  final FlutterComponent? pureFunctionData;
-  final Map<String, dynamic> analysis;
-  final List<ExpressionIR> expressions;
-  final List<StatementIR> statements;
-  final FunctionMetadata metadata;
-  final ExtractionMetrics metrics;
-  final ExtractionValidation validation;
-  final List<ExtractionDiagnostic> diagnostics;
-
-  const FunctionExtractionData({
-    required this.extractionType,
-    required this.components,
-    required this.pureFunctionData,
-    required this.analysis,
-    required this.expressions,
-    required this.statements,
-    required this.metadata,
-    required this.metrics,
-    required this.validation,
-    this.diagnostics = const [],
-  });
-
-  bool get isSuccessful =>
-      extractionType != 'error' &&
-      extractionType != 'empty' &&
-      validation.isValid;
-
-  bool get isWidgetFunction =>
-      extractionType == 'widget' && components.isNotEmpty;
-
-  bool get isPureFunction =>
-      extractionType == 'pure_function' && pureFunctionData != null;
-
-  int get totalExtracted => components.length + expressions.length;
-
-  static FunctionExtractionData error({
-    String? functionName,
-    String? errorMessage,
-    statements,
-  }) => FunctionExtractionData(
-    analysis: {},
-    components: [],
-    extractionType: 'error',
-    expressions: [],
-    metadata: FunctionMetadata(
-      name: functionName ?? "<unknown>",
-      type: '',
-      isAsync: false,
-      isGenerator: false,
-    ),
-    metrics: ExtractionMetrics(
-      duration: Duration.zero,
-      componentsExtracted: 0,
-      expressionsAnalyzed: 0,
-      errorsEncountered: 1,
-      statementsProcessed: 0,
-    ),
-    statements: statements,
-    validation: ExtractionValidation(
-      isValid: false,
-      errors: [errorMessage ?? 'Extraction error occurred'],
-      warnings: [],
-    ),
-    pureFunctionData: null,
-    diagnostics: [],
-  );
-
-  static FunctionExtractionData empty({String? functionName}) =>
-      FunctionExtractionData(
-        analysis: {},
-        components: [],
-        extractionType: 'empty',
-        expressions: [],
-        metadata: FunctionMetadata(
-          name: functionName ?? "<unknown>",
-          type: '',
-          isAsync: false,
-          isGenerator: false,
-        ),
-        metrics: ExtractionMetrics(
-          duration: Duration.zero,
-          componentsExtracted: 0,
-          expressionsAnalyzed: 0,
-          errorsEncountered: 0,
-          statementsProcessed: 0,
-        ),
-        statements: [],
-        validation: ExtractionValidation(
-          isValid: false,
-          errors: ['No extraction data'],
-          warnings: [],
-        ),
-        pureFunctionData: null,
-        diagnostics: [],
-      );
-
-  Map<String, dynamic> toJson() => {
-    'extractionType': extractionType,
-    'components': components.map((c) => c.toJson()).toList(),
-    'pureFunctionData': pureFunctionData?.toJson(),
-    'analysis': analysis,
-    'expressions': expressions.map((e) => e.toJson()).toList(),
-    'statements': statements.map((s) => s.toJson()).toList(),
-    'metadata': metadata.toJson(),
-    'metrics': metrics.toJson(),
-    'validation': validation.toJson(),
-    'diagnostics': diagnostics
-        .map(
-          (d) => {
-            'level': d.level.toString().split('.').last,
-            'message': d.message,
-            'code': d.code,
-          },
-        )
-        .toList(),
-  };
-}
-
-@immutable
-class FunctionMetadata {
-  final String name;
-  final String type;
-  final bool isAsync;
-  final bool isGenerator;
-  final String? returnType;
-  final List<String> parameterTypes;
-  final String? documentation;
-  final List<String> annotations;
-
-  const FunctionMetadata({
-    required this.name,
-    required this.type,
-    required this.isAsync,
-    required this.isGenerator,
-    this.returnType,
-    this.parameterTypes = const [],
-    this.documentation,
-    this.annotations = const [],
-  });
-
-  Map<String, dynamic> toJson() => {
-    'name': name,
-    'type': type,
-    'isAsync': isAsync,
-    'isGenerator': isGenerator,
-    if (returnType != null) 'returnType': returnType,
-    'parameterTypes': parameterTypes,
-    if (documentation != null) 'documentation': documentation,
-    if (annotations.isNotEmpty) 'annotations': annotations,
-  };
-}
-
-@immutable
-class ExtractionMetrics {
-  final Duration duration;
-  final int componentsExtracted;
-  final int expressionsAnalyzed;
-  final int statementsProcessed;
-  final int errorsEncountered;
-
-  const ExtractionMetrics({
-    required this.duration,
-    required this.componentsExtracted,
-    required this.expressionsAnalyzed,
-    this.statementsProcessed = 0,
-    this.errorsEncountered = 0,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'durationMs': duration.inMilliseconds,
-    'componentsExtracted': componentsExtracted,
-    'expressionsAnalyzed': expressionsAnalyzed,
-  };
-}
-
-@immutable
-class ExtractionValidation {
-  final bool isValid;
-  final List<String> errors;
-  final List<String> warnings;
-
-  const ExtractionValidation({
-    this.isValid = true,
-    this.errors = const [],
-    this.warnings = const [],
-  });
-
-  Map<String, dynamic> toJson() => {
-    'isValid': isValid,
-    'errorCount': errors.length,
-  };
-}
-
-@immutable
-class ExtractionDiagnostic {
-  final DiagnosticLevel level;
-  final String message;
-  final String code;
-
-  const ExtractionDiagnostic({
-    required this.level,
-    required this.message,
-    required this.code,
-  });
-}

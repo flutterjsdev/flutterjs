@@ -244,49 +244,7 @@ mixin StringCollectionPhase {
   // ENHANCED: collectStringsFromFunction - NOW COLLECTS ALL FUNCTION DATA
   // ============================================================================
 
-  // ============================================================================
-  // NEW: collectStringsFromExtractionData - Collects all extraction strings
-  // ============================================================================
-  void collectStringsFromExtractionData(FunctionExtractionData data) {
-    printlog('[COLLECT EXTRACTION] START');
-
-    // Extraction type
-    addString(data.extractionType);
-
-    // Components
-    for (final component in data.components) {
-      collectStringsFromFlutterComponent(component);
-    }
-
-    // Pure function data
-    if (data.pureFunctionData != null) {
-      collectStringsFromFlutterComponent(data.pureFunctionData!);
-    }
-
-    // Analysis map
-    for (final entry in data.analysis.entries) {
-      addString(entry.key);
-      addString(entry.value.toString());
-    }
-
-    // Metadata
-    addString(data.metadata.name);
-    addString(data.metadata.type);
-    if (data.metadata.returnType != null) {
-      addString(data.metadata.returnType!);
-    }
-
-    // Diagnostics
-    for (final diag in data.diagnostics) {
-      addString(diag.message);
-      if (diag.code.isNotEmpty) {
-        addString(diag.code);
-      }
-    }
-
-    printlog('[COLLECT EXTRACTION] END - ${data.components.length} components');
-  }
-
+ 
   // ============================================================================
   // EXISTING (but needed for extraction data)
   // ============================================================================

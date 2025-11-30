@@ -4,6 +4,48 @@ void main() {
   runApp(const MyApp());
 }
 
+Widget buildUserCard(String name, int age) {
+  return Card(
+    margin: EdgeInsets.all(12),
+    child: Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("Name: $name", style: TextStyle(fontSize: 18)),
+          Text("Age: $age"),
+        ],
+      ),
+    ),
+  );
+}
+
+
+Widget buildPriceWidget(double amount) {
+  double gst = amount * 0.18;
+  double total = amount + gst;
+
+  return Container(
+    padding: EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.blue.shade50,
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Amount: ₹$amount"),
+        Text("GST (18%): ₹$gst"),
+        Divider(),
+        Text(
+          "Total: ₹$total",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      ],
+    ),
+  );
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 

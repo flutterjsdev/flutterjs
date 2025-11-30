@@ -5,13 +5,10 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/analysis/extraction/component_registry.dart';
-import 'package:flutterjs_core/src/analysis/extraction/widget_function_extractor.dart';
 import 'package:flutterjs_core/src/analysis/visitors/analyzer_widget_detection_setup.dart';
 import 'package:flutterjs_core/src/analysis/extraction/statement_widget_analyzer.dart';
 import 'package:flutterjs_core/src/analysis/extraction/flutter_component_system.dart'
-    show
-        FlutterComponent
-       ;
+    show FlutterComponent;
 import 'package:flutterjs_core/src/analysis/extraction/symmetric_function_extraction.dart'
     show PureFunctionExtractor;
 
@@ -335,7 +332,6 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     final funcId = builder.generateId('func', funcName);
 
     print('🔧 [Function] $funcName()');
-    final startTime = DateTime.now();
 
     try {
       // =========================================================================
@@ -368,30 +364,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         node.functionExpression.body,
       );
 
-      final bodyExpressions = _statementExtractor.extractBodyExpressions(
-        node.functionExpression.body,
-      );
-
       print('   📦 Body statements: ${bodyStatements.length}');
-      print('   📦 Body expressions: ${bodyExpressions.length}');
-
-      // =========================================================================
-      // PHASE 3: Extract rich function data
-      // =========================================================================
-
-      final extractionData = WidgetFunctionExtractor.extractFunction(
-        node: node,
-        funcName: funcName,
-        funcId: funcId,
-        isWidgetFunc: isWidgetFunc,
-        bodyStatements: bodyStatements,
-        bodyExpressions: bodyExpressions,
-        builder: builder,
-        componentExtractor: componentExtractor,
-        fileContent: fileContent,
-        filePath: filePath,
-        pureFunctionExtractor: pureFunctionExtractor,
-      );
 
       // =========================================================================
       // PHASE 4: Create FunctionBody with extraction data
@@ -399,8 +372,6 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
       final functionBody = FunctionBodyIR(
         statements: bodyStatements,
-        expressions: bodyExpressions,
-        extractionData: extractionData,
         id: builder.generateId('func_body', funcName),
         sourceLocation: _extractSourceLocation(node, node.name.offset),
       );
@@ -427,33 +398,6 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         annotations: _extractAnnotations(node.metadata),
         sourceLocation: _extractSourceLocation(node, node.name.offset),
       );
-
-      // =========================================================================
-      // PHASE 6: Mark as widget function and attach metadata
-      // =========================================================================
-
-      if (isWidgetFunc) {
-        functionDecl.markAsWidgetFunction(isWidgetFun: true);
-        if (widgetKind != null) {
-          functionDecl.metadata['widgetKind'] = widgetKind;
-        }
-        print('   🎨 [WIDGET] Components: ${extractionData.components.length}');
-      } else {
-        print('   📢 [PURE FUNCTION] Type: ${extractionData.metadata.type}');
-      }
-
-      final durationMs = DateTime.now().difference(startTime).inMilliseconds;
-      print('   ⏱️  Extraction time: ${durationMs}ms');
-
-      // =========================================================================
-      // PHASE 7: Store components in collections
-      // =========================================================================
-
-      if (extractionData.isWidgetFunction) {
-        functionComponents[funcId] = extractionData.components;
-      } else if (extractionData.pureFunctionData != null) {
-        functionComponents[funcId] = [extractionData.pureFunctionData!];
-      }
 
       // =========================================================================
       // PHASE 8: Widget analysis (if applicable)
@@ -485,14 +429,9 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       // Error recovery with empty FunctionBody
       final fallbackBody = FunctionBodyIR(
         statements: [],
-        expressions: [],
+
         id: builder.generateId('func_body', funcName),
         sourceLocation: _extractSourceLocation(node, node.name.offset),
-        extractionData: FunctionExtractionData.error(
-          errorMessage: e.toString(),
-          functionName: funcName,
-          statements: [],
-        ),
       );
 
       final fallbackDecl = FunctionDecl(
@@ -551,19 +490,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           if (method.body != null) {
             final functionBody = method.body!;
 
-            // Method 1: Use extraction data (preferred)
-            if (functionBody.extractionData != null) {
-              final extractionData = functionBody.extractionData!;
-
-              if (extractionData.isWidgetFunction) {
-                classComponents.addAll(extractionData.components);
-                print(
-                  '      ✅ Extracted ${extractionData.components.length} components via extraction data',
-                );
-              }
-            }
-            // Method 2: Fallback - extract from statements
-            else if (functionBody.statements.isNotEmpty) {
+            if (functionBody.statements.isNotEmpty) {
               print('      ℹ️  No extraction data, analyzing statements...');
 
               for (final stmt in functionBody.statements) {
@@ -770,9 +697,6 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         member.name?.offset ?? member.offset,
       ),
       statements: bodyStatements,
-      expressions: [],
-      extractionData:
-          null, // Constructors typically don't need component extraction
     );
 
     final constructorDecl = ConstructorDecl(
@@ -860,26 +784,11 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         print('   📦 Body statements: ${bodyStatements.length}');
         print('   📦 Body expressions: ${bodyExpressions.length}');
 
-        // PHASE 3: Extract rich method data
-        final extractionData = WidgetFunctionExtractor.extractMethod(
-          node: member,
-          funcName: methodName,
-          funcId: methodId,
-          isWidgetFunc: isWidgetFunc,
-          bodyStatements: bodyStatements,
-          bodyExpressions: bodyExpressions,
-          className: className,
-          pureFunctionExtractor: pureFunctionExtractor,
-          builder: builder,
-        );
-
         // PHASE 4: Create FunctionBody with extraction data
         final methodBody = FunctionBodyIR(
           id: builder.generateId('ctor_body', '$className.$methodName.body'),
           sourceLocation: _extractSourceLocation(member, member.name.offset),
           statements: bodyStatements,
-          expressions: bodyExpressions,
-          extractionData: extractionData,
         );
 
         // PHASE 5: Create MethodDecl with FunctionBody
@@ -911,11 +820,6 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           if (widgetKind != null) {
             methodDecl.metadata['widgetKind'] = widgetKind;
           }
-          print(
-            '   🎨 [WIDGET METHOD] Components: ${extractionData.components.length}',
-          );
-        } else {
-          print('   📢 [PURE METHOD] Type: ${extractionData.metadata.type}');
         }
 
         final durationMs = DateTime.now()
@@ -931,14 +835,9 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         // Error recovery
         final fallbackBody = FunctionBodyIR(
           statements: [],
-          expressions: [],
+
           id: builder.generateId('ctor_body', '$className.$methodName.body'),
           sourceLocation: _extractSourceLocation(member, member.name.offset),
-          extractionData: FunctionExtractionData.error(
-            errorMessage: e.toString(),
-            functionName: methodName,
-            statements: [],
-          ),
         );
 
         final fallbackDecl = MethodDecl(

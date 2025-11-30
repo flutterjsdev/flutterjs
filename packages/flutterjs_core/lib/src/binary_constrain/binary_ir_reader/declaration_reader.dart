@@ -171,7 +171,7 @@ mixin DeclarationReader {
   StatementIR readStatement(); // ✅ Need this for reading function bodies
   ParameterDecl readParameterDecl();
   MethodDecl readMethodDecl();
-  FunctionExtractionData readFunctionExtractionData();
+
   ConstructorDecl readConstructorDecl();
 
   ImportStmt readImportStmt() {
@@ -304,6 +304,7 @@ mixin DeclarationReader {
       isAbstract: isAbstract,
       isFinal: isFinal,
       sourceLocation: sourceLocation,
+      
     );
   }
 
