@@ -11,8 +11,8 @@ import 'package:collection/collection.dart';
 
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_gen/src/flutter_to_js/src/utils/code_gen_error.dart';
-import 'package:flutterjs_gen/src/flutter_to_js/src/utils/indenter.dart';
+import 'package:flutterjs_gen/src/utils/code_gen_error.dart';
+import 'package:flutterjs_gen/src/utils/indenter.dart';
 import 'expression_code_generator.dart';
 import 'flutter_prop_converters.dart';
 import 'flutter_widget_registry.dart';

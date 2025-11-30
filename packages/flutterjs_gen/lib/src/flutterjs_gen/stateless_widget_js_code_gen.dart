@@ -6,13 +6,13 @@
 // ============================================================================
 
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_gen/src/flutter_to_js/src/utils/code_gen_error.dart';
+import 'package:flutterjs_gen/src/utils/code_gen_error.dart';
 import 'build_method_code_gen.dart';
 import 'flutter_prop_converters.dart';
 import 'function_code_generator.dart';
 import 'statement_code_generator.dart';
 import 'expression_code_generator.dart';
-import 'utils/indenter.dart';
+import '../utils/indenter.dart';
 
 // ============================================================================
 // CONFIGURATION

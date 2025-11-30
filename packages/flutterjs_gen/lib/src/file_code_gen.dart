@@ -6,9 +6,9 @@ import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/ast_it.dart';
-import 'package:flutterjs_gen/src/flutter_to_js/flutter_to_js.dart';
-import 'js_optimizer.dart';
-import 'stateless_widget_js_code_gen.dart';
+import 'package:flutterjs_gen/flutterjs_gen.dart';
+import 'flutterjs_gen/js_optimizer.dart';
+import 'flutterjs_gen/stateless_widget_js_code_gen.dart';
 import 'utils/indenter.dart';
 
 class FileCodeGen {
@@ -1030,3 +1030,4 @@ class RuntimeRequirements {
     return false;
   }
 }
+
