@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:flutterjs_core/ast_it.dart';
+
 import '../../ir/expressions/expression_ir.dart';
 import '../../ir/expressions/advanced.dart';
 import '../../ir/expressions/function_method_calls.dart';
@@ -80,6 +82,7 @@ abstract class ExpressionVisitor<R> {
   R visitThrow(ThrowExpr expr);
   R visitCast(CastExpr expr);
   R visitTypeCheck(TypeCheckExpr expr);
+  R visitEnumMemberAccess(EnumMemberAccessExpressionIR expr);
 }
 
 /// Base visitor interface for traversing statements
@@ -163,6 +166,10 @@ class DepthCalculator implements ExpressionVisitor<int> {
       return visitCast(expr);
     else if (expr is TypeCheckExpr)
       return visitTypeCheck(expr);
+    else if (expr is EnumMemberAccessExpressionIR) {
+      // ✅ NEW: Handle enum member access
+      return visitEnumMemberAccess(expr);
+    }
     return 1;
   }
 
@@ -177,6 +184,12 @@ class DepthCalculator implements ExpressionVisitor<int> {
         .map(_visit)
         .fold(0, (a, b) => a > b ? a : b);
     return maxInterp + 1;
+  }
+
+  @override
+  int visitEnumMemberAccess(EnumMemberAccessExpressionIR expr) {
+    // Enum member access is always depth 1 (leaf node in terms of nesting)
+    return 1;
   }
 
   @override
@@ -338,8 +351,20 @@ class TypeInferencer implements ExpressionVisitor<TypeIR?> {
       return visitCast(expr);
     } else if (expr is TypeCheckExpr) {
       return visitTypeCheck(expr);
+    }else if (expr is EnumMemberAccessExpressionIR) {
+      visitEnumMemberAccess(expr);
     }
     return null;
+  }
+
+  @override
+  TypeIR? visitEnumMemberAccess(EnumMemberAccessExpressionIR expr) {
+    // Enum member access returns a dynamic type (or could be specialized)
+    // In practice, Flutter enums resolve to their specific types
+    return DynamicTypeIR(
+      id: 'dynamic_enum_${expr.memberName}',
+      sourceLocation: expr.sourceLocation,
+    );
   }
 
   @override
@@ -421,8 +446,16 @@ class ConstantFolder implements ExpressionVisitor<dynamic> {
       return visitConditional(expr);
     } else if (expr is CastExpr) {
       return visitCast(expr);
+    }else if (expr is EnumMemberAccessExpressionIR) {
+      visitEnumMemberAccess(expr);
     }
     return null; // Non-constant
+  }
+
+  dynamic visitEnumMemberAccess(EnumMemberAccessExpressionIR expr) {
+    // Enum member access is considered constant (compile-time known value)
+    // Return the member name as the constant value
+    return expr.memberName;
   }
 
   @override
@@ -660,7 +693,21 @@ class DependencyExtractor implements ExpressionVisitor<Set<String>> {
       visitCast(expr);
     } else if (expr is TypeCheckExpr) {
       visitTypeCheck(expr);
+    } else if (expr is EnumMemberAccessExpressionIR) {
+      visitEnumMemberAccess(expr);
     }
+  }
+
+  @override
+  Set<String> visitEnumMemberAccess(EnumMemberAccessExpressionIR expr) {
+    // Extract enum type name as a dependency if fully qualified
+    if (expr.typeName != null) {
+      dependencies.add(expr.typeName!);
+    }
+    // Always add the member name context
+    dependencies.add(expr.memberName);
+
+    return dependencies;
   }
 
   @override

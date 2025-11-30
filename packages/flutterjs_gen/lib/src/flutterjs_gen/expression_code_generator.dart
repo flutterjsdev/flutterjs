@@ -51,12 +51,30 @@ class ExpressionCodeGen {
   final List<CodeGenError> errors = [];
   final List<CodeGenWarning> warnings = [];
 
+  // ✅ ADD THIS: Track recursion depth
+  int _recursionDepth = 0;
+  static const int _maxRecursionDepth = 100;
+
   ExpressionCodeGen({ExpressionGenConfig? config})
     : config = config ?? const ExpressionGenConfig();
 
   /// Generate JavaScript code from an expression IR
   /// Returns JS code or throws CodeGenError on unsupported expressions
   String generate(ExpressionIR expr, {bool parenthesize = false}) {
+    _recursionDepth++;
+
+    if (_recursionDepth > _maxRecursionDepth) {
+      _recursionDepth--;
+      final error = CodeGenError(
+        message: 'Maximum recursion depth exceeded (infinite loop detected)',
+        expressionType: expr.runtimeType.toString(),
+        suggestion:
+            'Check for circular references in expressions or self-referencing arguments',
+      );
+      errors.add(error);
+      throw error;
+    }
+
     try {
       String code = _generateExpression(expr);
 
@@ -77,7 +95,19 @@ class ExpressionCodeGen {
       );
       errors.add(error);
       rethrow;
+    } finally {
+      // ✅ ADD THIS: Always decrement
+      _recursionDepth--;
     }
+  }
+
+  /// Debug method to print the call stack
+  void _printRecursionInfo(ExpressionIR expr) {
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('Recursion Depth: $_recursionDepth / $_maxRecursionDepth');
+    print('Expression Type: ${expr.runtimeType}');
+    print('Expression: ${expr.toShortString()}');
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   }
 
   // =========================================================================
@@ -86,6 +116,10 @@ class ExpressionCodeGen {
 
   String _generateExpression(ExpressionIR expr) {
     // Literal Expressions
+    // ✅ ADD THIS: Debug logging
+    if (_recursionDepth > 50) {
+      _printRecursionInfo(expr);
+    }
     if (expr is LiteralExpressionIR) {
       return _generateLiteral(expr);
     }
@@ -202,11 +236,34 @@ class ExpressionCodeGen {
       return _generateParenthesized(expr);
     }
 
+    // ✅ NEW: Add this handler for EnumMemberAccess
+    if (expr is EnumMemberAccessExpressionIR) {
+      return _generateEnumMemberAccess(expr);
+    }
     // Fallback
     throw CodeGenError(
       message: 'Unsupported expression type: ${expr.runtimeType}',
       suggestion: 'Check if this expression type is implemented',
     );
+  }
+
+  String _generateEnumMemberAccess(EnumMemberAccessExpressionIR expr) {
+    print('✅ Processing Dart 3.0+ enum member access: "${expr.source}"');
+
+    // Get the type name (either explicit or inferred)
+    final typeName = expr.typeName ?? expr.inferredTypeName;
+    final memberName = expr.memberName;
+
+    // Use the enum mapper to get the correct JavaScript/CSS value
+    if (typeName != null) {
+      final jsValue = FlutterEnumMapper.mapEnumMember(typeName, memberName);
+      print('✅ Mapped $typeName.$memberName → $jsValue');
+      return jsValue;
+    }
+
+    // Fallback: just return the member name as a string
+    print('⚠️  No type info, using member name: $memberName');
+    return '"${memberName.toLowerCase()}"';
   }
 
   // =========================================================================
@@ -514,12 +571,23 @@ class ExpressionCodeGen {
   // =========================================================================
 
   String _generateMethodCall(MethodCallExpressionIR expr) {
+    // ✅ FIX: Don't use 'this.' for Flutter widget constructors
     final target = expr.target != null
         ? generate(expr.target!, parenthesize: true)
         : 'this';
 
+    // ✅ NEW: Check if this is a widget constructor call (capitalize first letter)
+    final isWidgetCall = expr.methodName[0].toUpperCase() == expr.methodName[0];
+
+    // Generate arguments - THIS IS THE KEY FIX
     final args = _generateArgumentList(expr.arguments, expr.namedArguments);
 
+    // ✅ FIX: For widget calls, don't use 'this.'
+    if (isWidgetCall) {
+      return '${expr.methodName}($args)';
+    }
+
+    // For regular method calls, use dot notation
     if (expr.isNullAware) {
       return '$target?.${expr.methodName}($args)';
     } else if (expr.isCascade) {
@@ -546,32 +614,89 @@ class ExpressionCodeGen {
     return '${constKeyword}new $typeName$constructorName($args)';
   }
 
-  String _generateArgumentList(
-    List<ExpressionIR> positional,
-    Map<String, ExpressionIR> named,
-  ) {
-    final parts = <String>[];
+String _generateArgumentList(
+  List<ExpressionIR> positional,
+  Map<String, ExpressionIR> named,
+) {
+  final parts = <String>[];
 
-    // Positional arguments
-    parts.addAll(positional.map((e) => generate(e, parenthesize: false)));
+  // ✅ FIX 1: Skip null positional arguments
+  for (final expr in positional) {
+    try {
+      // NEW: Skip null literals
+      if (expr is LiteralExpressionIR && 
+          expr.literalType == LiteralType.nullValue) {
+        print('⚠️  Skipping null positional argument');
+        continue;
+      }
 
-    // Named arguments (as object properties in JS)
-    if (named.isNotEmpty) {
-      final namedStr = named.entries
-          .map((e) => '${e.key}: ${generate(e.value, parenthesize: false)}')
-          .join(', ');
+      final code = generate(expr, parenthesize: false);
+      parts.add(code);
+    } catch (e) {
+      print('❌ Error generating positional argument: $e');
+      warnings.add(
+        CodeGenWarning(
+          severity: WarningSeverity.warning,
+          message:
+              'Failed to generate positional argument: ${expr.runtimeType}',
+          suggestion: 'Check argument expression structure',
+        ),
+      );
+      // CHANGED: Don't add placeholder for positional args - just skip
+      // parts.add('null /* arg generation failed */');
+    }
+  }
 
-      // If there are positional args, named args go in object
-      if (parts.isNotEmpty) {
-        parts.add('{$namedStr}');
-      } else {
-        parts.add('{$namedStr}');
+  // ✅ ENHANCED: Process named arguments with type checking
+  if (named.isNotEmpty) {
+    final namedParts = <String>[];
+
+    for (final entry in named.entries) {
+      try {
+        final argName = entry.key;
+        final argExpr = entry.value;
+
+        // ✅ FIX 2: Skip null named arguments
+        if (argExpr is LiteralExpressionIR && 
+            argExpr.literalType == LiteralType.nullValue) {
+          print('⚠️  Skipping null named argument: $argName');
+          continue;
+        }
+
+        // ✅ NEW: Special handling for EnumMemberAccessExpressionIR
+        if (argExpr is EnumMemberAccessExpressionIR) {
+          print(
+            '✅ Named argument "$argName" is EnumMemberAccess: ${argExpr.source}',
+          );
+          final jsCode = _generateEnumMemberAccess(argExpr);
+          namedParts.add('$argName: $jsCode');
+        } else {
+          // Regular expression handling
+          final code = generate(argExpr, parenthesize: false);
+          namedParts.add('$argName: $code');
+        }
+      } catch (e) {
+        print('❌ Error generating named argument "${entry.key}": $e');
+        warnings.add(
+          CodeGenWarning(
+            severity: WarningSeverity.warning,
+            message:
+                'Failed to generate named argument "${entry.key}": ${entry.value.runtimeType}',
+            suggestion: 'Check argument expression structure',
+          ),
+        );
+        // CHANGED: Skip failed named arguments instead of adding placeholder
+        // namedParts.add('${entry.key}: null /* arg generation failed */');
       }
     }
 
-    return parts.join(', ');
+    if (namedParts.isNotEmpty) {
+      parts.add('{ ${namedParts.join(", ")} }');
+    }
   }
 
+  return parts.join(', ');
+}
   String _generateLambda(LambdaExpr expr) {
     // Generate parameter list
     final params = expr.parameters.map((p) => p.name).join(', ');
@@ -863,4 +988,211 @@ class ExpressionCodeGen {
   String _toExpressionTypeName(ExpressionIR expr) {
     return expr.runtimeType.toString();
   }
+
+  String generateEnumMemberAccess(EnumMemberAccessExpressionIR expr) {
+    print('✅ Processing Dart 3.0+ enum member access: "${expr.source}"');
+    print(expr.toDebugString());
+
+    // Handle shorthand with type inference
+    if (expr.kind == EnumMemberAccessKind.shorthand) {
+      if (expr.inferredTypeName != null) {
+        print('✅ Inferred type: ${expr.inferredTypeName}');
+      } else {
+        print('⚠️  Could not infer type for shorthand access');
+        // The parent context (like Column.mainAxisAlignment) would need to
+        // provide the type - this is handled at a higher level
+      }
+    }
+
+    // Convert to JavaScript representation
+    final jsCode = expr.toJavaScript();
+    print('✅ Generated JS: $jsCode');
+
+    return jsCode;
+  }
+}
+
+// ============================================================================
+// FLUTTER ENUM MEMBER MAPPING
+// ============================================================================
+
+/// Maps Flutter enum members to JavaScript/CSS equivalents
+class FlutterEnumMapper {
+  static const Map<String, Map<String, String>> enumMappings = {
+    // MainAxisAlignment
+    'MainAxisAlignment': {
+      'start': '"flex-start"',
+      'end': '"flex-end"',
+      'center': '"center"',
+      'spaceBetween': '"space-between"',
+      'spaceAround': '"space-around"',
+      'spaceEvenly': '"space-evenly"',
+    },
+
+    // CrossAxisAlignment
+    'CrossAxisAlignment': {
+      'start': '"flex-start"',
+      'end': '"flex-end"',
+      'center': '"center"',
+      'stretch': '"stretch"',
+      'baseline': '"baseline"',
+    },
+
+    // TextAlign
+    'TextAlign': {
+      'left': '"left"',
+      'right': '"right"',
+      'center': '"center"',
+      'justify': '"justify"',
+      'start': '"left"',
+      'end': '"right"',
+    },
+
+    // Axis
+    'Axis': {'horizontal': '"horizontal"', 'vertical': '"vertical"'},
+
+    // MainAxisSize
+    'MainAxisSize': {'max': '"max"', 'min': '"min"'},
+
+    // CrossAxisSize
+    'CrossAxisSize': {'max': '"max"', 'min': '"min"'},
+
+    // FontWeight
+    'FontWeight': {
+      'w100': '"100"',
+      'w200': '"200"',
+      'w300': '"300"',
+      'normal': '"400"',
+      'w400': '"400"',
+      'w500': '"500"',
+      'w600': '"600"',
+      'bold': '"700"',
+      'w700': '"700"',
+      'w800': '"800"',
+      'w900': '"900"',
+    },
+
+    // TextOverflow
+    'TextOverflow': {
+      'clip': '"clip"',
+      'fade': '"fade"',
+      'ellipsis': '"ellipsis"',
+      'visible': '"visible"',
+    },
+
+    // BoxFit
+    'BoxFit': {
+      'fill': '"fill"',
+      'contain': '"contain"',
+      'cover': '"cover"',
+      'fitWidth': '"scale-down"',
+      'fitHeight': '"cover"',
+      'none': '"none"',
+      'scaleDown': '"scale-down"',
+    },
+
+    // VerticalDirection
+    'VerticalDirection': {'down': '"down"', 'up': '"up"'},
+
+    // TextDirection
+    'TextDirection': {'rtl': '"rtl"', 'ltr': '"ltr"'},
+  };
+
+  /// Map an enum member to its JavaScript equivalent
+  static String mapEnumMember(String typeName, String memberName) {
+    final typeMap = enumMappings[typeName];
+    if (typeMap == null) {
+      print('⚠️  Unknown enum type: $typeName');
+      return '"${memberName.toLowerCase()}"';
+    }
+
+    final mapped = typeMap[memberName];
+    if (mapped == null) {
+      print('⚠️  Unknown member: $typeName.$memberName');
+      return '"${memberName.toLowerCase()}"';
+    }
+
+    return mapped;
+  }
+}
+
+// ============================================================================
+// USAGE EXAMPLES
+// ============================================================================
+
+void exampleUsage() {
+  // Example 1: Shorthand syntax (.center)
+  final expr1 = EnumMemberAccessExpressionIR.parse(
+    id: 'expr_1',
+    sourceLocation: SourceLocationIR(
+      id: 'loc_1',
+      file: 'main.dart',
+      line: 50,
+      column: 30,
+      offset: 1000,
+      length: 7,
+    ),
+    source: '.center',
+    parentContext: 'Column.mainAxisAlignment',
+  );
+
+  print(expr1.toDebugString());
+  print('JS Output: ${expr1.toJavaScript()}');
+  // Output:
+  // kind: shorthand
+  // memberName: center
+  // qualifiedName: center
+  // jsOutput: "center"
+
+  // Example 2: Qualified syntax (MainAxisAlignment.center)
+  final expr2 = EnumMemberAccessExpressionIR.parse(
+    id: 'expr_2',
+    sourceLocation: SourceLocationIR(
+      id: 'loc_2',
+      file: 'main.dart',
+      line: 51,
+      column: 30,
+      offset: 1020,
+      length: 27,
+    ),
+    source: 'MainAxisAlignment.spaceEvenly',
+    parentContext: 'Row.mainAxisAlignment',
+  );
+
+  print(expr2.toDebugString());
+  print('JS Output: ${expr2.toJavaScript()}');
+  // Output:
+  // kind: qualified
+  // typeName: MainAxisAlignment
+  // memberName: spaceEvenly
+  // qualifiedName: MainAxisAlignment.spaceEvenly
+  // jsOutput: "spaceevenly"
+
+  // Example 3: Using enum mapper
+  final mapped = FlutterEnumMapper.mapEnumMember(
+    'MainAxisAlignment',
+    'spaceBetween',
+  );
+  print('Mapped: $mapped'); // Output: "space-between"
+
+  // Example 4: Colors enum (static constant)
+  final expr4 = EnumMemberAccessExpressionIR.parse(
+    id: 'expr_4',
+    sourceLocation: SourceLocationIR(
+      id: 'loc_4',
+      file: 'main.dart',
+      line: 52,
+      column: 20,
+      offset: 1050,
+      length: 11,
+    ),
+    source: 'Colors.blue',
+    parentContext: 'Container.color',
+  );
+
+  print(expr4.toDebugString());
+  // Output:
+  // kind: staticConstant
+  // typeName: Colors
+  // memberName: blue
 }

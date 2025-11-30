@@ -756,14 +756,23 @@ class StatelessWidgetJSCodeGen {
     if (body == null) {
       return MethodBodyType.none;
     }
-    if (body.statements.isEmpty) {
+
+    // ✅ NEW: Use isEmpty field
+    if (body.isEmpty) {
       return MethodBodyType.empty;
     }
-    // If we get here, body has statements
-    if (body.statements.length == 1) {
+
+    // ✅ NEW: Check totalItems
+    if (body.totalItems == 1) {
       return MethodBodyType.singleStatement;
     }
-    return MethodBodyType.multipleStatements;
+
+    // ✅ Multiple statements
+    if (body.totalItems > 1) {
+      return MethodBodyType.multipleStatements;
+    }
+
+    return MethodBodyType.unknown;
   }
 
   /// ✅ FIXED: Get description of method body type
@@ -792,8 +801,6 @@ class StatelessWidgetJSCodeGen {
     if (body == null || body.statements.isEmpty) return false;
     return body.statements.any((stmt) => stmt is T);
   }
-
- 
 
   // =========================================================================
   // REPORTING

@@ -327,11 +327,10 @@ class StatementCodeGen {
   String _generateForStatement(ForStmt stmt) {
     final buffer = StringBuffer();
 
-    // ✅ FIXED: Build init part with proper type checking
+    // ✅ NEW: Safe initialization handling
     String init = '';
     if (stmt.initialization != null) {
       if (stmt.initialization is VariableDeclarationStmt) {
-        // Remove indentation from generated declaration
         final decl = generate(stmt.initialization as StatementIR);
         init = decl.trim();
         if (init.endsWith(';')) {
@@ -345,13 +344,13 @@ class StatementCodeGen {
       }
     }
 
-    // ✅ FIXED: Build condition part with null check
+    // ✅ NEW: Safe condition with null check
     String condition = '';
     if (stmt.condition != null) {
       condition = exprGen.generate(stmt.condition!, parenthesize: false);
     }
 
-    // ✅ FIXED: Build update part with proper list handling
+    // ✅ NEW: Safe updaters list handling
     String updates = '';
     if (stmt.updaters.isNotEmpty) {
       updates = stmt.updaters
@@ -361,9 +360,7 @@ class StatementCodeGen {
 
     buffer.writeln(indenter.line('for ($init; $condition; $updates) {'));
     indenter.indent();
-
     buffer.writeln(generate(stmt.body));
-
     indenter.dedent();
     buffer.write(indenter.line('}'));
 
@@ -517,7 +514,7 @@ class StatementCodeGen {
   }
 
   void _generateCatchClause(StringBuffer buffer, CatchClauseStmt catchClause) {
-    // ✅ FIXED: Proper null checks for exception and stack trace parameters
+    // ✅ NEW: Proper null checks for exception and stack trace parameters
     final exceptionParam = catchClause.exceptionParameter ?? 'e';
     final stackTraceParam = catchClause.stackTraceParameter;
 

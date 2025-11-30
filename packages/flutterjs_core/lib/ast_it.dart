@@ -21,6 +21,7 @@ export 'src/analysis/visitors/expression_visitor.dart';
 export 'src/analysis/visitors/variable_collector.dart';
 export 'src/ir/expressions/advanced.dart';
 export 'src/ir/expressions/function_method_calls.dart';
+export 'src/ir/expressions/enum_member_access_expression.dart';
 export 'src/ir/expressions/literals.dart';
 export 'src/ir/expressions/operations.dart';
 export 'src/ir/expressions/vaibales_access.dart';

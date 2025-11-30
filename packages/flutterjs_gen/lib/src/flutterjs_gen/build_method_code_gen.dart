@@ -122,30 +122,20 @@ class BuildMethodCodeGen {
     indenter.indent();
 
     try {
-      // ✓ FIXED: Check if body is null first
-      if (buildMethod.body == null) {
-        printDebug('⚠️  Body is null');
-        buffer.writeln(indenter.line('// TODO: Implement build method'));
+      // ✅ NEW: Use extension method for safe access
+      if (buildMethod.body?.isEmpty ?? true) {
+        printDebug('⚠️  Body is empty');
+        buffer.writeln(indenter.line('// Empty build method'));
         indenter.dedent();
         buffer.write(indenter.line('}'));
         return buffer.toString();
       }
 
-      printDebug('Body statements count: ${buildMethod.body}');
+      printDebug(
+        'Body statement count: ${buildMethod.body?.statements.length}',
+      );
 
-      // ✓ FIXED: Handle empty body
-      if (buildMethod.body is List<StatementIR>) {
-        final stmts = buildMethod.body as List<StatementIR>;
-        if (stmts.isEmpty) {
-          printDebug('⚠️  Empty body');
-          buffer.writeln(indenter.line('// Empty build method'));
-          indenter.dedent();
-          buffer.write(indenter.line('}'));
-          return buffer.toString();
-        }
-      }
-
-      // ✓ FIXED: Extract return statement properly
+      // ✅ FIXED: Extract return statement properly
       final returnStmt = _extractReturnStatement(buildMethod.body);
 
       if (returnStmt == null) {
@@ -176,7 +166,7 @@ class BuildMethodCodeGen {
         '✓ Return expression type: ${returnStmt.expression.runtimeType}',
       );
 
-      // ✓ FIXED: Generate the widget tree
+      // ✅ FIXED: Generate the widget tree
       final widgetCode = _generateReturnWidget(returnStmt.expression!);
       buffer.writeln(indenter.line('return $widgetCode;'));
 
@@ -184,13 +174,12 @@ class BuildMethodCodeGen {
       buffer.write(indenter.line('}'));
       return buffer.toString();
     } catch (e, st) {
-      printDebug('❌ Error in _generateBuildBody: $e\n$st');
+      printDebug('✗ Error in _generateBuildBody: $e\n$st');
       indenter.dedent();
       buffer.write(indenter.line('}'));
       return buffer.toString();
     }
   }
-
   // =========================================================================
   // RETURN STATEMENT EXTRACTION (FIXED)
   // =========================================================================
@@ -203,12 +192,12 @@ class BuildMethodCodeGen {
     }
 
     // Case 1: body is a List<StatementIR>
-    if (body is List<StatementIR>) {
-      printDebug('Body is List, length: ${body.length}');
-      return _findReturnInStatements(body);
+    if (body is FunctionBodyIR) {
+      printDebug('Body is FunctionBodyIR, count: ${body.statements.length}');
+      return _findReturnInStatements(body.statements);
     }
 
-    // Case 2: body is a single BlockStmt
+    // Case 2: body is a BlockStmt
     if (body is BlockStmt) {
       printDebug('Body is BlockStmt');
       return _findReturnInStatements(body.statements);
@@ -232,6 +221,11 @@ class BuildMethodCodeGen {
 
   /// ✓ NEW: Find return statement in statement list
   ReturnStmt? _findReturnInStatements(List<StatementIR> statements) {
+    // ✅ NEW: Use totalItems for safety
+    if (statements.isEmpty) {
+      return null;
+    }
+
     // Search backwards for the last return statement
     for (int i = statements.length - 1; i >= 0; i--) {
       final stmt = statements[i];
@@ -268,7 +262,6 @@ class BuildMethodCodeGen {
     );
     return null;
   }
-
   // =========================================================================
   // WIDGET TREE GENERATION (FIXED)
   // =========================================================================
