@@ -6,7 +6,7 @@
 
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
-import '../passes/statement_extraction_pass.dart';
+import 'package:flutterjs_core/src/analysis/extraction/statement_extraction_pass.dart' show ForStatementHelper;
 import 'component_registry.dart';
 import 'flutter_component_system.dart';
 

@@ -619,9 +619,7 @@ class StatementExtractionPass {
         cases.add(
           SwitchCaseStmt(
             id: builder.generateId('stmt_case'),
-            patterns: 
-                 [extractExpression(member.expression)]
-                ,
+            patterns: [extractExpression(member.expression)],
             statements: member.statements
                 .map((s) => _extractStatement(s))
                 .whereType<StatementIR>()
@@ -695,6 +693,47 @@ class StatementExtractionPass {
         sourceLocation: sourceLoc,
         metadata: metadata,
       );
+    }
+
+    if (expr is StringInterpolation) {
+      print('   [StringInterpolation] Found: ${expr.toString()}');
+
+      final interpolationParts = <StringInterpolationPart>[];
+
+      // Process each element in the interpolation
+      for (final element in expr.elements) {
+        if (element is InterpolationString) {
+          // This is literal text part
+          final literalText = element.value;
+          interpolationParts.add(StringInterpolationPart.text(literalText));
+          print('      [Text Part] "$literalText"');
+        } else if (element is InterpolationExpression) {
+          // This is an expression like $variable or ${expression}
+          final exprValue = element.expression;
+          final extractedExpr = extractExpression(exprValue);
+          interpolationParts.add(
+            StringInterpolationPart.expression(extractedExpr),
+          );
+          print('      [Expr Part] ${exprValue.toString()}');
+        }
+      }
+
+      // Create StringInterpolationExpressionIR
+      final result = StringInterpolationExpressionIR(
+        id: builder.generateId('expr_string_interp'),
+        sourceLocation: sourceLoc,
+        parts: interpolationParts,
+        resultType: SimpleTypeIR(
+          id: builder.generateId('type'),
+          name: 'String',
+          isNullable: false,
+          sourceLocation: sourceLoc,
+        ),
+        metadata: metadata,
+      );
+
+      print('      âœ… Created StringInterpolationExpressionIR');
+      return result;
     }
 
     if (expr is BooleanLiteral) {
@@ -813,21 +852,28 @@ class StatementExtractionPass {
 
     // Method calls
     if (expr is MethodInvocation) {
+      final positionalArgs = <ExpressionIR>[];
+      final namedArgs = <String, ExpressionIR>{};
+
+      for (final arg in expr.argumentList.arguments) {
+        if (arg is NamedExpression) {
+          final argName = arg.name.label.name;
+          final argValue = extractExpression(arg.expression);
+          namedArgs[argName] = argValue; // âœ… PRESERVE NAME
+        } else {
+          positionalArgs.add(extractExpression(arg));
+        }
+      }
+
       return MethodCallExpressionIR(
         id: builder.generateId('expr_call'),
         methodName: expr.methodName.name,
         target: expr.target != null ? extractExpression(expr.target!) : null,
-        arguments: expr.argumentList.arguments
-            .map(
-              (arg) => arg is NamedExpression
-                  ? extractExpression(arg.expression)
-                  : extractExpression(arg),
-            )
-            .toList(),
+        arguments: positionalArgs, // âœ… POSITIONAL ONLY
+        namedArguments: namedArgs, // âœ… ADD THIS FIELD!
         resultType: DynamicTypeIR(
           id: builder.generateId('type'),
           sourceLocation: sourceLoc,
-          // metadata: {},
         ),
         sourceLocation: sourceLoc,
         metadata: metadata,
@@ -957,9 +1003,10 @@ class StatementExtractionPass {
           final argName = arg.name.label.name;
           final argValue = extractExpression(arg.expression);
 
+          // âœ… PRESERVE NAME WITH VALUE
           named[argName] = argValue;
 
-          // ✅ CAPTURE NAMED ARGUMENT DETAILS
+          // âœ… CAPTURE NAMED ARGUMENT WITH TYPE INFO
           namedWithTypes.add(
             NamedArgumentIR(
               id: builder.generateId('named_arg_$argName'),
@@ -967,7 +1014,7 @@ class StatementExtractionPass {
               value: argValue,
               resultType: SimpleTypeIR(
                 id: builder.generateId('type'),
-                name: 'function or widget',
+                name: 'dynamic',
                 isNullable: true,
                 sourceLocation: _extractSourceLocation(arg, arg.offset),
               ),
@@ -984,9 +1031,9 @@ class StatementExtractionPass {
         id: builder.generateId('expr_ctor'),
         className: className,
         positionalArguments: positional,
-        namedArguments: named,
-        arguments: [...positional, ...named.values],
-        namedArgumentsDetailed: namedWithTypes, // ✅ ADD THIS
+        namedArguments: named, // âœ… KEEP MAP OF NAMES TO EXPRESSIONS
+        arguments: positional, // âœ… ONLY positional, NOT mixed!
+        namedArgumentsDetailed: namedWithTypes, // âœ… HAS DETAILS
         resultType: SimpleTypeIR(
           id: builder.generateId('type'),
           name: className,
@@ -1071,7 +1118,6 @@ class StatementExtractionPass {
     }
   }
 
-  
   TypeIR _extractTypeFromAnnotation(
     TypeAnnotation? typeAnnotation,
     int offset,

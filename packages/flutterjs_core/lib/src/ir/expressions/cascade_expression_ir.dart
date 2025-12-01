@@ -304,11 +304,29 @@ class StringInterpolationExpressionIR extends ExpressionIR {
   });
 
   @override
-  String toShortString() => '"...${parts.length} parts..."';
+  String toShortString() {
+    // Build representation showing interpolation
+    final buffer = StringBuffer('"');
+
+    for (final part in parts) {
+      if (part.isExpression && part.expression != null) {
+        buffer.write('\${${part.expression!.toShortString()}}');
+      } else if (!part.isExpression && part.text != null) {
+        buffer.write(part.text!);
+      }
+    }
+
+    buffer.write('"');
+    return buffer.toString();
+  }
 
   @override
   Map<String, dynamic> toJson() {
-    return {...super.toJson(), 'parts': parts.map((p) => p.toJson()).toList()};
+    return {
+      ...super.toJson(),
+      'parts': parts.map((p) => p.toJson()).toList(),
+      'interpolationType': 'string_interpolation',
+    };
   }
 }
 
@@ -436,6 +454,7 @@ class AssignmentExpressionIR extends ExpressionIR {
 /// Represents a single part of a string interpolation
 /// Can be either literal text or an expression to be evaluated
 @immutable
+@immutable
 class StringInterpolationPart {
   /// Whether this part is an expression (true) or literal text (false)
   final bool isExpression;
@@ -469,8 +488,8 @@ class StringInterpolationPart {
   Map<String, dynamic> toJson() {
     return {
       'isExpression': isExpression,
-      'expression': expression?.toJson(),
-      'text': text,
+      if (expression != null) 'expression': expression!.toJson(),
+      if (text != null) 'text': text,
     };
   }
 
@@ -483,5 +502,13 @@ class StringInterpolationPart {
     } else {
       return StringInterpolationPart.text(json['text'] as String);
     }
+  }
+
+  @override
+  String toString() {
+    if (isExpression && expression != null) {
+      return '\${${expression!.toShortString()}}';
+    }
+    return text ?? '';
   }
 }
