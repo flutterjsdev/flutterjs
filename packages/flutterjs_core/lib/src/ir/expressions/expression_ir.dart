@@ -527,8 +527,17 @@ class MethodCallExpressionIR extends ExpressionIR {
   String toShortString() {
     final targetStr = target?.toShortString() ?? '';
     final op = isNullAware ? '?.' : (isCascade ? '..' : '.');
-    final argsStr = arguments.map((a) => a.toShortString()).join(', ');
-    return '$targetStr$op$methodName($argsStr)';
+
+    final posArgs = arguments.map((a) => a.toShortString()).join(', ');
+
+    // âœ… INCLUDE NAMED ARGUMENTS WITH KEYS
+    final namedArgs = namedArguments.entries
+        .map((e) => '${e.key}: ${e.value.toShortString()}')
+        .join(', ');
+
+    final allArgs = [posArgs, namedArgs].where((s) => s.isNotEmpty).join(', ');
+
+    return '$targetStr$op$methodName($allArgs)';
   }
 
   @override

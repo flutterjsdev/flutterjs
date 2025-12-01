@@ -64,8 +64,16 @@ class FunctionCallExpr extends ExpressionIR {
   });
 
   @override
-  String toShortString() =>
-      '$functionName(${arguments.length} args${namedArguments.isNotEmpty ? ', ${namedArguments.length} named' : ''})';
+  String toShortString() {
+    final posArgs = arguments.map((a) => a.toShortString()).join(', ');
+    final namedArgs = namedArguments.entries
+        .map((e) => '${e.key}: ${e.value.toShortString()}')
+        .join(', ');
+
+    final allArgs = [posArgs, namedArgs].where((s) => s.isNotEmpty).join(', ');
+
+    return '$functionName($allArgs)';
+  }
 }
 
 @immutable

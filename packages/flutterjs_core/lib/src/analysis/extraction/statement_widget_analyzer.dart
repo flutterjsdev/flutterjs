@@ -195,7 +195,7 @@ class StatementWidgetAnalyzer {
       widgets.add(widget);
 
       // ✅ Recursively extract nested widgets from properties
-      for (final namedArg in (expr.namedArgumentsDetailed )) {
+      for (final namedArg in (expr.namedArgumentsDetailed)) {
         _extractWidgetsFromExpression(
           namedArg.value,
           widgets,
@@ -204,6 +204,12 @@ class StatementWidgetAnalyzer {
           isConditional: isConditional,
         );
       }
+    } else if (expr is StringInterpolationExpressionIR) {
+      // String interpolation in widget properties - preserve it
+      print('   [StringInterpolation] Preserving in property');
+      // Just track that we've seen it, don't try to extract widgets from it
+      // (unless it contains widget expressions, which is unlikely)
+      return;
     }
     // ✅ Conditional: condition ? WidgetA() : WidgetB()
     else if (expr is ConditionalExpressionIR) {
@@ -368,8 +374,16 @@ class StatementWidgetAnalyzer {
   Map<String, String> _extractProperties(ConstructorCallExpressionIR expr) {
     final props = <String, String>{};
 
-    for (final entry in expr.namedArguments.entries) {
-      props[entry.key] = entry.value.toString();
+    // âœ… USE DETAILED NAMED ARGUMENTS IF AVAILABLE
+    if (expr.namedArgumentsDetailed.isNotEmpty) {
+      for (final namedArg in expr.namedArgumentsDetailed) {
+        props[namedArg.name] = namedArg.value.toShortString();
+      }
+    } else {
+      // Fallback to basic map
+      for (final entry in expr.namedArguments.entries) {
+        props[entry.key] = entry.value.toShortString();
+      }
     }
 
     return props;
