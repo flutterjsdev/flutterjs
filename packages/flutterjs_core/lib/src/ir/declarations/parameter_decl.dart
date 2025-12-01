@@ -1,3 +1,9 @@
+import 'package:meta/meta.dart';
+import '../core/ir_node.dart';
+import '../types/type_ir.dart';
+import '../expressions/expression_ir.dart';
+import 'variable_decl.dart';
+
 /// <---------------------------------------------------------------------------->
 /// parameter_decl.dart
 /// ----------------------------------------------------------------------------
@@ -21,14 +27,6 @@
 /// • Generic type inference
 /// • API documentation generation
 /// <---------------------------------------------------------------------------->
-library;
-
-import 'package:meta/meta.dart';
-import '../core/source_location.dart';
-import '../core/ir_node.dart';
-import '../types/type_ir.dart';
-import '../expressions/expression_ir.dart';
-import 'variable_decl.dart';
 
 @immutable
 class ParameterDecl extends IRNode {
@@ -55,6 +53,15 @@ class ParameterDecl extends IRNode {
   /// Annotations on parameter (e.g., @required, @deprecated)
   final List<AnnotationIR> annotations;
 
+  /// parameter position name
+  /// appBar: AppBar(),
+  //
+  /// parameterName will store \<appBar>:
+  final String? parameterName;
+
+  /// Position in argument list (for positional args only)
+  final int? position;
+
   ParameterDecl({
     required super.id,
     required super.sourceLocation,
@@ -66,6 +73,8 @@ class ParameterDecl extends IRNode {
     this.isNamed = false,
     this.annotations = const [],
     super.metadata,
+    this.parameterName,
+    this.position,
   }) {
     // Validate that isPositional and isNamed are mutually exclusive
     assert(
@@ -121,19 +130,19 @@ class ParameterDecl extends IRNode {
       if (annotations.isNotEmpty)
         'annotations': annotations.map((a) => a.toJson()).toList(),
       'sourceLocation': sourceLocation.toJson(),
+      'parameterName': parameterName,
+      'position': position,
     };
   }
 }
 
 /// Type parameter declaration (e.g., <T extends Comparable>)
-///
 @immutable
 class TypeParameterDecl extends IRNode {
   /// Type parameter name
   final String name;
 
   /// Upper bound constraint (if any)
-  ///
   /// Example: T extends Comparable<T>
   final TypeIR? bound;
 
@@ -144,7 +153,6 @@ class TypeParameterDecl extends IRNode {
   bool get hasBound => bound != null || lowerBound != null;
 
   /// Declaration string
-  ///
   /// Examples: "T", "K extends Comparable<K>"
   String get declaration {
     if (bound != null) {

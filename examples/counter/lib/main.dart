@@ -46,6 +46,14 @@ Widget buildPriceWidget(double amount) {
   );
 }
 
+void appTest({String? value,  String? value2}){
+
+}
+
+void ex(){
+  appTest(value2: "asd",value: "sdd");
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
