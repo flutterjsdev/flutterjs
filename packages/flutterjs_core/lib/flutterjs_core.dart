@@ -54,3 +54,4 @@ export 'src/analysis/passes/flow_analysis_pass.dart';
 export 'src/analysis/passes/symbol_resolution.dart';
 export 'src/analysis/passes/type_inference_pass.dart';
 export 'src/analysis/passes/validation_pass.dart';
+export 'src/ir/expressions/cascade_expression_ir.dart';

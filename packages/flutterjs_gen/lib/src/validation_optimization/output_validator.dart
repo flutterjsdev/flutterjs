@@ -14,6 +14,7 @@ class ValidationError {
   final String? suggestion;
   final int? lineNumber;
   final String? code;
+  
 
   ValidationError({
     required this.message,
@@ -28,14 +29,16 @@ class ValidationError {
     final parts = ['${severity.name.toUpperCase()}: $message'];
     if (lineNumber != null) parts.add('Line: $lineNumber');
     if (code != null) parts.add('Code: $code');
-    if (suggestion != null) parts.add('💡 ${suggestion}');
+    if (suggestion != null) parts.add('Suggestion ${suggestion}');
     return parts.join('\n  ');
   }
 }
 
 class ValidationReport {
   final List<ValidationError> errors;
+  final DateTime timestamp;
   final Duration duration;
+  final bool canProceed;
   final bool isValid;
   final Map<String, dynamic> metrics;
 
@@ -49,7 +52,8 @@ class ValidationReport {
     required this.duration,
     this.isValid = true,
     this.metrics = const {},
-  }) {
+    this.canProceed = true,
+  }) : timestamp = DateTime.now() {
     fatalCount = errors.where((e) => e.severity == ErrorSeverity.fatal).length;
     errorCount = errors.where((e) => e.severity == ErrorSeverity.error).length;
     warningCount = errors
@@ -57,6 +61,9 @@ class ValidationReport {
         .length;
     infoCount = errors.where((e) => e.severity == ErrorSeverity.info).length;
   }
+
+  bool get hasErrors => errorCount > 0 || fatalCount > 0;
+  bool get hasWarnings => warningCount > 0;
 
   bool get hasCriticalIssues => fatalCount > 0 || errorCount > 0;
   int get totalIssues => fatalCount + errorCount + warningCount + infoCount;
@@ -93,9 +100,39 @@ class ValidationReport {
     }
 
     if (errors.isNotEmpty) {
-      buffer.writeln('Details:');
-      for (final error in errors) {
-        buffer.writeln('  ${error.toString()}');
+      if (errorCount > 0) {
+        buffer.writeln('Error Details:');
+        for (final error in errors.where(
+          (e) => e.severity == ErrorSeverity.error,
+        )) {
+          buffer.writeln('  ${error.toString()}');
+        }
+      }
+      if (errorCount > 0) {
+        buffer.writeln('\nfatal Details:');
+        for (final error in errors.where(
+          (e) => e.severity == ErrorSeverity.fatal,
+        )) {
+          buffer.writeln('  ${error.toString()}');
+        }
+      }
+
+      if (errorCount > 0) {
+        buffer.writeln('\nWarning Details:');
+        for (final error in errors.where(
+          (e) => e.severity == ErrorSeverity.warning,
+        )) {
+          buffer.writeln('  ${error.toString()}');
+        }
+      }
+
+      if (infoCount > 0) {
+        buffer.writeln('\nInfo Details:');
+        for (final error in errors.where(
+          (e) => e.severity == ErrorSeverity.info,
+        )) {
+          buffer.writeln('  ${error.toString()}');
+        }
       }
     }
 

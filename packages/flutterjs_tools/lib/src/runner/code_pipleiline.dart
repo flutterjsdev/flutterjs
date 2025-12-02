@@ -9,7 +9,7 @@ import 'dart:io';
 import 'package:flutterjs_tools/command.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_gen/src/file_code_gen.dart';
+import 'package:flutterjs_gen/src/file_generation/file_code_gen.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart';
 
 // ============================================================================

@@ -5,13 +5,11 @@
 // Handles control flow, loops, exception handling, declarations
 // ============================================================================
 
-import 'package:collection/collection.dart';
-
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_gen/src/flutterjs_gen/flutter_prop_converters.dart';
+import 'package:flutterjs_gen/src/widget_generation/prop_conversion/flutter_prop_converters.dart';
 import 'package:flutterjs_gen/src/utils/code_gen_error.dart';
 import 'package:flutterjs_gen/src/utils/indenter.dart';
-import 'expression_code_generator.dart';
+import '../expression/expression_code_generator.dart';
 
 // ============================================================================
 // CONFIGURATION & HELPERS
@@ -464,9 +462,6 @@ class StatementCodeGen {
 
     indenter.indent();
 
-    // ✅ FIXED: Analyze statement block type
-    final blockType = _analyzeStatementBlock(switchCase.statements);
-
     for (final stmt in switchCase.statements) {
       buffer.writeln(generate(stmt));
     }
@@ -562,91 +557,5 @@ class StatementCodeGen {
     return indenter.line(
       '// TODO: Function declaration: ${stmt.function.name}',
     );
-  }
-
-  // =========================================================================
-  // STATEMENT BLOCK ANALYSIS
-  // =========================================================================
-
-  /// ✅ FIXED: Analyze a block of statements to determine its type
-  StatementBlockType _analyzeStatementBlock(List<StatementIR>? stmts) {
-    if (stmts == null) {
-      return StatementBlockType.empty;
-    }
-
-    if (stmts.isEmpty) {
-      return StatementBlockType.empty;
-    }
-
-    if (stmts.length == 1) {
-      return StatementBlockType.single;
-    }
-
-    if (stmts.length > 1) {
-      return StatementBlockType.multiple;
-    }
-
-    return StatementBlockType.unknown;
-  }
-
-  /// ✅ FIXED: Get description of statement block type
-  String _describeStatementBlock(StatementBlockType blockType) {
-    switch (blockType) {
-      case StatementBlockType.empty:
-        return 'empty';
-      case StatementBlockType.single:
-        return 'single';
-      case StatementBlockType.multiple:
-        return 'multiple';
-      case StatementBlockType.unknown:
-        return 'unknown';
-    }
-  }
-
-  /// ✅ FIXED: Check if a block needs braces
-  bool _needsBraces(StatementIR? stmt) {
-    if (stmt == null) return true;
-    // Single statements after if/while/for should be wrapped in braces
-    // in JavaScript for clarity and safety
-    return stmt is! BlockStmt;
-  }
-
-  /// ✅ FIXED: Wrap statement in braces if needed
-  String _wrapInBraces(StatementIR? stmt) {
-    if (stmt == null) {
-      return indenter.line('{}');
-    }
-
-    if (_needsBraces(stmt)) {
-      final buffer = StringBuffer();
-      buffer.writeln(indenter.line('{'));
-      indenter.indent();
-      buffer.writeln(generate(stmt));
-      indenter.dedent();
-      buffer.write(indenter.line('}'));
-      return buffer.toString().trim();
-    }
-    return generate(stmt);
-  }
-
-  /// ✅ FIXED: Get count of statements in a block
-  int _getStatementCount(List<StatementIR>? stmts) {
-    return stmts?.length ?? 0;
-  }
-
-  /// ✅ FIXED: Check if block has specific statement type
-  bool _blockHasStatementType<T extends StatementIR>(List<StatementIR>? stmts) {
-    if (stmts == null || stmts.isEmpty) return false;
-    return stmts.any((stmt) => stmt is T);
-  }
-
-  /// ✅ FIXED: Get first statement of specific type
-  T? _getFirstStatementOfType<T extends StatementIR>(List<StatementIR>? stmts) {
-    if (stmts == null || stmts.isEmpty) return null;
-    try {
-      return stmts.firstWhere((stmt) => stmt is T) as T;
-    } catch (e) {
-      return null;
-    }
   }
 }

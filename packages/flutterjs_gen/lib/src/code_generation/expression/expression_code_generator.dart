@@ -5,14 +5,13 @@
 // Direct IR → JS without intermediate transformations
 // ============================================================================
 
-import 'package:collection/collection.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_gen/src/flutterjs_gen/stateless_widget_js_code_gen.dart';
+import 'package:flutterjs_gen/src/widget_generation/stateless_widget/stateless_widget_js_code_gen.dart';
 import 'package:flutterjs_gen/src/utils/code_gen_error.dart'
     hide CodeGenWarning, WarningSeverity;
-import 'package:flutterjs_core/ast_it.dart';
 
-import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
+
+import 'enum_member_access_handler.dart';
 
 // ============================================================================
 // CONFIGURATION & HELPERS
@@ -334,7 +333,7 @@ class ExpressionCodeGen {
 
     // Handle null-aware index access (?.operator not standard, but can use optional chaining)
     if (expr.isNullAware) {
-      return '$target?.[${index}]';
+      return '$target?.[$index]';
     }
 
     return '$target[$index]';
@@ -423,9 +422,7 @@ class ExpressionCodeGen {
       case BinaryOperatorIR.nullCoalesce:
         return '??';
 
-      default:
-        throw CodeGenError(message: 'Unknown binary operator: $op');
-    }
+      }
   }
 
   String _generateUnary(UnaryExpressionIR expr) {
@@ -455,9 +452,7 @@ class ExpressionCodeGen {
         return '++';
       case UnaryOperator.postDecrement:
         return '--';
-      default:
-        throw CodeGenError(message: 'Unknown unary operator: $op');
-    }
+      }
   }
 
   String _generateAssignment(AssignmentExpressionIR expr) {
@@ -506,11 +501,6 @@ class ExpressionCodeGen {
 
       case NullAwareOperationType.indexAccess:
         return '$target?.[${expr.operationData}]';
-
-      default:
-        throw CodeGenError(
-          message: 'Unknown null-aware operation: ${expr.operationType}',
-        );
     }
   }
 
@@ -614,89 +604,90 @@ class ExpressionCodeGen {
     return '${constKeyword}new $typeName$constructorName($args)';
   }
 
-String _generateArgumentList(
-  List<ExpressionIR> positional,
-  Map<String, ExpressionIR> named,
-) {
-  final parts = <String>[];
+  String _generateArgumentList(
+    List<ExpressionIR> positional,
+    Map<String, ExpressionIR> named,
+  ) {
+    final parts = <String>[];
 
-  // ✅ FIX 1: Skip null positional arguments
-  for (final expr in positional) {
-    try {
-      // NEW: Skip null literals
-      if (expr is LiteralExpressionIR && 
-          expr.literalType == LiteralType.nullValue) {
-        print('⚠️  Skipping null positional argument');
-        continue;
-      }
-
-      final code = generate(expr, parenthesize: false);
-      parts.add(code);
-    } catch (e) {
-      print('❌ Error generating positional argument: $e');
-      warnings.add(
-        CodeGenWarning(
-          severity: WarningSeverity.warning,
-          message:
-              'Failed to generate positional argument: ${expr.runtimeType}',
-          suggestion: 'Check argument expression structure',
-        ),
-      );
-      // CHANGED: Don't add placeholder for positional args - just skip
-      // parts.add('null /* arg generation failed */');
-    }
-  }
-
-  // ✅ ENHANCED: Process named arguments with type checking
-  if (named.isNotEmpty) {
-    final namedParts = <String>[];
-
-    for (final entry in named.entries) {
+    // ✅ FIX 1: Skip null positional arguments
+    for (final expr in positional) {
       try {
-        final argName = entry.key;
-        final argExpr = entry.value;
-
-        // ✅ FIX 2: Skip null named arguments
-        if (argExpr is LiteralExpressionIR && 
-            argExpr.literalType == LiteralType.nullValue) {
-          print('⚠️  Skipping null named argument: $argName');
+        // NEW: Skip null literals
+        if (expr is LiteralExpressionIR &&
+            expr.literalType == LiteralType.nullValue) {
+          print('⚠️  Skipping null positional argument');
           continue;
         }
 
-        // ✅ NEW: Special handling for EnumMemberAccessExpressionIR
-        if (argExpr is EnumMemberAccessExpressionIR) {
-          print(
-            '✅ Named argument "$argName" is EnumMemberAccess: ${argExpr.source}',
-          );
-          final jsCode = _generateEnumMemberAccess(argExpr);
-          namedParts.add('$argName: $jsCode');
-        } else {
-          // Regular expression handling
-          final code = generate(argExpr, parenthesize: false);
-          namedParts.add('$argName: $code');
-        }
+        final code = generate(expr, parenthesize: false);
+        parts.add(code);
       } catch (e) {
-        print('❌ Error generating named argument "${entry.key}": $e');
+        print('❌ Error generating positional argument: $e');
         warnings.add(
           CodeGenWarning(
             severity: WarningSeverity.warning,
             message:
-                'Failed to generate named argument "${entry.key}": ${entry.value.runtimeType}',
+                'Failed to generate positional argument: ${expr.runtimeType}',
             suggestion: 'Check argument expression structure',
           ),
         );
-        // CHANGED: Skip failed named arguments instead of adding placeholder
-        // namedParts.add('${entry.key}: null /* arg generation failed */');
+        // CHANGED: Don't add placeholder for positional args - just skip
+        // parts.add('null /* arg generation failed */');
       }
     }
 
-    if (namedParts.isNotEmpty) {
-      parts.add('{ ${namedParts.join(", ")} }');
+    // ✅ ENHANCED: Process named arguments with type checking
+    if (named.isNotEmpty) {
+      final namedParts = <String>[];
+
+      for (final entry in named.entries) {
+        try {
+          final argName = entry.key;
+          final argExpr = entry.value;
+
+          // ✅ FIX 2: Skip null named arguments
+          if (argExpr is LiteralExpressionIR &&
+              argExpr.literalType == LiteralType.nullValue) {
+            print('⚠️  Skipping null named argument: $argName');
+            continue;
+          }
+
+          // ✅ NEW: Special handling for EnumMemberAccessExpressionIR
+          if (argExpr is EnumMemberAccessExpressionIR) {
+            print(
+              '✅ Named argument "$argName" is EnumMemberAccess: ${argExpr.source}',
+            );
+            final jsCode = _generateEnumMemberAccess(argExpr);
+            namedParts.add('$argName: $jsCode');
+          } else {
+            // Regular expression handling
+            final code = generate(argExpr, parenthesize: false);
+            namedParts.add('$argName: $code');
+          }
+        } catch (e) {
+          print('❌ Error generating named argument "${entry.key}": $e');
+          warnings.add(
+            CodeGenWarning(
+              severity: WarningSeverity.warning,
+              message:
+                  'Failed to generate named argument "${entry.key}": ${entry.value.runtimeType}',
+              suggestion: 'Check argument expression structure',
+            ),
+          );
+          // CHANGED: Skip failed named arguments instead of adding placeholder
+          // namedParts.add('${entry.key}: null /* arg generation failed */');
+        }
+      }
+
+      if (namedParts.isNotEmpty) {
+        parts.add('{ ${namedParts.join(", ")} }');
+      }
     }
+
+    return parts.join(', ');
   }
 
-  return parts.join(', ');
-}
   String _generateLambda(LambdaExpr expr) {
     // Generate parameter list
     final params = expr.parameters.map((p) => p.name).join(', ');
@@ -984,11 +975,6 @@ String _generateArgumentList(
     return !reserved.contains(name);
   }
 
-  /// Generate a safe expression name for debugging
-  String _toExpressionTypeName(ExpressionIR expr) {
-    return expr.runtimeType.toString();
-  }
-
   String generateEnumMemberAccess(EnumMemberAccessExpressionIR expr) {
     print('✅ Processing Dart 3.0+ enum member access: "${expr.source}"');
     print(expr.toDebugString());
@@ -1015,184 +1001,3 @@ String _generateArgumentList(
 // ============================================================================
 // FLUTTER ENUM MEMBER MAPPING
 // ============================================================================
-
-/// Maps Flutter enum members to JavaScript/CSS equivalents
-class FlutterEnumMapper {
-  static const Map<String, Map<String, String>> enumMappings = {
-    // MainAxisAlignment
-    'MainAxisAlignment': {
-      'start': '"flex-start"',
-      'end': '"flex-end"',
-      'center': '"center"',
-      'spaceBetween': '"space-between"',
-      'spaceAround': '"space-around"',
-      'spaceEvenly': '"space-evenly"',
-    },
-
-    // CrossAxisAlignment
-    'CrossAxisAlignment': {
-      'start': '"flex-start"',
-      'end': '"flex-end"',
-      'center': '"center"',
-      'stretch': '"stretch"',
-      'baseline': '"baseline"',
-    },
-
-    // TextAlign
-    'TextAlign': {
-      'left': '"left"',
-      'right': '"right"',
-      'center': '"center"',
-      'justify': '"justify"',
-      'start': '"left"',
-      'end': '"right"',
-    },
-
-    // Axis
-    'Axis': {'horizontal': '"horizontal"', 'vertical': '"vertical"'},
-
-    // MainAxisSize
-    'MainAxisSize': {'max': '"max"', 'min': '"min"'},
-
-    // CrossAxisSize
-    'CrossAxisSize': {'max': '"max"', 'min': '"min"'},
-
-    // FontWeight
-    'FontWeight': {
-      'w100': '"100"',
-      'w200': '"200"',
-      'w300': '"300"',
-      'normal': '"400"',
-      'w400': '"400"',
-      'w500': '"500"',
-      'w600': '"600"',
-      'bold': '"700"',
-      'w700': '"700"',
-      'w800': '"800"',
-      'w900': '"900"',
-    },
-
-    // TextOverflow
-    'TextOverflow': {
-      'clip': '"clip"',
-      'fade': '"fade"',
-      'ellipsis': '"ellipsis"',
-      'visible': '"visible"',
-    },
-
-    // BoxFit
-    'BoxFit': {
-      'fill': '"fill"',
-      'contain': '"contain"',
-      'cover': '"cover"',
-      'fitWidth': '"scale-down"',
-      'fitHeight': '"cover"',
-      'none': '"none"',
-      'scaleDown': '"scale-down"',
-    },
-
-    // VerticalDirection
-    'VerticalDirection': {'down': '"down"', 'up': '"up"'},
-
-    // TextDirection
-    'TextDirection': {'rtl': '"rtl"', 'ltr': '"ltr"'},
-  };
-
-  /// Map an enum member to its JavaScript equivalent
-  static String mapEnumMember(String typeName, String memberName) {
-    final typeMap = enumMappings[typeName];
-    if (typeMap == null) {
-      print('⚠️  Unknown enum type: $typeName');
-      return '"${memberName.toLowerCase()}"';
-    }
-
-    final mapped = typeMap[memberName];
-    if (mapped == null) {
-      print('⚠️  Unknown member: $typeName.$memberName');
-      return '"${memberName.toLowerCase()}"';
-    }
-
-    return mapped;
-  }
-}
-
-// ============================================================================
-// USAGE EXAMPLES
-// ============================================================================
-
-void exampleUsage() {
-  // Example 1: Shorthand syntax (.center)
-  final expr1 = EnumMemberAccessExpressionIR.parse(
-    id: 'expr_1',
-    sourceLocation: SourceLocationIR(
-      id: 'loc_1',
-      file: 'main.dart',
-      line: 50,
-      column: 30,
-      offset: 1000,
-      length: 7,
-    ),
-    source: '.center',
-    parentContext: 'Column.mainAxisAlignment',
-  );
-
-  print(expr1.toDebugString());
-  print('JS Output: ${expr1.toJavaScript()}');
-  // Output:
-  // kind: shorthand
-  // memberName: center
-  // qualifiedName: center
-  // jsOutput: "center"
-
-  // Example 2: Qualified syntax (MainAxisAlignment.center)
-  final expr2 = EnumMemberAccessExpressionIR.parse(
-    id: 'expr_2',
-    sourceLocation: SourceLocationIR(
-      id: 'loc_2',
-      file: 'main.dart',
-      line: 51,
-      column: 30,
-      offset: 1020,
-      length: 27,
-    ),
-    source: 'MainAxisAlignment.spaceEvenly',
-    parentContext: 'Row.mainAxisAlignment',
-  );
-
-  print(expr2.toDebugString());
-  print('JS Output: ${expr2.toJavaScript()}');
-  // Output:
-  // kind: qualified
-  // typeName: MainAxisAlignment
-  // memberName: spaceEvenly
-  // qualifiedName: MainAxisAlignment.spaceEvenly
-  // jsOutput: "spaceevenly"
-
-  // Example 3: Using enum mapper
-  final mapped = FlutterEnumMapper.mapEnumMember(
-    'MainAxisAlignment',
-    'spaceBetween',
-  );
-  print('Mapped: $mapped'); // Output: "space-between"
-
-  // Example 4: Colors enum (static constant)
-  final expr4 = EnumMemberAccessExpressionIR.parse(
-    id: 'expr_4',
-    sourceLocation: SourceLocationIR(
-      id: 'loc_4',
-      file: 'main.dart',
-      line: 52,
-      column: 20,
-      offset: 1050,
-      length: 11,
-    ),
-    source: 'Colors.blue',
-    parentContext: 'Container.color',
-  );
-
-  print(expr4.toDebugString());
-  // Output:
-  // kind: staticConstant
-  // typeName: Colors
-  // memberName: blue
-}

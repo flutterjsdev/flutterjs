@@ -7,11 +7,11 @@
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/src/utils/code_gen_error.dart';
-import 'expression_code_generator.dart';
-import 'flutter_prop_converters.dart';
-import 'statement_code_generator.dart';
-import '../utils/indenter.dart';
-import 'widget_instantiation_code_gen.dart';
+import '../../code_generation/expression/expression_code_generator.dart';
+import '../prop_conversion/flutter_prop_converters.dart';
+import '../../code_generation/statement/statement_code_generator.dart';
+import '../../utils/indenter.dart';
+import '../instantiation/widget_instantiation_code_gen.dart';
 
 class BuildMethodGenConfig {
   final bool generateJSDoc;
@@ -424,16 +424,6 @@ class BuildMethodCodeGen {
     return parts.join(', ');
   }
 
-  String _extractLocalBuilder(String pattern, ExpressionIR expr) {
-    final key = 'builder_${pattern}_${expr.id}';
-    if (!localBuilders.containsKey(key)) {
-      final builderName =
-          '_build${pattern[0].toUpperCase()}${pattern.substring(1)}';
-      final builderCode = _generateReturnWidget(expr);
-      localBuilders[key] = '  $builderName() {\n    return $builderCode;\n  }';
-    }
-    return 'this._build${pattern[0].toUpperCase()}${pattern.substring(1)}()';
-  }
 
   String getAllLocalBuilders() {
     return localBuilders.values.join('\n');

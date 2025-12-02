@@ -6,7 +6,7 @@
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart';
-import 'package:flutterjs_gen/src/flutterjs_gen/flutter_widget_registry.dart';
+import 'package:flutterjs_gen/src/widget_generation/registry/flutter_widget_registry.dart';
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 
 // ============================================================================

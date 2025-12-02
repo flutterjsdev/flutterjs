@@ -6,7 +6,7 @@
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart';
-import 'package:flutterjs_gen/src/flutterjs_gen/js_optimizer.dart';
+import 'package:flutterjs_gen/src/validation_optimization/js_optimizer.dart';
 import 'package:flutterjs_gen/src/model_to_js_diagnostic.dart';
 
 // ============================================================================
