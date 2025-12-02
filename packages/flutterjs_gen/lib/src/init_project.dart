@@ -1,13 +1,13 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
-import 'code_gen/build_code_gen.dart';
-import 'code_gen/config_code_gen.dart';
-import 'code_gen/firebase_code_gen.dart';
-import 'code_gen/gitignore_code_gen.dart';
-import 'code_gen/index_code_gen.dart';
-import 'code_gen/manifest_code_gen.dart';
-import 'code_gen/services_config.dart';
+import 'pre_req_code_gen/build_code_gen.dart';
+import 'pre_req_code_gen/config_code_gen.dart';
+import 'pre_req_code_gen/firebase_code_gen.dart';
+import 'pre_req_code_gen/gitignore_code_gen.dart';
+import 'pre_req_code_gen/index_code_gen.dart';
+import 'pre_req_code_gen/manifest_code_gen.dart';
+import 'pre_req_code_gen/services_config.dart';
 import 'service_detection.dart';
 
 class InitProject extends Command<void> {

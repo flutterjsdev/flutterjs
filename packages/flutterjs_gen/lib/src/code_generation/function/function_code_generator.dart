@@ -158,7 +158,8 @@ class FunctionCodeGen {
       buffer.writeln(jsDoc);
     }
 
-    // Function keyword and async/generator modifiers
+    // ✅ FIX 1: Don't use 'const' keyword for function declarations
+    // const is only for variables/fields, not functions
     String header = 'function';
 
     if (func.isAsync && func.isGenerator) {
@@ -172,10 +173,10 @@ class FunctionCodeGen {
     // Parameters
     final params = _generateParameterList(func.parameters);
 
+    // ✅ FIX 2: Regular function header (never use const)
     buffer.writeln('$header ${func.name}($params) {');
     indenter.indent();
 
-    // âœ… FIXED: body is now FunctionBodyIR?
     if (func.body == null) {
       buffer.writeln(indenter.line('// TODO: Implement ${func.name}'));
     } else if (func.body!.statements.isEmpty) {
@@ -197,6 +198,11 @@ class FunctionCodeGen {
     String jsDoc,
     FunctionBodyType bodyType,
   ) {
+    // ✅ ONLY use arrow functions if:
+    // 1. Single return or single expression
+    // 2. NOT async or generator
+    // 3. NOT main() or other entry points
+
     final params = _generateParameterList(func.parameters);
 
     // Extract the expression from body
@@ -209,9 +215,11 @@ class FunctionCodeGen {
 
     final expr = exprGen.generate(exprBody, parenthesize: false);
 
-    // Wrap in const/let for top-level functions
+    // ✅ FIX 3: Use 'const' or 'let' only for variable declarations
+    // Use 'const' only if function is truly immutable and simple
     final keyword = _shouldUseConst(func) ? 'const' : 'let';
 
+    // ✅ Arrow function format (no 'const' prefix for top-level)
     return '$keyword ${func.name} = ($params) => $expr;';
   }
 
@@ -332,7 +340,7 @@ class FunctionCodeGen {
       }
     }
 
-    // Multiple statements
+    // ✅ Multiple statements = MUST be regular function
     if (body.statements.length > 1) {
       return FunctionBodyType.multipleStatements;
     }
@@ -340,17 +348,17 @@ class FunctionCodeGen {
     return FunctionBodyType.unknown;
   }
 
-  /// ✅ FIXED: Check if body can be converted to arrow function
   bool _canBeArrowFunction(FunctionBodyType bodyType, FunctionBodyIR? body) {
-    // Only singleReturn or singleExpression can be arrow functions
+    // ✅ Only these types can be arrows:
     if (bodyType == FunctionBodyType.singleReturn ||
         bodyType == FunctionBodyType.singleExpression) {
-      // Verify we can actually extract an expression
       return _extractExpressionFromBody(body, bodyType) != null;
     }
 
+    // Everything else must be regular function
     return false;
   }
+
 
   /// ✅ FIXED: Extract expression from single-statement body
   ExpressionIR? _extractExpressionFromBody(
@@ -506,9 +514,14 @@ class FunctionCodeGen {
   // =========================================================================
 
   /// Determine if function should use const keyword
+  /// ✅ FIX 4: Determine if should use const
   bool _shouldUseConst(FunctionDecl func) {
-    // Functions are const if they have no side effects
-    // For now, assume all arrow functions can be const
-    return true;
+    // Use const only for arrow functions that are immutable
+    // Regular functions should never use const
+    if (!func.isAsync && !func.isGenerator) {
+      // Only if body is single expression with no side effects
+      return true;
+    }
+    return false;
   }
 }

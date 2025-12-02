@@ -82,6 +82,10 @@ abstract class StatementIR extends IRNode {
 @immutable
 class ExpressionStmt extends StatementIR {
   final ExpressionIR expression;
+  final String? expressionType;
+  final bool isMethodCall;
+  final bool isConstructorCall;
+  final bool isAssignment;
 
   const ExpressionStmt({
     required super.id,
@@ -89,6 +93,10 @@ class ExpressionStmt extends StatementIR {
     required this.expression,
     super.metadata,
     super.widgetUsages,
+    this.expressionType,
+    this.isMethodCall = false,
+    this.isConstructorCall = false,
+    this.isAssignment = false,
   });
 
   @override
@@ -278,7 +286,7 @@ class BlockStmt extends StatementIR {
     return widgets;
   }
 
-    @override
+  @override
   Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['statements'] = statements.map((s) => s.toJson()).toList();
@@ -325,8 +333,8 @@ class IfStmt extends StatementIR {
     return widgets;
   }
 
-
-  @override  Map<String, dynamic> toJson() {
+  @override
+  Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['condition'] = condition.toJson();
     baseJson['thenBranch'] = thenBranch.toJson();
@@ -356,15 +364,14 @@ class ForStmt extends StatementIR {
   @override
   String toShortString() => 'for (...) { ... }';
 
-
-  @override  Map<String, dynamic> toJson() {
+  @override
+  Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['initialization'] = initialization?.toJson();
     baseJson['condition'] = condition?.toJson();
     baseJson['updaters'] = updaters.map((u) => u.toJson()).toList();
     baseJson['body'] = body.toJson();
     return baseJson;
-
   }
 }
 
@@ -392,7 +399,8 @@ class ForEachStmt extends StatementIR {
   String toShortString() =>
       'for${isAsync ? ' await' : ''} ($loopVariable in ${iterable.toShortString()}) { ... }';
 
-  @override  Map<String, dynamic> toJson() {
+  @override
+  Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['loopVariable'] = loopVariable;
     baseJson['loopVariableType'] = loopVariableType?.toJson();
@@ -420,7 +428,8 @@ class WhileStmt extends StatementIR {
   @override
   String toShortString() => 'while (${condition.toShortString()}) { ... }';
 
-  @override  Map<String, dynamic> toJson() {
+  @override
+  Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['condition'] = condition.toJson();
     baseJson['body'] = body.toJson();
@@ -444,7 +453,8 @@ class DoWhileStmt extends StatementIR {
 
   @override
   String toShortString() => 'do { ... } while (${condition.toShortString()})';
-  @override  Map<String, dynamic> toJson() {
+  @override
+  Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['body'] = body.toJson();
     baseJson['condition'] = condition.toJson();
@@ -472,7 +482,8 @@ class SwitchStmt extends StatementIR {
   String toShortString() =>
       'switch (${expression.toShortString()}) { ${cases.length} cases }';
 
-  @override  Map<String, dynamic> toJson() {
+  @override
+  Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['expression'] = expression.toJson();
     baseJson['cases'] = cases.map((c) => c.toJson()).toList();
@@ -502,14 +513,14 @@ class SwitchCaseStmt extends StatementIR {
     return 'case: ...';
   }
 
-  @override  
+  @override
   Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['patterns'] = patterns?.map((p) => p.toJson()).toList();
     baseJson['statements'] = statements.map((s) => s.toJson()).toList();
     baseJson['isDefault'] = isDefault;
     return baseJson;
-  } 
+  }
 }
 
 @immutable
@@ -532,7 +543,8 @@ class TryStmt extends StatementIR {
   String toShortString() =>
       'try { ... } catch (${catchClauses.length} clauses)${finallyBlock != null ? ' finally { ... }' : ''}';
 
-  @override  Map<String, dynamic> toJson() {
+  @override
+  Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['tryBlock'] = tryBlock.toJson();
     baseJson['catchClauses'] = catchClauses.map((c) => c.toJson()).toList();
@@ -561,7 +573,8 @@ class CatchClauseStmt extends StatementIR {
 
   @override
   String toShortString() => 'catch (${exceptionParameter ?? 'error'}) { ... }';
-  @override  Map<String, dynamic> toJson() {
+  @override
+  Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['exceptionType'] = exceptionType?.toJson();
     baseJson['exceptionParameter'] = exceptionParameter;
@@ -594,7 +607,8 @@ class AssertStatementIR extends StatementIR {
       ? 'assert(${condition.toShortString()}, ${message!.toShortString()})'
       : 'assert(${condition.toShortString()})';
 
-  @override  Map<String, dynamic> toJson() {
+  @override
+  Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['condition'] = condition.toJson();
     baseJson['message'] = message?.toJson();
@@ -614,7 +628,8 @@ class EmptyStatementIR extends StatementIR {
   @override
   String toShortString() => ';';
 
-  @override  Map<String, dynamic> toJson() {
+  @override
+  Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     return baseJson;
   }
@@ -638,7 +653,8 @@ class YieldStatementIR extends StatementIR {
   String toShortString() =>
       'yield${isYieldEach ? '*' : ''} ${value.toShortString()}';
 
-  @override  Map<String, dynamic> toJson() {
+  @override
+  Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['value'] = value.toJson();
     baseJson['isYieldEach'] = isYieldEach;
@@ -663,7 +679,8 @@ class LabeledStatementIR extends StatementIR {
   @override
   String toShortString() => '$label: ${statement.toShortString()}';
 
-  @override  Map<String, dynamic> toJson() {
+  @override
+  Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['label'] = label;
     baseJson['statement'] = statement.toJson();
@@ -686,7 +703,8 @@ class FunctionDeclarationStatementIR extends StatementIR {
   @override
   String toShortString() => 'function ${function.name}() { ... }';
 
-  @override  Map<String, dynamic> toJson() {
+  @override
+  Map<String, dynamic> toJson() {
     final baseJson = super.toJson();
     baseJson['function'] = function.toJson();
     return baseJson;
@@ -768,8 +786,9 @@ class WidgetUsageIR extends StatementIR {
     return sb.toString();
   }
 
-  @override  Map<String, dynamic> toJson() {
-    final baseJson = super.toJson();  
+  @override
+  Map<String, dynamic> toJson() {
+    final baseJson = super.toJson();
     baseJson.addAll({
       'widgetName': widgetName,
       'constructorName': constructorName,

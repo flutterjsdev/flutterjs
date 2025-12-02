@@ -354,9 +354,14 @@ class StatementExtractionPass {
     }
 
     if (stmt is ExpressionStatement) {
+      final expr = stmt.expression;
       return ExpressionStmt(
         id: builder.generateId('stmt_expr'),
         expression: extractExpression(stmt.expression),
+        isMethodCall: expr is MethodInvocation,
+        isConstructorCall: expr is InstanceCreationExpression,
+        isAssignment: expr is AssignmentExpression,
+        expressionType: _classifyExpression(expr),
         sourceLocation: _extractSourceLocation(stmt, stmt.offset),
         metadata: {},
       );
@@ -994,6 +999,8 @@ class StatementExtractionPass {
     // Constructor calls
     if (expr is InstanceCreationExpression) {
       final className = expr.constructorName.type.name.toString();
+      final constructorName = expr.constructorName.name?.name;
+      final isConst = expr.isConst;
       final positional = <ExpressionIR>[];
       final named = <String, ExpressionIR>{};
       final namedWithTypes = <NamedArgumentIR>[];
@@ -1030,6 +1037,7 @@ class StatementExtractionPass {
       return ConstructorCallExpressionIR(
         id: builder.generateId('expr_ctor'),
         className: className,
+        constructorName: constructorName,
         positionalArguments: positional,
         namedArguments: named, // âœ… KEEP MAP OF NAMES TO EXPRESSIONS
         arguments: positional, // âœ… ONLY positional, NOT mixed!
@@ -1042,6 +1050,7 @@ class StatementExtractionPass {
         ),
         sourceLocation: sourceLoc,
         metadata: metadata,
+        isConstant: isConst,
       );
     }
 
@@ -1267,6 +1276,116 @@ class StatementExtractionPass {
       default:
         return BinaryOperatorIR.add; // fallback
     }
+  }
+
+  String _classifyExpression(AstNode expr) {
+    // Method calls
+    if (expr is MethodInvocation) {
+      final methodName = expr.methodName.name.toLowerCase();
+
+      // Framework/System calls
+      if (methodName == 'runapp') return 'framework_initialization';
+      if (methodName.startsWith('set')) return 'setter_call';
+      if (methodName.startsWith('get')) return 'getter_call';
+      if (methodName == 'print') return 'debug_call';
+      if (methodName == 'tostring') return 'conversion_call';
+
+      // Common patterns
+      if (methodName.contains('validate')) return 'validation_call';
+      if (methodName.contains('build')) return 'build_call';
+      if (methodName.contains('create')) return 'factory_call';
+      if (methodName.contains('init')) return 'initialization_call';
+
+      return 'method_call'; // default
+    }
+
+    // Constructor calls
+    if (expr is InstanceCreationExpression) {
+      final className = expr.constructorName.type.name.toString();
+
+      if (className == 'Future') return 'async_construction';
+      if (className == 'Stream') return 'stream_construction';
+      if (className.startsWith('State')) return 'state_construction';
+      if (className.endsWith('Exception') || className.endsWith('Error')) {
+        return 'error_construction';
+      }
+
+      return 'object_construction'; // default
+    }
+
+    // Binary operations
+    if (expr is BinaryExpression) {
+      final op = expr.operator.lexeme;
+
+      if (['+', '-', '*', '/', '%', '~/'].contains(op)) {
+        return 'arithmetic';
+      }
+      if (['<', '>', '<=', '>=', '==', '!='].contains(op)) {
+        return 'comparison';
+      }
+      if (['&&', '||'].contains(op)) {
+        return 'logical';
+      }
+      if (['&', '|', '^', '<<', '>>'].contains(op)) {
+        return 'bitwise';
+      }
+      if (op == '??') {
+        return 'null_coalesce';
+      }
+
+      return 'binary_operation'; // default
+    }
+
+    // Unary operations
+    if (expr is PrefixExpression || expr is PostfixExpression) {
+      final op = (expr as dynamic).operator.lexeme;
+
+      if (op == '!') return 'logical_negation';
+      if (['+', '-'].contains(op)) return 'arithmetic_sign';
+      if (['++', '--'].contains(op)) return 'increment_decrement';
+      if (op == '~') return 'bitwise_not';
+
+      return 'unary_operation'; // default
+    }
+
+    // Literals
+    if (expr is IntegerLiteral) return 'integer_literal';
+    if (expr is StringLiteral) return 'string_literal';
+    if (expr is BooleanLiteral) return 'boolean_literal';
+    if (expr is DoubleLiteral) return 'double_literal';
+    if (expr is NullLiteral) return 'null_literal';
+    if (expr is ListLiteral) return 'list_literal';
+    if (expr is SetOrMapLiteral) return 'map_or_set_literal';
+
+    // Variables/Identifiers
+    if (expr is Identifier) {
+      final name = expr.name.toLowerCase();
+
+      if (name == 'this') return 'self_reference';
+      if (name == 'super') return 'super_reference';
+      if (name[0].toUpperCase() == name[0]) return 'constant_reference';
+
+      return 'variable_reference'; // default
+    }
+
+    // Conditionals
+    if (expr is ConditionalExpression) return 'ternary_conditional';
+
+    // Assignments
+    if (expr is AssignmentExpression) return 'assignment';
+
+    // Type checks/casts
+    if (expr is IsExpression) return 'type_check';
+    if (expr is AsExpression) return 'type_cast';
+
+    // Cascades
+    if (expr is CascadeExpression) return 'cascade_chain';
+
+    // Function expressions (lambdas)
+    if (expr is FunctionExpression) return 'lambda_function';
+
+    // Default fallback
+    return 'unknown_expression';
   }
 }
 
