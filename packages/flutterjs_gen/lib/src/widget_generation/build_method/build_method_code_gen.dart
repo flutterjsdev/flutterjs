@@ -424,7 +424,6 @@ class BuildMethodCodeGen {
     return parts.join(', ');
   }
 
-
   String getAllLocalBuilders() {
     return localBuilders.values.join('\n');
   }

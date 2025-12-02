@@ -353,13 +353,9 @@ class NamedArgumentIR extends ExpressionIR {
     required super.resultType,
   });
 
+  @override
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'value': value.toString(),
-      'sourceLocation': sourceLocation.toString(),
-    };
+    return {...super.toJson(), 'name': name, 'value': value.toString()};
   }
 }
 
@@ -614,9 +610,11 @@ class WidgetPropertyIR extends ExpressionIR {
     required super.metadata,
   });
 
+  @override
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      ...super.toJson(),
+      'expectedType': expectedType,
       'propertyName': propertyName,
       'value': value.toString(),
       'isCallback': isCallback,
@@ -630,6 +628,8 @@ class ConstructorCallExpressionIR extends ExpressionIR {
   /// The class/widget being instantiated
   final String className;
 
+  final String? constructorName;
+
   /// Named arguments like key:, child:, title:
   final Map<String, ExpressionIR> namedArguments;
 
@@ -642,16 +642,38 @@ class ConstructorCallExpressionIR extends ExpressionIR {
     required super.id,
     required super.sourceLocation,
     required this.className,
+    this.constructorName = '',
     this.namedArguments = const {},
-    required this.namedArgumentsDetailed, // ✅ ADD THIS
+    required this.namedArgumentsDetailed,
     this.positionalArguments = const [],
     required super.resultType,
     super.metadata,
     required List<ExpressionIR> arguments,
+    super.isConstant = false,
   });
+
+  String? get effectiveConstructorName =>
+      (constructorName?.isEmpty ?? true) ? className : constructorName;
 
   @override
   String toShortString() => '$className(...)';
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      ...super.toJson(),
+      'className': className,
+      'constructorName': constructorName,
+      'positionalArguments': positionalArguments
+          .map((a) => a.toJson())
+          .toList(),
+      'namedArguments': Map.fromEntries(
+        namedArguments.entries.map((e) => MapEntry(e.key, e.value.toJson())),
+      ),
+      'namedArgumentsDetailed': namedArgumentsDetailed
+          .map((n) => n.toJson())
+          .toList(),
+    };
+  }
 }
 
 class FlutterWidgetConstructorIR extends ConstructorCallExpressionIR {
