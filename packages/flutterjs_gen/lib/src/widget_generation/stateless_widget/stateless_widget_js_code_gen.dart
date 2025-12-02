@@ -7,12 +7,12 @@
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/src/utils/code_gen_error.dart';
-import 'build_method_code_gen.dart';
-import 'flutter_prop_converters.dart';
-import 'function_code_generator.dart';
-import 'statement_code_generator.dart';
-import 'expression_code_generator.dart';
-import '../utils/indenter.dart';
+import '../build_method/build_method_code_gen.dart';
+import '../prop_conversion/flutter_prop_converters.dart';
+import '../../code_generation/function/function_code_generator.dart';
+import '../../code_generation/statement/statement_code_generator.dart';
+import '../../code_generation/expression/expression_code_generator.dart';
+import '../../utils/indenter.dart';
 
 // ============================================================================
 // CONFIGURATION
@@ -565,7 +565,6 @@ class StatelessWidgetJSCodeGen {
     // ✓ FIXED: Analyze build method before generation
     final buildMethod = widgetInfo.buildMethod!;
     final bodyType = _analyzeMethodBody(buildMethod.body);
-    final stmtCount = _getMethodStatementCount(buildMethod.body);
 
     try {
       // ✓ Check if body is valid

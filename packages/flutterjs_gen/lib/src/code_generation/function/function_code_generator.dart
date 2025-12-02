@@ -6,12 +6,12 @@
 // ============================================================================
 
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_gen/src/flutterjs_gen/flutter_prop_converters.dart';
+import 'package:flutterjs_gen/src/widget_generation/prop_conversion/flutter_prop_converters.dart';
 import 'package:flutterjs_gen/src/utils/code_gen_error.dart';
 
-import 'expression_code_generator.dart';
-import 'statement_code_generator.dart';
-import '../utils/indenter.dart';
+import '../expression/expression_code_generator.dart';
+import '../statement/statement_code_generator.dart';
+import '../../utils/indenter.dart';
 
 // ============================================================================
 // CONFIGURATION
@@ -431,12 +431,6 @@ class FunctionCodeGen {
     return parts.join(', ');
   }
 
-  String _generateParameter(ParameterDecl param) {
-    // Simple parameter name
-    // Type information is lost in JS, but could be added as comments
-    return param.name;
-  }
-
   // =========================================================================
   // JSDOC GENERATION
   // =========================================================================
@@ -511,27 +505,10 @@ class FunctionCodeGen {
   // UTILITY METHODS
   // =========================================================================
 
-  /// ✅ FIXED: Properly check if function body is simple expression
-  bool _isSimpleExpression(FunctionDecl func) {
-    final bodyType = _analyzeBodyType(func.body);
-    return _canBeArrowFunction(bodyType, func.body);
-  }
-
   /// Determine if function should use const keyword
   bool _shouldUseConst(FunctionDecl func) {
     // Functions are const if they have no side effects
     // For now, assume all arrow functions can be const
     return true;
-  }
-
-  /// Check if parameter has default value
-  bool _hasDefaultValue(ParameterDecl param) {
-    return param.defaultValue != null;
-  }
-
-  /// Format parameter with type annotation in comment
-  String _formatParameterWithType(ParameterDecl param) {
-    final typeHint = '/* ${param.type.displayName()} */';
-    return '${param.name} $typeHint';
   }
 }

@@ -7,15 +7,12 @@
 // Throws warnings for deprecated/beta widgets
 // ============================================================================
 
-import 'package:collection/collection.dart';
-
-import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/src/utils/code_gen_error.dart';
 import 'package:flutterjs_gen/src/utils/indenter.dart';
-import 'expression_code_generator.dart';
-import 'flutter_prop_converters.dart';
-import 'flutter_widget_registry.dart';
+import '../../code_generation/expression/expression_code_generator.dart';
+import '../prop_conversion/flutter_prop_converters.dart';
+import '../registry/flutter_widget_registry.dart';
 
 // ============================================================================
 // CONFIGURATION
@@ -353,158 +350,6 @@ class WidgetInstantiationCodeGen {
     };
   }
 
-  String _convertWidget(ExpressionIR expr) {
-    if (expr is InstanceCreationExpressionIR) {
-      return generateWidgetInstantiation(expr);
-    }
-
-    if (expr is IdentifierExpressionIR) {
-      // Reference to a widget variable
-      return expr.name;
-    }
-
-    return exprGen.generate(expr, parenthesize: false);
-  }
-
-  String _convertWidgetList(ExpressionIR expr) {
-    if (expr is ListExpressionIR) {
-      final widgets = expr.elements
-          .map((e) {
-            if (e is InstanceCreationExpressionIR) {
-              return generateWidgetInstantiation(e);
-            }
-            return exprGen.generate(e, parenthesize: false);
-          })
-          .join(', ');
-
-      return '[$widgets]';
-    }
-
-    return exprGen.generate(expr, parenthesize: false);
-  }
-
-  String _convertColor(ExpressionIR expr) {
-    // Colors.blue → 'blue'
-    // Colors.red[400] → 'red.400'
-    // #FF5733 → '#FF5733'
-
-    if (expr is PropertyAccessExpressionIR) {
-      final propName = expr.propertyName.toLowerCase();
-      return "'$propName'";
-    }
-
-    if (expr is IndexAccessExpressionIR) {
-      // Colors.red[400]
-      if (expr.target is PropertyAccessExpressionIR) {
-        final targetProp = (expr.target as PropertyAccessExpressionIR)
-            .propertyName
-            .toLowerCase();
-        final index = exprGen.generate(expr.index, parenthesize: false);
-        return "'$targetProp.$index'";
-      }
-    }
-
-    if (expr is LiteralExpressionIR &&
-        expr.literalType == LiteralType.stringValue) {
-      // String color like '#FF5733'
-      return exprGen.generate(expr, parenthesize: false);
-    }
-
-    return exprGen.generate(expr, parenthesize: false);
-  }
-
-  String _convertAlignment(ExpressionIR expr) {
-    // Alignment.center → Alignment.center
-    return exprGen.generate(expr, parenthesize: false);
-  }
-
-  String _convertEdgeInsets(ExpressionIR expr) {
-    // EdgeInsets.all(16) → new EdgeInsets.all(16)
-    // EdgeInsets.symmetric(h: 8, v: 16) → new EdgeInsets.symmetric({h: 8, v: 16})
-
-    if (expr is MethodCallExpressionIR) {
-      final method = expr.methodName;
-      final args = _convertArgumentList(expr.arguments, expr.namedArguments);
-      return 'new EdgeInsets.$method($args)';
-    }
-
-    if (expr is InstanceCreationExpressionIR) {
-      // EdgeInsets(top: 8, left: 8, ...)
-      final type = expr.type.displayName();
-      final args = _convertArgumentList(expr.arguments, expr.namedArguments);
-      return 'new $type($args)';
-    }
-
-    return exprGen.generate(expr, parenthesize: false);
-  }
-
-  String _convertTextStyle(ExpressionIR expr) {
-    // TextStyle(fontSize: 16, color: Colors.blue, ...)
-    // → new TextStyle({fontSize: 16, color: 'blue', ...})
-
-    if (expr is InstanceCreationExpressionIR) {
-      final type = expr.type.displayName();
-      final props = <String, String>{};
-
-      for (final entry in expr.namedArguments.entries) {
-        final key = entry.key;
-        final value = entry.value;
-
-        // Special handling for color in TextStyle
-        if (key == 'color') {
-          props[key] = _convertColor(value);
-        } else {
-          props[key] = exprGen.generate(value, parenthesize: false);
-        }
-      }
-
-      final propsStr = props.entries
-          .map((e) => '${e.key}: ${e.value}')
-          .join(', ');
-
-      return 'new $type({$propsStr})';
-    }
-
-    return exprGen.generate(expr, parenthesize: false);
-  }
-
-  String _convertTextAlign(ExpressionIR expr) {
-    // TextAlign.center → TextAlign.center
-    return exprGen.generate(expr, parenthesize: false);
-  }
-
-  String _convertAxisAlignment(ExpressionIR expr) {
-    // MainAxisAlignment.start → MainAxisAlignment.start
-    return exprGen.generate(expr, parenthesize: false);
-  }
-
-  String _convertBoxFit(ExpressionIR expr) {
-    // BoxFit.cover → BoxFit.cover
-    return exprGen.generate(expr, parenthesize: false);
-  }
-
-  String _convertDuration(ExpressionIR expr) {
-    // Duration(milliseconds: 300) → new Duration({milliseconds: 300})
-    if (expr is MethodCallExpressionIR) {
-      final method = expr.methodName;
-      final args = _convertArgumentList(expr.arguments, expr.namedArguments);
-      return 'new Duration.$method($args)';
-    }
-
-    return exprGen.generate(expr, parenthesize: false);
-  }
-
-  String _convertCurve(ExpressionIR expr) {
-    // Curves.easeInOut → Curves.easeInOut
-    return exprGen.generate(expr, parenthesize: false);
-  }
-
-  String _convertCallback(ExpressionIR expr) {
-    // onPressed: () => print('clicked')
-    // → onPressed: () => console.log('clicked')
-    return exprGen.generate(expr, parenthesize: false);
-  }
-
   // =========================================================================
   // FORMATTING
   // =========================================================================
@@ -545,29 +390,6 @@ class WidgetInstantiationCodeGen {
     buffer.write(indenter.line('}'));
 
     return buffer.toString();
-  }
-
-  String _convertArgumentList(
-    List<ExpressionIR> positional,
-    Map<String, ExpressionIR> named,
-  ) {
-    final parts = <String>[];
-
-    parts.addAll(
-      positional.map((e) => exprGen.generate(e, parenthesize: false)),
-    );
-
-    if (named.isNotEmpty) {
-      final namedStr = named.entries
-          .map(
-            (e) =>
-                '${e.key}: ${exprGen.generate(e.value, parenthesize: false)}',
-          )
-          .join(', ');
-      parts.add('{$namedStr}');
-    }
-
-    return parts.join(', ');
   }
 
   /// Get all warnings generated so far

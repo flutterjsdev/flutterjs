@@ -15,8 +15,6 @@ import 'package:path/path.dart' as path;
 import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:flutterjs_gen/src/file_code_gen.dart';
-import 'package:flutterjs_gen/src/flutterjs_gen/flutter_prop_converters.dart';
 
 /// ============================================================================
 /// RunCommand
@@ -295,7 +293,7 @@ class RunCommand extends Command<void> {
       argResults!['js-optimization-level'] as String,
     );
     final validateOutput = argResults!['validate-output'] as bool;
-    final clearCache = argResults!['clear-cache'] as bool;
+   
     final generateReports = argResults!['generate-reports'] as bool;
 
     // ✅ NEW: DevTools options (enabled by default)
@@ -1185,21 +1183,7 @@ class RunCommand extends Command<void> {
     }
   }
 
-  String _generateConversionReport(
-    DartFile dartFile,
-    String jsCode,
-    int optimizationLevel,
-  ) {
-    return '''{
-  "dart_file": "${dartFile.filePath}",
-  "classes": ${dartFile.classDeclarations.length},
-  "functions": ${dartFile.functionDeclarations.length},
-  "declarations": ${dartFile.declarationCount},
-  "js_code_size_bytes": ${jsCode.length},
-  "optimization_level": $optimizationLevel,
-  "timestamp": "${DateTime.now()}"
-}''';
-  }
+ 
 }
 
 // =========================================================================

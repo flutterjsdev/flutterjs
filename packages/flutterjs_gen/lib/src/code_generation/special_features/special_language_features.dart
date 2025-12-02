@@ -9,15 +9,11 @@
 // - Cascade expressions
 // - Collection if/for
 // ============================================================================
-
-import 'package:collection/collection.dart';
-
-import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/src/utils/code_gen_error.dart';
-import 'expression_code_generator.dart';
-import 'statement_code_generator.dart';
-import '../utils/indenter.dart';
+import '../expression/expression_code_generator.dart';
+import '../statement/statement_code_generator.dart';
+import '../../utils/indenter.dart';
 
 // ============================================================================
 // CONFIGURATION
@@ -545,19 +541,6 @@ class SpecialFeaturesCodeGen {
     }
 
     return parts.join(', ');
-  }
-
-  String _formatCascadeChain(List<ExpressionIR> sections) {
-    return sections
-        .map((s) {
-          if (s is MethodCallExpressionIR) {
-            return '.${s.methodName}()';
-          } else if (s is PropertyAccessExpressionIR) {
-            return '.${s.propertyName}';
-          }
-          return '';
-        })
-        .join('');
   }
 }
 

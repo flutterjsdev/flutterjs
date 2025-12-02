@@ -10,10 +10,10 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart';
 import 'package:flutterjs_gen/src/utils/indenter.dart';
 
-import 'build_method_code_gen.dart';
-import 'flutter_prop_converters.dart';
-import 'function_code_generator.dart';
-import 'stateless_widget_js_code_gen.dart';
+import '../build_method/build_method_code_gen.dart';
+import '../prop_conversion/flutter_prop_converters.dart';
+import '../../code_generation/function/function_code_generator.dart';
+import '../stateless_widget/stateless_widget_js_code_gen.dart';
 
 // ============================================================================
 // CONFIGURATION

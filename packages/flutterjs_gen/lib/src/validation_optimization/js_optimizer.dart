@@ -1,4 +1,4 @@
-import 'dart:math';
+
 
 class JSOptimizer {
   String code;
