@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:flutterjs_tools/command.dart';
+import 'package:dev_tools/dev_tools.dart';
+
 /// ============================================================================
 /// Flutter.js CLI Entry Point
 /// ============================================================================
@@ -11,38 +13,38 @@ import 'package:flutterjs_tools/command.dart';
 /// `FlutterJSCommandRunner`.
 ///
 /// This CLI is designed to be:
-///   • Fully cross-platform (supports PowerShell/Windows help conventions)  
-///   • Verbose/debug-friendly (`-v`, `-vv`)  
-///   • Compatible with `args` command runner  
-///   • Extensible through the `FlutterJSCommandRunner` command registry  
+///   • Fully cross-platform (supports PowerShell/Windows help conventions)
+///   • Verbose/debug-friendly (`-v`, `-vv`)
+///   • Compatible with `args` command runner
+///   • Extensible through the `FlutterJSCommandRunner` command registry
 ///
 ///
 /// # Argument Behavior
 ///
 /// ## Verbosity
-/// `-v` or `--verbose`  
-///     Enables verbose logging  
+/// `-v` or `--verbose`
+///     Enables verbose logging
 ///
-/// `-vv`  
-///     Enables **very** verbose logging (highest detail level)  
+/// `-vv`
+///     Enables **very** verbose logging (highest detail level)
 ///
 ///
 /// ## Help Flags
 /// Supports multiple help shortcuts:
-///   • `-h`  
-///   • `--help`  
-///   • `help`  
-///   • PowerShell syntax: `-?`  
-///   • Windows syntax: `/?`  
+///   • `-h`
+///   • `--help`
+///   • `help`
+///   • PowerShell syntax: `-?`
+///   • Windows syntax: `/?`
 ///
 /// Help mode also automatically activates when:
-///   • Only one argument is provided *and* it is a verbose flag  
+///   • Only one argument is provided *and* it is a verbose flag
 ///
 ///
 /// ## Doctor Mode
 /// Triggered when:
-///   • `doctor` is the first argument  
-///   • Or verbose + `doctor` as the last argument  
+///   • `doctor` is the first argument
+///   • Or verbose + `doctor` as the last argument
 ///
 /// Doctor mode prints diagnostic system information.
 ///
@@ -50,8 +52,8 @@ import 'package:flutterjs_tools/command.dart';
 /// # Logging Control
 ///
 /// `muteCommandLogging` is enabled when:
-///   • Running help OR doctor  
-///   • AND verbosity is not super-verbose (`-vv`)  
+///   • Running help OR doctor
+///   • AND verbosity is not super-verbose (`-vv`)
 ///
 /// This keeps help/diagnostic output clean by hiding internal command logs.
 ///
@@ -65,25 +67,25 @@ import 'package:flutterjs_tools/command.dart';
 /// ```
 ///
 /// Errors are handled gracefully:
-///   • `UsageException` → prints usage information, exits with code 64  
-///   • Any other error → logs message, suggests running `-v` for debug  
+///   • `UsageException` → prints usage information, exits with code 64
+///   • Any other error → logs message, suggests running `-v` for debug
 ///
 ///
 /// # Constants
 ///
-/// `version` / `kVersion` → Current Flutter.js CLI version  
-/// `appName`  / `kAppName` → Display name used by the CLI and commands  
+/// `version` / `kVersion` → Current Flutter.js CLI version
+/// `appName`  / `kAppName` → Display name used by the CLI and commands
 ///
 ///
 /// # Summary
 ///
 /// This file contains the complete startup logic for the Flutter.js CLI,
 /// including:
-///   ✔ Flag normalization  
-///   ✔ Help/doctor routing  
-///   ✔ Verbose mode handling  
-///   ✔ Command runner instantiation  
-///   ✔ Error/exception management  
+///   ✔ Flag normalization
+///   ✔ Help/doctor routing
+///   ✔ Verbose mode handling
+///   ✔ Command runner instantiation
+///   ✔ Error/exception management
 ///
 /// The actual commands, subcommands, and handlers are registered inside
 /// `FlutterJSCommandRunner`, making this entrypoint clean, simple, and easy to
@@ -124,7 +126,13 @@ Future<void> main(List<String> args) async {
 
   final bool muteCommandLogging = (help || doctor) && !veryVerbose;
   final bool verboseHelp = help && verbose;
-
+  final bool watch = args.contains('--watch');
+  // ✅ INITIALIZE DEBUGGER HERE
+  FlutterJSIntegratedDebugger.initFromCliFlags(
+    verbose: verbose,
+    verboseHelp: veryVerbose,
+    watch: watch,
+  );
   // Create and run command runner
   final runner = FlutterJSCommandRunner(
     verbose: verbose,
@@ -145,6 +153,7 @@ Future<void> main(List<String> args) async {
       print('Error: $e');
       print('Run with -v for more details.');
     }
+    debugger.printSummary(); // ✅ Print metrics on exit
     exit(1);
   }
 }

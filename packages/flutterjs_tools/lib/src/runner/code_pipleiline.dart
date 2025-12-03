@@ -33,10 +33,7 @@ class UnifiedConversionPipeline {
   final List<String> executionLog = [];
   final List<DiagnosticIssue> allIssues = [];
 
-  UnifiedConversionPipeline({PipelineConfig? config})
-    : config = config ?? const PipelineConfig() {
-    _initialize();
-  }
+  UnifiedConversionPipeline({required this.config});
 
   void _initialize() {
     diagnosticEngine = ModelToJSDiagnosticEngine();
@@ -227,14 +224,14 @@ class UnifiedConversionPipeline {
         irJson: irJson,
         issues: result.issues,
       );
-    } catch (e,stackTrace) {
+    } catch (e, stackTrace) {
       _log('  - Integration phase error: $e');
       allIssues.add(
         DiagnosticIssue(
           severity: DiagnosticSeverity.error,
           code: 'INT001',
           message: 'Integration phase error: $e',
-           stackTrace: stackTrace,
+          stackTrace: stackTrace,
         ),
       );
       return _IntegrationPhaseResult(success: false);
@@ -338,7 +335,7 @@ class UnifiedConversionPipeline {
           severity: DiagnosticSeverity.error,
           code: 'GEN001',
           message: 'Generation phase error: $e',
-           stackTrace: st,
+          stackTrace: st,
         ),
       );
 
@@ -357,7 +354,7 @@ class UnifiedConversionPipeline {
     final timestamp = DateTime.now().toString().split('.')[0];
     final logLine = '[$timestamp] $message';
     executionLog.add(logLine);
-    if (config.verbose || config.printLogs) print(logLine);
+    if (config.verbose) print(logLine);
   }
 
   String getFullLog() => executionLog.join('\n');
@@ -373,24 +370,6 @@ class UnifiedConversionPipeline {
     print('Execution log entries: ${executionLog.length}');
     print('');
   }
-}
-
-// ============================================================================
-// CONFIGURATION & RESULTS
-// ============================================================================
-
-class PipelineConfig {
-  final bool strictMode;
-  final bool verbose;
-  final bool printLogs;
-  final int optimizationLevel;
-
-  const PipelineConfig({
-    this.strictMode = true,
-    this.verbose = false,
-    this.printLogs = true,
-    this.optimizationLevel = 1,
-  });
 }
 
 class UnifiedPipelineResult {
@@ -489,65 +468,3 @@ class GenerationPhaseResult {
 // ============================================================================
 // INTEGRATION WITH RunCommand
 // ============================================================================
-
-extension RunCommandIntegration on RunCommand {
-  /// Enhanced version that uses the unified pipeline
-  Future<void> runWithUnifiedPipeline({
-    required List<String> dartFiles,
-    required String outputPath,
-    required int optimizationLevel,
-    required bool validate,
-  }) async {
-    final pipeline = UnifiedConversionPipeline(
-      config: PipelineConfig(
-        strictMode: argResults!['strict'] as bool,
-        verbose: verbose,
-        printLogs: !((argResults!['json'] ?? false) as bool),
-        optimizationLevel: optimizationLevel,
-      ),
-    );
-
-    int successCount = 0;
-    int failureCount = 0;
-
-    for (final dartFilePath in dartFiles) {
-      try {
-        final dartFile = _loadDartFile(dartFilePath);
-        final jsOutputPath = _getJsOutputPath(dartFilePath, outputPath);
-
-        final result = await pipeline.executeFullPipeline(
-          dartFile: dartFile,
-          outputPath: jsOutputPath,
-          validate: validate,
-          optimize: optimizationLevel > 0,
-          optimizationLevel: optimizationLevel,
-        );
-
-        if (result.success) {
-          successCount++;
-          result.printReport();
-        } else {
-          failureCount++;
-          result.printReport();
-        }
-      } catch (e) {
-        failureCount++;
-        print('❌ Error processing $dartFilePath: $e');
-      }
-    }
-
-    pipeline.printSummary();
-    print('\n✅ Processed: $successCount successful');
-    print('❌ Failed: $failureCount');
-  }
-
-  DartFile _loadDartFile(String path) {
-    // TODO: Implement based on your DartFile loader
-    throw UnimplementedError();
-  }
-
-  String _getJsOutputPath(String dartPath, String outputDir) {
-    final basename = path.basenameWithoutExtension(dartPath);
-    return path.join(outputDir, '$basename.js');
-  }
-}

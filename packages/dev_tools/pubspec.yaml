@@ -10,11 +10,13 @@ environment:
 # Add regular dependencies here.
 dependencies:
   shelf: ^1.4.0
+  intl: 
   shelf_cors_headers: ^0.1.0
   shelf_multipart: ^2.0.1
   path: ^1.8.0
   args: ^2.4.0
   http: ^1.1.0
+  watcher: ^1.1.4
   flutterjs_core:
     path: ../flutterjs_core
 
