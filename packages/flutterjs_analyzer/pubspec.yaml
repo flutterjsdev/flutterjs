@@ -10,6 +10,8 @@ environment:
 # Add regular dependencies here.
 dependencies:
   path: ^1.9.0
+  dev_tools:
+    path: ../dev_tools
 
 dev_dependencies:
   lints: ^6.0.0
