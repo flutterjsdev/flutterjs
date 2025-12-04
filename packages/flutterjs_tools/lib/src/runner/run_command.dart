@@ -245,11 +245,6 @@ class RunCommand extends Command<void> {
         defaultsTo: true,
       )
       ..addFlag(
-        'clear-cache',
-        help: 'Clear analysis cache before running.',
-        negatable: false,
-      )
-      ..addFlag(
         'generate-reports',
         help: 'Generate detailed conversion reports.',
         defaultsTo: true,
@@ -325,7 +320,7 @@ class RunCommand extends Command<void> {
           int.tryParse(argResults!['devtools-port'] as String) ?? 8765,
       devToolsNoOpen: argResults!['devtools-no-open'] as bool,
       enableDevTools: !(argResults!['devtools-no-open'] as bool),
-      clearCache: argResults!['clear-cache'] as bool,
+
       verbose: verbose,
     );
   }
@@ -642,8 +637,6 @@ class AnalysisPhase {
           context.projectPath,
           maxParallelism: config.maxParallelism,
           enableVerboseLogging: verbose,
-          enableCache: config.enableIncremental,
-          enableParallelProcessing: config.enableParallel,
         );
 
         try {
@@ -1061,7 +1054,7 @@ class PipelineConfig {
   final int devToolsPort;
   final bool devToolsNoOpen;
   final bool enableDevTools;
-  final bool clearCache;
+ 
   final bool verbose;
 
   PipelineConfig({
@@ -1081,7 +1074,7 @@ class PipelineConfig {
     required this.devToolsPort,
     required this.devToolsNoOpen,
     required this.enableDevTools,
-    required this.clearCache,
+
     required this.verbose,
   });
 }

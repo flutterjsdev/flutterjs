@@ -9,12 +9,12 @@ import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
 ///
 /// Performs a **full Phase-1 analysis** of a Flutter.js project, including:
 ///
-///   • Parsing every `.dart` file  
-///   • Dependency resolution  
-///   • Change detection & incremental caching  
-///   • Type registry population  
-///   • Circular dependency detection  
-///   • File metadata extraction (widgets, classes, functions)  
+///   • Parsing every `.dart` file
+///   • Dependency resolution
+///   • Change detection & incremental caching
+///   • Type registry population
+///   • Circular dependency detection
+///   • File metadata extraction (widgets, classes, functions)
 ///
 /// This command **does not generate IR**. It is exclusively responsible for the
 /// initial analysis needed before IR generation or JavaScript conversion.
@@ -24,38 +24,38 @@ import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
 ///
 /// `flutterjs analyze` is used to:
 ///
-/// - Validate project structure  
-/// - Understand which files changed since last analysis  
-/// - Detect errors early  
-/// - Produce a detailed report  
-/// - Prepare data for the IR pipeline (Phase 2+)  
+/// - Validate project structure
+/// - Understand which files changed since last analysis
+/// - Detect errors early
+/// - Produce a detailed report
+/// - Prepare data for the IR pipeline (Phase 2+)
 ///
 /// This phase is equivalent to:
-/// > *"Flutter.js Analyzer Pass: 0 → 1"*  
+/// > *"Flutter.js Analyzer Pass: 0 → 1"*
 ///
 ///
 /// # Key Features
 ///
-/// ### ✔ Incremental Analysis  
+/// ### ✔ Incremental Analysis
 /// Uses caching to skip unchanged files and dramatically reduce processing time.
 ///
-/// ### ✔ Dependency Graph  
+/// ### ✔ Dependency Graph
 /// Builds a complete import/export graph and detects cycles.
 ///
-/// ### ✔ File Metadata  
+/// ### ✔ File Metadata
 /// Extracts:
-/// - widget declarations  
-/// - state classes  
-/// - regular classes  
-/// - typedefs / mixins / enums  
+/// - widget declarations
+/// - state classes
+/// - regular classes
+/// - typedefs / mixins / enums
 ///
-/// ### ✔ Change Detection  
+/// ### ✔ Change Detection
 /// Identifies exactly which files need IR regeneration.
 ///
-/// ### ✔ Parallel Processing  
+/// ### ✔ Parallel Processing
 /// Multi-thread capable (Isolate-based) with `--parallel` & `--max-parallelism`.
 ///
-/// ### ✔ JSON & Text Output  
+/// ### ✔ JSON & Text Output
 /// Perfect for CI/CD or human inspection.
 ///
 ///
@@ -78,35 +78,35 @@ import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
 ///
 /// Run this command:
 ///
-/// - before generating IR  
-/// - after large codebase changes  
-/// - when debugging dependency or caching issues  
-/// - to diagnose errors in Flutter project structure  
+/// - before generating IR
+/// - after large codebase changes
+/// - when debugging dependency or caching issues
+/// - to diagnose errors in Flutter project structure
 ///
 ///
 /// # Output Format (Text)
 ///
 /// Produces structured sections:
 ///
-///   • File statistics  
-///   • Performance metrics  
-///   • Import/export breakdown  
-///   • Dependency graph stats  
-///   • Declarations summary  
-///   • Files with errors  
-///   • Files requiring IR generation  
-///   • Optimization suggestions  
+///   • File statistics
+///   • Performance metrics
+///   • Import/export breakdown
+///   • Dependency graph stats
+///   • Declarations summary
+///   • Files with errors
+///   • Files requiring IR generation
+///   • Optimization suggestions
 ///
 ///
 /// # Output Format (JSON)
 ///
 /// Machine-readable output containing:
-///   - statistics  
-///   - dependency graph  
-///   - type registry summary  
-///   - file metadata  
-///   - errors (if any)  
-///   - changed files needing IR  
+///   - statistics
+///   - dependency graph
+///   - type registry summary
+///   - file metadata
+///   - errors (if any)
+///   - changed files needing IR
 ///
 /// Perfect for CI/CD integrations or custom tooling.
 ///
@@ -135,7 +135,7 @@ import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
 ///
 /// The command exits with **code 1** if:
 ///
-/// - any file contains analysis errors  
+/// - any file contains analysis errors
 ///
 /// Useful for gating builds in CI/CD.
 ///
@@ -253,8 +253,6 @@ class AnalyzeCommand extends Command<void> {
       absolutePath,
       maxParallelism: maxParallelism,
       enableVerboseLogging: verbose,
-      enableCache: enableCache,
-      enableParallelProcessing: enableParallel,
     );
 
     try {
@@ -262,15 +260,6 @@ class AnalyzeCommand extends Command<void> {
       await analyzer.initialize();
 
       // Listen to progress
-      if (!jsonOutput) {
-        analyzer.progressStream.listen((progress) {
-          final percentage = progress.percentage;
-          final bar = _createProgressBar(percentage);
-          stdout.write(
-            '\r${progress.phase.displayName}: $bar $percentage% - ${progress.message}',
-          );
-        });
-      }
 
       // Create orchestrator and run Phase 1 analysis
       final orchestrator = ProjectAnalysisOrchestrator(analyzer);
@@ -693,30 +682,6 @@ class AnalyzeCommand extends Command<void> {
       return value.toString();
     } else {
       return 'null';
-    }
-  }
-}
-
-// Extension for better phase display
-extension AnalysisPhaseDisplay on AnalysisPhase {
-  String get displayName {
-    switch (this) {
-      case AnalysisPhase.starting:
-        return '🚀 Starting';
-      case AnalysisPhase.dependencyResolution:
-        return '🔍 Dependencies';
-      case AnalysisPhase.changeDetection:
-        return '🔄 Changes';
-      case AnalysisPhase.typeResolution:
-        return '🏷️  Types';
-      case AnalysisPhase.caching:
-        return '💾 Caching';
-      case AnalysisPhase.complete:
-        return '✅ Complete';
-      case AnalysisPhase.error:
-        return '❌ Error';
-      case AnalysisPhase.outputGeneration:
-        return '📦 Output';  
     }
   }
 }
