@@ -16,7 +16,7 @@ class BinaryIRServer {
   final int port;
   final String host;
   final bool verbose;
-  final String watchDirectory;
+
   late HttpServer _server;
 
   // ✅ CACHING: Store parsed results
@@ -41,11 +41,9 @@ class BinaryIRServer {
     required this.port,
     required this.host,
     required this.verbose,
-    required this.watchDirectory,
   });
 
   Future<void> start() async {
-    _scanForIRFiles();
     final handler = Pipeline()
         .addMiddleware(_loggingMiddleware)
         .addMiddleware(_errorHandlingMiddleware)
@@ -769,42 +767,6 @@ class BinaryIRServer {
   //     );
   //   }
   // }
-
-  void _scanForIRFiles() {
-    try {
-      final dir = Directory(watchDirectory);
-      if (!dir.existsSync()) {
-        if (verbose) print('⚠️  Directory not found: $watchDirectory');
-        return;
-      }
-
-      _availableFiles.clear();
-      final files = dir.listSync(recursive: false);
-
-      for (final file in files) {
-        if (file is File &&
-            (file.path.endsWith('.ir') || file.path.endsWith('.json'))) {
-          try {
-            _availableFiles.add(
-              IRFileInfo(
-                path: file.path,
-                name: file.uri.pathSegments.last,
-                size: file.lengthSync(),
-                modified: file.statSync().modified,
-              ),
-            );
-            if (verbose) print('📄 Found: ${file.path}');
-          } catch (e) {
-            if (verbose) print('⚠️  Could not stat file ${file.path}: $e');
-          }
-        }
-      }
-
-      if (verbose) print('✅ Scanned: ${_availableFiles.length} IR files\n');
-    } catch (e) {
-      if (verbose) print('❌ Error scanning directory: $e');
-    }
-  }
 
   // ✅ NEW: Error handling middleware
   Handler _errorHandlingMiddleware(Handler innerHandler) {

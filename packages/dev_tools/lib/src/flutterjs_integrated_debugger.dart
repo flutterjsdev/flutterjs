@@ -173,7 +173,7 @@ class FlutterJSIntegratedDebugger {
   void setBreakpoint(String name, bool Function() condition) {
     if (!enabled) return;
     breakpoints[name] = condition;
-    _log(DebugLevel.info, 'Breakpoint set: $name', category: 'breakpoint');
+    log(DebugLevel.info, 'Breakpoint set: $name', category: 'breakpoint');
   }
 
   void checkBreakpoint(String name) {
@@ -182,7 +182,7 @@ class FlutterJSIntegratedDebugger {
     final condition = breakpoints[name];
     if (condition != null && condition()) {
       isPaused = true;
-      _log(DebugLevel.error, '🛑 BREAKPOINT HIT: $name', category: 'breakpoint');
+      log(DebugLevel.error, '🛑 BREAKPOINT HIT: $name', category: 'breakpoint');
       
       if (interactiveMode) {
         _interactiveDebugger();
@@ -200,7 +200,7 @@ class FlutterJSIntegratedDebugger {
       
       watcher.events.listen((event) {
         if (event.path.endsWith('.dart')) {
-          _log(
+          log(
             DebugLevel.info,
             '🔄 File changed: ${event.path}',
             category: 'watcher',
@@ -208,9 +208,9 @@ class FlutterJSIntegratedDebugger {
         }
       });
 
-      _log(DebugLevel.info, 'File watcher started on lib/', category: 'watcher');
+      log(DebugLevel.info, 'File watcher started on lib/', category: 'watcher');
     } catch (e) {
-      _log(DebugLevel.warn, 'File watcher failed: $e', category: 'watcher');
+      log(DebugLevel.warn, 'File watcher failed: $e', category: 'watcher');
     }
   }
 
@@ -218,7 +218,7 @@ class FlutterJSIntegratedDebugger {
   /// LOGGING
   /// ═══════════════════════════════════════════════════════════════════════
 
-  void _log(
+  void log(
     DebugLevel level,
     String message, {
     dynamic value,
@@ -241,7 +241,7 @@ class FlutterJSIntegratedDebugger {
   }
 
   void _logStart(String operationName, String? category) {
-    _log(DebugLevel.debug, '▶ $operationName', category: category ?? 'operation');
+    log(DebugLevel.debug, '▶ $operationName', category: category ?? 'operation');
   }
 
   void _logSuccess(String operationName, Duration duration, int memoryDelta) {
@@ -253,7 +253,7 @@ class FlutterJSIntegratedDebugger {
         ? ' (mem: ${(memoryDelta / 1024 / 1024).toStringAsFixed(2)}MB)'
         : '';
     
-    _log(
+    log(
       DebugLevel.debug,
       '✅ $operationName: $time$mem',
       category: 'operation',
@@ -261,7 +261,7 @@ class FlutterJSIntegratedDebugger {
   }
 
   void _logError(String operationName, String error) {
-    _log(
+    log(
       DebugLevel.error,
       '❌ $operationName failed: $error',
       category: 'operation',

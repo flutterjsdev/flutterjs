@@ -7,9 +7,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutterjs_tools/command.dart';
-import 'package:path/path.dart' as path;
+
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_gen/src/file_generation/file_code_gen.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart';
 
 // ============================================================================
@@ -33,15 +32,32 @@ class UnifiedConversionPipeline {
   final List<String> executionLog = [];
   final List<DiagnosticIssue> allIssues = [];
 
-  UnifiedConversionPipeline({required this.config});
+  UnifiedConversionPipeline({required this.config}) {
+    // ✅ INITIALIZE ALL LATE FIELDS IN CONSTRUCTOR
+    _initializeEngines();
+  }
 
-  void _initialize() {
-    diagnosticEngine = ModelToJSDiagnosticEngine();
-    integrationPipeline = ModelToJSPipeline();
-    fileCodeGen = FileCodeGen(
-      propConverter: FlutterPropConverter(),
-      runtimeRequirements: RuntimeRequirements(),
-    );
+  void _initializeEngines() {
+    try {
+      diagnosticEngine = ModelToJSDiagnosticEngine();
+      integrationPipeline = ModelToJSPipeline();
+      fileCodeGen = FileCodeGen(
+        // Pass default generators - adjust based on your actual constructors
+        exprCodeGen: ExpressionCodeGen(),
+        stmtCodeGen: StatementCodeGen(),
+        classCodeGen: ClassCodeGen(),
+        funcCodeGen: FunctionCodeGen(),
+        propConverter: FlutterPropConverter(),
+        runtimeRequirements: RuntimeRequirements(),
+        outputValidator: OutputValidator(''),
+        jsOptimizer: JSOptimizer(''),
+      );
+
+      _log('✅ Pipeline engines initialized');
+    } catch (e) {
+      _log('❌ Failed to initialize pipeline engines: $e');
+      rethrow;
+    }
   }
 
   // =========================================================================
@@ -57,11 +73,15 @@ class UnifiedConversionPipeline {
     int optimizationLevel = 1,
   }) async {
     final stopwatch = Stopwatch()..start();
-    //  UnifiedPipelineResult result = UnifiedPipelineResult();
+
+    _log('═══ STARTING FULL PIPELINE ═══');
+    _log('📁 Output path: $outputPath');
+    _log('🔧 Optimize: $optimize (level $optimizationLevel)');
+    _log('✔️  Validate: $validate');
 
     try {
       // ===== PHASE 0: DIAGNOSTIC VALIDATION =====
-      _log('📋 Phase 0: IR Structure Validation');
+      _log('ðŸ"‹ Phase 0: IR Structure Validation');
       final diagnosticReport = await _runDiagnosticsPhase(
         dartFile,
         validate: validate,
@@ -70,7 +90,7 @@ class UnifiedConversionPipeline {
       allIssues.addAll(diagnosticReport.issues);
 
       if (diagnosticReport.hasCriticalIssues && config.strictMode) {
-        _log('❌ Diagnostics failed with critical issues');
+        _log('âŒ Diagnostics failed with critical issues');
         return UnifiedPipelineResult.failed(
           message: 'Diagnostic validation failed',
           issues: diagnosticReport.issues,
@@ -78,17 +98,17 @@ class UnifiedConversionPipeline {
         );
       }
 
-      _log('✅ Diagnostics complete (${diagnosticReport.totalIssues} issues)');
+      _log('âœ… Diagnostics complete (${diagnosticReport.totalIssues} issues)');
 
       // ===== PHASES 1-3: IR GENERATION & INTEGRATION =====
-      _log('🔄 Phases 1-3: IR Generation & Integration');
+      _log('ðŸ"„ Phases 1-3: IR Generation & Integration');
       final integrationResult = await _runIntegrationPhases(
         dartFile: dartFile,
         outputPath: outputPath,
       );
 
       if (!integrationResult.success && config.strictMode) {
-        _log('❌ Integration phases failed');
+        _log('âŒ Integration phases failed');
         return UnifiedPipelineResult.failed(
           message: 'Integration phases failed',
           issues: allIssues,
@@ -96,10 +116,15 @@ class UnifiedConversionPipeline {
         );
       }
 
-      _log('✅ Integration complete');
+      _log('âœ… Integration complete');
 
       // ===== PHASES 4-6: FILE GENERATION & VALIDATION =====
-      _log('✍️  Phases 4-6: File Generation, Validation & Optimization');
+      _log('âœï¸  Phases 4-6: File Generation, Validation & Optimization');
+      _log('📝 About to call _runGenerationPhases');
+      _log('   - Optimize: $optimize');
+      _log('   - Optimization Level: $optimizationLevel');
+      _log('   - Output Path: $outputPath');
+
       final generationResult = await _runGenerationPhases(
         dartFile: dartFile,
         outputPath: outputPath,
@@ -108,8 +133,14 @@ class UnifiedConversionPipeline {
         optimizationLevel: optimizationLevel,
       );
 
+      _log('📊 Generation result received:');
+      _log('   - Success: ${generationResult.success}');
+      _log('   - Code length: ${generationResult.code?.length ?? 0} bytes');
+      _log('   - Message: ${generationResult.message}');
+      _log('   - Output path: ${generationResult.outputPath}');
+
       if (!generationResult.success && config.strictMode) {
-        _log('❌ Generation phases failed');
+        _log('âŒ Generation phases failed');
         return UnifiedPipelineResult.failed(
           message: generationResult.message ?? "unknown error",
           issues: allIssues,
@@ -117,7 +148,18 @@ class UnifiedConversionPipeline {
         );
       }
 
-      _log('✅ Generation complete');
+      // CHECK IF FILE WAS ACTUALLY WRITTEN
+      if (generationResult.outputPath != null) {
+        final outputFile = File(generationResult.outputPath!);
+        final fileExists = await outputFile.exists();
+        final fileSize = fileExists ? await outputFile.length() : 0;
+        _log('🔍 File verification:');
+        _log('   - Path: ${generationResult.outputPath}');
+        _log('   - Exists: $fileExists');
+        _log('   - Size: $fileSize bytes');
+      }
+
+      _log('âœ… Generation complete');
 
       stopwatch.stop();
 
@@ -136,7 +178,9 @@ class UnifiedConversionPipeline {
         },
       );
     } catch (e, st) {
-      _log('❌ Pipeline error: $e');
+      _log('âŒ Pipeline error: $e');
+      _log('Stack trace:');
+      _log(st.toString());
       if (config.verbose) _log('Stack: $st');
 
       return UnifiedPipelineResult.failed(
@@ -146,7 +190,6 @@ class UnifiedConversionPipeline {
       );
     }
   }
-
   // =========================================================================
   // PHASE 0: DIAGNOSTIC VALIDATION
   // =========================================================================
@@ -250,34 +293,44 @@ class UnifiedConversionPipeline {
     required int optimizationLevel,
   }) async {
     try {
-      _log('  - Generating JavaScript code');
+      _log('  ✏️  Phase 4-6 START');
+      _log('     Input DartFile: ${dartFile.filePath}');
+      _log('     Output path: $outputPath');
 
       // ===== PHASE 4: FILE-LEVEL GENERATION =====
-      final jsCode = await fileCodeGen.generate(
+      _log('  - Phase 4: Generating JavaScript code');
+
+      var jsCode = await fileCodeGen.generate(
         dartFile,
         validate: validate,
         optimize: optimize,
         optimizationLevel: optimizationLevel,
       );
 
+      _log('  - Generated code length: ${jsCode.length} bytes');
+
       if (jsCode.isEmpty) {
-        _log('  - Error: Generated code is empty');
+        _log('  - ❌ ERROR: Generated code is EMPTY');
         return GenerationPhaseResult(
           success: false,
           message: 'Generated code is empty',
         );
       }
 
-      _log('  - JavaScript generated: ${jsCode.length} bytes');
+      _log('  - ✅ Code generated successfully');
 
       // ===== PHASE 5: VALIDATION & OPTIMIZATION =====
       if (validate) {
-        _log('  - Validating generated code');
+        _log('  - Phase 5A: Validating generated code');
+
+        // ✅ Initialize OutputValidator with generated code
         final validator = OutputValidator(jsCode);
         final validationReport = await validator.validate();
 
         if (validationReport.hasCriticalIssues) {
-          _log('  - ⚠️  Validation issues found');
+          _log(
+            '  - ⚠️  Validation issues found: ${validationReport.errorCount}',
+          );
           if (config.verbose) {
             for (final error in validationReport.errors.take(3)) {
               _log('    • ${error.message}');
@@ -288,8 +341,12 @@ class UnifiedConversionPipeline {
         }
       }
 
+      Map<String, dynamic> optimizationReport = {};
+
       if (optimize) {
-        _log('  - Optimizing code (level $optimizationLevel)');
+        _log('  - Phase 5B: Optimizing code (level $optimizationLevel)');
+
+        // ✅ Initialize JSOptimizer with generated code
         final optimizer = JSOptimizer(jsCode);
         final optimizedCode = optimizer.optimize(
           level: optimizationLevel,
@@ -300,35 +357,58 @@ class UnifiedConversionPipeline {
         final reduction_pct = (reduction / jsCode.length * 100).toStringAsFixed(
           1,
         );
-        _log('  - Optimization: -$reduction bytes ($reduction_pct%)');
+        _log('  - ✅ Optimization: -$reduction bytes ($reduction_pct%)');
+        _log('     Before: ${jsCode.length}, After: ${optimizedCode.length}');
 
-        return GenerationPhaseResult(
-          success: true,
-          code: optimizedCode,
-          optimizationReport: {
-            'original_size': jsCode.length,
-            'optimized_size': optimizedCode.length,
-            'reduction_bytes': reduction,
-            'reduction_percent': reduction_pct,
-          },
-        );
+        jsCode = optimizedCode;
+
+        optimizationReport = {
+          'original_size': jsCode.length,
+          'optimized_size': optimizedCode.length,
+          'reduction_bytes': reduction,
+          'reduction_percent': reduction_pct,
+        };
       }
 
       // ===== PHASE 6: OUTPUT =====
-      _log('  - Writing output file');
+      _log('  - Phase 6: Writing output file');
+      _log('     Path: $outputPath');
+      _log('     Code size: ${jsCode.length} bytes');
+
       final outputFile = File(outputPath);
+
+      _log('     Creating parent directories...');
       await outputFile.parent.create(recursive: true);
+      _log('     ✅ Parent directory created');
+
+      _log('     Writing file...');
       await outputFile.writeAsString(jsCode);
+      _log('     ✅ File written');
+
+      // VERIFY FILE WAS WRITTEN
+      final fileExists = await outputFile.exists();
+      final fileSize = await outputFile.length();
+      _log('     📊 File verification:');
+      _log('        - Exists: $fileExists');
+      _log('        - Size: $fileSize bytes');
+
+      if (!fileExists) {
+        _log('     ❌ WARNING: File does not exist after write!');
+      }
+
       _log('  - ✅ File written: $outputPath');
 
       return GenerationPhaseResult(
         success: true,
         code: jsCode,
         outputPath: outputPath,
+        optimizationReport: optimizationReport.isNotEmpty
+            ? optimizationReport
+            : null,
       );
     } catch (e, st) {
-      _log('  - Generation error: $e');
-      if (config.verbose) _log('  - Stack: $st');
+      _log('  - ❌ Generation error: $e');
+      _log('     Stack: $st');
 
       allIssues.add(
         DiagnosticIssue(
@@ -345,7 +425,6 @@ class UnifiedConversionPipeline {
       );
     }
   }
-
   // =========================================================================
   // UTILITIES
   // =========================================================================

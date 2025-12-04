@@ -6,6 +6,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:dev_tools/dev_tools.dart';
 import 'package:args/command_runner.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart';
@@ -14,6 +15,7 @@ import 'package:flutterjs_tools/src/runner/helper.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:flutterjs_gen/flutterjs_gen.dart' as com;
 
 /// ============================================================================
 /// RunCommand
@@ -279,7 +281,11 @@ class RunCommand extends Command<void> {
       final config = _parseConfig();
 
       // Setup phase
-      final context = await _setupContext(config);
+      final context = await debugger.observe(
+        'setup_phase',
+        () => _setupContext(config),
+        category: 'setup',
+      );
       if (context == null) exit(1);
 
       // Execute pipeline
@@ -320,7 +326,7 @@ class RunCommand extends Command<void> {
       devToolsNoOpen: argResults!['devtools-no-open'] as bool,
       enableDevTools: !(argResults!['devtools-no-open'] as bool),
       clearCache: argResults!['clear-cache'] as bool,
-      verbose: argResults!['verbose'] as bool,
+      verbose: verbose,
     );
   }
 
@@ -396,31 +402,46 @@ class RunCommand extends Command<void> {
 
     // Start DevTools if enabled
     if (config.enableDevTools) {
-      _devToolsServer = await DevToolsManager.start(config, context);
+      _devToolsServer = await debugger.observe(
+        'devtools_startup',
+        () => DevToolsManager.start(config, context),
+        category: 'devtools',
+      );
     }
 
     // Run analysis & IR generation
-    final analysisResults = await AnalysisPhase.execute(
-      config,
-      context,
-      verbose,
+    final analysisResults = await debugger.observe(
+      'phase_1_analysis',
+      () => AnalysisPhase.execute(config, context, verbose),
+      category: 'analysis',
     );
-    final irResults = await IRGenerationPhase.execute(
-      config,
-      context,
-      analysisResults,
-      verbose,
+    final irResults = await debugger.observe(
+      'phase_2_ir_generation',
+      () =>
+          IRGenerationPhase.execute(config, context, analysisResults, verbose),
+      category: 'ir_generation',
     );
 
     // Convert to JavaScript
     var jsResults = JSConversionResult.empty();
+
+    // ✅ FIX: Check the flag properly
     if (config.toJs) {
-      jsResults = await JSConversionPhase.execute(
-        config,
-        context,
-        irResults,
-        verbose,
+      if (!config.jsonOutput) {
+        print('');
+        print('PHASES 4-6: Converting IR to JavaScript...');
+      }
+
+      jsResults = await debugger.observe(
+        'phase_4_6_js_conversion',
+        () => JSConversionPhase.execute(config, context, irResults, verbose),
+        category: 'js_conversion',
       );
+    } else {
+      if (!config.jsonOutput) {
+        print('');
+        print('⏭️  Skipping JS conversion (--to-js flag not set)');
+      }
     }
 
     return PipelineResults(
@@ -430,7 +451,6 @@ class RunCommand extends Command<void> {
       duration: Stopwatch()..start(),
     );
   }
-
   // =========================================================================
   // REPORTING & OUTPUT
   // =========================================================================
@@ -472,10 +492,11 @@ class RunCommand extends Command<void> {
       if (!config.jsonOutput) {
         print('\n⏳ DevTools server is running. Press Ctrl+C to stop.\n');
       }
-      // Server continues running
     }
 
-    // Exit with error if strict mode and issues found
+    // ✅ NEW: Print debugger summary
+    debugger.printSummary();
+
     if (config.strictMode &&
         (debugger.logs.any((l) => l.level == DebugLevel.error))) {
       exit(1);
@@ -509,7 +530,7 @@ class SetupManager {
         return null;
       }
 
-      final absoluteProjectPath = projectDir.absolute.path;
+      final absoluteProjectPath = path.normalize(projectDir.absolute.path);
       final absoluteSourcePath = path.join(
         absoluteProjectPath,
         config.sourcePath,
@@ -601,40 +622,56 @@ class AnalysisPhase {
     PipelineContext context,
     bool verbose,
   ) async {
-    return await debugger.observe('phase_1_analysis', () async {
+    return await debugger.observe('analysis_phase', () async {
       if (!config.jsonOutput) print('PHASE 1: Analyzing project...\n');
 
       if (config.skipAnalysis) {
-        return AnalysisResults.skipped(
-          filesToConvert: await _discoverAllDartFiles(context.sourcePath),
+        return await debugger.observe(
+          'discover_all_dart_files',
+          () async => AnalysisResults.skipped(
+            filesToConvert: await _discoverAllDartFiles(
+              path.normalize(context.sourcePath),
+            ),
+          ),
+          category: 'analysis',
         );
       }
 
-      final analyzer = ProjectAnalyzer(
-        context.projectPath,
-        maxParallelism: config.maxParallelism,
-        enableVerboseLogging: verbose,
-        enableCache: config.enableIncremental,
-        enableParallelProcessing: config.enableParallel,
-      );
+      return await debugger.observe('project_analysis', () async {
+        final analyzer = ProjectAnalyzer(
+          context.projectPath,
+          maxParallelism: config.maxParallelism,
+          enableVerboseLogging: verbose,
+          enableCache: config.enableIncremental,
+          enableParallelProcessing: config.enableParallel,
+        );
 
-      try {
-        await analyzer.initialize();
-        final orchestrator = ProjectAnalysisOrchestrator(analyzer);
-        final report = await orchestrator.analyze();
+        try {
+          await debugger.observe(
+            'analyzer_initialization',
+            () => analyzer.initialize(),
+            category: 'analysis',
+          );
 
-        if (!config.jsonOutput) {
-          _printAnalysisSummary(report, config.showAnalysis);
-          // ❌ FIX #5: Add missing print
-          print('\n  Files for conversion: ${report.changedFiles.length}\n');
+          final orchestrator = ProjectAnalysisOrchestrator(analyzer);
+          final report = await debugger.observe(
+            'orchestrated_analysis',
+            () => orchestrator.analyze(),
+            category: 'analysis',
+          );
+
+          if (!config.jsonOutput) {
+            _printAnalysisSummary(report, config.showAnalysis);
+            print('\n  Files for conversion: ${report.changedFiles.length}\n');
+          }
+
+          analyzer.dispose();
+          return AnalysisResults.success(report);
+        } catch (e) {
+          analyzer.dispose();
+          rethrow;
         }
-
-        analyzer.dispose();
-        return AnalysisResults.success(report);
-      } catch (e) {
-        analyzer.dispose();
-        rethrow;
-      }
+      }, category: 'analysis');
     }, category: 'analysis');
   }
 
@@ -670,7 +707,7 @@ class IRGenerationPhase {
     AnalysisResults analysisResults,
     bool verbose,
   ) async {
-    return await debugger.observe('phase_2_ir_generation', () async {
+    return await debugger.observe('ir_generation_phase', () async {
       if (!config.jsonOutput) {
         print(
           'PHASE 2: Generating IR for ${analysisResults.filesToConvert.length} files...\n',
@@ -678,16 +715,24 @@ class IRGenerationPhase {
       }
 
       final irGenerator = IRGenerator(verbose: verbose);
-      final results = await irGenerator.generateIR(
-        dartFiles: analysisResults.filesToConvert,
-        projectRoot: context.projectPath,
-        parallel: config.enableParallel,
-        maxParallelism: config.maxParallelism,
+      final results = await debugger.observe(
+        'all_ir_passes',
+        () => irGenerator.generateIR(
+          dartFiles: analysisResults.filesToConvert,
+          projectRoot: context.projectPath,
+          parallel: config.enableParallel,
+          maxParallelism: config.maxParallelism,
+        ),
+        category: 'ir_generation',
       );
 
       // Serialize IR
       if (!config.jsonOutput) print('PHASE 3: Serializing IR...\n');
-      await _serializeIR(results, context.reportsPath);
+      await debugger.observe(
+        'ir_serialization',
+        () => _serializeIR(results, context.reportsPath),
+        category: 'ir_generation',
+      );
 
       return results;
     }, category: 'ir_generation');
@@ -704,6 +749,7 @@ class IRGenerationPhase {
 }
 
 /// Handles JavaScript conversion (Phases 4-6)
+/// Handles JavaScript conversion (Phases 4-6)
 class JSConversionPhase {
   static Future<JSConversionResult> execute(
     PipelineConfig config,
@@ -711,20 +757,129 @@ class JSConversionPhase {
     IRGenerationResults irResults,
     bool verbose,
   ) async {
-    return await debugger.observe('phase_4_6_js_conversion', () async {
+    return await debugger.observe('js_conversion_phase', () async {
       if (!config.jsonOutput) {
         print(
           'PHASES 4-6: Converting IR to JavaScript with Validation & Optimization\n',
         );
       }
 
-      final converter = JSConverter(
-        config: config,
-        context: context,
-        verbose: verbose,
-      );
+      int filesGenerated = 0;
+      int filesFailed = 0;
+      final warnings = <String>[];
+      final errors = <String>[];
 
-      return await converter.convertAll(irResults);
+      final pipeline = UnifiedConversionPipeline(config: config);
+
+      for (final entry in irResults.dartFiles.entries) {
+        final dartFilePath = entry.key;
+        final dartFile = entry.value;
+        final fileName = path.basename(dartFilePath);
+
+        try {
+          final normalizedDartPath = path.normalize(dartFilePath);
+          final normalizedSourcePath = path.normalize(context.sourcePath);
+
+          if (!normalizedDartPath.startsWith(normalizedSourcePath)) {
+            if (verbose) {
+              print('  ⚠️  Skipping: $dartFilePath (outside source path)');
+            }
+            continue;
+          }
+
+          final relativePath = path.relative(
+            normalizedDartPath,
+            from: normalizedSourcePath,
+          );
+
+          var relativeDir = path.dirname(relativePath);
+          if (relativeDir == '.') relativeDir = '';
+
+          final fileNameWithoutExt = path.basenameWithoutExtension(
+            normalizedDartPath,
+          );
+          final jsFileName = '$fileNameWithoutExt.js';
+
+          final jsOutputFile = relativeDir.isEmpty
+              ? File(path.join(context.jsOutputPath, jsFileName))
+              : File(path.join(context.jsOutputPath, relativeDir, jsFileName));
+
+          if (verbose) {
+            print('  Processing: $fileName');
+          }
+
+          final pipelineResult = await pipeline.executeFullPipeline(
+            dartFile: dartFile,
+            outputPath: jsOutputFile.path,
+            validate: config.validateOutput,
+            optimize: config.jsOptLevel > 0,
+            optimizationLevel: config.jsOptLevel,
+          );
+
+          if (!pipelineResult.success) {
+            filesFailed++;
+            final errorMsg = pipelineResult.errorMessage ?? 'Unknown error';
+            errors.add('$fileName: $errorMsg');
+
+            if (verbose) {
+              print('    ❌ Failed: $errorMsg');
+            }
+
+            if (config.strictMode) {
+              exit(1);
+            }
+            continue;
+          }
+
+          // ✅ WRITE THE FILE
+          filesGenerated++;
+          await jsOutputFile.parent.create(recursive: true);
+          await jsOutputFile.writeAsString(pipelineResult.code ?? '');
+
+          if (verbose) {
+            final sizeKb = ((pipelineResult.code?.length ?? 0) / 1024)
+                .toStringAsFixed(2);
+            print('    ✅ Generated ($sizeKb KB)');
+          }
+
+          // Collect warnings
+          if (pipelineResult.diagnosticReport != null) {
+            for (final issue in pipelineResult.diagnosticReport!.issues) {
+              if (issue.severity == DiagnosticSeverity.warning) {
+                warnings.add('$fileName: ${issue.message}');
+              }
+            }
+          }
+        } catch (e, st) {
+          filesFailed++;
+          errors.add('$fileName: Exception: $e');
+
+          if (verbose) {
+            print('    ❌ Error: $e');
+            print('       $st');
+          }
+
+          if (config.strictMode) {
+            exit(1);
+          }
+        }
+      }
+
+      if (!config.jsonOutput) {
+        print('\n  Generated: $filesGenerated files ✅');
+        print('  Failed: $filesFailed files ❌');
+        if (warnings.isNotEmpty) print('  Warnings: ${warnings.length} ⚠️');
+        if (errors.isNotEmpty) print('  Errors: ${errors.length} ❌');
+        print('');
+      }
+
+      return JSConversionResult(
+        filesGenerated: filesGenerated,
+        filesFailed: filesFailed,
+        warnings: warnings,
+        errors: errors,
+        outputPath: context.jsOutputPath,
+      );
     }, category: 'js_conversion');
   }
 }
@@ -1018,6 +1173,9 @@ class JSConversionResult {
 }
 
 // ADD THIS:
+// ADD THIS NEW CLASS TO DOCUMENT 1
+// Place it after JSConversionPhase class (around line 550)
+
 class JSConverter {
   final PipelineConfig config;
   final PipelineContext context;
@@ -1029,7 +1187,6 @@ class JSConverter {
     required this.verbose,
   });
 
-  // ❌ FIX #3: REMOVED duplicate 'config' parameter
   Future<JSConversionResult> convertAll(IRGenerationResults irResults) async {
     int filesGenerated = 0;
     int filesFailed = 0;
@@ -1039,84 +1196,114 @@ class JSConverter {
     final pipeline = UnifiedConversionPipeline(config: config);
 
     for (final entry in irResults.dartFiles.entries) {
+      final dartFilePath = entry.key;
+      final dartFile = entry.value;
+      final fileName = path.basename(dartFilePath);
+
       try {
-        final dartFilePath = entry.key;
-        final dartFile = entry.value;
+        await debugger.observe('convert_$fileName', () async {
+          final normalizedDartPath = path.normalize(dartFilePath);
+          final normalizedSourcePath = path.normalize(context.sourcePath);
 
-        final normalizedDartPath = path.normalize(dartFilePath);
-        final normalizedSourcePath = path.normalize(context.sourcePath);
+          if (!normalizedDartPath.startsWith(normalizedSourcePath)) {
+            if (verbose) {
+              debugger.log(
+                DebugLevel.warn,
+                'Skipping: $dartFilePath (outside source path)',
+                category: 'js_conversion',
+              );
+            }
+            return;
+          }
 
-        if (!normalizedDartPath.startsWith(normalizedSourcePath)) {
-          if (verbose)
-            print('  ⚠️  Skipping: $dartFilePath (outside source path)');
-          continue;
-        }
+          final relativePath = path.relative(
+            normalizedDartPath,
+            from: normalizedSourcePath,
+          );
 
-        final relativePath = path.relative(
-          normalizedDartPath,
-          from: normalizedSourcePath,
-        );
-        final relativeDir = path.dirname(relativePath);
-        final fileNameWithoutExt = path.basenameWithoutExtension(
-          normalizedDartPath,
-        );
-        final jsFileName = '$fileNameWithoutExt.js';
+          var relativeDir = path.dirname(relativePath);
+          if (relativeDir == '.') relativeDir = '';
 
-        final jsOutputFile = relativeDir == '.'
-            ? File(path.join(context.jsOutputPath, jsFileName))
-            : File(path.join(context.jsOutputPath, relativeDir, jsFileName));
+          final fileNameWithoutExt = path.basenameWithoutExtension(
+            normalizedDartPath,
+          );
+          final jsFileName = '$fileNameWithoutExt.js';
 
-        if (verbose) print('  Processing: ${path.basename(dartFilePath)}');
+          final jsOutputFile = relativeDir.isEmpty
+              ? File(path.join(context.jsOutputPath, jsFileName))
+              : File(path.join(context.jsOutputPath, relativeDir, jsFileName));
 
-        final pipelineResult = await pipeline.executeFullPipeline(
-          dartFile: dartFile,
-          outputPath: jsOutputFile.path,
-          validate: config.validateOutput,
-          optimize: config.jsOptLevel > 0,
-          optimizationLevel: config.jsOptLevel,
-        );
+          if (verbose) {
+            debugger.log(
+              DebugLevel.debug,
+              'Processing: $fileName',
+              category: 'js_conversion',
+            );
+          }
 
-        if (!pipelineResult.success) {
-          filesFailed++;
-          final errorMsg = pipelineResult.errorMessage ?? 'Unknown error';
-          errors.add('${path.basename(dartFilePath)}: $errorMsg');
-          if (verbose) print('    ❌ Failed: $errorMsg');
-          if (config.strictMode) exit(1);
-          continue;
-        }
+          final pipelineResult = await pipeline.executeFullPipeline(
+            dartFile: dartFile,
+            outputPath: jsOutputFile.path,
+            validate: config.validateOutput,
+            optimize: config.jsOptLevel > 0,
+            optimizationLevel: config.jsOptLevel,
+          );
 
-        filesGenerated++;
-        await jsOutputFile.parent.create(recursive: true);
-        await jsOutputFile.writeAsString(pipelineResult.code ?? '');
+          if (!pipelineResult.success) {
+            filesFailed++;
+            final errorMsg = pipelineResult.errorMessage ?? 'Unknown error';
+            errors.add('$fileName: $errorMsg');
 
-        if (verbose) {
-          final sizeKb = ((pipelineResult.code?.length ?? 0) / 1024)
-              .toStringAsFixed(2);
-          print('    ✅ Generated ($sizeKb KB)');
-        }
+            debugger.log(
+              DebugLevel.error,
+              'Failed: $errorMsg',
+              category: 'js_conversion',
+            );
 
-        if (pipelineResult.diagnosticReport != null) {
-          for (final issue in pipelineResult.diagnosticReport!.issues) {
-            if (issue.severity == DiagnosticSeverity.warning) {
-              warnings.add('${path.basename(dartFilePath)}: ${issue.message}');
+            if (config.strictMode) exit(1);
+            return;
+          }
+
+          filesGenerated++;
+          await jsOutputFile.parent.create(recursive: true);
+          await jsOutputFile.writeAsString(pipelineResult.code ?? '');
+
+          if (verbose) {
+            final sizeKb = ((pipelineResult.code?.length ?? 0) / 1024)
+                .toStringAsFixed(2);
+            debugger.log(
+              DebugLevel.debug,
+              'Generated ($sizeKb KB)',
+              category: 'js_conversion',
+            );
+          }
+
+          if (pipelineResult.diagnosticReport != null) {
+            for (final issue in pipelineResult.diagnosticReport!.issues) {
+              if (issue.severity == DiagnosticSeverity.warning) {
+                warnings.add('$fileName: ${issue.message}');
+
+                debugger.log(
+                  DebugLevel.warn,
+                  issue.message,
+                  category: 'js_conversion',
+                );
+              }
             }
           }
-        }
+        }, category: 'js_conversion');
       } catch (e) {
         filesFailed++;
-        errors.add('${path.basename(entry.key)}: Exception: $e');
-        if (verbose) print('    ❌ Error: $e');
+        errors.add('$fileName: Exception: $e');
+
+        debugger.log(
+          DebugLevel.error,
+          'Error converting $fileName: $e',
+          category: 'js_conversion',
+        );
+
         if (config.strictMode) exit(1);
       }
-    }
-
-    if (!config.jsonOutput) {
-      print('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('  Generated: $filesGenerated files ✅');
-      print('  Failed: $filesFailed files ❌');
-      if (warnings.isNotEmpty) print('  Warnings: ${warnings.length} ⚠️');
-      if (errors.isNotEmpty) print('  Errors: ${errors.length} ❌');
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     }
 
     return JSConversionResult(
@@ -1141,33 +1328,68 @@ class IRGenerator {
     required bool parallel,
     required int maxParallelism,
   }) async {
-    // ❌ FIX #4: Move stopwatch START to beginning
     final stopwatch = Stopwatch()..start();
     final results = IRGenerationResults();
 
     try {
-      // Run all 5 passes
-      await _runDeclarationPass(dartFiles, projectRoot, results);
-      await _runSymbolResolutionPass(results);
-      await _runTypeInferencePass(results);
-      await _runFlowAnalysisPass(results);
-      await _runValidationPass(results);
+      await debugger.observe(
+        'pass_1_declaration_discovery',
+        () => _runDeclarationPass(
+          dartFiles: dartFiles,
+          projectRoot: projectRoot,
+          results: results,
+          verbose: verbose,
+        ),
+        category: 'ir_pass',
+      );
+
+      await debugger.observe(
+        'pass_2_symbol_resolution',
+        () => _runSymbolResolutionPass(results: results, verbose: verbose),
+        category: 'ir_pass',
+      );
+
+      await debugger.observe(
+        'pass_3_type_inference',
+        () => _runTypeInferencePass(results: results, verbose: verbose),
+        category: 'ir_pass',
+      );
+
+      await debugger.observe(
+        'pass_4_flow_analysis',
+        () => _runFlowAnalysisPass(results: results, verbose: verbose),
+        category: 'ir_pass',
+      );
+
+      await debugger.observe(
+        'pass_5_validation_diagnostics',
+        () => _runValidationPass(results: results, verbose: verbose),
+        category: 'ir_pass',
+      );
 
       stopwatch.stop();
       results.totalDurationMs = stopwatch.elapsedMilliseconds;
     } catch (e) {
       stopwatch.stop();
+      debugger.log(
+        DebugLevel.error,
+        'IR generation failed: $e',
+        category: 'ir_pass',
+      );
       rethrow;
     }
 
     return results;
   }
 
-  Future<void> _runDeclarationPass(
-    List<String> dartFiles,
-    String projectRoot,
-    IRGenerationResults results,
-  ) async {
+  Future<void> _runDeclarationPass({
+    required List<String> dartFiles,
+    required String projectRoot,
+    required IRGenerationResults results,
+    required bool verbose,
+  }) async {
+    int filesProcessed = 0;
+
     for (final filePath in dartFiles) {
       try {
         final file = File(filePath);
@@ -1178,7 +1400,14 @@ class IRGenerator {
           filePath: filePath,
           projectRoot: projectRoot,
         );
-        final unit = DartFileParser.parseFile(filePath);
+
+        CompilationUnit? unit;
+        try {
+          unit = DartFileParser.parseFile(filePath);
+        } catch (_) {
+          continue;
+        }
+
         if (unit == null) continue;
 
         final pass = DeclarationPass(
@@ -1188,55 +1417,119 @@ class IRGenerator {
         );
         pass.extractDeclarations(unit);
 
-        results.dartFiles[filePath] = builder.build();
-        if (verbose) print('    ${path.basename(filePath)} parsed');
+        final dartFile = builder.build();
+        results.dartFiles[filePath] = dartFile;
+        filesProcessed++;
+
+        if (verbose) {
+          debugger.log(
+            DebugLevel.debug,
+            '${path.basename(filePath)} (${dartFile.declarationCount} decls)',
+            category: 'declaration_pass',
+          );
+        }
       } catch (e) {
-        if (verbose) print('    Error parsing ${path.basename(filePath)}: $e');
+        if (verbose) {
+          debugger.log(
+            DebugLevel.warn,
+            'Error parsing ${path.basename(filePath)}: $e',
+            category: 'declaration_pass',
+          );
+        }
       }
+    }
+
+    if (!verbose) {
+      debugger.log(
+        DebugLevel.debug,
+        'Processed: $filesProcessed files',
+        category: 'declaration_pass',
+      );
     }
   }
 
-  Future<void> _runSymbolResolutionPass(IRGenerationResults results) async {
+  Future<void> _runSymbolResolutionPass({
+    required IRGenerationResults results,
+    required bool verbose,
+  }) async {
     final pass = SymbolResolutionPass(
       dartFiles: results.dartFiles,
       projectRoot: '',
     );
     pass.resolveAllSymbols();
+
     results.resolutionIssues.addAll(pass.resolutionIssues);
     results.widgetStateBindings.addAll(pass.widgetStateBindings);
     results.providerRegistry.addAll(pass.providerRegistry);
+
+    debugger.log(
+      DebugLevel.debug,
+      'Resolved: ${pass.globalSymbolRegistry.length} symbols',
+      category: 'symbol_resolution',
+    );
   }
 
-  Future<void> _runTypeInferencePass(IRGenerationResults results) async {
+  Future<void> _runTypeInferencePass({
+    required IRGenerationResults results,
+    required bool verbose,
+  }) async {
     final pass = TypeInferencePass(
       dartFiles: results.dartFiles,
       globalSymbols: {},
       providerRegistry: results.providerRegistry,
     );
+
     pass.inferAllTypes();
     results.inferenceIssues.addAll(pass.inferenceIssues);
     results.typeCache.addAll(pass.typeCache);
+
+    debugger.log(
+      DebugLevel.debug,
+      'Inferred: ${pass.typeCache.length} expressions',
+      category: 'type_inference',
+    );
   }
 
-  Future<void> _runFlowAnalysisPass(IRGenerationResults results) async {
+  Future<void> _runFlowAnalysisPass({
+    required IRGenerationResults results,
+    required bool verbose,
+  }) async {
     final pass = FlowAnalysisPass(
       dartFiles: results.dartFiles,
       typeInferenceInfo: {},
     );
     pass.analyzeAllFlows();
+
     results.flowIssues.addAll(pass.flowIssues);
     results.controlFlowGraphs.addAll(pass.controlFlowGraphs);
     results.rebuildTriggers.addAll(pass.rebuildTriggers);
+
+    debugger.log(
+      DebugLevel.debug,
+      'Built: ${pass.controlFlowGraphs.length} CFGs',
+      category: 'flow_analysis',
+    );
   }
 
-  Future<void> _runValidationPass(IRGenerationResults results) async {
+  Future<void> _runValidationPass({
+    required IRGenerationResults results,
+    required bool verbose,
+  }) async {
     final pass = ValidationPass(
       dartFiles: results.dartFiles,
       flowAnalysisInfo: {},
     );
     pass.validateAll();
+
     results.validationIssues.addAll(pass.validationIssues);
     results.validationSummary = pass.summary;
+
+    debugger.log(
+      DebugLevel.debug,
+      'Issues: ${pass.validationIssues.length} '
+      '(${pass.summary.errorCount}E, ${pass.summary.warningCount}W)',
+      category: 'validation',
+    );
   }
 }
 
