@@ -5,6 +5,7 @@
 // Direct IR → JS without intermediate transformations
 // ============================================================================
 
+
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/src/widget_generation/stateless_widget/stateless_widget_js_code_gen.dart';
 import 'package:flutterjs_gen/src/utils/code_gen_error.dart'
@@ -239,6 +240,7 @@ class ExpressionCodeGen {
     if (expr is EnumMemberAccessExpressionIR) {
       return _generateEnumMemberAccess(expr);
     }
+    
     // Fallback
     throw CodeGenError(
       message: 'Unsupported expression type: ${expr.runtimeType}',
@@ -665,8 +667,9 @@ class ExpressionCodeGen {
             final code = generate(argExpr, parenthesize: false);
             namedParts.add('$argName: $code');
           }
-        } catch (e) {
+        } catch (e, stack) {
           print('❌ Error generating named argument "${entry.key}": $e');
+          print("${entry.key}: $e \n$stack");
           warnings.add(
             CodeGenWarning(
               severity: WarningSeverity.warning,
