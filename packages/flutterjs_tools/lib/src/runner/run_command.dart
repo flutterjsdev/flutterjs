@@ -202,11 +202,6 @@ class RunCommand extends Command<void> {
         defaultsTo: '4',
       )
       ..addFlag(
-        'incremental',
-        help: 'Use incremental caching.',
-        defaultsTo: true,
-      )
-      ..addFlag(
         'skip-analysis',
         help: 'Skip analysis phase and convert all .dart files.',
         negatable: false,
@@ -258,6 +253,31 @@ class RunCommand extends Command<void> {
         'devtools-no-open',
         help: 'Do not auto-open browser for DevTools.',
         negatable: false,
+      )
+      ..addFlag(
+        'incremental',
+        help: 'Use incremental caching (only reprocess changed files)',
+        defaultsTo: true,
+      )
+      ..addFlag(
+        'hot-reload',
+        help: 'Enable hot-reload mode (watch for changes and auto-rebuild)',
+        negatable: false,
+      )
+      ..addFlag(
+        'clear-cache',
+        help: 'Clear cache and do full rebuild',
+        negatable: false,
+      )
+      ..addOption(
+        'cache-dir',
+        help: 'Custom cache directory path',
+        defaultsTo: null,
+      )
+      ..addOption(
+        'debounce-time',
+        help: 'File watcher debounce time in ms (default: 500)',
+        defaultsTo: '500',
       );
   }
 
@@ -286,13 +306,18 @@ class RunCommand extends Command<void> {
       // Execute pipeline
       final results = await _executePipeline(config, context);
 
-      // Report results
+      // Report results (DON'T call printSummary here!)
       await _reportResults(config, context, results);
 
-      // Cleanup
+      // Cleanup (DON'T call printSummary here either!)
       await _cleanup(config);
+
+      // ✅ ONLY place where printSummary should be called
+      debugger.printSummary(force: true);
     } catch (e, st) {
       _handleFatalError(e, st);
+      // Print summary even on error
+      debugger.printSummary(force: true);
     }
   }
 
@@ -473,9 +498,6 @@ class RunCommand extends Command<void> {
         reporter.printDevToolsInfo(_devToolsServer!.port);
       }
     }
-
-    // Print debugger metrics if enabled
-    debugger.printSummary();
   }
 
   // =========================================================================
@@ -489,9 +511,6 @@ class RunCommand extends Command<void> {
       }
     }
 
-    // ✅ NEW: Print debugger summary
-    debugger.printSummary();
-
     if (config.strictMode &&
         (debugger.logs.any((l) => l.level == DebugLevel.error))) {
       exit(1);
@@ -501,7 +520,7 @@ class RunCommand extends Command<void> {
   void _handleFatalError(dynamic e, StackTrace st) {
     print('\nFatal error: $e');
     if (verbose) print('Stack trace:\n$st');
-    debugger.printSummary();
+
     exit(1);
   }
 }
@@ -1054,7 +1073,7 @@ class PipelineConfig {
   final int devToolsPort;
   final bool devToolsNoOpen;
   final bool enableDevTools;
- 
+
   final bool verbose;
 
   PipelineConfig({

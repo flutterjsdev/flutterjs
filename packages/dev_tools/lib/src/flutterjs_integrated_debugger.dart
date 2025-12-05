@@ -1,8 +1,8 @@
 /// ============================================================================
 /// Flutter.js Integrated Debugger System
-/// 
+///
 /// Integrates with: flutterjs.dart (CLI) → run_command.dart (pipeline) → ir_server.dart (UI)
-/// 
+///
 /// Features:
 /// ✅ Works with existing --verbose flags
 /// ✅ Auto-observation (no manual timing calls)
@@ -25,9 +25,9 @@ enum DebugLevel { trace, debug, info, warn, error }
 /// ============================================================================
 
 class FlutterJSIntegratedDebugger {
-  static final FlutterJSIntegratedDebugger _instance = 
+  static final FlutterJSIntegratedDebugger _instance =
       FlutterJSIntegratedDebugger._internal();
-  
+
   factory FlutterJSIntegratedDebugger() => _instance;
   FlutterJSIntegratedDebugger._internal();
 
@@ -40,14 +40,14 @@ class FlutterJSIntegratedDebugger {
 
   // State
   final List<DebugLog> logs = [];
-  final Map<String, Operation> operations = {};
-  final Map<String, dynamic> breakpoints = {};
+  final Map<String, OperationMetrics> metrics = {};
   final List<String> operationStack = [];
   bool isPaused = false;
   int maxLogs = 5000;
 
-  // Performance
-  final Map<String, OperationMetrics> metrics = {};
+  // ✅ NEW: Defer reporting
+  bool _shouldDeferReport = false;
+  bool _reportPrinted = false;
 
   /// Initialize from CLI flags
   static void initFromCliFlags({
@@ -56,7 +56,7 @@ class FlutterJSIntegratedDebugger {
     required bool watch,
   }) {
     final debugger = FlutterJSIntegratedDebugger();
-    
+
     debugger.enabled = verbose || verboseHelp;
     debugger.minLevel = verboseHelp ? DebugLevel.trace : DebugLevel.debug;
     debugger.watchFiles = watch;
@@ -68,25 +68,23 @@ class FlutterJSIntegratedDebugger {
     _printBanner(verbose: verboseHelp);
 
     if (watch) {
+      debugger._shouldDeferReport = true; // ✅ Defer reports in watch mode
       debugger._initFileWatcher();
     }
   }
 
   static void _printBanner({required bool verbose}) {
-    print('\n╔════════════════════════════════════════════════════════╗');
-    print('║  🐛 Flutter.js Integrated Debugger                   ║');
+    print('\n┌────────────────────────────────────────────────────────────┐');
+    print('│  🛠 Flutter.js Integrated Debugger                         │');
     if (verbose) {
-      print('║  Mode: VERBOSE (trace level)                         ║');
+      print('│  Mode: VERBOSE (trace level)                              │');
     } else {
-      print('║  Mode: DEBUG (debug level)                           ║');
+      print('│  Mode: DEBUG (debug level)                                │');
     }
-    print('╚════════════════════════════════════════════════════════╝\n');
+    print('└────────────────────────────────────────────────────────────┘\n');
   }
 
-  /// ═══════════════════════════════════════════════════════════════════════
-  /// AUTO-OBSERVE: Wrap any operation without manual timing
-  /// ═══════════════════════════════════════════════════════════════════════
-
+  /// Auto-observe for async operations
   Future<T> observe<T>(
     String operationName,
     Future<T> Function() operation, {
@@ -107,15 +105,28 @@ class FlutterJSIntegratedDebugger {
       final duration = DateTime.now().difference(startTime);
       final memoryDelta = ProcessInfo.currentRss - startMemory;
 
-      _recordOperation(opKey, operationName, duration, memoryDelta, success: true);
+      _recordOperation(
+        opKey,
+        operationName,
+        duration,
+        memoryDelta,
+        success: true,
+      );
       _logSuccess(operationName, duration, memoryDelta);
 
       return result;
     } catch (e, st) {
       final duration = DateTime.now().difference(startTime);
-      _recordOperation(opKey, operationName, duration, 0, success: false, error: e.toString());
+      _recordOperation(
+        opKey,
+        operationName,
+        duration,
+        0,
+        success: false,
+        error: e.toString(),
+      );
       _logError(operationName, e.toString());
-      
+
       if (interactiveMode) {
         _handleErrorWithBreakpoint(operationName, e, st);
       }
@@ -126,7 +137,7 @@ class FlutterJSIntegratedDebugger {
     }
   }
 
-  /// Sync version
+  /// Auto-observe for sync operations
   T observeSync<T>(
     String operationName,
     T Function() operation, {
@@ -147,13 +158,26 @@ class FlutterJSIntegratedDebugger {
       final duration = DateTime.now().difference(startTime);
       final memoryDelta = ProcessInfo.currentRss - startMemory;
 
-      _recordOperation(opKey, operationName, duration, memoryDelta, success: true);
+      _recordOperation(
+        opKey,
+        operationName,
+        duration,
+        memoryDelta,
+        success: true,
+      );
       _logSuccess(operationName, duration, memoryDelta);
 
       return result;
     } catch (e, st) {
       final duration = DateTime.now().difference(startTime);
-      _recordOperation(opKey, operationName, duration, 0, success: false, error: e.toString());
+      _recordOperation(
+        opKey,
+        operationName,
+        duration,
+        0,
+        success: false,
+        error: e.toString(),
+      );
       _logError(operationName, e.toString());
 
       if (interactiveMode) {
@@ -166,58 +190,7 @@ class FlutterJSIntegratedDebugger {
     }
   }
 
-  /// ═══════════════════════════════════════════════════════════════════════
-  /// BREAKPOINT SYSTEM
-  /// ═══════════════════════════════════════════════════════════════════════
-
-  void setBreakpoint(String name, bool Function() condition) {
-    if (!enabled) return;
-    breakpoints[name] = condition;
-    log(DebugLevel.info, 'Breakpoint set: $name', category: 'breakpoint');
-  }
-
-  void checkBreakpoint(String name) {
-    if (!enabled || isPaused) return;
-
-    final condition = breakpoints[name];
-    if (condition != null && condition()) {
-      isPaused = true;
-      log(DebugLevel.error, '🛑 BREAKPOINT HIT: $name', category: 'breakpoint');
-      
-      if (interactiveMode) {
-        _interactiveDebugger();
-      }
-    }
-  }
-
-  /// ═══════════════════════════════════════════════════════════════════════
-  /// FILE WATCHER
-  /// ═══════════════════════════════════════════════════════════════════════
-
-  void _initFileWatcher() {
-    try {
-      final watcher = DirectoryWatcher('lib');
-      
-      watcher.events.listen((event) {
-        if (event.path.endsWith('.dart')) {
-          log(
-            DebugLevel.info,
-            '🔄 File changed: ${event.path}',
-            category: 'watcher',
-          );
-        }
-      });
-
-      log(DebugLevel.info, 'File watcher started on lib/', category: 'watcher');
-    } catch (e) {
-      log(DebugLevel.warn, 'File watcher failed: $e', category: 'watcher');
-    }
-  }
-
-  /// ═══════════════════════════════════════════════════════════════════════
-  /// LOGGING
-  /// ═══════════════════════════════════════════════════════════════════════
-
+  /// Logging
   void log(
     DebugLevel level,
     String message, {
@@ -241,23 +214,23 @@ class FlutterJSIntegratedDebugger {
   }
 
   void _logStart(String operationName, String? category) {
-    log(DebugLevel.debug, '▶ $operationName', category: category ?? 'operation');
+    log(
+      DebugLevel.debug,
+      '▶ $operationName',
+      category: category ?? 'operation',
+    );
   }
 
   void _logSuccess(String operationName, Duration duration, int memoryDelta) {
     final time = duration.inMilliseconds > 1000
         ? '${(duration.inMilliseconds / 1000).toStringAsFixed(2)}s'
         : '${duration.inMilliseconds}ms';
-    
+
     final mem = memoryDelta > 0
         ? ' (mem: ${(memoryDelta / 1024 / 1024).toStringAsFixed(2)}MB)'
         : '';
-    
-    log(
-      DebugLevel.debug,
-      '✅ $operationName: $time$mem',
-      category: 'operation',
-    );
+
+    log(DebugLevel.debug, '✅ $operationName: $time$mem', category: 'operation');
   }
 
   void _logError(String operationName, String error) {
@@ -271,25 +244,35 @@ class FlutterJSIntegratedDebugger {
   void _printLog(DebugLog entry) {
     final time = DateFormat('HH:mm:ss.SSS').format(entry.timestamp);
     final emoji = _getLevelEmoji(entry.level);
-    final levelStr = entry.level.toString().split('.').last.toUpperCase().padRight(5);
-    
+    final levelStr = entry.level
+        .toString()
+        .split('.')
+        .last
+        .toUpperCase()
+        .padRight(5);
+
     stdout.write('[$time] $emoji [$levelStr] ${entry.category.padRight(12)} ');
     stdout.write(entry.message);
-    
+
     if (entry.value != null) {
       stdout.write('\n          └─ ${_formatValue(entry.value)}');
     }
-    
+
     stdout.writeln();
   }
 
   String _getLevelEmoji(DebugLevel level) {
     switch (level) {
-      case DebugLevel.trace: return '🔍';
-      case DebugLevel.debug: return '🐛';
-      case DebugLevel.info: return 'ℹ️';
-      case DebugLevel.warn: return '⚠️';
-      case DebugLevel.error: return '❌';
+      case DebugLevel.trace:
+        return '🔍';
+      case DebugLevel.debug:
+        return '🛠';
+      case DebugLevel.info:
+        return 'ℹ️';
+      case DebugLevel.warn:
+        return '⚠️';
+      case DebugLevel.error:
+        return '❌';
     }
   }
 
@@ -303,9 +286,9 @@ class FlutterJSIntegratedDebugger {
     return value.toString();
   }
 
-  /// ═══════════════════════════════════════════════════════════════════════
-  /// METRICS & REPORTING
-  /// ═══════════════════════════════════════════════════════════════════════
+  // =========================================================================
+  // ✅ DEFERRED REPORTING - Print ONLY ONCE at end
+  // =========================================================================
 
   void _recordOperation(
     String key,
@@ -317,8 +300,7 @@ class FlutterJSIntegratedDebugger {
   }) {
     if (!enableMetrics) return;
 
-    final metric = metrics[key] ??
-        OperationMetrics(name: name, key: key);
+    final metric = metrics[key] ?? OperationMetrics(name: name, key: key);
 
     metric.recordExecution(
       duration: duration,
@@ -330,84 +312,154 @@ class FlutterJSIntegratedDebugger {
     metrics[key] = metric;
   }
 
-  void printSummary() {
+  /// ✅ Print report ONLY if not deferred, or explicitly called
+  void printSummary({bool force = false}) {
     if (!enabled || metrics.isEmpty) return;
 
-    stdout.writeln('\n╔════════════════════════════════════════════════════════╗');
-    stdout.writeln('║           📊 Performance Summary                        ║');
-    stdout.writeln('╠════════════════════════════════════════════════════════╣');
+    // ✅ CRITICAL: Only print if force=true OR haven't printed yet
+    if (_reportPrinted && !force) {
+      log(
+        DebugLevel.warn,
+        'printSummary called multiple times! Ignoring duplicate call.',
+        category: 'debugger',
+      );
+      return;
+    }
 
+    _reportPrinted = true;
+
+    final buffer = StringBuffer();
     int totalTime = 0;
-    for (final metric in metrics.values) {
-      final avgTime = metric.averageDurationMs.toStringAsFixed(0).padLeft(5);
-      final count = metric.executionCount.toString().padLeft(4);
-      totalTime += metric.totalDurationMs;
 
-      stdout.writeln('║ ${metric.name.padRight(28)} $count × │ Avg: ${avgTime}ms ║');
+    final sorted = metrics.entries.toList()
+      ..sort(
+        (a, b) => b.value.totalDurationMs.compareTo(a.value.totalDurationMs),
+      );
+
+    for (final entry in sorted) {
+      final m = entry.value;
+      totalTime += m.totalDurationMs;
+
+      buffer.write(
+        "${m.name}:${m.executionCount}x "
+        "avg${m.averageDurationMs.toStringAsFixed(0)}ms "
+        "tot${m.totalDurationMs}ms | ",
+      );
     }
 
-    stdout.writeln('╠════════════════════════════════════════════════════════╣');
-    stdout.writeln('║ Total: ${(totalTime / 1000).toStringAsFixed(2)}s'.padRight(56) + '║');
-    stdout.writeln('╚════════════════════════════════════════════════════════╝\n');
+    // Remove final ' | '
+    final summary = buffer.toString().replaceAll(RegExp(r' \| $'), '');
+
+    // ✅ Print with clear header to show it's only once
+    stdout.writeln('\n📊 Performance Summary:');
+    stdout.writeln(summary);
+    stdout.writeln("Total: ${(totalTime / 1000).toStringAsFixed(2)}s\n");
   }
 
-  /// ═══════════════════════════════════════════════════════════════════════
-  /// INTERACTIVE DEBUGGER
-  /// ═══════════════════════════════════════════════════════════════════════
+  /// ✅ Clear metrics for next run (used in watch mode)
+  void resetMetrics() {
+    metrics.clear();
+    _reportPrinted = false;
+  }
 
-  void _interactiveDebugger() {
-    stdout.writeln('\n🛑 Debugger paused. Commands: continue (c), logs (l), stack (s), exit (e)');
-    
-    while (isPaused) {
-      stdout.write('> ');
-      final input = stdin.readLineSync() ?? '';
-      
-      switch (input.toLowerCase().trim()) {
-        case 'c':
-        case 'continue':
-          isPaused = false;
-          break;
-        case 'l':
-        case 'logs':
-          _showLogs();
-          break;
-        case 's':
-        case 'stack':
-          _showStack();
-          break;
-        case 'e':
-        case 'exit':
-          exit(1);
-        default:
-          stdout.writeln('Unknown command');
-      }
+  void _initFileWatcher() {
+    try {
+      final watcher = DirectoryWatcher('lib');
+
+      watcher.events.listen((event) {
+        if (event.path.endsWith('.dart')) {
+          log(
+            DebugLevel.info,
+            '📝 File changed: ${event.path}',
+            category: 'watcher',
+          );
+        }
+      });
+
+      log(DebugLevel.info, 'File watcher started on lib/', category: 'watcher');
+    } catch (e) {
+      log(DebugLevel.warn, 'File watcher failed: $e', category: 'watcher');
     }
   }
 
-  void _handleErrorWithBreakpoint(String operation, Object error, StackTrace st) {
+  void _handleErrorWithBreakpoint(
+    String operation,
+    Object error,
+    StackTrace st,
+  ) {
     stdout.writeln('\n❌ Error in $operation');
     stdout.writeln('   Error: $error');
     if (interactiveMode) {
       stdout.writeln('   Stack: ${st.toString().split('\n').first}');
-      _interactiveDebugger();
+    }
+  }
+}
+
+/// ============================================================================
+/// SMART FILE WATCHER - Triggers FULL pipeline on any change
+/// ============================================================================
+
+class SmartFileWatcher {
+  final String watchDir;
+  final Duration debounceTime;
+  late StreamSubscription _subscription;
+
+  Timer? _debounceTimer;
+  final Set<String> _changedFiles = {};
+  final List<void Function(Set<String>)> _callbacks = [];
+
+  SmartFileWatcher({
+    required this.watchDir,
+    this.debounceTime = const Duration(milliseconds: 500),
+  });
+
+  /// Start watching directory (watches both SDK and source)
+  Future<void> start() async {
+    try {
+      final watcher = DirectoryWatcher(watchDir);
+
+      _subscription = watcher.events.listen((event) {
+        // ✅ Watch ALL .dart files (SDK + source)
+        if (event.path.endsWith('.dart')) {
+          _changedFiles.add(event.path);
+
+          // ✅ Debounce: Wait before triggering full pipeline
+          _debounceTimer?.cancel();
+          _debounceTimer = Timer(debounceTime, () {
+            _notifyListeners();
+          });
+        }
+      });
+
+      print(
+        '👀 File watcher started on: $watchDir (watches SDK + source code)\n',
+      );
+    } catch (e) {
+      print('⚠️ File watcher failed: $e');
     }
   }
 
-  void _showLogs() {
-    final recent = logs.skip(logs.length - 10);
-    for (final log in recent) {
-      _printLog(log);
+  /// Add change listener
+  void onChange(void Function(Set<String>) callback) {
+    _callbacks.add(callback);
+  }
+
+  void _notifyListeners() {
+    if (_changedFiles.isNotEmpty) {
+      print('\n🔄 Change detected: ${_changedFiles.length} file(s) changed');
+      print('🔁 Triggering FULL pipeline...\n');
+
+      for (final callback in _callbacks) {
+        callback(_changedFiles);
+      }
+      _changedFiles.clear();
     }
   }
 
-  void _showStack() {
-    if (operationStack.isEmpty) {
-      stdout.writeln('Operation stack is empty');
-      return;
-    }
-    for (int i = 0; i < operationStack.length; i++) {
-      stdout.writeln('  #$i ${operationStack[i]}');
-    }
+  /// Stop watching
+  Future<void> stop() async {
+    _debounceTimer?.cancel();
+    await _subscription.cancel();
   }
 }
 
@@ -504,7 +556,7 @@ class OperationMetrics {
 final debugger = FlutterJSIntegratedDebugger();
 
 /// Use in your pipeline:
-/// 
+///
 /// await debugger.observe('phase_1_analysis', () async {
 ///   return analyzer.analyze();
 /// }, category: 'parser');

@@ -2,7 +2,98 @@
   "version": "0.2.0",
   "configurations": [
     // =====================================================================
-    // FLUTTER.JS SDK DEBUGGING (MAIN - FOR DEBUGGING CONVERSION PIPELINE)
+    // 🔥 HOT-RELOAD & SMART CACHING (NEW)
+    // =====================================================================
+    {
+      "name": "🔥 Flutter.js Hot-Reload (Auto-Rebuild on Change)",
+      "type": "dart",
+      "request": "launch",
+      "program": "bin/flutterjs.dart",
+      "args": [
+        "run",
+        "--project=examples/counter",
+        "--to-js",
+        "--hot-reload",
+        "-vv"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopOnEntry": false
+    },
+    {
+      "name": "🔥 Flutter.js Hot-Reload (Analysis Only)",
+      "type": "dart",
+      "request": "launch",
+      "program": "bin/flutterjs.dart",
+      "args": ["run", "--project=examples/counter", "--hot-reload", "-vv"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopOnEntry": false
+    },
+    {
+      "name": "🔥 Flutter.js Hot-Reload (Fast Mode)",
+      "type": "dart",
+      "request": "launch",
+      "program": "bin/flutterjs.dart",
+      "args": [
+        "run",
+        "--project=examples/counter",
+        "--to-js",
+        "--hot-reload",
+        "--debounce-time=300",
+        "-v"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopOnEntry": false
+    },
+    // =====================================================================
+    // 💾 CACHE MANAGEMENT
+    // =====================================================================
+    {
+      "name": "💾 Flutter.js Incremental Build (Default Cache)",
+      "type": "dart",
+      "request": "launch",
+      "program": "bin/flutterjs.dart",
+      "args": [
+        "run",
+        "--project=examples/counter",
+        "--to-js",
+        "--incremental",
+        "-v"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopOnEntry": false
+    },
+    {
+      "name": "🗑️ Flutter.js Full Rebuild (Clear Cache)",
+      "type": "dart",
+      "request": "launch",
+      "program": "bin/flutterjs.dart",
+      "args": [
+        "run",
+        "--project=examples/counter",
+        "--to-js",
+        "--clear-cache",
+        "-v"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopOnEntry": false
+    },
+    {
+      "name": "🗑️ Flutter.js Force Full Rebuild (--all)",
+      "type": "dart",
+      "request": "launch",
+      "program": "bin/flutterjs.dart",
+      "args": ["run", "--project=examples/counter", "--to-js", "--all", "-v"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "stopOnEntry": false
+    },
+    // =====================================================================
+    // ORIGINAL CONFIGS (STILL AVAILABLE)
     // =====================================================================
     {
       "name": "🛠️ Flutter.js Run (Full Pipeline + Debug)",
@@ -10,26 +101,6 @@
       "request": "launch",
       "program": "bin/flutterjs.dart",
       "args": ["run", "--project=examples/counter", "--to-js", "-vv"],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "stopOnEntry": false
-    },
-    {
-      "name": "🛠️ Flutter.js Run (Analysis Only + Debug)",
-      "type": "dart",
-      "request": "launch",
-      "program": "bin/flutterjs.dart",
-      "args": ["run", "--project=examples/counter", "-vv", "--skip-js"],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "stopOnEntry": false
-    },
-    {
-      "name": "🛠️ Flutter.js Run (Analysis + IR + Debug)",
-      "type": "dart",
-      "request": "launch",
-      "program": "bin/flutterjs.dart",
-      "args": ["run", "--project=examples/counter", "-vv"],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "stopOnEntry": false
@@ -49,136 +120,22 @@
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "stopOnEntry": false
-    },
-    {
-      "name": "🛠️ Flutter.js Run (Strict Mode - Stop on Errors)",
-      "type": "dart",
-      "request": "launch",
-      "program": "bin/flutterjs.dart",
-      "args": [
-        "run",
-        "--project=examples/counter",
-        "--to-js",
-        "-vv",
-        "--strict"
-      ],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "stopOnEntry": false
-    },
-    {
-      "name": "🛠️ Flutter.js Run (JSON Output - Machine Readable)",
-      "type": "dart",
-      "request": "launch",
-      "program": "bin/flutterjs.dart",
-      "args": ["run", "--project=examples/counter", "--to-js", "--json"],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "stopOnEntry": false
-    },
-    {
-      "name": "🛠️ Flutter.js Run (Optimization Level 0)",
-      "type": "dart",
-      "request": "launch",
-      "program": "bin/flutterjs.dart",
-      "args": [
-        "run",
-        "--project=examples/counter",
-        "--to-js",
-        "-vv",
-        "--js-optimization-level=0"
-      ],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "stopOnEntry": false
-    },
-    {
-      "name": "🛠️ Flutter.js Run (Optimization Level 2)",
-      "type": "dart",
-      "request": "launch",
-      "program": "bin/flutterjs.dart",
-      "args": [
-        "run",
-        "--project=examples/counter",
-        "--to-js",
-        "-vv",
-        "--js-optimization-level=2"
-      ],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "stopOnEntry": false
-    },
-    {
-      "name": "🛠️ Flutter.js Run (Watch Mode - File Watcher)",
-      "type": "dart",
-      "request": "launch",
-      "program": "bin/flutterjs.dart",
-      "args": [
-        "run",
-        "--project=examples/counter",
-        "--to-js",
-        "-vv",
-        "--watch"
-      ],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "stopOnEntry": false
-    },
-    // =====================================================================
-    // PACKAGE-LEVEL DEBUGGING
-    // =====================================================================
-    {
-      "name": "🔬 flutterjs_analyzer (Dev Debug)",
-      "cwd": "${workspaceFolder}/packages/flutterjs_analyzer",
-      "request": "launch",
-      "type": "dart",
-      "console": "integratedTerminal"
-    },
-    {
-      "name": "🔬 flutterjs_gen (Dev Debug)",
-      "cwd": "${workspaceFolder}/packages/flutterjs_gen",
-      "request": "launch",
-      "type": "dart",
-      "console": "integratedTerminal"
-    },
-    {
-      "name": "🔬 flutterjs_core (Dev Debug)",
-      "cwd": "${workspaceFolder}/packages/flutterjs_core",
-      "request": "launch",
-      "type": "dart",
-      "console": "integratedTerminal"
-    },
-    // =====================================================================
-    // UTILITY COMMANDS
-    // =====================================================================
-    {
-      "name": "📋 Flutter.js Help",
-      "type": "dart",
-      "request": "launch",
-      "program": "bin/flutterjs.dart",
-      "args": ["run", "--help"],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal"
-    },
-    {
-      "name": "📋 Flutter.js Version",
-      "type": "dart",
-      "request": "launch",
-      "program": "bin/flutterjs.dart",
-      "args": ["--version"],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal"
     }
   ],
   "compounds": [
     {
-      "name": "🚀 Full Debug Workflow (Analysis → IR → JS)",
-      "configurations": ["🛠️ Flutter.js Run (Full Pipeline + Debug)"],
+      "name": "🚀 Development (Hot-Reload + Full Debug)",
+      "configurations": ["🔥 Flutter.js Hot-Reload (Auto-Rebuild on Change)"],
       "stopOnEntry": false
     },
     {
-      "name": "🚀 Debug with IR Viewer",
-      "configurations": ["🛠️ Flutter.js Run (With DevTools IR Viewer)"],
+      "name": "🚀 Fast Development (Hot-Reload + Quick Build)",
+      "configurations": ["🔥 Flutter.js Hot-Reload (Fast Mode)"],
+      "stopOnEntry": false
+    },
+    {
+      "name": "🚀 Fresh Build (Clear Cache + Full Debug)",
+      "configurations": ["🗑️ Flutter.js Full Rebuild (Clear Cache)"],
       "stopOnEntry": false
     }
   ]
