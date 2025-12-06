@@ -100,3 +100,5 @@ class BuildOwner {
     this._focusManager.dispose();
   }
 }
+
+export {BuildOwner};
