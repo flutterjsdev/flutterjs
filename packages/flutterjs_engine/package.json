@@ -31,7 +31,7 @@
     "transpiler",
     "zero-dependency"
   ],
-  "author": "Your Name <your.email@example.com>",
+  "author": "jayprakash.pal@flutterjs.dev",
   "license": "MIT",
   "engines": {
     "node": ">=14.0.0"
@@ -60,10 +60,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/flutter_js.git"
+    "url": "git+https://github.com/flutterjsdev/flutter_js.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/flutter_js/issues"
+    "url": "https://github.com/flutterjsdev/flutter_js/issues"
   },
-  "homepage": "https://github.com/yourusername/flutter_js#readme"
+  "homepage": "https://github.com/flutterjsdev/flutter_js#readme"
 }
