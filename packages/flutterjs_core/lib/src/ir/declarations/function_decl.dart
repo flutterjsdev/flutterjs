@@ -164,6 +164,13 @@ class FunctionDecl extends IRNode {
 
   bool? isWidgetFunction;
 
+  /// ✅ NEW: Whether this function is a top-level function
+  /// If false, it's a method inside a class
+  final bool isTopLevel;
+
+  /// ✅ NEW: If this is a method, the class name it belongs to
+  final String? owningClassName;
+
   FunctionDecl({
     required super.id,
     required this.name,
@@ -192,6 +199,8 @@ class FunctionDecl extends IRNode {
     this.redirectsTo,
     this.isWidgetReturnType = false,
     this.isWidgetFunction,
+    this.isTopLevel = true, // ✅ NEW: Default to top-level
+    this.owningClassName, // ✅ NEW: Class name if method
   }) : assert(
          !(isAsync && isSyncGenerator),
          'Function cannot be both async and sync generator',
@@ -437,6 +446,8 @@ class FunctionDecl extends IRNode {
       'isConst': isConst,
       'isExternal': isExternal,
       'isLate': isLate,
+      'isTopLevel': isTopLevel, // ✅ NEW
+      'owningClassName': owningClassName, // ✅ NEW
       if (constructorClass != null) 'constructorClass': constructorClass,
       if (constructorName != null) 'constructorName': constructorName,
       if (redirectsTo != null) 'redirectsTo': redirectsTo,
@@ -494,7 +505,8 @@ class MethodDecl extends FunctionDecl {
     this.overriddenSignature,
     super.isWidgetReturnType = false,
     super.isWidgetFunction,
-  });
+    super.isTopLevel = false,
+  }) : super(owningClassName: className);
 
   /// Full method name with class context
   String get fullQualifiedName => className != null ? '$className.$name' : name;
@@ -525,6 +537,8 @@ class MethodDecl extends FunctionDecl {
       'isExternal': isExternal,
       'isLate': isLate,
       'markedOverride': markedOverride,
+      'isTopLevel': isTopLevel, // ✅ NEW
+      'owningClassName': owningClassName, // ✅ NEW
       if (overriddenSignature != null)
         'overriddenSignature': overriddenSignature,
     };
@@ -740,7 +754,6 @@ class FunctionBodyIR extends IRNode {
   /// Statements in function body
   final List<StatementIR> statements;
 
-
   /// Whether body is empty
   final bool isEmpty;
 
@@ -753,7 +766,6 @@ class FunctionBodyIR extends IRNode {
 
   /// Total items in body
   int get totalItems => statements.length;
-
 
   Map<String, dynamic> toJson() {
     return {
@@ -774,4 +786,3 @@ class FunctionBodyIR extends IRNode {
   @override
   String toString() => 'FunctionBody(statements: ${statements.length},  })';
 }
-

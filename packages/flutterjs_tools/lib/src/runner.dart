@@ -152,7 +152,7 @@ class FlutterJSCommandRunner extends CommandRunner<void> {
   final bool muteCommandLogging;
 
   void _addCommands() {
-    addCommand(InitProject(verbose: verbose, verboseHelp: verboseHelp));
+    // addCommand(InitProject(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(BuildCommand(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(RunCommand(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(AnalyzeCommand(verbose: verbose, verboseHelp: verboseHelp));

@@ -5,12 +5,10 @@
 // Direct IR → JS without intermediate transformations
 // ============================================================================
 
-
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/src/widget_generation/stateless_widget/stateless_widget_js_code_gen.dart';
 import 'package:flutterjs_gen/src/utils/code_gen_error.dart'
     hide CodeGenWarning, WarningSeverity;
-
 
 import 'enum_member_access_handler.dart';
 
@@ -51,12 +49,24 @@ class ExpressionCodeGen {
   final List<CodeGenError> errors = [];
   final List<CodeGenWarning> warnings = [];
 
+  /// ✅ NEW: Track the current function context
+  FunctionDecl? _currentFunctionContext;
+
   // ✅ ADD THIS: Track recursion depth
   int _recursionDepth = 0;
   static const int _maxRecursionDepth = 100;
 
-  ExpressionCodeGen({ExpressionGenConfig? config})
-    : config = config ?? const ExpressionGenConfig();
+  ExpressionCodeGen({
+    ExpressionGenConfig? config,
+    FunctionDecl? currentFunctionContext,
+  }) : config = config ?? const ExpressionGenConfig(),
+
+       _currentFunctionContext = currentFunctionContext;
+
+  /// ✅ NEW: Set context when generating expressions for a function
+  void setFunctionContext(FunctionDecl? func) {
+    _currentFunctionContext = func;
+  }
 
   /// Generate JavaScript code from an expression IR
   /// Returns JS code or throws CodeGenError on unsupported expressions
@@ -78,7 +88,9 @@ class ExpressionCodeGen {
     try {
       String code = _generateExpression(expr);
 
-      if (parenthesize && config.safeParens) {
+      // ✅ FIX: Only parenthesize if truly necessary
+      // Property chains don't need parens
+      if (parenthesize && config.safeParens && _needsParentheses(expr)) {
         code = '($code)';
       }
 
@@ -96,9 +108,30 @@ class ExpressionCodeGen {
       errors.add(error);
       rethrow;
     } finally {
-      // ✅ ADD THIS: Always decrement
       _recursionDepth--;
     }
+  }
+
+  bool _needsParentheses(ExpressionIR expr) {
+    // These never need parentheses:
+    if (expr is IdentifierExpressionIR) return false;
+    if (expr is LiteralExpressionIR) return false;
+    if (expr is PropertyAccessExpressionIR) return false;
+    if (expr is IndexAccessExpressionIR) return false;
+    if (expr is ThisExpressionIR) return false;
+    if (expr is SuperExpressionIR) return false;
+    if (expr is MethodCallExpressionIR) return false;
+    if (expr is FunctionCallExpr) return false;
+    if (expr is InstanceCreationExpressionIR) return false;
+
+    // These usually need parentheses:
+    if (expr is BinaryExpressionIR) return true;
+    if (expr is UnaryExpressionIR) return true;
+    if (expr is ConditionalExpressionIR) return true;
+    if (expr is LambdaExpr) return true;
+    if (expr is AssignmentExpressionIR) return true;
+
+    return true; // Default: be safe
   }
 
   /// Debug method to print the call stack
@@ -113,18 +146,15 @@ class ExpressionCodeGen {
   // =========================================================================
   // PRIVATE GENERATION METHODS
   // =========================================================================
-
   String _generateExpression(ExpressionIR expr) {
-    // Literal Expressions
-    // ✅ ADD THIS: Debug logging
     if (_recursionDepth > 50) {
       _printRecursionInfo(expr);
     }
+
     if (expr is LiteralExpressionIR) {
       return _generateLiteral(expr);
     }
 
-    // Identifiers & Access
     if (expr is IdentifierExpressionIR) {
       return _generateIdentifier(expr);
     }
@@ -145,7 +175,6 @@ class ExpressionCodeGen {
       return _generateSuperExpression(expr);
     }
 
-    // Operations
     if (expr is BinaryExpressionIR) {
       return _generateBinary(expr);
     }
@@ -162,7 +191,6 @@ class ExpressionCodeGen {
       return _generateCompoundAssignment(expr);
     }
 
-    // Conditionals
     if (expr is ConditionalExpressionIR) {
       return _generateConditional(expr);
     }
@@ -175,7 +203,6 @@ class ExpressionCodeGen {
       return _generateNullAwareAccess(expr);
     }
 
-    // Collections
     if (expr is ListExpressionIR) {
       return _generateListLiteral(expr);
     }
@@ -188,7 +215,6 @@ class ExpressionCodeGen {
       return _generateSetLiteral(expr);
     }
 
-    // Functions & Calls
     if (expr is MethodCallExpressionIR) {
       return _generateMethodCall(expr);
     }
@@ -205,7 +231,6 @@ class ExpressionCodeGen {
       return _generateLambda(expr);
     }
 
-    // Type Operations
     if (expr is CastExpressionIR) {
       return _generateCast(expr);
     }
@@ -214,7 +239,6 @@ class ExpressionCodeGen {
       return _generateTypeCheck(expr);
     }
 
-    // Async Operations
     if (expr is AwaitExpr) {
       return _generateAwait(expr);
     }
@@ -223,7 +247,6 @@ class ExpressionCodeGen {
       return _generateThrow(expr);
     }
 
-    // Other
     if (expr is StringInterpolationExpressionIR) {
       return _generateStringInterpolation(expr);
     }
@@ -236,33 +259,60 @@ class ExpressionCodeGen {
       return _generateParenthesized(expr);
     }
 
-    // ✅ NEW: Add this handler for EnumMemberAccess
     if (expr is EnumMemberAccessExpressionIR) {
       return _generateEnumMemberAccess(expr);
     }
-    
-    // Fallback
+
+    // ✅ NEW: Handle UnknownExpressionIR gracefully
+    if (expr is UnknownExpressionIR) {
+      return _generateUnknownExpression(expr);
+    }
+
     throw CodeGenError(
       message: 'Unsupported expression type: ${expr.runtimeType}',
       suggestion: 'Check if this expression type is implemented',
     );
   }
 
-  String _generateEnumMemberAccess(EnumMemberAccessExpressionIR expr) {
-    print('✅ Processing Dart 3.0+ enum member access: "${expr.source}"');
+  String _generateUnknownExpression(UnknownExpressionIR expr) {
+    print('⚠️  UnknownExpressionIR detected: ${expr.source}');
 
-    // Get the type name (either explicit or inferred)
+    // Try to extract usable info from the unknown expression
+    if (expr.source != null && expr.source!.isNotEmpty) {
+      print('   Fallback: Using source text: "${expr.source}"');
+      warnings.add(
+        CodeGenWarning(
+          severity: WarningSeverity.warning,
+          message: 'UnknownExpressionIR encountered: ${expr.source}',
+          suggestion: 'This expression type may not be fully supported',
+        ),
+      );
+      return expr.source!;
+    }
+
+    // Last resort
+    warnings.add(
+      CodeGenWarning(
+        severity: WarningSeverity.warning,
+        message: 'UnknownExpressionIR with no source information',
+        suggestion: 'Check IR parser for this expression type',
+      ),
+    );
+    return 'undefined /* unknown expression */';
+  }
+
+  String _generateEnumMemberAccess(EnumMemberAccessExpressionIR expr) {
+    print('✔️ Processing Dart 3.0+ enum member access: "${expr.source}"');
+
     final typeName = expr.typeName ?? expr.inferredTypeName;
     final memberName = expr.memberName;
 
-    // Use the enum mapper to get the correct JavaScript/CSS value
     if (typeName != null) {
       final jsValue = FlutterEnumMapper.mapEnumMember(typeName, memberName);
-      print('✅ Mapped $typeName.$memberName → $jsValue');
+      print('✔️ Mapped $typeName.$memberName → $jsValue');
       return jsValue;
     }
 
-    // Fallback: just return the member name as a string
     print('⚠️  No type info, using member name: $memberName');
     return '"${memberName.toLowerCase()}"';
   }
@@ -276,19 +326,14 @@ class ExpressionCodeGen {
       case LiteralType.stringValue:
         final str = expr.value as String;
         return _escapeString(str);
-
       case LiteralType.intValue:
         return expr.value.toString();
-
       case LiteralType.doubleValue:
         return expr.value.toString();
-
       case LiteralType.boolValue:
         return (expr.value as bool) ? 'true' : 'false';
-
       case LiteralType.nullValue:
         return 'null';
-
       default:
         throw CodeGenError(
           message: 'Unknown literal type: ${expr.literalType}',
@@ -319,9 +364,9 @@ class ExpressionCodeGen {
   }
 
   String _generatePropertyAccess(PropertyAccessExpressionIR expr) {
-    final target = generate(expr.target, parenthesize: true);
+    // ✅ FIX: Never parenthesize property access chains
+    final target = generate(expr.target, parenthesize: false);
 
-    // Check if property name is valid JS identifier
     if (_isValidIdentifier(expr.propertyName)) {
       return '$target.${expr.propertyName}';
     } else {
@@ -330,10 +375,9 @@ class ExpressionCodeGen {
   }
 
   String _generateIndexAccess(IndexAccessExpressionIR expr) {
-    final target = generate(expr.target, parenthesize: true);
-    final index = generate(expr.index, parenthesize: true);
+    final target = generate(expr.target, parenthesize: false);
+    final index = generate(expr.index, parenthesize: false);
 
-    // Handle null-aware index access (?.operator not standard, but can use optional chaining)
     if (expr.isNullAware) {
       return '$target?.[$index]';
     }
@@ -423,8 +467,7 @@ class ExpressionCodeGen {
       // Null coalescing handled separately
       case BinaryOperatorIR.nullCoalesce:
         return '??';
-
-      }
+    }
   }
 
   String _generateUnary(UnaryExpressionIR expr) {
@@ -454,7 +497,7 @@ class ExpressionCodeGen {
         return '++';
       case UnaryOperator.postDecrement:
         return '--';
-      }
+    }
   }
 
   String _generateAssignment(AssignmentExpressionIR expr) {
@@ -563,30 +606,42 @@ class ExpressionCodeGen {
   // =========================================================================
 
   String _generateMethodCall(MethodCallExpressionIR expr) {
-    // ✅ FIX: Don't use 'this.' for Flutter widget constructors
-    final target = expr.target != null
-        ? generate(expr.target!, parenthesize: true)
-        : 'this';
+    // If target is explicitly provided, use it
+    if (expr.target != null) {
+      final target = generate(expr.target!, parenthesize: false);
+      final args = _generateArgumentList(expr.arguments, expr.namedArguments);
 
-    // ✅ NEW: Check if this is a widget constructor call (capitalize first letter)
-    final isWidgetCall = expr.methodName[0].toUpperCase() == expr.methodName[0];
+      if (expr.isNullAware) {
+        return '$target?.${expr.methodName}($args)';
+      } else if (expr.isCascade) {
+        return '$target..${expr.methodName}($args)';
+      } else {
+        return '$target.${expr.methodName}($args)';
+      }
+    }
 
-    // Generate arguments - THIS IS THE KEY FIX
+    // ✅ FIXED: When target is null
     final args = _generateArgumentList(expr.arguments, expr.namedArguments);
 
-    // ✅ FIX: For widget calls, don't use 'this.'
+    // Check if this is a widget constructor
+    final isWidgetCall =
+        expr.methodName.isNotEmpty &&
+        expr.methodName[0].toUpperCase() == expr.methodName[0];
+
     if (isWidgetCall) {
       return '${expr.methodName}($args)';
     }
 
-    // For regular method calls, use dot notation
-    if (expr.isNullAware) {
-      return '$target?.${expr.methodName}($args)';
-    } else if (expr.isCascade) {
-      return '$target..${expr.methodName}($args)';
-    } else {
-      return '$target.${expr.methodName}($args)';
+    // ✅ NEW: Use context from the function declaration
+    // This requires passing context through the generation pipeline
+    if (_currentFunctionContext != null &&
+        !_currentFunctionContext!.isTopLevel) {
+      // Inside a class method: use 'this.'
+      return 'this.${expr.methodName}($args)';
     }
+
+    // Top-level function: direct call (no 'this.')
+    return '${expr.methodName}($args)';
   }
 
   String _generateFunctionCall(FunctionCallExpr expr) {
