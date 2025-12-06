@@ -48,7 +48,7 @@ class ClassCodeGen {
   final ClassGenConfig config;
   final ExpressionCodeGen exprGen;
   final StatementCodeGen stmtGen;
-  final FunctionCodeGen funcGen;
+  final FunctionCodeGen funcGen; // ✅ USE THIS FOR METHODS & CONSTRUCTORS
   late Indenter indenter;
   final List<CodeGenError> errors = [];
   final List<CodeGenWarning> warnings = [];
@@ -102,10 +102,14 @@ class ClassCodeGen {
       buffer.writeln();
     }
 
-    // Constructor(s)
+    // ✅ FIXED: Use FunctionCodeGen for constructors
     if (cls.constructors.isNotEmpty) {
       for (int i = 0; i < cls.constructors.length; i++) {
-        buffer.writeln(_generateConstructor(cls.constructors[i], cls));
+        final ctorCode = funcGen.generateConstructor(
+          cls.constructors[i],
+          cls.name,
+        );
+        buffer.writeln(indenter.apply(ctorCode));
         if (i < cls.constructors.length - 1) {
           buffer.writeln();
         }
@@ -113,10 +117,14 @@ class ClassCodeGen {
       buffer.writeln();
     }
 
-    // Instance methods
+    // ✅ FIXED: Use FunctionCodeGen for instance methods
     if (cls.instanceMethods.isNotEmpty) {
       for (int i = 0; i < cls.instanceMethods.length; i++) {
-        buffer.writeln(_generateMethod(cls.instanceMethods[i]));
+        final methodCode = funcGen.generateMethod(
+          cls.instanceMethods[i],
+          isStatic: false,
+        );
+        buffer.writeln(indenter.apply(methodCode));
         if (i < cls.instanceMethods.length - 1) {
           buffer.writeln();
         }
@@ -130,10 +138,14 @@ class ClassCodeGen {
       buffer.writeln();
     }
 
-    // Static methods
+    // ✅ FIXED: Use FunctionCodeGen for static methods
     if (cls.staticMethods.isNotEmpty) {
       for (int i = 0; i < cls.staticMethods.length; i++) {
-        buffer.writeln(_generateStaticMethod(cls.staticMethods[i]));
+        final methodCode = funcGen.generateMethod(
+          cls.staticMethods[i],
+          isStatic: true,
+        );
+        buffer.writeln(indenter.apply(methodCode));
         if (i < cls.staticMethods.length - 1) {
           buffer.writeln();
         }
@@ -145,7 +157,6 @@ class ClassCodeGen {
 
     return buffer.toString().trim();
   }
-
   // =========================================================================
   // CLASS HEADER
   // =========================================================================
@@ -185,7 +196,6 @@ class ClassCodeGen {
 
     return buffer.toString();
   }
-
   // =========================================================================
   // FIELD DECLARATIONS
   // =========================================================================
@@ -483,3 +493,4 @@ class ClassCodeGen {
     return parts.join(', ');
   }
 }
+

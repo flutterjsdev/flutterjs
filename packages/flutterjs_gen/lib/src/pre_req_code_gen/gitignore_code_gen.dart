@@ -1,31 +1,31 @@
-import 'dart:io';
+// import 'dart:io';
 
-Future<void> updateGitignore(bool verbose) async {
-  print('🔒 Updating .gitignore...');
+// Future<void> updateGitignore(bool verbose) async {
+//   print('🔒 Updating .gitignore...');
 
-  final gitignoreFile = File('.gitignore');
+//   final gitignoreFile = File('.gitignore');
 
-  if (!await gitignoreFile.exists()) {
-    await gitignoreFile.writeAsString('');
-  }
+//   if (!await gitignoreFile.exists()) {
+//     await gitignoreFile.writeAsString('');
+//   }
 
-  String content = await gitignoreFile.readAsString();
+//   String content = await gitignoreFile.readAsString();
 
-  if (content.contains('build/flutterjs')) {
-    if (verbose) print('   FlutterJS entries already in .gitignore');
-    print('✅ .gitignore up to date\n');
-    return;
-  }
+//   if (content.contains('build/flutterjs')) {
+//     if (verbose) print('   FlutterJS entries already in .gitignore');
+//     print('✅ .gitignore up to date\n');
+//     return;
+//   }
 
-  final additions = '''
+//   final additions = '''
 
-# FlutterJS
-build/flutterjs-cache/
-build/flutterjs/
-web/index.html.flutter
-web/firebase-config.json
-''';
+// # FlutterJS
+// build/flutterjs-cache/
+// build/flutterjs/
+// web/index.html.flutter
+// web/firebase-config.json
+// ''';
 
-  await gitignoreFile.writeAsString(content + additions);
-  print('✅ .gitignore updated\n');
-}
+//   await gitignoreFile.writeAsString(content + additions);
+//   print('✅ .gitignore updated\n');
+// }

@@ -1,26 +1,26 @@
-import 'dart:io';
+// import 'dart:io';
 
-Future<void> createBuildStructure(bool verbose) async {
-  print('📦 Creating MPA build structure...');
+// Future<void> createBuildStructure(bool verbose) async {
+//   print('🏗️  Creating optimized build structure...');
 
-  final dirs = [
-    'build/flutterjs-cache/output',
-    'build/flutterjs-cache/output/pages',
-    'build/flutterjs-cache/output/services',
-    'build/flutterjs-cache/output/styles',
-    'build/flutterjs/output',
-    'build/flutterjs/output/pages',
-    'build/flutterjs/output/services',
-    'build/flutterjs/output/runtime',
-  ];
+//   final dirs = [
 
-  for (final dirPath in dirs) {
-    final dir = Directory(dirPath);
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-      if (verbose) print('   Created: $dirPath/');
-    }
-  }
+//     // Production output (final)
+//     'build/flutterjs/output/pages',
+//     'build/flutterjs/output/services',
+//     'build/flutterjs/output/styles',
+//     'build/flutterjs/js/framework', // ✅ NEW: Framework directory
+//     // Reports
+//     'build/flutterjs/reports',
+//   ];
 
-  print('✅ MPA structure created\n');
-}
+//   for (final dirPath in dirs) {
+//     final dir = Directory(dirPath);
+//     if (!await dir.exists()) {
+//       await dir.create(recursive: true);
+//       if (verbose) print('   Created: $dirPath/');
+//     }
+//   }
+
+//   print('✅ Build structure created\n');
+// }

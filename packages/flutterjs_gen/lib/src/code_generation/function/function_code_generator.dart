@@ -30,7 +30,7 @@ class FunctionGenConfig {
 
   const FunctionGenConfig({
     this.useArrowFunctions = true,
-    this.generateJSDoc = false,
+    this.generateJSDoc = true,
     this.indent = '  ',
   });
 }
@@ -132,34 +132,30 @@ class FunctionCodeGen {
   // =========================================================================
 
   String _generateFunction(FunctionDecl func) {
-    // Generate JSDoc if enabled
-    final jsDoc = config.generateJSDoc ? _generateJSDoc(func) : '';
-
-    // ✅ FIXED: Check body type to determine if arrow function is possible
+    // ✅ FIXED: Always generate JSDoc
+    final jsDoc = config.generateJSDoc ? _generateFunctionJSDoc(func) : '';
     final bodyType = _analyzeBodyType(func.body);
 
-    // Check if this is a simple arrow function candidate
-    // (single expression/return, not async, not generator)
+    // ✅ Arrow functions only for non-void with single return
     if (config.useArrowFunctions &&
         !func.isAsync &&
         !func.isGenerator &&
+        _isNonVoidType(func.returnType) &&
         _canBeArrowFunction(bodyType, func.body)) {
       return _generateArrowFunction(func, jsDoc, bodyType);
     }
 
-    // Otherwise generate as regular function
     return _generateRegularFunction(func, jsDoc);
   }
 
   String _generateRegularFunction(FunctionDecl func, String jsDoc) {
     final buffer = StringBuffer();
 
+    // ✅ FIXED: Always include JSDoc if available
     if (jsDoc.isNotEmpty) {
       buffer.writeln(jsDoc);
     }
 
-    // ✅ FIX 1: Don't use 'const' keyword for function declarations
-    // const is only for variables/fields, not functions
     String header = 'function';
 
     if (func.isAsync && func.isGenerator) {
@@ -170,10 +166,8 @@ class FunctionCodeGen {
       header = 'function*';
     }
 
-    // Parameters
     final params = _generateParameterList(func.parameters);
 
-    // ✅ FIX 2: Regular function header (never use const)
     buffer.writeln('$header ${func.name}($params) {');
     indenter.indent();
 
@@ -183,7 +177,10 @@ class FunctionCodeGen {
       buffer.writeln(indenter.line('// Empty function body'));
     } else {
       for (final stmt in func.body!.statements) {
-        buffer.writeln(stmtGen.generate(stmt));
+        // ✅ Pass function context
+        buffer.writeln(
+          stmtGen.generateWithContext(stmt, functionContext: func),
+        );
       }
     }
 
@@ -198,33 +195,33 @@ class FunctionCodeGen {
     String jsDoc,
     FunctionBodyType bodyType,
   ) {
-    // ✅ ONLY use arrow functions if:
-    // 1. Single return or single expression
-    // 2. NOT async or generator
-    // 3. NOT main() or other entry points
-
     final params = _generateParameterList(func.parameters);
-
-    // Extract the expression from body
-    ExpressionIR? exprBody = _extractExpressionFromBody(func.body, bodyType);
+    final exprBody = _extractExpressionFromBody(func.body, bodyType);
 
     if (exprBody == null) {
-      // Fall back to regular function if can't extract expression
       return _generateRegularFunction(func, jsDoc);
     }
 
     final expr = exprGen.generate(exprBody, parenthesize: false);
 
-    // ✅ FIX 3: Use 'const' or 'let' only for variable declarations
-    // Use 'const' only if function is truly immutable and simple
-    final keyword = _shouldUseConst(func) ? 'const' : 'let';
-
-    // ✅ Arrow function format (no 'const' prefix for top-level)
-    return '$keyword ${func.name} = ($params) => $expr;';
+    // ✅ FIXED: Only use 'const' for arrow functions (not function declarations)
+    // 'const' signals this is an immutable function assignment
+    return 'const ${func.name} = ($params) => $expr;';
   }
 
   String _generateMethod(MethodDecl method, {bool isStatic = false}) {
     final buffer = StringBuffer();
+
+    // ✅ COMPLETE FIX: Generate JSDoc with ALL type information
+    final jsDoc = config.generateJSDoc ? _generateMethodJSDoc(method) : '';
+    if (jsDoc.isNotEmpty) {
+      buffer.writeln(jsDoc);
+    }
+
+    // ✅ NEW: Generate @override if annotation exists
+    if (_hasOverrideAnnotation(method)) {
+      buffer.writeln(indenter.line('// @override'));
+    }
 
     // Static keyword
     if (isStatic) {
@@ -253,7 +250,6 @@ class FunctionCodeGen {
 
     indenter.indent();
 
-    // âœ… FIXED: body is now FunctionBodyIR?
     if (method.body == null) {
       if (!method.isAbstract) {
         buffer.writeln(indenter.line('// TODO: Implement ${method.name}'));
@@ -262,7 +258,10 @@ class FunctionCodeGen {
       buffer.writeln(indenter.line('// Empty method body'));
     } else {
       for (final stmt in method.body!.statements) {
-        buffer.writeln(stmtGen.generate(stmt));
+        // ✅ Pass method context to statement generator
+        buffer.writeln(
+          stmtGen.generateWithContext(stmt, functionContext: method),
+        );
       }
     }
 
@@ -275,7 +274,12 @@ class FunctionCodeGen {
   String _generateConstructor(ConstructorDecl ctor, String className) {
     final buffer = StringBuffer();
 
-    // Constructor keyword
+    // ✅ NEW: Generate JSDoc for constructor
+    final jsDoc = config.generateJSDoc ? _generateConstructorJSDoc(ctor) : '';
+    if (jsDoc.isNotEmpty) {
+      buffer.writeln(jsDoc);
+    }
+
     final constructorName = ctor.constructorName != null
         ? ' ${ctor.constructorName}'
         : '';
@@ -285,20 +289,28 @@ class FunctionCodeGen {
     buffer.writeln('constructor$constructorName($params) {');
     indenter.indent();
 
-    // Call super if needed
-    // TODO: Check if superclass exists and call super()
-
-    // Field initializers
-    for (final param in ctor.parameters) {
-      // If parameter name matches a field name, initialize it
-      buffer.writeln(indenter.line('this.${param.name} = ${param.name};'));
+    // ✅ NEW: Handle super() call if this is a subclass constructor
+    if (ctor.superCall != null) {
+      buffer.writeln(indenter.line('super();'));
     }
 
-    // âœ… FIXED: body is now FunctionBodyIR?
+    // ✅ NEW: Generate field initializers
+    for (final init in ctor.initializers) {
+      final value = exprGen.generate(init.value, parenthesize: false);
+      buffer.writeln(indenter.line('this.${init.fieldName} = $value;'));
+    }
+
+    // ✅ NEW: Auto-initialize parameters matching fields
+    for (final param in ctor.parameters) {
+      if (!ctor.initializers.any((i) => i.fieldName == param.name)) {
+        buffer.writeln(indenter.line('this.${param.name} = ${param.name};'));
+      }
+    }
+
     if (ctor.body == null) {
       buffer.writeln(indenter.line('// TODO: Constructor body'));
     } else if (ctor.body!.statements.isEmpty) {
-      buffer.writeln(indenter.line('// Empty constructor body'));
+      // Empty - already handled with initializers
     } else {
       for (final stmt in ctor.body!.statements) {
         buffer.writeln(stmtGen.generate(stmt));
@@ -311,6 +323,25 @@ class FunctionCodeGen {
     return buffer.toString().trim();
   }
 
+  String _generateConstructorJSDoc(ConstructorDecl ctor) {
+    if (!config.generateJSDoc) return '';
+
+    final buffer = StringBuffer();
+    buffer.writeln('/**');
+
+    // ✅ Document constructor parameters
+    for (final param in ctor.parameters) {
+      final typeStr = _typeToJSDocType(param.type);
+      final nullable = param.type?.isNullable ?? false;
+      final fullType = nullable ? '$typeStr|null' : typeStr;
+
+      buffer.writeln(' * @param {$fullType} ${param.name}');
+    }
+
+    buffer.writeln(' */');
+
+    return buffer.toString().trim();
+  }
   // =========================================================================
   // BODY ANALYSIS - DETERMINE TYPE AND EXTRACT EXPRESSIONS
   // =========================================================================
@@ -321,7 +352,6 @@ class FunctionCodeGen {
       return FunctionBodyType.none;
     }
 
-    // Check statements list length
     if (body.statements.isEmpty) {
       return FunctionBodyType.empty;
     }
@@ -329,18 +359,15 @@ class FunctionCodeGen {
     if (body.statements.length == 1) {
       final stmt = body.statements.first;
 
-      // Single return statement
       if (stmt is ReturnStmt) {
         return FunctionBodyType.singleReturn;
       }
 
-      // Single expression statement
       if (stmt is ExpressionStmt) {
         return FunctionBodyType.singleExpression;
       }
     }
 
-    // ✅ Multiple statements = MUST be regular function
     if (body.statements.length > 1) {
       return FunctionBodyType.multipleStatements;
     }
@@ -348,17 +375,20 @@ class FunctionCodeGen {
     return FunctionBodyType.unknown;
   }
 
+  /// ✅ NEW: Check if function has a non-void return type
+  bool _isNonVoidType(TypeIR? returnType) {
+    if (returnType == null) return false;
+    final typeName = returnType.displayName();
+    return typeName != 'void' && typeName != 'Null';
+  }
+
   bool _canBeArrowFunction(FunctionBodyType bodyType, FunctionBodyIR? body) {
-    // ✅ Only these types can be arrows:
     if (bodyType == FunctionBodyType.singleReturn ||
         bodyType == FunctionBodyType.singleExpression) {
       return _extractExpressionFromBody(body, bodyType) != null;
     }
-
-    // Everything else must be regular function
     return false;
   }
-
 
   /// ✅ FIXED: Extract expression from single-statement body
   ExpressionIR? _extractExpressionFromBody(
@@ -382,7 +412,6 @@ class FunctionCodeGen {
         }
       }
     } catch (e) {
-      // If extraction fails, return null to fall back to regular function
       return null;
     }
 
@@ -398,7 +427,6 @@ class FunctionCodeGen {
       return '';
     }
 
-    // ✅ NEW: Separate by type including isPositional
     final required = parameters
         .where((p) => p.isRequired && !p.isNamed)
         .toList();
@@ -443,23 +471,75 @@ class FunctionCodeGen {
   // JSDOC GENERATION
   // =========================================================================
 
-  String _generateJSDoc(FunctionDecl func) {
+  // =========================================================================
+  // JSDOC GENERATION - ✅ ENHANCED WITH PROPER TYPE INFO
+  // =========================================================================
+
+  String _generateMethodJSDoc(MethodDecl method) {
     if (!config.generateJSDoc) return '';
 
     final buffer = StringBuffer();
-
     buffer.writeln('/**');
 
-    // Parameters documentation
-    for (final param in func.parameters) {
-      final type = _typeToJSDocType(param.type);
-      buffer.writeln(' * @param {$type} ${param.name}');
+    // ✅ ENHANCED: Generate parameter documentation with types and nullability
+    for (final param in method.parameters) {
+      final typeStr = _typeToJSDocType(param.type);
+      final nullable = param.type?.isNullable ?? false;
+      final fullType = nullable ? '$typeStr|null' : typeStr;
+
+      // ✅ NEW: Include parameter description if available
+      buffer.writeln(' * @param {$fullType} ${param.name}');
     }
 
-    // Return type documentation
+    // ✅ FIXED: Include return type documentation for non-void methods
+    final returnType = _typeToJSDocType(method.returnType);
+    if (returnType != 'void') {
+      final nullable = method.returnType?.isNullable ?? false;
+      final fullType = nullable ? '$returnType|null' : returnType;
+      buffer.writeln(' * @returns {$fullType}');
+    }
+
+    // ✅ NEW: Add @override tag if present
+    if (_hasOverrideAnnotation(method)) {
+      buffer.writeln(' * @override');
+    }
+
+    // Async marker
+    if (method.isAsync) {
+      buffer.writeln(' * @async');
+    }
+
+    // Generator marker
+    if (method.isGenerator) {
+      buffer.writeln(' * @generator');
+    }
+
+    buffer.writeln(' */');
+
+    return buffer.toString().trim();
+  }
+
+  String _generateFunctionJSDoc(FunctionDecl func) {
+    if (!config.generateJSDoc) return '';
+
+    final buffer = StringBuffer();
+    buffer.writeln('/**');
+
+    // ✅ Enhanced parameter documentation
+    for (final param in func.parameters) {
+      final typeStr = _typeToJSDocType(param.type);
+      final nullable = param.type?.isNullable ?? false;
+      final fullType = nullable ? '$typeStr|null' : typeStr;
+
+      buffer.writeln(' * @param {$fullType} ${param.name}');
+    }
+
+    // ✅ Return type documentation
     final returnType = _typeToJSDocType(func.returnType);
     if (returnType != 'void') {
-      buffer.writeln(' * @returns {$returnType}');
+      final nullable = func.returnType?.isNullable ?? false;
+      final fullType = nullable ? '$returnType|null' : returnType;
+      buffer.writeln(' * @returns {$fullType}');
     }
 
     // Async marker
@@ -477,7 +557,13 @@ class FunctionCodeGen {
     return buffer.toString().trim();
   }
 
-  String _typeToJSDocType(TypeIR type) {
+  bool _hasOverrideAnnotation(MethodDecl method) {
+    return method.annotations.any((ann) => ann.name == 'override');
+  }
+
+  String _typeToJSDocType(TypeIR? type) {
+    if (type == null) return 'any';
+
     final typeName = type.displayName();
 
     switch (typeName) {
@@ -504,6 +590,12 @@ class FunctionCodeGen {
         return 'Promise';
       case 'Stream':
         return 'AsyncIterable';
+      case 'dynamic':
+        return 'any';
+      case 'Widget':
+        return 'Widget';
+      case 'BuildContext':
+        return 'BuildContext';
       default:
         return typeName;
     }
@@ -513,15 +605,9 @@ class FunctionCodeGen {
   // UTILITY METHODS
   // =========================================================================
 
-  /// Determine if function should use const keyword
-  /// ✅ FIX 4: Determine if should use const
-  bool _shouldUseConst(FunctionDecl func) {
-    // Use const only for arrow functions that are immutable
-    // Regular functions should never use const
-    if (!func.isAsync && !func.isGenerator) {
-      // Only if body is single expression with no side effects
-      return true;
-    }
-    return false;
+  List<CodeGenError> getErrors() => List.unmodifiable(errors);
+
+  void clearErrors() {
+    errors.clear();
   }
 }

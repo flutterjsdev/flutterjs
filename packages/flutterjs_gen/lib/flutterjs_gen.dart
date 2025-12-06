@@ -1,5 +1,5 @@
-export 'src/init_project.dart';
-export 'src/service_detection.dart';
+export 'src/pre_req_code_gen/init_project.dart';
+export 'src/pre_req_code_gen/service_detection.dart';
 
 export 'src/widget_generation/build_method/build_method_code_gen.dart';
 export 'src/code_generation/class/class_code_generator.dart';

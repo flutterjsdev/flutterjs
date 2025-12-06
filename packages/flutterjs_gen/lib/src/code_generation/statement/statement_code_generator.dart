@@ -77,6 +77,9 @@ class StatementCodeGen {
     indenter = Indenter(this.config.indent);
   }
 
+
+  
+
   /// Generate JavaScript code from a statement IR
   String generate(StatementIR stmt) {
     try {
@@ -92,6 +95,27 @@ class StatementCodeGen {
     }
   }
 
+
+
+ /// ✅ NEW: Generate with function context
+  String generateWithContext(StatementIR stmt, {FunctionDecl? functionContext}) {
+    try {
+      if (functionContext != null) {
+        exprGen.setFunctionContext(functionContext);
+      }
+      return _generateStatement(stmt);
+    } catch (e) {
+      final error = CodeGenError(
+        message: 'Failed to generate statement: $e',
+        expressionType: stmt.runtimeType.toString(),
+        suggestion: 'Check if statement type is supported',
+      );
+      errors.add(error);
+      rethrow;
+    } finally {
+      exprGen.setFunctionContext(null);
+    }
+  }
   // =========================================================================
   // PRIVATE GENERATION METHODS
   // =========================================================================
