@@ -10,7 +10,7 @@
 ### 02. LiteralExpressionIR
 **Purpose** → Base class for all literals (int, string, bool, null, list, map) with automatic constancy detection  
 **Implemented in** →  
-**Used in** →  
+**Used in** →  '../../../../../flutterjs_gen/lib/src/code_generation/expression/expression_code_generator.dart'
 **Last change** → 2025-12-07  
 **Before pushing / PR** → Critical for `const` widget detection — run all const-folding tests
 
