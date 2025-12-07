@@ -2,6 +2,8 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 
+import 'lambda_function_extractor.dart';
+
 /// <---------------------------------------------------------------------------->
 /// statement_extraction_pass.dart
 /// ----------------------------------------------------------------------------
@@ -1035,6 +1037,7 @@ class StatementExtractionPass {
       return ConstructorCallExpressionIR(
         id: builder.generateId('expr_ctor'),
         className: className,
+
         constructorName: constructorName,
         positionalArguments: positional,
         namedArguments: named, // âœ… KEEP MAP OF NAMES TO EXPRESSIONS
@@ -1076,17 +1079,76 @@ class StatementExtractionPass {
       );
     }
 
-    // Function expressions/lambdas
+    // Fix for extracting FunctionExpression with body
+
     if (expr is FunctionExpression) {
+      final funcBody = expr.body; // ← FunctionBody
+
+      // =========================================================================
+      // STEP 1: Extract body statements (handles both arrow and block)
+      // =========================================================================
+      final bodyStatements = extractBodyStatements(funcBody);
+
+      // =========================================================================
+      // STEP 2: Extract parameters using FormalParameterExtractor
+      // =========================================================================
+      final formalParamExtractor = SimpleLambdaExtractor(
+        filePath: filePath,
+        fileContent: fileContent,
+        builder: builder,
+        statementExtractor: StatementExtractionPass(
+          builder: builder,
+          fileContent: fileContent,
+          filePath: filePath,
+        ),
+      );
+
+      final parameters = formalParamExtractor.extractLambdaParameters(
+        expr.parameters,
+      );
+
+      // =========================================================================
+      // STEP 3: Determine if arrow or block function
+      // =========================================================================
+      final isArrowFunction = funcBody is ExpressionFunctionBody;
+
+      // =========================================================================
+      // STEP 4: Extract return type from body
+      // =========================================================================
+      final returnType = _inferReturnTypeFromBody(
+        bodyStatements,
+        isArrowFunction,
+        funcBody,
+        sourceLoc,
+      );
+
+      // =========================================================================
+      // STEP 5: Build FunctionExpressionIR with proper values
+      // =========================================================================
       return FunctionExpressionIR(
         id: builder.generateId('expr_func'),
-        parameterNames:
-            expr.parameters?.parameters
-                .map((p) => p.name?.lexeme ?? '')
-                .toList() ??
-            [],
+        // ✅ Use extracted ParameterDecl objects instead of separate lists
+        parameter: parameters,
+        // ✅ Use extracted body statements wrapped in BlockStmt
+        body: FunctionBodyIR(
+          id: builder.generateId('lambda_block'),
+          statements: bodyStatements,
+          sourceLocation: sourceLoc,
+        ),
+
+        // ✅ Use inferred return type instead of always dynamic
+        returnType: returnType,
         sourceLocation: sourceLoc,
-        metadata: metadata,
+        metadata: {
+          ...metadata,
+          'isArrow': isArrowFunction,
+          'parameterCount': parameters,
+          'statementCount': bodyStatements.length,
+          'isAsync': funcBody.isAsynchronous,
+          'isGenerator': funcBody.isGenerator,
+        },
+        isAsync: funcBody.isAsynchronous,
+        isGenerator: funcBody.isGenerator,
       );
     }
 
@@ -1096,6 +1158,80 @@ class StatementExtractionPass {
       source: expr.toString(),
       sourceLocation: sourceLoc,
       metadata: metadata,
+    );
+  }
+
+  TypeIR _inferReturnTypeFromBody(
+    List<StatementIR> bodyStatements,
+    bool isArrowFunction,
+    FunctionBody funcBody,
+    SourceLocationIR sourceLoc,
+  ) {
+    // Arrow function: infer from expression
+    if (isArrowFunction && funcBody is ExpressionFunctionBody) {
+      final exprNode = funcBody.expression;
+
+      // Check expression type in AST
+      if (exprNode is StringLiteral) {
+        return SimpleTypeIR(
+          id: builder.generateId('type'),
+          name: 'String',
+          sourceLocation: sourceLoc,
+        );
+      }
+      if (exprNode is IntegerLiteral) {
+        return SimpleTypeIR(
+          id: builder.generateId('type'),
+          name: 'int',
+          sourceLocation: sourceLoc,
+        );
+      }
+      if (exprNode is DoubleLiteral) {
+        return SimpleTypeIR(
+          id: builder.generateId('type'),
+          name: 'double',
+          sourceLocation: sourceLoc,
+        );
+      }
+      if (exprNode is BooleanLiteral) {
+        return SimpleTypeIR(
+          id: builder.generateId('type'),
+          name: 'bool',
+          sourceLocation: sourceLoc,
+        );
+      }
+      if (exprNode is ListLiteral) {
+        return SimpleTypeIR(
+          id: builder.generateId('type'),
+          name: 'List',
+          sourceLocation: sourceLoc,
+        );
+      }
+      if (exprNode is MapEntry) {
+        return SimpleTypeIR(
+          id: builder.generateId('type'),
+          name: 'Map',
+          sourceLocation: sourceLoc,
+        );
+      }
+    }
+
+    // Block function: look for return statements
+    for (final stmt in bodyStatements) {
+      if (stmt is ReturnStmt && stmt.expression != null) {
+        // Found a return, return type is present
+        return SimpleTypeIR(
+          id: builder.generateId('type'),
+          name: 'dynamic', // Could infer from expression IR
+          sourceLocation: sourceLoc,
+        );
+      }
+    }
+
+    // Default: dynamic
+    return DynamicTypeIR(
+      id: builder.generateId('type'),
+      sourceLocation: sourceLoc,
     );
   }
 

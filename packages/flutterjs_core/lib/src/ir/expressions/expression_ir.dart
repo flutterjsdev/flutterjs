@@ -699,15 +699,22 @@ class FlutterWidgetConstructorIR extends ConstructorCallExpressionIR {
 
 @immutable
 class FunctionExpressionIR extends ExpressionIR {
-  final List<String> parameterNames;
-  final List<StatementIR>? body; // null if not yet analyzed
+  final List<ParameterDecl> parameter;
+  final FunctionBodyIR? body; // null if not yet analyzed
+  final TypeIR?  returnType;
+  final bool isAsync;
+  final bool isGenerator;
 
   FunctionExpressionIR({
     required super.id,
     required super.sourceLocation,
-    required this.parameterNames,
+    required this.parameter,
     this.body,
     super.metadata,
+    this.returnType,
+    this.isAsync=false,
+    this.isGenerator=false,
+
   }) : super(
          resultType: DynamicTypeIR(
            id: 'dynamic',
@@ -723,7 +730,7 @@ class FunctionExpressionIR extends ExpressionIR {
        );
 
   @override
-  String toShortString() => '(${parameterNames.join(', ')}) => ...';
+  String toShortString() => '(${parameter.join(', ')}) => ...';
 }
 
 // =============================================================================
