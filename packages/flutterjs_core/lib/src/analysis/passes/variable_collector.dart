@@ -7,7 +7,6 @@ import '../../ir/expressions/function_method_calls.dart';
 import '../../ir/expressions/literals.dart';
 import '../../ir/expressions/operations.dart';
 import '../../ir/expressions/vaibales_access.dart';
-import 'expression_visitor.dart';
 
 /// =============================================================================
 ///  VARIABLE COLLECTOR
@@ -47,7 +46,7 @@ import 'expression_visitor.dart';
 /// NOTE
 /// ----
 /// This visitor only collects *references*, not declarations.
-/// For declarations, use `VariableDeclarationExtractor` from expression_visitor.dart.
+/// For declarations, use `VariableDeclarationExtractor` from expressionvisitor.dart.
 ///
 /// AUTHOR:  Your Name / Team
 /// UPDATED: 2025-11-27
@@ -68,7 +67,7 @@ class VariableCollector implements ExpressionVisitor<void> {
   void visitStringLiteral(StringLiteralExpr expr) {
     if (expr.interpolations != null) {
       for (final interp in expr.interpolations!) {
-        _visit(interp);
+        visit(interp);
       }
     }
   }
@@ -82,22 +81,22 @@ class VariableCollector implements ExpressionVisitor<void> {
   @override
   void visitListLiteral(ListLiteralExpr expr) {
     for (final elem in expr.elements) {
-      _visit(elem);
+      visit(elem);
     }
   }
 
   @override
   void visitMapLiteral(MapLiteralExpr expr) {
     for (final entry in expr.entries) {
-      _visit(entry.key);
-      _visit(entry.value);
+      visit(entry.key);
+      visit(entry.value);
     }
   }
 
   @override
   void visitSetLiteral(SetLiteralExpr expr) {
     for (final elem in expr.elements) {
-      _visit(elem);
+      visit(elem);
     }
   }
 
@@ -108,97 +107,97 @@ class VariableCollector implements ExpressionVisitor<void> {
 
   @override
   void visitPropertyAccess(PropertyAccessExpr expr) {
-    _visit(expr.target);
+    visit(expr.target);
   }
 
   @override
   void visitIndexAccess(IndexAccessExpr expr) {
-    _visit(expr.target);
-    _visit(expr.index);
+    visit(expr.target);
+    visit(expr.index);
   }
 
   @override
   void visitBinaryOp(BinaryOpExpr expr) {
-    _visit(expr.left);
-    _visit(expr.right);
+    visit(expr.left);
+    visit(expr.right);
   }
 
   @override
   void visitUnaryOp(UnaryOpExpr expr) {
-    _visit(expr.operand);
+    visit(expr.operand);
   }
 
   @override
   void visitAssignment(AssignmentExpr expr) {
-    _visit(expr.target);
-    _visit(expr.value);
+    visit(expr.target);
+    visit(expr.value);
   }
 
   @override
   void visitConditional(ConditionalExpr expr) {
-    _visit(expr.condition);
-    _visit(expr.thenExpr);
-    _visit(expr.elseExpr);
+    visit(expr.condition);
+    visit(expr.thenExpr);
+    visit(expr.elseExpr);
   }
 
   @override
   void visitFunctionCall(FunctionCallExpr expr) {
     for (final arg in expr.arguments) {
-      _visit(arg);
+      visit(arg);
     }
     for (final value in expr.namedArguments.values) {
-      _visit(value);
+      visit(value);
     }
   }
 
   @override
   void visitMethodCall(MethodCallExpr expr) {
     if (expr.receiver != null) {
-      _visit(expr.receiver!);
+      visit(expr.receiver!);
     }
     for (final arg in expr.arguments) {
-      _visit(arg);
+      visit(arg);
     }
     for (final value in expr.namedArguments.values) {
-      _visit(value);
+      visit(value);
     }
   }
 
   @override
   void visitConstructorCall(ConstructorCallExpr expr) {
     for (final arg in expr.arguments) {
-      _visit(arg);
+      visit(arg);
     }
     for (final value in expr.namedArguments.values) {
-      _visit(value);
+      visit(value);
     }
   }
 
   @override
   void visitLambda(LambdaExpr expr) {
     if (expr.body != null) {
-      _visit(expr.body!);
+      visit(expr.body!);
     }
   }
 
   @override
   void visitAwait(AwaitExpr expr) {
-    _visit(expr.futureExpression);
+    visit(expr.futureExpression);
   }
 
   @override
   void visitThrow(ThrowExpr expr) {
-    _visit(expr.exceptionExpression);
+    visit(expr.exceptionExpression);
   }
 
   @override
   void visitCast(CastExpr expr) {
-    _visit(expr.expression);
+    visit(expr.expression);
   }
 
   @override
   void visitTypeCheck(TypeCheckExpr expr) {
-    _visit(expr.expression);
+    visit(expr.expression);
   }
 
   // ✅ NEW: Handle Dart 3.0+ enum member access
@@ -222,7 +221,7 @@ class VariableCollector implements ExpressionVisitor<void> {
   // =========================================================================
 
   /// ✅ UPDATED: Internal dispatcher with EnumMemberAccess support
-  void _visit(ExpressionIR expr) {
+  void visit(ExpressionIR expr) {
     if (expr is IntLiteralExpr) {
       visitIntLiteral(expr);
     } else if (expr is DoubleLiteralExpr) {

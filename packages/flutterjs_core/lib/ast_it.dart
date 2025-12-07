@@ -17,8 +17,11 @@ export 'src/ir/widgets/widget_tree_ir.dart';
 export 'src/ir/types/type_ir.dart';
 export 'src/ir/core/ir_node.dart';
 export 'src/ir/expressions/expression_ir.dart';
-export 'src/analysis/visitors/expression_visitor.dart';
-export 'src/analysis/visitors/variable_collector.dart';
+export 'src/analysis/passes/expression_visitor.dart';
+export 'src/analysis/passes/variable_collector.dart';
+export 'src/analysis/passes/statement_visitor.dart';
+export 'src/analysis/passes/type_inference_visitor.dart';
+
 export 'src/ir/expressions/advanced.dart';
 export 'src/ir/expressions/function_method_calls.dart';
 export 'src/ir/expressions/enum_member_access_expression.dart';

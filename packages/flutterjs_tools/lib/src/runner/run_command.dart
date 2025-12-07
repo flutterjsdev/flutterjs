@@ -1485,11 +1485,75 @@ class IRGenerator {
     required IRGenerationResults results,
     required bool verbose,
   }) async {
+    // âœ… INTEGRATED: Use ExpressionVisitor + TypeInferenceVisitor
     final pass = TypeInferencePass(
       dartFiles: results.dartFiles,
       globalSymbols: {},
       providerRegistry: results.providerRegistry,
     );
+
+    // Delegate to visitor-based inference (cleaner, more extensible)
+    final expressionInferencer = ExpressionBasedTypeInferencer(
+      globalSymbols: pass.globalSymbols,
+      providerRegistry: pass.providerRegistry,
+      typeCompatibilityGraph: pass.typeCompatibilityGraph,
+    );
+
+    pass.inferAllTypes();
+
+    // NEW: Use visitors to infer expression types in field initializers
+    for (final dartFile in results.dartFiles.values) {
+      for (final classDecl in dartFile.classDeclarations) {
+        for (final field in classDecl.fields) {
+          if (field.initializer != null) {
+            final inferredType = expressionInferencer.infer(field.initializer!);
+
+            if (verbose) {
+              debugger.log(
+                DebugLevel.debug,
+                'Field ${field.name}: ${inferredType?.name ?? 'unknown'}',
+                category: 'type_inference',
+              );
+            }
+          }
+        }
+
+        // Infer types in method bodies
+        for (final method in classDecl.methods) {
+          if (method.body != null) {
+            _inferTypesInMethodBody(
+              method.body!,
+              expressionInferencer,
+              verbose,
+            );
+          }
+        }
+      }
+
+      // Infer types in function bodies
+      for (final func in dartFile.functionDeclarations) {
+        if (func.body != null) {
+          _inferTypesInMethodBody(func.body!, expressionInferencer, verbose);
+        }
+      }
+
+      // Infer types in variable initializers
+      for (final variable in dartFile.variableDeclarations) {
+        if (variable.initializer != null) {
+          final inferredType = expressionInferencer.infer(
+            variable.initializer!,
+          );
+
+          if (verbose) {
+            debugger.log(
+              DebugLevel.debug,
+              'Variable ${variable.name}: ${inferredType?.name ?? 'unknown'}',
+              category: 'type_inference',
+            );
+          }
+        }
+      }
+    }
 
     pass.inferAllTypes();
     results.inferenceIssues.addAll(pass.inferenceIssues);
@@ -1497,20 +1561,101 @@ class IRGenerator {
 
     debugger.log(
       DebugLevel.debug,
-      'Inferred: ${pass.typeCache.length} expressions',
+      'Inferred: ${pass.typeCache.length} expressions (visitor-based)',
       category: 'type_inference',
     );
+  }
+
+  // ADD THIS NEW METHOD TO IRGenerator CLASS
+  void _inferTypesInMethodBody(
+    dynamic body,
+    ExpressionBasedTypeInferencer inferencer,
+    bool verbose,
+  ) {
+    if (body is BlockStmt) {
+      for (final stmt in body.statements) {
+        _inferTypesInStatement(stmt, inferencer, verbose);
+      }
+    }
+  }
+
+  // ADD THIS NEW METHOD TO IRGenerator CLASS
+  void _inferTypesInStatement(
+    StatementIR stmt,
+    ExpressionBasedTypeInferencer inferencer,
+    bool verbose,
+  ) {
+    if (stmt is VariableDeclarationStmt && stmt.initializer != null) {
+      final type = inferencer.infer(stmt.initializer!);
+      if (verbose) {
+        debugger.log(
+          DebugLevel.debug,
+          'Local ${stmt.name}: ${type?.name ?? 'unknown'}',
+          category: 'type_inference',
+        );
+      }
+    } else if (stmt is ExpressionStmt) {
+      inferencer.infer(stmt.expression);
+    } else if (stmt is IfStmt) {
+      inferencer.infer(stmt.condition);
+      _inferTypesInMethodBody(stmt.thenBranch, inferencer, verbose);
+      if (stmt.elseBranch != null) {
+        _inferTypesInMethodBody(stmt.elseBranch, inferencer, verbose);
+      }
+    } else if (stmt is BlockStmt) {
+      _inferTypesInMethodBody(stmt, inferencer, verbose);
+    } else if (stmt is ReturnStmt && stmt.expression != null) {
+      inferencer.infer(stmt.expression!);
+    }
   }
 
   Future<void> _runFlowAnalysisPass({
     required IRGenerationResults results,
     required bool verbose,
   }) async {
+    // âœ… INTEGRATED: Use StatementVisitor + ReachabilityAnalyzer
     final pass = FlowAnalysisPass(
       dartFiles: results.dartFiles,
       typeInferenceInfo: {},
     );
     pass.analyzeAllFlows();
+
+    // NEW: Use ReachabilityAnalyzer from statement_visitor.dart
+    final reachabilityAnalyzer = ReachabilityAnalyzer();
+
+    for (final dartFile in results.dartFiles.values) {
+      for (final classDecl in dartFile.classDeclarations) {
+        for (final method in classDecl.methods) {
+          if (method.body != null) {
+            reachabilityAnalyzer.analyzeFunctionBody(method.body!);
+
+            for (final location in reachabilityAnalyzer.unreachableLocations) {
+              pass.addFlowIssue(
+                severity: IssueSeverity.warning,
+                message: 'Unreachable code detected',
+                sourceLocation: SourceLocationIR(
+                  id: 'loc_unreachable_${pass.flowIssues.length}',
+                  file: dartFile.filePath,
+                  line: 0,
+                  column: 0,
+                  offset: 0,
+                  length: 0,
+                ),
+                code: 'UNREACHABLE_CODE',
+              );
+
+              if (verbose) {
+                debugger.log(
+                  DebugLevel.warn,
+                  'Unreachable code in ${method.name}: $location',
+                  category: 'flow_analysis',
+                );
+              }
+            }
+          }
+        }
+      }
+    }
 
     results.flowIssues.addAll(pass.flowIssues);
     results.controlFlowGraphs.addAll(pass.controlFlowGraphs);
@@ -1518,7 +1663,8 @@ class IRGenerator {
 
     debugger.log(
       DebugLevel.debug,
-      'Built: ${pass.controlFlowGraphs.length} CFGs',
+      'Built: ${pass.controlFlowGraphs.length} CFGs, '
+      'Found: ${reachabilityAnalyzer.unreachableLocations.length} unreachable code locations',
       category: 'flow_analysis',
     );
   }
@@ -1527,11 +1673,73 @@ class IRGenerator {
     required IRGenerationResults results,
     required bool verbose,
   }) async {
+    // âœ… INTEGRATED: Use ConstantFolder + VariableCollector
     final pass = ValidationPass(
       dartFiles: results.dartFiles,
       flowAnalysisInfo: {},
     );
     pass.validateAll();
+
+    // NEW: Use ConstantFolder to find optimization opportunities
+    final constantFolder = ConstantFolder();
+    final variableCollector = VariableCollector();
+
+    for (final dartFile in results.dartFiles.values) {
+      for (final classDecl in dartFile.classDeclarations) {
+        for (final field in classDecl.fields) {
+          if (field.initializer != null) {
+            // Check if initializer is compile-time constant
+            final constValue = constantFolder.fold(field.initializer!);
+
+            if (constValue != null && !field.isConst) {
+              pass.addIssue(
+                severity: IssueSeverity.info,
+                category: IssueCategory.flutterMissingConst,
+                message: 'Field "${field.name}" can be marked const',
+                sourceLocation: field.sourceLocation,
+                code: 'CONST_CANDIDATE',
+                suggestion: 'Mark as `const` for optimization',
+              );
+
+              if (verbose) {
+                debugger.log(
+                  DebugLevel.info,
+                  'Const candidate: ${field.name}',
+                  category: 'validation',
+                );
+              }
+            }
+
+            // Collect variables used in initializer
+            variableCollector.visit(field.initializer!);
+            if (verbose && variableCollector.variables.isNotEmpty) {
+              debugger.log(
+                DebugLevel.debug,
+                'Field ${field.name} uses: ${variableCollector.variables.join(', ')}',
+                category: 'validation',
+              );
+            }
+            variableCollector.variables.clear();
+          }
+        }
+
+        // Check for unused variables in methods
+        for (final method in classDecl.methods) {
+          if (method.body != null) {
+            final varExtractor = VariableDeclarationExtractor();
+            final declaredVars = varExtractor.analyzeFunctionBody(method.body!);
+
+            if (verbose && declaredVars.isNotEmpty) {
+              debugger.log(
+                DebugLevel.debug,
+                'Method ${method.name} declares: ${declaredVars.join(', ')}',
+                category: 'validation',
+              );
+            }
+          }
+        }
+      }
+    }
 
     results.validationIssues.addAll(pass.validationIssues);
     results.validationSummary = pass.summary;
@@ -1539,7 +1747,8 @@ class IRGenerator {
     debugger.log(
       DebugLevel.debug,
       'Issues: ${pass.validationIssues.length} '
-      '(${pass.summary.errorCount}E, ${pass.summary.warningCount}W)',
+      '(${pass.summary.errorCount}E, ${pass.summary.warningCount}W, '
+      '${pass.summary.infoCount}I)',
       category: 'validation',
     );
   }

@@ -35,6 +35,7 @@ Widget buildPriceWidget(double amount) {
       children: [
         Text("Amount: ₹$amount"),
         Text("GST (18%): ₹$gst"),
+        Text("jaypal"),
         Divider(),
         Text(
           "Total: ₹$total",
