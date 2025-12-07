@@ -24,3 +24,24 @@ Here’s a concise one-line explanation for each class in the file:
 - **FunctionDeclarationStatementIR** – Represents a local function declaration appearing as a statement.
 - **WidgetUsageIR** – Captures detailed information about a single Flutter widget instantiation (name, properties, context, etc.).
 - **StatementBodyWidgetAnalysis (extension)** – Adds `getAllWidgetUsages()` to lists of statements for recursive widget collection across blocks, branches, and loops.
+- **PatternIR** - 
+- **GuardClause** - 
+- **PatternCaseStmt** -
+- **WildcardPatternIR** -
+- **VariablePatternIR** -
+- **ConstantPatternIR** -
+- **ListPatternIR** -
+- **MapPatternIR** -
+- **RecordPatternIR** - 
+- **ObjectPatternIR** -
+- **RelationalPatternIR** -
+- **LogicalAndPatternIR** -
+- **LogicalOrPatternIR** -
+- **NullCheckPatternIR** -
+- **NullAssertPatternIR** -
+- **ParenthesizedPatternIR** -
+- **IfCaseStmt** -
+- **RecordDestructuringStmt** -
+- **SwitchExpressionIR** -
+- **SwitchExpressionCase** -
+ 
