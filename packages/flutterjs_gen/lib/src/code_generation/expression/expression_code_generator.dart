@@ -5,6 +5,8 @@
 // Direct IR → JS without intermediate transformations
 // ============================================================================
 
+import 'dart:math';
+
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/src/widget_generation/stateless_widget/stateless_widget_js_code_gen.dart';
 import 'package:flutterjs_gen/src/utils/code_gen_error.dart'
@@ -261,11 +263,31 @@ class ExpressionCodeGen {
 
     if (expr is EnumMemberAccessExpressionIR) {
       return _generateEnumMemberAccess(expr);
-    } 
-
-    if (expr is ConstructorCallExpressionIR){
-
     }
+
+    // will thing about this if we need this future
+    if (expr is ConstructorCallExpressionIR) {
+      return _generateConstructorCall(expr);
+    }
+    if (expr is LambdaExpr) {
+      return _generateLambda(expr); // ✅ Line ~180
+    }
+
+    if (expr is AwaitExpr) {
+      return _generateAwait(expr); // ✅ Line ~240
+    }
+
+    if (expr is EnumMemberAccessExpressionIR) {
+      return _generateEnumMemberAccess(expr); // ✅ Line ~160
+    }
+
+    if (expr is FunctionExpressionIR) {}
+
+    // if (expr is IsExpressionIR) {
+    //   return _generateTypeCheck(
+    //     expr,
+    //   ); // ✅ Line ~230 (IsExpressionIR is handled via TypeCheckExpr)
+    // }
 
     // ✅ NEW: Handle UnknownExpressionIR gracefully
     if (expr is UnknownExpressionIR) {
@@ -276,6 +298,306 @@ class ExpressionCodeGen {
       message: 'Unsupported expression type: ${expr.runtimeType}',
       suggestion: 'Check if this expression type is implemented',
     );
+  }
+
+  String _generateFunctionExpression(FunctionExpressionIR expr) {
+    print('   🔵 [FunctionExpression] Generating lambda...');
+
+    // =========================================================================
+    // STEP 1: Generate parameter list
+    // =========================================================================
+    final paramList = _generateFunctionParameters(expr.parameter);
+    print('   🔹 Parameters: $paramList');
+
+    // =========================================================================
+    // STEP 2: Generate function body
+    // =========================================================================
+    String bodyCode;
+
+    if (expr.body != null && expr.body!.statements.isNotEmpty) {
+      // Block function: () { statements; }
+      print('   🔹 Body type: block');
+      bodyCode = expr.body!.statements
+          .map((e) {
+            _generateFunctionBody(e);
+          })
+          .toList()
+          .toString();
+    } else {
+      print('   ⚠️  No body or bodyExpression found');
+      bodyCode = 'undefined';
+    }
+
+    // =========================================================================
+    // STEP 3: Add async/generator modifiers
+    // =========================================================================
+    String prefix = '';
+
+    if (expr.isAsync) {
+      prefix = 'async ';
+      print('   🔹 Async: true');
+    }
+
+    if (expr.isGenerator) {
+      prefix += 'function* ';
+      print('   🔹 Generator: true');
+    }
+
+    // =========================================================================
+    // STEP 4: Determine output format
+    // =========================================================================
+    String result;
+
+    // Arrow function (simple case: single expression or explicit arrow)
+    if (expr.body?.statements != null && !expr.isGenerator) {
+      // Format: async (params) => expression
+      result = '${prefix}($paramList) => $bodyCode';
+      print('   ✅ Arrow function: $result');
+    }
+    // Block function or generator
+    else {
+      // Format: async (params) { statements }
+      // Format: function* (params) { statements }
+      result = '${prefix}($paramList) $bodyCode';
+      print('   ✅ Block function: $result');
+    }
+
+    // =========================================================================
+    // STEP 5: Add type comments if configured
+    // =========================================================================
+    if (config.typeComments && expr.returnType != null) {
+      final returnTypeName = expr.returnType!.displayName();
+      result += ' /* => $returnTypeName */';
+    }
+
+    return result;
+  }
+
+  // =========================================================================
+  // PARAMETER GENERATION
+  // =========================================================================
+
+  /// Generate parameter list from ParameterDecl objects
+  String _generateFunctionParameters(List<ParameterDecl> parameters) {
+    if (parameters.isEmpty) {
+      return '';
+    }
+
+    // Separate positional and named parameters
+    final positional = <String>[];
+    final named = <String>[];
+
+    for (final param in parameters) {
+      final paramCode = _generateSingleParameter(param);
+
+      if (param.isNamed) {
+        named.add(paramCode);
+      } else {
+        positional.add(paramCode);
+      }
+    }
+
+    // Combine: positional first, then named in destructuring
+    if (positional.isNotEmpty && named.isEmpty) {
+      return positional.join(', ');
+    }
+
+    if (positional.isEmpty && named.isNotEmpty) {
+      return '{ ${named.join(", ")} }';
+    }
+
+    if (positional.isNotEmpty && named.isNotEmpty) {
+      return '${positional.join(", ")}, { ${named.join(", ")} }';
+    }
+
+    return '';
+  }
+
+  /// Generate a single parameter declaration
+  String _generateSingleParameter(ParameterDecl param) {
+    final name = param.name;
+
+    // Add type annotation as comment if configured
+    if (config.typeComments && param.type != null) {
+      final typeName = param.type!.displayName();
+      return '$name /* : $typeName */';
+    }
+
+    // Handle default values
+    if (param.defaultValue != null && param.isNamed) {
+      try {
+        final defaultVal = generate(param.defaultValue!, parenthesize: false);
+        return '$name = $defaultVal';
+      } catch (e) {
+        print('   ⚠️  Failed to generate default value for $name: $e');
+        return name;
+      }
+    }
+
+    return name;
+  }
+
+  // =========================================================================
+  // FUNCTION BODY GENERATION
+  // =========================================================================
+
+  /// Generate function body from BlockStmt
+  String _generateFunctionBody(StatementIR body) {
+    if (body is BlockStmt) {
+      return _generateBlockStatement(body);
+    }
+
+    if (body is ExpressionStmt) {
+      final expr = generate(body.expression, parenthesize: false);
+      return '{ return $expr; }';
+    }
+
+    // Single return statement
+    if (body is ReturnStmt) {
+      if (body.expression != null) {
+        final expr = generate(body.expression!, parenthesize: false);
+        return '{ return $expr; }';
+      }
+      return '{ return; }';
+    }
+
+    // Fallback
+    print('   ⚠️  Unknown body statement type: ${body.runtimeType}');
+    return '{ /* unknown body */ }';
+  }
+
+  /// Generate block statements
+  String _generateBlockStatement(BlockStmt block) {
+    final buffer = StringBuffer('{\n');
+
+    for (final stmt in block.statements) {
+      try {
+        final stmtCode = _generateStatement(stmt);
+        buffer.writeln('  $stmtCode');
+      } catch (e) {
+        print('   ⚠️  Error generating statement: $e');
+        buffer.writeln('  /* error generating statement */');
+      }
+    }
+
+    buffer.write('}');
+    return buffer.toString();
+  }
+
+  /// Generate individual statements
+  String _generateStatement(StatementIR stmt) {
+    if (stmt is ExpressionStmt) {
+      return '${generate(stmt.expression, parenthesize: false)};';
+    }
+
+    if (stmt is ReturnStmt) {
+      if (stmt.expression != null) {
+        return 'return ${generate(stmt.expression!, parenthesize: false)};';
+      }
+      return 'return;';
+    }
+
+    if (stmt is VariableDeclarationStmt) {
+      return _generateVariableDeclaration(stmt);
+    }
+
+    if (stmt is IfStmt) {
+      return _generateIfStatement(stmt);
+    }
+
+    if (stmt is ForStmt) {
+      return _generateForStatement(stmt);
+    }
+
+    if (stmt is ForEachStmt) {
+      return _generateForEachStatement(stmt);
+    }
+
+    if (stmt is WhileStmt) {
+      return _generateWhileStatement(stmt);
+    }
+
+    if (stmt is BlockStmt) {
+      return _generateBlockStatement(stmt);
+    }
+
+    if (stmt is ThrowStmt) {
+      return 'throw ${generate(stmt.exceptionExpression, parenthesize: false)};';
+    }
+
+    print('   ⚠️  Unknown statement type: ${stmt.runtimeType}');
+    return '/* unknown statement */';
+  }
+
+  // =========================================================================
+  // STATEMENT GENERATION HELPERS
+  // =========================================================================
+
+  String _generateVariableDeclaration(VariableDeclarationStmt stmt) {
+    final keyword = stmt.isFinal ? 'const' : (stmt.isConst ? 'const' : 'let');
+
+    if (stmt.initializer != null) {
+      final init = generate(stmt.initializer!, parenthesize: false);
+      return '$keyword ${stmt.name} = $init;';
+    }
+
+    return '$keyword ${stmt.name};';
+  }
+
+  String _generateIfStatement(IfStmt stmt) {
+    final condition = generate(stmt.condition, parenthesize: true);
+    final thenPart = _generateStatementBody(stmt.thenBranch);
+
+    String result = 'if ($condition) $thenPart';
+
+    if (stmt.elseBranch != null) {
+      final elsePart = _generateStatementBody(stmt.elseBranch!);
+      result += ' else $elsePart';
+    }
+
+    return result;
+  }
+
+  String _generateForStatement(ForStmt stmt) {
+    final init = stmt.initialization != null
+        ? generate(stmt.initialization!, parenthesize: false)
+        : '';
+    final condition = stmt.condition != null
+        ? generate(stmt.condition!, parenthesize: false)
+        : '';
+    final increment = stmt.updaters.isNotEmpty
+        ? stmt.updaters.map((e) {
+            generate(e, parenthesize: false);
+          }).toList()
+        : '';
+
+    final body = _generateStatementBody(stmt.body);
+
+    return 'for ($init; $condition; $increment) $body';
+  }
+
+  String _generateForEachStatement(ForEachStmt stmt) {
+    final varName = stmt.loopVariable;
+    final iterable = generate(stmt.iterable, parenthesize: false);
+    final body = _generateStatementBody(stmt.body);
+
+    return 'for (const $varName of $iterable) $body';
+  }
+
+  String _generateWhileStatement(WhileStmt stmt) {
+    final condition = generate(stmt.condition, parenthesize: true);
+    final body = _generateStatementBody(stmt.body);
+
+    return 'while ($condition) $body';
+  }
+
+  /// Generate statement body (single or block)
+  String _generateStatementBody(StatementIR stmt) {
+    if (stmt is BlockStmt) {
+      return _generateBlockStatement(stmt);
+    }
+
+    return _generateStatement(stmt);
   }
 
   String _generateUnknownExpression(UnknownExpressionIR expr) {
@@ -654,6 +976,7 @@ class ExpressionCodeGen {
     return '${expr.functionName}($args)';
   }
 
+  /// Handles InstanceCreationExpressionIR (has TypeIR type)
   String _generateInstanceCreation(InstanceCreationExpressionIR expr) {
     final typeName = expr.type.displayName();
     final constructorName = expr.constructorName != null
@@ -663,6 +986,26 @@ class ExpressionCodeGen {
     final constKeyword = expr.isConst ? 'const ' : '';
 
     return '${constKeyword}new $typeName$constructorName($args)';
+  }
+
+  /// Handles ConstructorCallExpressionIR (has String className)
+  String _generateConstructorCall(ConstructorCallExpressionIR expr) {
+    // ✅ Build constructor name
+    final constructorName = (expr.constructorName?.isNotEmpty ?? false)
+        ? '.${expr.constructorName}'
+        : '';
+
+    // ✅ Combine positional and named arguments
+    // Use positionalArguments, not arguments
+    final args = _generateArgumentList(
+      expr.positionalArguments,
+      expr.namedArguments,
+    );
+
+    // ✅ Only add const if isConstant is true
+    final constKeyword = expr.isConstant ? 'const ' : '';
+
+    return '${constKeyword}new ${expr.className}$constructorName($args)';
   }
 
   String _generateArgumentList(
