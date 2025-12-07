@@ -261,6 +261,10 @@ class ExpressionCodeGen {
 
     if (expr is EnumMemberAccessExpressionIR) {
       return _generateEnumMemberAccess(expr);
+    } 
+
+    if (expr is ConstructorCallExpressionIR){
+
     }
 
     // ✅ NEW: Handle UnknownExpressionIR gracefully

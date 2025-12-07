@@ -453,7 +453,7 @@ class AssignmentExpressionIR extends ExpressionIR {
 
 /// Represents a single part of a string interpolation
 /// Can be either literal text or an expression to be evaluated
-@immutable
+
 @immutable
 class StringInterpolationPart {
   /// Whether this part is an expression (true) or literal text (false)

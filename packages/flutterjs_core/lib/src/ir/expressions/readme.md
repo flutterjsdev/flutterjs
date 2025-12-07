@@ -1,0 +1,57 @@
+- **ExpressionIR** – Abstract base class for all expression intermediate representation nodes, including result type, constancy flag, and JSON serialization support.
+- **NamedArgumentIR** – Represents a named argument in function or method calls, associating a parameter name with an expression value.
+- **LiteralExpressionIR** – Represents a literal value like numbers, strings, booleans, or null, with support for constancy detection.
+- **IdentifierExpressionIR** – Represents a simple identifier reference, such as a variable, function, or type name, with flags for 'this' or 'super'.
+- **BinaryExpressionIR** – Represents a binary operation between two expressions, such as arithmetic, comparison, or logical operators.
+- **MethodCallExpressionIR** – Represents a method invocation on a target expression, including arguments, named arguments, and null-aware or cascade flags.
+- **PropertyAccessExpressionIR** – Represents access to a property on a target object, with support for null-aware access.
+- **WidgetPropertyIR** – Specialized representation for Flutter widget properties, capturing named arguments in widget constructors.
+- **ConstructorCallExpressionIR** – Represents a constructor invocation for object creation, including class name, arguments, and constancy for 'const' constructors.
+- **FlutterWidgetConstructorIR** – Specialized IR for Flutter widget constructors, extending constructor calls with widget-specific analysis features.
+- **FunctionExpressionIR** – Represents an anonymous function or lambda expression with parameters and body.
+- **ConditionalExpressionIR** – Represents a ternary conditional expression (condition ? then : else).
+- **ListExpressionIR** – Represents a list literal, including elements and optional 'const' flag for compile-time evaluation.
+- **MapExpressionIR** – Represents a map literal with key-value entries and optional 'const' flag.
+- **SetExpressionIR** – Represents a set literal with elements and optional 'const' flag for constancy checks.
+- **IndexAccessExpressionIR** – Represents indexed access on a collection, such as list[index] or map[key], with null-aware support.
+- **UnaryExpressionIR** – Represents a unary operation on a single operand, such as negation or increment, with prefix/postfix distinction.
+- **CascadeSection** – Represents a single section in a cascade expression, such as a method call or property assignment in obj..method()..prop=val.
+- **CastExpressionIR** – Represents a type cast operation (expr as Type) on an expression.
+- **IsExpressionIR** – Represents a type check operation (expr is Type or expr is! Type) with negation support.
+- **LambdaExpr** – Represents a lambda or arrow function with parameters and either an expression or block body.
+- **AwaitExpr** – Represents an 'await' expression for asynchronous futures.
+- **ThrowExpr** – Represents a 'throw' expression that raises an exception.
+- **CastExpr** – Represents a type cast (as) operation, similar to CastExpressionIR but potentially a variant for specific contexts.
+- **TypeCheckExpr** – Represents a type check (is or is!) operation, with negation for 'is not' checks.
+- **CascadeExpressionIR** – Represents a cascade operation (..) on a target with multiple sections like method calls or assignments.
+- **NullAwareAccessExpressionIR** – Represents null-aware access (?.), such as property, method, or index access on a potentially null target.
+- **NullCoalescingExpressionIR** – Represents the null coalescing operator (??) that returns the left operand if non-null, else the right.
+- **InstanceCreationExpressionIR** – Represents object instantiation via 'new' or constructor calls, including 'const' and named constructors.
+- **CompoundAssignmentExpressionIR** – Represents compound assignments like += or ??=, combining operation and assignment.
+- **StringInterpolationExpressionIR** – Represents a string with interpolated expressions, combining literal parts and embedded expressions.
+- **ThisExpressionIR** – Represents the 'this' keyword, referring to the current instance.
+- **SuperExpressionIR** – Represents the 'super' keyword, referring to the parent class instance.
+- **ParenthesizedExpressionIR** – Represents an expression wrapped in parentheses for precedence or clarity.
+- **AssignmentExpressionIR** – Represents a simple assignment (=) of a value to a target expression.
+- **StringInterpolationPart** – Represents a single part of a string interpolation, either literal text or an embedded expression.
+- **EnumMemberAccessExpressionIR** – Represents access to enum members, supporting shorthand (.center) or qualified (MainAxisAlignment.center) syntax.
+- **MethodCallExpr** – Represents a method call on a receiver, with arguments, null-aware, and cascade support.
+- **FunctionCallExpr** – Represents a free function invocation, including arguments and type arguments.
+- **ConstructorCallExpr** – Represents a constructor call for class instantiation, with 'const' detection and named arguments.
+- **IntLiteralExpr** – Represents an integer literal value, marked as constant.
+- **DoubleLiteralExpr** – Represents a double-precision floating-point literal, marked as constant.
+- **StringLiteralExpr** – Represents a string literal, with optional interpolations and constancy if no interpolations.
+- **BoolLiteralExpr** – Represents a boolean literal (true/false), marked as constant.
+- **NullLiteralExpr** – Represents the 'null' literal, marked as constant.
+- **ListLiteralExpr** – Represents a list literal with typed elements and optional constancy.
+- **MapLiteralExpr** – Represents a map literal with typed key-value entries and optional constancy.
+- **MapEntryIR** – Represents a single key-value pair in a map literal, with constancy if both are constant.
+- **SetLiteralExpr** – Represents a set literal with typed elements and optional constancy.
+- **BinaryOpExpr** – Represents a binary operation with operator enum, left/right operands, and constancy flag.
+- **UnaryOpExpr** – Represents a unary operation with operator enum and operand.
+- **AssignmentExpr** – Represents an assignment, including compound forms like +=, with target and value.
+- **ConditionalExpr** – Represents a conditional (ternary) expression with condition, then, and else branches.
+- **IdentifierExpr** – Represents a simple identifier for variables or members, with type reference flag.
+- **PropertyAccessExpr** – Represents property access on a target, with null-aware support.
+- **IndexAccessExpr** – Represents index access on a collection target.
+- **UnknownExpressionIR** – Catch-all for unrecognized or unparsed expressions, storing raw source text.
