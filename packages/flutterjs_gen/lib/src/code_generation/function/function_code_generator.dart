@@ -10,6 +10,7 @@ import 'package:flutterjs_gen/src/widget_generation/prop_conversion/flutter_prop
 import 'package:flutterjs_gen/src/utils/code_gen_error.dart';
 
 import '../expression/expression_code_generator.dart';
+import '../parameter/parameter_code_gen.dart';
 import '../statement/statement_code_generator.dart';
 import '../../utils/indenter.dart';
 
@@ -71,15 +72,23 @@ class FunctionCodeGen {
   late Indenter indenter;
   final List<CodeGenError> errors = [];
   final FlutterPropConverter propConverter;
+  final ParameterCodeGen paramGen;
 
   FunctionCodeGen({
     FunctionGenConfig? config,
     StatementCodeGen? stmtGen,
     ExpressionCodeGen? exprGen,
+    ParameterCodeGen? paramGen, // ✅ ADD THIS
     FlutterPropConverter? propConverter,
   }) : propConverter = propConverter ?? FlutterPropConverter(),
        config = config ?? const FunctionGenConfig(),
        stmtGen = stmtGen ?? StatementCodeGen(),
+       paramGen =
+           paramGen ??
+           ParameterCodeGen(
+             // ✅ ADD THIS
+             exprGen: exprGen ?? ExpressionCodeGen(),
+           ),
        exprGen = exprGen ?? ExpressionCodeGen() {
     indenter = Indenter(this.config.indent);
   }
@@ -166,7 +175,7 @@ class FunctionCodeGen {
       header = 'function*';
     }
 
-    final params = _generateParameterList(func.parameters);
+    final params = paramGen.generate(func.parameters);
 
     buffer.writeln('$header ${func.name}($params) {');
     indenter.indent();
@@ -195,7 +204,8 @@ class FunctionCodeGen {
     String jsDoc,
     FunctionBodyType bodyType,
   ) {
-    final params = _generateParameterList(func.parameters);
+    final params = paramGen.generate(func.parameters);
+
     final exprBody = _extractExpressionFromBody(func.body, bodyType);
 
     if (exprBody == null) {
@@ -245,7 +255,7 @@ class FunctionCodeGen {
     }
 
     // Method name and parameters
-    final params = _generateParameterList(method.parameters);
+    final params = paramGen.generate(method.parameters);
     buffer.writeln('${method.name}($params) {');
 
     indenter.indent();
@@ -284,7 +294,7 @@ class FunctionCodeGen {
         ? ' ${ctor.constructorName}'
         : '';
 
-    final params = _generateParameterList(ctor.parameters);
+    final params = paramGen.generate(ctor.parameters);
 
     buffer.writeln('constructor$constructorName($params) {');
     indenter.indent();
@@ -329,14 +339,8 @@ class FunctionCodeGen {
     final buffer = StringBuffer();
     buffer.writeln('/**');
 
-    // ✅ Document constructor parameters
-    for (final param in ctor.parameters) {
-      final typeStr = _typeToJSDocType(param.type);
-      final nullable = param.type?.isNullable ?? false;
-      final fullType = nullable ? '$typeStr|null' : typeStr;
-
-      buffer.writeln(' * @param {$fullType} ${param.name}');
-    }
+    // ✅ NEW: Use ParameterCodeGen for parameter docs
+    buffer.writeln(paramGen.generateJSDoc(ctor.parameters));
 
     buffer.writeln(' */');
 
@@ -418,54 +422,6 @@ class FunctionCodeGen {
     return null;
   }
 
-  // =========================================================================
-  // PARAMETER HANDLING
-  // =========================================================================
-
-  String _generateParameterList(List<ParameterDecl> parameters) {
-    if (parameters.isEmpty) {
-      return '';
-    }
-
-    final required = parameters
-        .where((p) => p.isRequired && !p.isNamed)
-        .toList();
-
-    final optional = parameters
-        .where((p) => !p.isRequired && !p.isNamed && p.isPositional)
-        .toList();
-
-    final named = parameters.where((p) => p.isNamed).toList();
-
-    final parts = <String>[];
-
-    // Required positional parameters
-    parts.addAll(required.map((p) => p.name));
-
-    // Optional positional parameters with defaults
-    for (final param in optional) {
-      final def = param.defaultValue != null
-          ? exprGen.generate(param.defaultValue!, parenthesize: false)
-          : 'undefined';
-      parts.add('${param.name} = $def');
-    }
-
-    // Named parameters → object destructuring
-    if (named.isNotEmpty) {
-      final namedParts = named
-          .map((p) {
-            final def = p.defaultValue != null
-                ? exprGen.generate(p.defaultValue!, parenthesize: false)
-                : 'undefined';
-            return '${p.name} = $def';
-          })
-          .join(', ');
-
-      parts.add('{ $namedParts } = {}');
-    }
-
-    return parts.join(', ');
-  }
 
   // =========================================================================
   // JSDOC GENERATION
@@ -481,27 +437,15 @@ class FunctionCodeGen {
     final buffer = StringBuffer();
     buffer.writeln('/**');
 
-    // ✅ ENHANCED: Generate parameter documentation with types and nullability
-    for (final param in method.parameters) {
-      final typeStr = _typeToJSDocType(param.type);
-      final nullable = param.type?.isNullable ?? false;
-      final fullType = nullable ? '$typeStr|null' : typeStr;
+    // ✅ NEW: Use ParameterCodeGen for parameter docs
+    buffer.writeln(paramGen.generateJSDoc(method.parameters));
 
-      // ✅ NEW: Include parameter description if available
-      buffer.writeln(' * @param {$fullType} ${param.name}');
-    }
-
-    // ✅ FIXED: Include return type documentation for non-void methods
+    // Fixed: Include return type documentation
     final returnType = _typeToJSDocType(method.returnType);
     if (returnType != 'void') {
-      final nullable = method.returnType?.isNullable ?? false;
+      final nullable = method.returnType.isNullable ;
       final fullType = nullable ? '$returnType|null' : returnType;
       buffer.writeln(' * @returns {$fullType}');
-    }
-
-    // ✅ NEW: Add @override tag if present
-    if (_hasOverrideAnnotation(method)) {
-      buffer.writeln(' * @override');
     }
 
     // Async marker
@@ -525,19 +469,13 @@ class FunctionCodeGen {
     final buffer = StringBuffer();
     buffer.writeln('/**');
 
-    // ✅ Enhanced parameter documentation
-    for (final param in func.parameters) {
-      final typeStr = _typeToJSDocType(param.type);
-      final nullable = param.type?.isNullable ?? false;
-      final fullType = nullable ? '$typeStr|null' : typeStr;
+    // ✅ NEW: Use ParameterCodeGen for parameter docs
+    buffer.writeln(paramGen.generateJSDoc(func.parameters));
 
-      buffer.writeln(' * @param {$fullType} ${param.name}');
-    }
-
-    // ✅ Return type documentation
+    // Return type documentation
     final returnType = _typeToJSDocType(func.returnType);
     if (returnType != 'void') {
-      final nullable = func.returnType?.isNullable ?? false;
+      final nullable = func.returnType.isNullable;
       final fullType = nullable ? '$returnType|null' : returnType;
       buffer.writeln(' * @returns {$fullType}');
     }

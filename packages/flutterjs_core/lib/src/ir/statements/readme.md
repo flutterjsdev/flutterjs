@@ -1,0 +1,26 @@
+Here’s a concise one-line explanation for each class in the file:
+
+- **StatementIR** – Abstract base class for all statement intermediate representation nodes with built-in widget usage tracking.
+- **ExpressionStmt** – Represents a standalone expression used as a statement (e.g., function call, assignment).
+- **VariableDeclarationStmt** – Declares a variable with optional type, initializer, and mutability flags (final/const/late).
+- **ReturnStmt** – Represents a `return` statement, optionally returning an expression.
+- **BreakStmt** – Represents a `break` statement, optionally with a label.
+- **ContinueStmt** – Represents a `continue` statement, optionally with a label.
+- **ThrowStmt** – Represents a `throw` statement that throws an exception expression.
+- **BlockStmt** – Groups multiple statements into a block (`{ … }`) and supports nested widget extraction.
+- **IfStmt** – Represents an `if` statement with a condition, then-branch, and optional else-branch.
+- **ForStmt** – Classic C-style `for` loop with initialization, condition, updaters, and body.
+- **ForEachStmt** – Represents a `for-in` (or `await for`) loop over an iterable.
+- **WhileStmt** – Represents a `while` loop with a condition and body.
+- **DoWhileStmt** – Represents a `do-while` loop that executes the body first, then checks the condition.
+- **SwitchStmt** – Represents a `switch` statement with an expression and multiple case/default branches.
+- **SwitchCaseStmt** – Represents a single `case` or `default` branch inside a switch, containing statements.
+- **TryStmt** – Represents a `try-catch-finally` block with try body, catch clauses, and optional finally.
+- **CatchClauseStmt** – Represents a single `catch` clause with exception type, parameters, and body.
+- **AssertStatementIR** – Represents an `assert(condition, message?)` statement.
+- **EmptyStatementIR** – Represents a standalone semicolon (`;`) with no effect.
+- **YieldStatementIR** – Represents a `yield` or `yield*` statement in generators/async* functions.
+- **LabeledStatementIR** – Attaches a label to another statement for use with `break`/`continue`.
+- **FunctionDeclarationStatementIR** – Represents a local function declaration appearing as a statement.
+- **WidgetUsageIR** – Captures detailed information about a single Flutter widget instantiation (name, properties, context, etc.).
+- **StatementBodyWidgetAnalysis (extension)** – Adds `getAllWidgetUsages()` to lists of statements for recursive widget collection across blocks, branches, and loops.
