@@ -682,24 +682,6 @@ class StatementExtractionPass {
         metadata: metadata,
       );
     }
-
-    if (expr is StringLiteral) {
-      return LiteralExpressionIR(
-        id: builder.generateId('expr_lit'),
-        value: expr.stringValue ?? '',
-        literalType: LiteralType.stringValue,
-        resultType: SimpleTypeIR(
-          id: builder.generateId('type'),
-          name: 'String',
-          isNullable: false,
-          sourceLocation: sourceLoc,
-          // metadata: {},
-        ),
-        sourceLocation: sourceLoc,
-        metadata: metadata,
-      );
-    }
-
     if (expr is StringInterpolation) {
       print('   [StringInterpolation] Found: ${expr.toString()}');
 
@@ -739,6 +721,22 @@ class StatementExtractionPass {
 
       print('      âœ… Created StringInterpolationExpressionIR');
       return result;
+    }
+    if (expr is StringLiteral) {
+      return LiteralExpressionIR(
+        id: builder.generateId('expr_lit'),
+        value: expr.stringValue ?? '',
+        literalType: LiteralType.stringValue,
+        resultType: SimpleTypeIR(
+          id: builder.generateId('type'),
+          name: 'String',
+          isNullable: false,
+          sourceLocation: sourceLoc,
+          // metadata: {},
+        ),
+        sourceLocation: sourceLoc,
+        metadata: metadata,
+      );
     }
 
     if (expr is BooleanLiteral) {

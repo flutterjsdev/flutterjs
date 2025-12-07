@@ -110,7 +110,7 @@ class ValidationPass {
     if (stateClass.initState == null) {
       if (stateClass.controllers.isNotEmpty ||
           stateClass.stateFields.isNotEmpty) {
-        _addIssue(
+        addIssue(
           severity: IssueSeverity.warning,
           category: IssueCategory.flutterInitState,
           message:
@@ -127,7 +127,7 @@ class ValidationPass {
 
     // Check if calls super
     if (!stateClass.initStateCallsSuper) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.error,
         category: IssueCategory.flutterInitState,
         message: 'initState() does not call super.initState()',
@@ -141,7 +141,7 @@ class ValidationPass {
 
     // Check for async operations in initState
     if (stateClass.initState!.isAsync) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.warning,
         category: IssueCategory.flutterInitState,
         message: 'initState() is marked as async',
@@ -157,7 +157,7 @@ class ValidationPass {
   void _validateDispose(StateDecl stateClass, DartFile dartFile) {
     if (stateClass.dispose == null) {
       if (stateClass.controllers.isNotEmpty) {
-        _addIssue(
+        addIssue(
           severity: IssueSeverity.error,
           category: IssueCategory.flutterDispose,
           message:
@@ -174,7 +174,7 @@ class ValidationPass {
 
     // Check if calls super
     if (!stateClass.disposeCallsSuper) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.error,
         category: IssueCategory.flutterDispose,
         message: 'dispose() does not call super.dispose()',
@@ -188,7 +188,7 @@ class ValidationPass {
 
     // Check for undisposed controllers
     for (final controller in stateClass.controllersMissingDisposal) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.error,
         category: IssueCategory.flutterResourceLeak,
         message: 'Controller "$controller" is never disposed',
@@ -203,7 +203,7 @@ class ValidationPass {
   void _validateDidUpdateWidget(StateDecl stateClass, DartFile dartFile) {
     if (stateClass.didUpdateWidget != null &&
         !stateClass.didUpdateWidget!.callsSuper) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.warning,
         category: IssueCategory.flutterDidUpdateWidget,
         message: 'didUpdateWidget() does not call super.didUpdateWidget()',
@@ -219,7 +219,7 @@ class ValidationPass {
   void _validateLifecycleOrdering(StateDecl stateClass, DartFile dartFile) {
     if (stateClass.initState != null && stateClass.dispose == null) {
       if (stateClass.controllers.isNotEmpty) {
-        _addIssue(
+        addIssue(
           severity: IssueSeverity.warning,
           category: IssueCategory.flutterLifecycle,
           message:
@@ -254,7 +254,7 @@ class ValidationPass {
     for (final setState in stateClass.setStateCalls) {
       // Check for setState in build
       if (setState.inMethod == 'build') {
-        _addIssue(
+        addIssue(
           severity: IssueSeverity.error,
           category: IssueCategory.flutterSetState,
           message: 'setState() called inside build method',
@@ -275,7 +275,7 @@ class ValidationPass {
 
       // Check for setState with async callback
       if (setState.isAsync) {
-        _addIssue(
+        addIssue(
           severity: IssueSeverity.warning,
           category: IssueCategory.flutterSetState,
           message: 'setState() callback is async',
@@ -296,7 +296,7 @@ class ValidationPass {
 
       // Check for setState in loop
       if (setState.isInLoop) {
-        _addIssue(
+        addIssue(
           severity: IssueSeverity.error,
           category: IssueCategory.flutterExcessiveRebuild,
           message: 'setState() called inside a loop',
@@ -317,7 +317,7 @@ class ValidationPass {
 
       // Check for setState modifying no fields
       if (setState.modifiedFields.isEmpty) {
-        _addIssue(
+        addIssue(
           severity: IssueSeverity.info,
           category: IssueCategory.flutterSetState,
           message: 'setState() callback does not modify any state fields',
@@ -340,7 +340,7 @@ class ValidationPass {
 
   void _validateStateFieldUsage(StateDecl stateClass, DartFile dartFile) {
     for (final field in stateClass.unusedStateFields) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.info,
         category: IssueCategory.unusedCode,
         message:
@@ -367,7 +367,7 @@ class ValidationPass {
       );
 
       if (!isUsed) {
-        _addIssue(
+        addIssue(
           severity: IssueSeverity.warning,
           category: IssueCategory.flutterState,
           message: 'Controller "$controller" is never modified',
@@ -396,7 +396,7 @@ class ValidationPass {
 
     // Check for async build
     if (stateClass.buildMethod!.isAsync) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.error,
         category: IssueCategory.flutterWidget,
         message: 'build() method is marked as async',
@@ -417,7 +417,7 @@ class ValidationPass {
 
     // Check for expensive build
     if (stateClass.buildMethod!.isExpensive) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.warning,
         category: IssueCategory.flutterHeavyBuild,
         message:
@@ -440,7 +440,7 @@ class ValidationPass {
 
     // Check for widgets created in loops
     if (stateClass.buildMethod!.createsWidgetsInLoops) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.warning,
         category: IssueCategory.flutterScrollPerformance,
         message: 'Widgets are created inside loops in build()',
@@ -481,7 +481,7 @@ class ValidationPass {
     final accessedCount = stateClass.fieldsAccessedInBuild.length;
 
     if (fieldCount > 5 && accessedCount < fieldCount / 2) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.info,
         category: IssueCategory.flutterExcessiveRebuild,
         message:
@@ -506,7 +506,7 @@ class ValidationPass {
     if (stateClass.buildMethod == null) return;
 
     if (stateClass.buildMethod!.maxTreeDepth > 10) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.warning,
         category: IssueCategory.flutterWidgetTree,
         message:
@@ -536,7 +536,7 @@ class ValidationPass {
         .length;
 
     if (totalWidgets > 5 && constCount == 0) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.info,
         category: IssueCategory.flutterMissingConst,
         message: 'No const widgets in build() (${totalWidgets} total widgets)',
@@ -587,7 +587,7 @@ class ValidationPass {
     if (hasAnimationControllers &&
         !stateClass.usesSingleTickerProvider &&
         !stateClass.usesMultipleTickerProviders) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.warning,
         category: IssueCategory.flutterAnimation,
         message: 'AnimationController used but no TickerProviderStateMixin',
@@ -613,7 +613,7 @@ class ValidationPass {
     for (final provider in stateClass.providerReads) {
       if (stateClass.buildMethod?.accessedStateFields.contains(provider) ??
           false) {
-        _addIssue(
+        addIssue(
           severity: IssueSeverity.info,
           category: IssueCategory.flutterProvider,
           message: 'Provider "$provider" accessed but state field also used',
@@ -638,7 +638,7 @@ class ValidationPass {
     if (stateClass.contextDependencies.isEmpty) return;
 
     if (stateClass.contextDependencies.length > 3) {
-      _addIssue(
+      addIssue(
         severity: IssueSeverity.warning,
         category: IssueCategory.flutterTheme,
         message:
@@ -682,7 +682,7 @@ class ValidationPass {
           );
 
       if (!isUsed && import.showList.isEmpty && import.hideList.isEmpty) {
-        _addIssue(
+        addIssue(
           severity: IssueSeverity.hint,
           category: IssueCategory.unusedCode,
           message: 'Import "${import.uri}" may be unused',
@@ -716,7 +716,7 @@ class ValidationPass {
       for (final method in classDecl.methods) {
         if (method.name.startsWith('_') && !method.name.startsWith('_\$')) {
           // Private methods not starting with $ (dart codegen indicator)
-          _addIssue(
+          addIssue(
             severity: IssueSeverity.info,
             category: IssueCategory.unusedCode,
             message: 'Private method "${method.name}" may not be used',
@@ -768,7 +768,7 @@ class ValidationPass {
 
       for (final field in classDecl.regularFields) {
         if (!field.isFinal && !field.isStatic) {
-          _addIssue(
+          addIssue(
             severity: IssueSeverity.info,
             category: IssueCategory.flutterStatefulWidget,
             message: 'Non-final field "${field.name}" in State class',
@@ -793,7 +793,7 @@ class ValidationPass {
   void _checkGlobalMutableState(DartFile dartFile) {
     for (final variable in dartFile.variableDeclarations) {
       if (!variable.isFinal && !variable.isConst && variable.isPrivate) {
-        _addIssue(
+        addIssue(
           severity: IssueSeverity.warning,
           category: IssueCategory.flutterState,
           message: 'Global mutable state: "${variable.name}"',
@@ -818,7 +818,7 @@ class ValidationPass {
 
       for (final widget in widgetsInLoops) {
         if (!widget.hasKey) {
-          _addIssue(
+          addIssue(
             severity: IssueSeverity.warning,
             category: IssueCategory.flutterWidgetKey,
             message:
@@ -920,7 +920,7 @@ class ValidationPass {
   // UTILITY METHOD FOR ADDING ISSUES
   // =========================================================================
 
-  void _addIssue({
+  void addIssue({
     required IssueSeverity severity,
     required IssueCategory category,
     required String message,

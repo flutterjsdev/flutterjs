@@ -2,84 +2,84 @@
 
 ### 01. StatementIR
 **Purpose** → Abstract base class for all statement intermediate representation nodes with built-in widget usage tracking  
-**Implemented in** →  
+**Implemented in** → statement_ir
 **Used in** →  
 **Last change** → 2025-12-07  
 **Before pushing / PR** → This is the root of the entire IR. Run the full test suite + golden tests. Never remove or rename `widgetUsages`
 
 ### 02. ExpressionStmt
 **Purpose** → Represents a standalone expression used as a statement (e.g., function call, assignment)  
-**Implemented in** →  
+**Implemented in** →  expression_visitor
 **Used in** →  
 **Last change** → 2025-12-07  
 **Before pushing / PR** → Run widget extraction tests, especially ones with method calls and operators
 
 ### 03. VariableDeclarationStmt
 **Purpose** → Declares a variable with optional type, initializer, and mutability flags (final/const/late)  
-**Implemented in** →  
+**Implemented in** →  expression_visitor
 **Used in** →  
 **Last change** → 2025-12-07  
 **Before pushing / PR** → Test `late final` in build methods and hot reload scenarios
 
 ### 04. ReturnStmt
 **Purpose** → Represents a `return` statement, optionally returning an expression  
-**Implemented in** →  
+**Implemented in** →  expression_visitor
 **Used in** →  
 **Last change** → 2025-12-07  
 **Before pushing / PR** → Safe to modify, but check early return widget pruning
 
 ### 05. BreakStmt / ContinueStmt
 **Purpose** → Represents a `break` or `continue` statement, optionally with a label  
-**Implemented in** →  
+**Implemented in** → expression_visitor 
 **Used in** →  
 **Last change** → 2025-12-07  
 **Before pushing / PR** → Safe – only affects control flow, not widget tree
 
 ### 06. ThrowStmt
 **Purpose** → Represents a `throw` statement that throws an exception expression  
-**Implemented in** →  
+**Implemented in** → expression_visitor 
 **Used in** →  
 **Last change** → 2025-12-07  
 **Before pushing / PR** → Safe – does not affect widget extraction
 
 ### 07. BlockStmt
 **Purpose** → Groups multiple statements into a block (`{ … }`) and supports nested widget extraction  
-**Implemented in** →  
+**Implemented in** →  expression_visitor
 **Used in** →  
 **Last change** → 2025-12-07  
 **Before pushing / PR** → Critical path. Run ALL widget extraction and golden tests. Nested widgets must not be lost
 
 ### 08. IfStmt
 **Purpose** → Represents an `if` statement with a condition, then-branch, and optional else-branch  
-**Implemented in** →  
+**Implemented in** →  expression_visitor
 **Used in** →  
 **Last change** → 2025-12-07  
 **Before pushing / PR** → Test both branches – no duplicate or missing widgets allowed
 
 ### 09. ForStmt
 **Purpose** → Classic C-style `for` loop with initialization, condition, updaters, and body  
-**Implemented in** →  
+**Implemented in** →  expression_visitor
 **Used in** →  
 **Last change** → 2025-12-07  
 **Before pushing / PR** → Test loop variable scope and widget collection inside body
 
 ### 10. ForEachStmt
 **Purpose** → Represents a `for-in` (or `await for`) loop over an iterable  
-**Implemented in** →  
+**Implemented in** →  expression_visitor
 **Used in** →  
 **Last change** → 2025-12-07  
 **Before pushing / PR** → Test both sync and `await for` – especially StreamBuilder detection
 
 ### 11. WhileStmt / DoWhileStmt
 **Purpose** → Represents a `while` or `do-while` loop  
-**Implemented in** →  
+**Implemented in** →expression_visitor  
 **Used in** →  
 **Last change** → 2025-12-07  
 **Before pushing / PR** → Safe, but check infinite build detection
 
 ### 12. SwitchStmt / SwitchCaseStmt
 **Purpose** → Represents a `switch` statement and its case/default branches  
-**Implemented in** →  
+**Implemented in** →  expression_visitor
 **Used in** →  
 **Last change** → 2025-12-07  
 **Before pushing / PR** → Being replaced by pattern matching – avoid new logic here

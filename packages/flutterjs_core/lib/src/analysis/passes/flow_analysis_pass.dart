@@ -611,7 +611,7 @@ class FlowAnalysisPass {
   //   LifecycleFlowAnalysis analysis,
   // ) {
   //   for (final controller in stateClass.controllersMissingDisposal) {
-  //     _addFlowIssue(
+  //     addFlowIssue(
   //       severity: IssueSeverity.error,
   //       message:
   //           'Controller $controller created but not disposed in dispose()',
@@ -632,7 +632,7 @@ class FlowAnalysisPass {
     LifecycleFlowAnalysis analysis,
   ) {
     for (final controller in stateClass.controllersMissingDisposal) {
-      _addFlowIssue(
+      addFlowIssue(
         severity: IssueSeverity.error,
         message:
             'Controller "${controller.name}" created but not disposed in dispose()',
@@ -660,7 +660,7 @@ class FlowAnalysisPass {
             ),
           );
 
-          _addFlowIssue(
+          addFlowIssue(
             severity: IssueSeverity.warning,
             message: 'Unreachable code detected',
             sourceLocation: node.sourceLocation,
@@ -709,7 +709,7 @@ class FlowAnalysisPass {
             ),
           );
 
-          _addFlowIssue(
+          addFlowIssue(
             severity: IssueSeverity.hint,
             message: 'Variable ${variable.name} is never used',
             sourceLocation: variable.sourceLocation,
@@ -738,7 +738,7 @@ class FlowAnalysisPass {
               ),
             );
 
-            _addFlowIssue(
+            addFlowIssue(
               severity: IssueSeverity.hint,
               message: 'State field ${field.name} is never used',
               sourceLocation: SourceLocationIR(
@@ -767,7 +767,7 @@ class FlowAnalysisPass {
         if (classDecl is! StateDecl) continue;
 
         if (classDecl.dispose == null && classDecl.controllers.isNotEmpty) {
-          _addFlowIssue(
+          addFlowIssue(
             severity: IssueSeverity.warning,
             message: '${classDecl.name} has no dispose() method',
             sourceLocation: classDecl.sourceLocation,
@@ -777,7 +777,7 @@ class FlowAnalysisPass {
 
         for (final issue in classDecl.lifecycleIssues) {
           if (issue.type == LifecycleIssueType.controllerNotDisposed) {
-            _addFlowIssue(
+            addFlowIssue(
               severity: issue.severity,
               message: issue.message,
               sourceLocation: SourceLocationIR(
@@ -818,7 +818,7 @@ class FlowAnalysisPass {
   // ISSUE REPORTING
   // =========================================================================
 
-  void _addFlowIssue({
+  void addFlowIssue({
     required IssueSeverity severity,
     required String message,
     required SourceLocationIR sourceLocation,
