@@ -122,51 +122,51 @@ class DepthCalculator implements ExpressionVisitor<int> {
   int _visit(ExpressionIR expr) {
     if (expr is IntLiteralExpr) {
       return visitIntLiteral(expr);
-    } else if (expr is DoubleLiteralExpr)
+    } else if (expr is DoubleLiteralExpr) {
       return visitDoubleLiteral(expr);
-    else if (expr is StringLiteralExpr)
+    } else if (expr is StringLiteralExpr) {
       return visitStringLiteral(expr);
-    else if (expr is BoolLiteralExpr)
+    } else if (expr is BoolLiteralExpr) {
       return visitBoolLiteral(expr);
-    else if (expr is NullLiteralExpr)
+    } else if (expr is NullLiteralExpr) {
       return visitNullLiteral(expr);
-    else if (expr is ListLiteralExpr)
+    } else if (expr is ListLiteralExpr) {
       return visitListLiteral(expr);
-    else if (expr is MapLiteralExpr)
+    } else if (expr is MapLiteralExpr) {
       return visitMapLiteral(expr);
-    else if (expr is SetLiteralExpr)
+    } else if (expr is SetLiteralExpr) {
       return visitSetLiteral(expr);
-    else if (expr is IdentifierExpr)
+    } else if (expr is IdentifierExpr) {
       return visitIdentifier(expr);
-    else if (expr is PropertyAccessExpr)
+    } else if (expr is PropertyAccessExpr) {
       return visitPropertyAccess(expr);
-    else if (expr is IndexAccessExpr)
+    } else if (expr is IndexAccessExpr) {
       return visitIndexAccess(expr);
-    else if (expr is BinaryOpExpr)
+    } else if (expr is BinaryOpExpr) {
       return visitBinaryOp(expr);
-    else if (expr is UnaryOpExpr)
+    } else if (expr is UnaryOpExpr) {
       return visitUnaryOp(expr);
-    else if (expr is AssignmentExpr)
+    } else if (expr is AssignmentExpr) {
       return visitAssignment(expr);
-    else if (expr is ConditionalExpr)
+    } else if (expr is ConditionalExpr) {
       return visitConditional(expr);
-    else if (expr is FunctionCallExpr)
+    } else if (expr is FunctionCallExpr) {
       return visitFunctionCall(expr);
-    else if (expr is MethodCallExpr)
+    } else if (expr is MethodCallExpr) {
       return visitMethodCall(expr);
-    else if (expr is ConstructorCallExpr)
+    } else if (expr is ConstructorCallExpr) {
       return visitConstructorCall(expr);
-    else if (expr is LambdaExpr)
+    } else if (expr is LambdaExpr) {
       return visitLambda(expr);
-    else if (expr is AwaitExpr)
+    } else if (expr is AwaitExpr) {
       return visitAwait(expr);
-    else if (expr is ThrowExpr)
+    } else if (expr is ThrowExpr) {
       return visitThrow(expr);
-    else if (expr is CastExpr)
+    } else if (expr is CastExpr) {
       return visitCast(expr);
-    else if (expr is TypeCheckExpr)
+    } else if (expr is TypeCheckExpr) {
       return visitTypeCheck(expr);
-    else if (expr is EnumMemberAccessExpressionIR) {
+    } else if (expr is EnumMemberAccessExpressionIR) {
       // ✅ NEW: Handle enum member access
       return visitEnumMemberAccess(expr);
     }
@@ -351,7 +351,7 @@ class TypeInferencer implements ExpressionVisitor<TypeIR?> {
       return visitCast(expr);
     } else if (expr is TypeCheckExpr) {
       return visitTypeCheck(expr);
-    }else if (expr is EnumMemberAccessExpressionIR) {
+    } else if (expr is EnumMemberAccessExpressionIR) {
       visitEnumMemberAccess(expr);
     }
     return null;
@@ -446,7 +446,7 @@ class ConstantFolder implements ExpressionVisitor<dynamic> {
       return visitConditional(expr);
     } else if (expr is CastExpr) {
       return visitCast(expr);
-    }else if (expr is EnumMemberAccessExpressionIR) {
+    } else if (expr is EnumMemberAccessExpressionIR) {
       visitEnumMemberAccess(expr);
     }
     return null; // Non-constant
