@@ -281,13 +281,9 @@ class ExpressionCodeGen {
       return _generateEnumMemberAccess(expr); // ✅ Line ~160
     }
 
-    if (expr is FunctionExpressionIR) {}
-
-    // if (expr is IsExpressionIR) {
-    //   return _generateTypeCheck(
-    //     expr,
-    //   ); // ✅ Line ~230 (IsExpressionIR is handled via TypeCheckExpr)
-    // }
+    if (expr is FunctionExpressionIR) {
+      return _generateFunctionExpression(expr); // ✅ ADD THIS
+    }
 
     // ✅ NEW: Handle UnknownExpressionIR gracefully
     if (expr is UnknownExpressionIR) {
@@ -300,79 +296,79 @@ class ExpressionCodeGen {
     );
   }
 
+  // Add this new method:
   String _generateFunctionExpression(FunctionExpressionIR expr) {
     print('   🔵 [FunctionExpression] Generating lambda...');
 
     // =========================================================================
     // STEP 1: Generate parameter list
     // =========================================================================
-    final paramList = _generateFunctionParameters(expr.parameter);
-    print('   🔹 Parameters: $paramList');
+    final params = expr.parameter.map((p) => p.name).join(', ');
+    print('   📍 Parameters: $params');
 
     // =========================================================================
-    // STEP 2: Generate function body
+    // STEP 2: Extract the body expression
     // =========================================================================
-    String bodyCode;
+    String bodyCode = 'undefined';
 
     if (expr.body != null && expr.body!.statements.isNotEmpty) {
-      // Block function: () { statements; }
-      print('   🔹 Body type: block');
-      bodyCode = expr.body!.statements
-          .map((e) {
-            _generateFunctionBody(e);
-          })
-          .toList()
-          .toString();
+      final statements = expr.body!.statements;
+
+      // Single return statement: (x) => expr
+      if (statements.length == 1 && statements.first is ReturnStmt) {
+        final returnStmt = statements.first as ReturnStmt;
+        if (returnStmt.expression != null) {
+          bodyCode = generate(returnStmt.expression!, parenthesize: false);
+          print('   📍 Body type: single return');
+        }
+      }
+      // Single expression statement: (x) => expr
+      else if (statements.length == 1 && statements.first is ExpressionStmt) {
+        final exprStmt = statements.first as ExpressionStmt;
+        bodyCode = generate(exprStmt.expression, parenthesize: false);
+        print('   📍 Body type: single expression');
+      }
+      // Multiple statements: (x) { stmt1; stmt2; }
+      else {
+        final stmtCode = statements
+            .map((s) {
+              if (s is ExpressionStmt) {
+                return '${generate(s.expression, parenthesize: false)};';
+              } else if (s is ReturnStmt && s.expression != null) {
+                return 'return ${generate(s.expression!, parenthesize: false)};';
     } else {
-      print('   ⚠️  No body or bodyExpression found');
-      bodyCode = 'undefined';
+                return '';
+              }
+            })
+            .where((s) => s.isNotEmpty)
+            .join(' ');
+
+        bodyCode = '{ $stmtCode }';
+        print('   📍 Body type: multiple statements');
+    }
+    } else {
+      print('   ⚠️  No body statements found');
     }
 
     // =========================================================================
-    // STEP 3: Add async/generator modifiers
-    // =========================================================================
-    String prefix = '';
-
-    if (expr.isAsync) {
-      prefix = 'async ';
-      print('   🔹 Async: true');
-    }
-
-    if (expr.isGenerator) {
-      prefix += 'function* ';
-      print('   🔹 Generator: true');
-    }
-
-    // =========================================================================
-    // STEP 4: Determine output format
+    // STEP 3: Build arrow function
     // =========================================================================
     String result;
 
-    // Arrow function (simple case: single expression or explicit arrow)
-    if (expr.body?.statements != null && !expr.isGenerator) {
-      // Format: async (params) => expression
-      result = '${prefix}($paramList) => $bodyCode';
-      print('   ✅ Arrow function: $result');
-    }
-    // Block function or generator
-    else {
-      // Format: async (params) { statements }
-      // Format: function* (params) { statements }
-      result = '${prefix}($paramList) $bodyCode';
-      print('   ✅ Block function: $result');
+    if (expr.isAsync && expr.isGenerator) {
+      result = 'async function* ($params) $bodyCode';
+    } else if (expr.isAsync) {
+      result = 'async ($params) => $bodyCode';
+    } else if (expr.isGenerator) {
+      result = 'function* ($params) $bodyCode';
+    } else {
+      // Regular arrow function
+      result = '($params) => $bodyCode';
     }
 
-    // =========================================================================
-    // STEP 5: Add type comments if configured
-    // =========================================================================
-    if (config.typeComments && expr.returnType != null) {
-      final returnTypeName = expr.returnType!.displayName();
-      result += ' /* => $returnTypeName */';
-    }
-
+    print('   ✅ Generated: $result');
     return result;
   }
-
   // =========================================================================
   // PARAMETER GENERATION
   // =========================================================================
