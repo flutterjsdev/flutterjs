@@ -731,7 +731,18 @@ class FunctionExpressionIR extends ExpressionIR {
 
   @override
   String toShortString() => '(${parameter.join(', ')}) => ...';
-}
+@override
+  Map<String, dynamic> toJson() {
+    return {
+      ...super.toJson(),
+       "parameter": parameter.map((e) => e.toJson()).toList(),
+       'returnType': returnType?.toJson() ?? {},
+      "body": body?.toJson() ?? {},
+      "isAsync": isAsync,
+      "isGenerator": isGenerator,
+    };
+  }
+  }
 
 // =============================================================================
 // CONDITIONAL EXPRESSION
@@ -954,7 +965,7 @@ class UnaryExpressionIR extends ExpressionIR {
   Map<String, dynamic> toJson() {
     return {
       ...super.toJson(),
-      'operator': operator,
+      'operator':  operator.name,
       'operand': operand.toJson(),
       'isPrefix': isPrefix,
     };

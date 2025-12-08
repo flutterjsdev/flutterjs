@@ -422,7 +422,6 @@ class FunctionCodeGen {
     return null;
   }
 
-
   // =========================================================================
   // JSDOC GENERATION
   // =========================================================================
@@ -432,8 +431,6 @@ class FunctionCodeGen {
   // =========================================================================
 
   String _generateMethodJSDoc(MethodDecl method) {
-    if (!config.generateJSDoc) return '';
-
     final buffer = StringBuffer();
     buffer.writeln('/**');
 
