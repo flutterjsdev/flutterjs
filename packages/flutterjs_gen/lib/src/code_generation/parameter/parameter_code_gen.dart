@@ -1,8 +1,7 @@
 // ============================================================================
-// PARAMETER CODE GENERATOR
+// PARAMETER CODE GENERATOR (PURE JAVASCRIPT - NO TYPES)
 // ============================================================================
-// Unified parameter handling for functions, methods, and constructors
-// Supports: required, optional, named, default values, type hints
+// Generates clean JavaScript without TypeScript type annotations
 // ============================================================================
 
 import 'package:flutterjs_core/ast_it.dart';
@@ -60,24 +59,21 @@ class CategorizedParameters {
 
   /// Get all parameters in order
   List<ParameterDecl> get all => [
-        ...requiredPositional,
-        ...optionalPositional,
-        ...named,
-      ];
+    ...requiredPositional,
+    ...optionalPositional,
+    ...named,
+  ];
 
   /// Check if there are any parameters
   bool get isEmpty =>
-      requiredPositional.isEmpty &&
-      optionalPositional.isEmpty &&
-      named.isEmpty;
+      requiredPositional.isEmpty && optionalPositional.isEmpty && named.isEmpty;
 
   /// Check if there are any parameters
   bool get isNotEmpty => !isEmpty;
 
   /// Total parameter count
-  int get length => requiredPositional.length +
-      optionalPositional.length +
-      named.length;
+  int get length =>
+      requiredPositional.length + optionalPositional.length + named.length;
 }
 
 // ============================================================================
@@ -88,14 +84,13 @@ class ParameterCodeGen {
   final ParameterGenConfig config;
   final ExpressionCodeGen exprGen;
 
-  ParameterCodeGen({
-    ParameterGenConfig? config,
-    ExpressionCodeGen? exprGen,
-  })  : config = config ?? const ParameterGenConfig(),
-        exprGen = exprGen ?? ExpressionCodeGen();
+  ParameterCodeGen({ParameterGenConfig? config, ExpressionCodeGen? exprGen})
+    : config = config ?? const ParameterGenConfig(),
+      exprGen = exprGen ?? ExpressionCodeGen();
 
-  /// Generate parameter list for function/method signatures
-  /// Example output: "name, age = 25, { email = 'test@test.com' } = {}"
+  /// ✅ Generate parameter list for pure JavaScript (NO TYPES)
+  /// Example output: "key = undefined, title = undefined"
+  /// For named: "{ key = undefined, title = undefined } = {}"
   String generate(List<ParameterDecl> parameters) {
     if (parameters.isEmpty) {
       return '';
@@ -105,8 +100,8 @@ class ParameterCodeGen {
     return _generateParameterParts(categorized).join(', ');
   }
 
-  /// Generate parameters with inline type comments
-  /// Example: "name /* string */, age = 25 /* number */"
+  /// Generate parameters with inline type comments (optional)
+  /// Example: "key /* any */, title = undefined /* any */"
   String generateWithTypeComments(List<ParameterDecl> parameters) {
     if (parameters.isEmpty) {
       return '';
@@ -119,14 +114,16 @@ class ParameterCodeGen {
 
       // Add default value if present
       if (param.defaultValue != null) {
-        final defaultVal =
-            exprGen.generate(param.defaultValue!, parenthesize: false);
+        final defaultVal = exprGen.generate(
+          param.defaultValue!,
+          parenthesize: false,
+        );
         part += ' = $defaultVal';
       }
 
-      // Add type comment
+      // Add type comment (optional)
       if (config.useTypeComments && param.type != null) {
-        final typeStr = param.type.displayName();
+        final typeStr = param.type!.displayName();
         part += ' /* $typeStr */';
       }
 
@@ -143,9 +140,7 @@ class ParameterCodeGen {
         .toList();
 
     final optionalPositional = parameters
-        .where(
-          (p) => !p.isRequired && !p.isNamed && p.isPositional,
-        )
+        .where((p) => !p.isRequired && !p.isNamed && p.isPositional)
         .toList();
 
     final named = parameters.where((p) => p.isNamed).toList();
@@ -168,7 +163,7 @@ class ParameterCodeGen {
 
     for (final param in parameters) {
       final typeStr = _typeToJSDocType(param.type);
-      final nullable = param.type.isNullable ;
+      final nullable = param.type?.isNullable ?? false;
       final fullType = nullable ? '$typeStr|null' : typeStr;
 
       // Optional parameters shown with square brackets
@@ -188,7 +183,7 @@ class ParameterCodeGen {
     final buffer = StringBuffer();
 
     for (final param in parameters) {
-      if (param.isRequired && !param.type.isNullable) {
+      if (param.isRequired && !(param.type?.isNullable ?? false)) {
         buffer.writeln(
           'if (${param.name} == null) throw new Error("${param.name} is required");',
         );
@@ -202,30 +197,35 @@ class ParameterCodeGen {
   // PRIVATE METHODS
   // =========================================================================
 
+  /// ✅ Generate parameter parts (pure JavaScript, no types)
   List<String> _generateParameterParts(CategorizedParameters categorized) {
     final parts = <String>[];
 
-    // Required positional parameters
-    parts.addAll(
-      categorized.requiredPositional.map((p) => p.name),
-    );
+    // ✅ Required positional parameters (just names)
+    parts.addAll(categorized.requiredPositional.map((p) => p.name));
 
-    // Optional positional parameters with defaults
+    // ✅ Optional positional parameters with defaults
     for (final param in categorized.optionalPositional) {
       final def = _getDefaultValue(param);
       parts.add('${param.name} = $def');
     }
 
-    // Named parameters → object destructuring
+    // ✅ Named parameters → object destructuring
     if (categorized.named.isNotEmpty) {
-      final namedParts = categorized.named
-          .map((p) {
-            final def = _getDefaultValue(p);
-            return '${p.name} = $def';
-          })
-          .join(', ');
+      final namedParts = <String>[];
 
-      parts.add('{ $namedParts } = {}');
+      for (final param in categorized.named) {
+        // Only optional named params get defaults
+        // Required named params don't have defaults
+        if (param.isRequired) {
+          namedParts.add(param.name);
+        } else {
+          final def = _getDefaultValue(param);
+          namedParts.add('${param.name} = $def');
+        }
+      }
+
+      parts.add('{ ${namedParts.join(", ")} } = {}');
     }
 
     return parts;
