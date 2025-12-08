@@ -304,16 +304,31 @@ class FunctionCodeGen {
       buffer.writeln(indenter.line('super();'));
     }
 
-    // ✅ NEW: Generate field initializers
-    for (final init in ctor.initializers) {
-      final value = exprGen.generate(init.value, parenthesize: false);
-      buffer.writeln(indenter.line('this.${init.fieldName} = $value;'));
-    }
-
-    // ✅ NEW: Auto-initialize parameters matching fields
     for (final param in ctor.parameters) {
-      if (!ctor.initializers.any((i) => i.fieldName == param.name)) {
-        buffer.writeln(indenter.line('this.${param.name} = ${param.name};'));
+      // Skip if already initialized
+      if (ctor.initializers.any((i) => i.fieldName == param.name)) {
+        continue;
+      }
+
+      // ✅ Handle different parameter types
+      switch (param.origin) {
+        case ParameterOrigin.normal:
+          // Regular parameter: assign to field
+          buffer.writeln(indenter.line('this.${param.name} = ${param.name};'));
+          break;
+
+        case ParameterOrigin.field:
+          // Field parameter (this.x): already assigned implicitly in Dart
+          // In JavaScript, we still need to assign
+          buffer.writeln(indenter.line('this.${param.name} = ${param.name};'));
+          break;
+
+        case ParameterOrigin.superParam:
+          // Super parameter (super.x): DON'T assign here
+          // Parent constructor handles it via super()
+          // ✅ Skip - parent already initialized this
+          buffer.writeln(indenter.line('super.${param.name} = ${param.name};'));
+          break;
       }
     }
 
@@ -440,7 +455,7 @@ class FunctionCodeGen {
     // Fixed: Include return type documentation
     final returnType = _typeToJSDocType(method.returnType);
     if (returnType != 'void') {
-      final nullable = method.returnType.isNullable ;
+      final nullable = method.returnType.isNullable;
       final fullType = nullable ? '$returnType|null' : returnType;
       buffer.writeln(' * @returns {$fullType}');
     }

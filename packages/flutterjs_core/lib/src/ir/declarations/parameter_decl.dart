@@ -27,6 +27,16 @@ import 'variable_decl.dart';
 /// • Generic type inference
 /// • API documentation generation
 /// <---------------------------------------------------------------------------->
+enum ParameterOrigin {
+  /// Regular parameter: int x, String name
+  normal,
+
+  /// Field parameter: this.x, this.name
+  field,
+
+  /// Super parameter: super.x, super.name (forwards to parent)
+  superParam,
+}
 
 @immutable
 class ParameterDecl extends IRNode {
@@ -62,6 +72,8 @@ class ParameterDecl extends IRNode {
   /// Position in argument list (for positional args only)
   final int? position;
 
+  final ParameterOrigin origin;
+
   ParameterDecl({
     required super.id,
     required super.sourceLocation,
@@ -75,6 +87,7 @@ class ParameterDecl extends IRNode {
     super.metadata,
     this.parameterName,
     this.position,
+    this.origin = ParameterOrigin.normal, // ✅ Default to normal
   }) {
     // Validate that isPositional and isNamed are mutually exclusive
     assert(
@@ -132,6 +145,7 @@ class ParameterDecl extends IRNode {
       'sourceLocation': sourceLocation.toJson(),
       'parameterName': parameterName,
       'position': position,
+      'origin': origin.name,
     };
   }
 }
