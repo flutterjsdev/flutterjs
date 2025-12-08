@@ -1038,7 +1038,6 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
   List<ParameterDecl> _extractParameters(FormalParameterList? paramList) {
     if (paramList == null) return [];
-
     final parameters = <ParameterDecl>[];
 
     for (final param in paramList.parameters) {
@@ -1049,42 +1048,65 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       bool isNamed = false;
       bool isPositional = true;
 
+      // Case 1: DefaultFormalParameter (has default value or is required/named)
       if (param is DefaultFormalParameter) {
-        final simpleFormalParam = param.parameter;
-        name = _getParameterName(simpleFormalParam) ?? '';
-        type = _extractTypeFromAnnotation(
-          _getParameterType(simpleFormalParam),
-          param.offset,
-        );
+        final wrappedParam = param.parameter;
+        name = _getParameterName(wrappedParam) ?? '';
+        type = _extractTypeFromParameter(wrappedParam);
+
         if (param.defaultValue != null) {
-          defaultValue = _statementExtractor.extractExpression(
-            param.defaultValue!,
-          );
+          try {
+            defaultValue = _statementExtractor.extractExpression(
+              param.defaultValue!,
+            );
+          } catch (e) {
+            print('⚠️  Failed to extract default value: $e');
+          }
         }
+
         isRequired = param.isRequired;
         isNamed = param.isNamed;
         isPositional = param.isPositional;
-      } else if (param is SimpleFormalParameter) {
+      }
+      // Case 2: SimpleFormalParameter
+      else if (param is SimpleFormalParameter) {
         name = param.name?.lexeme ?? '';
         type = _extractTypeFromAnnotation(param.type, param.offset);
-      } else if (param is FieldFormalParameter) {
+      }
+      // Case 3: FieldFormalParameter
+      else if (param is FieldFormalParameter) {
         name = param.name.lexeme;
         type = _extractTypeFromAnnotation(param.type, param.offset);
-      } else if (param is FunctionTypedFormalParameter) {
+      }
+      // Case 4: FunctionTypedFormalParameter
+      else if (param is FunctionTypedFormalParameter) {
         name = param.name.lexeme;
         type = _extractTypeFromAnnotation(param.returnType, param.offset);
       }
+      // Case 5: SuperFormalParameter (Dart 2.17+)
+      else if (param is SuperFormalParameter) {
+        name = param.name.lexeme;
+        type = _extractTypeFromAnnotation(param.type, param.offset);
+      }
+      // Case 6: Unknown/Pattern parameters (Dart 3.0+)
+      else {
+        print('⚠️  Unknown parameter type: ${param.runtimeType}');
+        print('   Parameter: ${param.toString()}');
+        // Try to extract basic name if possible
+        try {
+          name = (param as dynamic).name?.lexeme ?? '';
+        } catch (e) {
+          print('   Could not extract name: $e');
+        }
+        continue; // Skip unknown types
+      }
 
+      // Create ParameterDecl
       if (name.isNotEmpty) {
         final paramDecl = ParameterDecl(
           id: builder.generateId('param', name),
           name: name,
-          type:
-              type ??
-              DynamicTypeIR(
-                id: builder.generateId('type'),
-                sourceLocation: _extractSourceLocation(param, param.offset),
-              ),
+          type: type,
           defaultValue: defaultValue,
           isRequired: isRequired,
           isNamed: isNamed,
@@ -1099,14 +1121,29 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     return parameters;
   }
 
-  String? _getParameterName(NormalFormalParameter param) {
+  TypeIR _extractTypeFromParameter(NormalFormalParameter param) {
     if (param is SimpleFormalParameter) {
-      return param.name?.lexeme;
+      return _extractTypeFromAnnotation(param.type, param.offset);
     } else if (param is FieldFormalParameter) {
-      return param.name.lexeme;
+      return _extractTypeFromAnnotation(param.type, param.offset);
     } else if (param is FunctionTypedFormalParameter) {
-      return param.name.lexeme;
+      return _extractTypeFromAnnotation(param.returnType, param.offset);
+    } else if (param is SuperFormalParameter) {
+      return _extractTypeFromAnnotation(param.type, param.offset);
     }
+
+    return DynamicTypeIR(
+      id: builder.generateId('type'),
+      sourceLocation: _extractSourceLocation(param, param.offset),
+    );
+  }
+
+  String? _getParameterName(NormalFormalParameter param) {
+    if (param is SimpleFormalParameter) return param.name?.lexeme;
+    if (param is FieldFormalParameter) return param.name.lexeme;
+    if (param is FunctionTypedFormalParameter) return param.name.lexeme;
+    // ✅ ADD THIS
+    if (param is SuperFormalParameter) return param.name.lexeme;
     return null;
   }
 
