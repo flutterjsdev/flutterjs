@@ -120,182 +120,8 @@ abstract class ExpressionIR extends IRNode {
     };
   }
 
-  /// Factory for deserializing expressions from JSON
-  factory ExpressionIR.fromJson(Map<String, dynamic> json) {
-    final type = json['expressionType'] as String?;
-    final sourceLocation = SourceLocationIR.fromJson(
-      json['sourceLocation'] as Map<String, dynamic>,
-    );
-    final resultType = TypeIR.fromJson(
-      json['resultType'] as Map<String, dynamic>,
-    );
 
-    switch (type) {
-      case 'LiteralExpressionIR':
-        return LiteralExpressionIR(
-          id: json['id'] as String,
-          resultType: resultType,
-          sourceLocation: sourceLocation,
-          value: json['value'],
-          literalType: LiteralType.values.firstWhere(
-            (lt) => lt.name == json['literalType'],
-            orElse: () => LiteralType.nullValue,
-          ),
-        );
-      case 'IdentifierExpressionIR':
-        return IdentifierExpressionIR(
-          id: json['id'] as String,
-          resultType: resultType,
-          sourceLocation: sourceLocation,
-          name: json['name'] as String,
-          isThisReference: json['isThisReference'] as bool? ?? false,
-          isSuperReference: json['isSuperReference'] as bool? ?? false,
-        );
-      case 'BinaryExpressionIR':
-        return BinaryExpressionIR(
-          id: json['id'] as String,
-          resultType: resultType,
-          sourceLocation: sourceLocation,
-          left: ExpressionIR.fromJson(json['left'] as Map<String, dynamic>),
-          operator: BinaryOperatorIR.values.firstWhere(
-            (op) => op.name == json['operator'],
-            orElse: () => BinaryOperatorIR.add,
-          ),
-          right: ExpressionIR.fromJson(json['right'] as Map<String, dynamic>),
-        );
-      case 'MethodCallExpressionIR':
-        return MethodCallExpressionIR(
-          id: json['id'] as String,
-          resultType: resultType,
-          sourceLocation: sourceLocation,
-          target: json['target'] != null
-              ? ExpressionIR.fromJson(json['target'] as Map<String, dynamic>)
-              : null,
-          methodName: json['methodName'] as String,
-          arguments: (json['arguments'] as List<dynamic>? ?? [])
-              .map((a) => ExpressionIR.fromJson(a as Map<String, dynamic>))
-              .toList(),
-          namedArguments:
-              (json['namedArguments'] as Map<String, dynamic>? ?? {}).map(
-                (k, v) => MapEntry(
-                  k,
-                  ExpressionIR.fromJson(v as Map<String, dynamic>),
-                ),
-              ),
-          isNullAware: json['isNullAware'] as bool? ?? false,
-          isCascade: json['isCascade'] as bool? ?? false,
-        );
-      case 'PropertyAccessExpressionIR':
-        return PropertyAccessExpressionIR(
-          id: json['id'] as String,
-          resultType: resultType,
-          sourceLocation: sourceLocation,
-          target: ExpressionIR.fromJson(json['target'] as Map<String, dynamic>),
-          propertyName: json['propertyName'] as String,
-          isNullAware: json['isNullAware'] as bool? ?? false,
-        );
-      case 'ConditionalExpressionIR':
-        return ConditionalExpressionIR(
-          id: json['id'] as String,
-          resultType: resultType,
-          sourceLocation: sourceLocation,
-          condition: ExpressionIR.fromJson(
-            json['condition'] as Map<String, dynamic>,
-          ),
-          thenExpression: ExpressionIR.fromJson(
-            json['thenExpression'] as Map<String, dynamic>,
-          ),
-          elseExpression: ExpressionIR.fromJson(
-            json['elseExpression'] as Map<String, dynamic>,
-          ),
-        );
-      case 'ListExpressionIR':
-        return ListExpressionIR(
-          id: json['id'] as String,
-          resultType: resultType,
-          sourceLocation: sourceLocation,
-          elements: (json['elements'] as List<dynamic>? ?? [])
-              .map((e) => ExpressionIR.fromJson(e as Map<String, dynamic>))
-              .toList(),
-          isConst: json['isConst'] as bool? ?? false,
-        );
-      case 'MapExpressionIR':
-        return MapExpressionIR(
-          id: json['id'] as String,
-          resultType: resultType,
-          sourceLocation: sourceLocation,
-          entries: (json['entries'] as List<dynamic>? ?? [])
-              .map((e) => MapEntryIR.fromJson(e as Map<String, dynamic>))
-              .toList(),
-          isConst: json['isConst'] as bool? ?? false,
-        );
-      case 'SetExpressionIR':
-        return SetExpressionIR(
-          id: json['id'] as String,
-          resultType: resultType,
-          sourceLocation: sourceLocation,
-          elements: (json['elements'] as List<dynamic>? ?? [])
-              .map((e) => ExpressionIR.fromJson(e as Map<String, dynamic>))
-              .toList(),
-          isConst: json['isConst'] as bool? ?? false,
-        );
-      case 'IndexAccessExpressionIR':
-        return IndexAccessExpressionIR(
-          id: json['id'] as String,
-          resultType: resultType,
-          sourceLocation: sourceLocation,
-          target: ExpressionIR.fromJson(json['target'] as Map<String, dynamic>),
-          index: ExpressionIR.fromJson(json['index'] as Map<String, dynamic>),
-          isNullAware: json['isNullAware'] as bool? ?? false,
-        );
-      case 'UnaryExpressionIR':
-        UnaryOperator getUnaryOperator(String json) {
-          switch (json) {
-            case 'negate':
-              return UnaryOperator.negate;
-            case 'logicalNot':
-              return UnaryOperator.logicalNot;
-            case 'bitwiseNot':
-              return UnaryOperator.bitwiseNot;
-            case 'preIncrement':
-              return UnaryOperator.preIncrement;
-            case 'preDecrement':
-              return UnaryOperator.preDecrement;
-            case 'postIncrement':
-              return UnaryOperator.postIncrement;
-            case 'postDecrement':
-              return UnaryOperator.postDecrement;
-            default:
-              return UnaryOperator.negate;
-          }
-        }
-        UnaryOperator unary = getUnaryOperator(json['opetatir']);
-        return UnaryExpressionIR(
-          id: json['id'] as String,
-          resultType: resultType,
-          sourceLocation: sourceLocation,
-          operator: unary,
-          operand: ExpressionIR.fromJson(
-            json['operand'] as Map<String, dynamic>,
-          ),
-          isPrefix: json['isPrefix'] as bool? ?? true,
-        );
-      case 'CastExpressionIR':
-        return CastExpressionIR(
-          id: json['id'] as String,
-          resultType: resultType,
-          sourceLocation: sourceLocation,
-          expression: ExpressionIR.fromJson(
-            json['expression'] as Map<String, dynamic>,
-          ),
-          targetType: TypeIR.fromJson(
-            json['targetType'] as Map<String, dynamic>,
-          ),
-        );
-      default:
-        throw UnimplementedError('Unknown ExpressionIR type: $type');
-    }
-  }
+
 }
 
 // =============================================================================
@@ -506,11 +332,14 @@ class MethodCallExpressionIR extends ExpressionIR {
   /// Whether this is a cascade call (..method())
   final bool isCascade;
 
+  final List<TypeIR> typeArguments;  // ← ADD THIS
+
   const MethodCallExpressionIR({
     required super.id,
     required super.resultType,
     required super.sourceLocation,
     required this.methodName,
+     required this.typeArguments,  // ← ADD THIS
     this.target,
     this.arguments = const [],
     this.namedArguments = const {},

@@ -7,9 +7,10 @@
 // 3. Function returns Widget or any Widget subclass (via type resolution)
 // ============================================================================
 
-
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
+import 'package:flutterjs_core/ast_it.dart';
 
 // <---------------------------------------------------------------------------->
 /// analyzer_widget_detection_setup.dart
@@ -287,3 +288,94 @@ class WidgetProducerDetector {
   }
 }
 
+class MethodCallExpressionType {
+  final String filePath;
+  
+  final DartFileBuilder builder;
+
+  MethodCallExpressionType({required this.builder,required this.filePath});
+  TypeIR extractTypeFromDartType(DartType dartType, int offset) {
+    // ✅ Create SourceLocationIR directly
+    final sourceLoc = SourceLocationIR(
+      id: builder.generateId('loc'),
+      file: filePath,
+      line: 0,
+      column: 0,
+      offset: offset,
+      length: 0,
+    );
+    final id = builder.generateId('type');
+
+    // Case 1: Dynamic type
+    if (dartType is DynamicType) {
+      return DynamicTypeIR(id: id, sourceLocation: sourceLoc);
+    }
+
+    // Case 2: Void type
+    if (dartType is VoidType) {
+      return VoidTypeIR(id: id, sourceLocation: sourceLoc);
+    }
+
+    // Case 3: Never type
+    if (dartType is NeverType) {
+      return NeverTypeIR(id: id, sourceLocation: sourceLoc);
+    }
+
+    // Case 4: Interface types (classes like CounterModel, List<String>, etc.)
+    if (dartType is InterfaceType) {
+      final typeArgs = dartType.typeArguments.isEmpty
+          ? <TypeIR>[]
+          : dartType.typeArguments
+                .map((t) => extractTypeFromDartType(t, offset))
+                .toList();
+
+      return ClassTypeIR(
+        name: dartType.element.name ?? '<unknown>',
+        id: id,
+        className: dartType.element.name ?? '<unknown>',
+        typeArguments: typeArgs,
+        sourceLocation: sourceLoc,
+      );
+    }
+
+    // Case 5: Type parameters (generics like T, U)
+    if (dartType is TypeParameterType) {
+      // ✅ Return SimpleTypeIR instead of TypeParameterIR (which may not exist)
+      return SimpleTypeIR(
+        id: id,
+        name: dartType.element.name ?? 'T',
+        isNullable: false,
+        sourceLocation: sourceLoc,
+      );
+    }
+
+    // Case 6: Function types
+    if (dartType is FunctionType) {
+      // ✅ Extract all parameters using normalParameterTypes
+      final allParams = <TypeIR>[];
+
+      // Add normal/positional parameters
+      for (final param in dartType.normalParameterTypes) {
+        allParams.add(extractTypeFromDartType(param, offset));
+      }
+
+      return SimpleTypeIR(
+        id: id,
+        name: 'Function', // ✅ Simplified function type representation
+        isNullable: false,
+        sourceLocation: sourceLoc,
+      );
+    }
+
+    // Case 7: Fallback for other types
+    // Treat as a simple type using string representation
+    final typeName = dartType.toString().replaceAll('?', '').trim();
+
+    return SimpleTypeIR(
+      id: id,
+      name: typeName,
+      isNullable: dartType.nullabilitySuffix == NullabilitySuffix.question,
+      sourceLocation: sourceLoc,
+    );
+  }
+}

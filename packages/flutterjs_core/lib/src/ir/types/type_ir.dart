@@ -58,39 +58,7 @@ abstract class TypeIR extends IRNode {
   @override
   String toShortString() => displayName();
 
-  factory TypeIR.fromJson(Map<String, dynamic> json) {
-    final type = json['type'] as String?;
-    final sourceLocation = SourceLocationIR.fromJson(
-      json['sourceLocation'] as Map<String, dynamic>? ?? {},
-    );
-
-    switch (type) {
-      case 'SimpleTypeIR':
-        return SimpleTypeIR.fromJson(json, sourceLocation);
-      case 'FunctionTypeIR':
-        return FunctionTypeIR.fromJson(json, sourceLocation);
-      case 'GenericTypeIR':
-        return GenericTypeIR.fromJson(json, sourceLocation);
-      case 'DynamicTypeIR':
-        return DynamicTypeIR(
-          id: json['id'] as String,
-          sourceLocation: sourceLocation,
-        );
-      case 'VoidTypeIR':
-        return VoidTypeIR(
-          id: json['id'] as String,
-          sourceLocation: sourceLocation,
-        );
-      case 'NeverTypeIR':
-        return NeverTypeIR(
-          id: json['id'] as String,
-          sourceLocation: sourceLocation,
-        );
-      default:
-        throw UnimplementedError('Unknown TypeIR type: $type');
-    }
-  }
-
+  
   /// Create a Widget type (commonly used in build methods)
   factory TypeIR.widget() {
     return SimpleTypeIR(
@@ -193,22 +161,7 @@ class SimpleTypeIR extends TypeIR {
   @override
   bool get isGeneric => typeArguments.isNotEmpty;
 
-  factory SimpleTypeIR.fromJson(
-    Map<String, dynamic> json,
-    SourceLocationIR sourceLocation,
-  ) {
-    return SimpleTypeIR(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      isNullable: json['isNullable'] as bool? ?? false,
-      typeArguments:
-          (json['typeArguments'] as List<dynamic>?)
-              ?.map((e) => TypeIR.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      sourceLocation: sourceLocation,
-    );
-  }
+ 
 
   @override
   Map<String, dynamic> toJson() {
@@ -225,14 +178,7 @@ class TypeParameterIR {
 
   TypeParameterIR({required this.name, this.bound});
 
-  factory TypeParameterIR.fromJson(Map<String, dynamic> json) {
-    return TypeParameterIR(
-      name: json['name'] as String,
-      bound: json['bound'] != null
-          ? TypeIR.fromJson(json['bound'] as Map<String, dynamic>)
-          : null,
-    );
-  }
+
 
   @override
   bool operator ==(Object other) =>

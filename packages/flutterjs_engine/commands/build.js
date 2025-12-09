@@ -14,7 +14,7 @@ function mkdirp(dir) {
 
 
 async function transpileFJS(options) {
-  const { processFJSFiles } = require('../src/fjs.js');
+  const { processFJSFiles } = require('../src/filepropert/fjs');
   const srcPath = path.join(process.cwd(), 'src');
   const fjsPath = path.join(process.cwd(), '.flutter_js');
   

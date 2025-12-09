@@ -209,45 +209,7 @@ class WidgetNodeIR extends IRNode {
     };
   }
 
-  factory WidgetNodeIR.fromJson(
-    Map<String, dynamic> json,
-    SourceLocationIR sourceLocation,
-  ) {
-    return WidgetNodeIR(
-      id: json['id'] as String,
-      sourceLocation: sourceLocation,
-      widgetType: json['widgetType'] as String,
-      constructorName: json['constructorName'] as String?,
-      properties: (json['properties'] as Map<String, dynamic>? ?? {}).map(
-        (key, value) =>
-            MapEntry(key, ExpressionIR.fromJson(value as Map<String, dynamic>)),
-      ),
-      children: (json['children'] as List<dynamic>? ?? [])
-          .map(
-            (c) => WidgetNodeIR.fromJson(
-              c as Map<String, dynamic>,
-              sourceLocation,
-            ),
-          )
-          .toList(),
-      key: json['key'] != null
-          ? KeyTypeIR.fromJson(
-              json['key'] as Map<String, dynamic>,
-              sourceLocation,
-            )
-          : null,
-      isConst: json['isConst'] as bool? ?? false,
-      treeDepth: json['treeDepth'] as int? ?? 0,
-      isConditional: json['isConditional'] as bool? ?? false,
-      isInLoop: json['isInLoop'] as bool? ?? false,
-      analysis: json['analysis'] != null
-          ? WidgetNodeAnalysisIR.fromJson(
-              json['analysis'] as Map<String, dynamic>,
-              sourceLocation,
-            )
-          : null,
-    );
-  }
+ 
 }
 
 /// Analysis metadata for a widget node

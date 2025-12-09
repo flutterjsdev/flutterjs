@@ -553,11 +553,9 @@ class SetupManager {
       // Create output directories
       final buildDir = path.join(absoluteProjectPath, 'build');
       final flutterJsDir = path.join(buildDir, 'flutterjs');
-      final irOutputPath = path.join(flutterJsDir, 'ir');
-      final jsOutputPath = path.join(flutterJsDir, 'js');
+      final jsOutputPath = path.join(flutterJsDir, 'fjs');
       final reportsPath = path.join(flutterJsDir, 'reports');
 
-      await Directory(irOutputPath).create(recursive: true);
       if (config.toJs) await Directory(jsOutputPath).create(recursive: true);
       if (config.generateReports)
         await Directory(reportsPath).create(recursive: true);
@@ -570,7 +568,7 @@ class SetupManager {
         projectPath: absoluteProjectPath,
         sourcePath: absoluteSourcePath,
         buildPath: flutterJsDir,
-        irOutputPath: irOutputPath,
+
         jsOutputPath: jsOutputPath,
         reportsPath: reportsPath,
       );
@@ -810,7 +808,7 @@ class JSConversionPhase {
           final fileNameWithoutExt = path.basenameWithoutExtension(
             normalizedDartPath,
           );
-          final jsFileName = '$fileNameWithoutExt.js';
+          final jsFileName = '$fileNameWithoutExt.fjs';
 
           final jsOutputFile = relativeDir.isEmpty
               ? File(path.join(context.jsOutputPath, jsFileName))
@@ -1102,7 +1100,7 @@ class PipelineContext {
   final String projectPath;
   final String sourcePath;
   final String buildPath;
-  final String irOutputPath;
+
   final String jsOutputPath;
   final String reportsPath;
 
@@ -1110,7 +1108,7 @@ class PipelineContext {
     required this.projectPath,
     required this.sourcePath,
     required this.buildPath,
-    required this.irOutputPath,
+
     required this.jsOutputPath,
     required this.reportsPath,
   });

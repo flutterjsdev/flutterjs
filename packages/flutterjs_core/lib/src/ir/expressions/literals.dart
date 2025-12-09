@@ -199,20 +199,7 @@ class MapEntryIR extends IRNode {
     };
   }
 
-  /// Create from JSON
-  factory MapEntryIR.fromJson(Map<String, dynamic> json) {
-    return MapEntryIR(
-      id: json['id'] as String,
-      sourceLocation: SourceLocationIR.fromJson(
-        json['sourceLocation'] as Map<String, dynamic>,
-      ),
-      key: ExpressionIR.fromJson(json['key'] as Map<String, dynamic>),
-      value: ExpressionIR.fromJson(json['value'] as Map<String, dynamic>),
-      metadata: json['metadata'] != null
-          ? json['metadata'] as Map<String, dynamic>
-          : null,
-    );
-  }
+
 }
 
 @immutable

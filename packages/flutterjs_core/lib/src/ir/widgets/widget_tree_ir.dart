@@ -160,44 +160,7 @@ class WidgetTreeIR extends IRNode {
     };
   }
 
-  factory WidgetTreeIR.fromJson(
-    Map<String, dynamic> json,
-    SourceLocationIR sourceLocation,
-  ) {
-    return WidgetTreeIR(
-      id: json['id'] as String,
-      sourceLocation: sourceLocation,
-      root: WidgetNodeIR.fromJson(
-        json['root'] as Map<String, dynamic>,
-        sourceLocation,
-      ),
-      nodeCount: json['nodeCount'] as int? ?? 0,
-      depth: json['depth'] as int? ?? 0,
-      conditionalBranches: (json['conditionalBranches'] as List<dynamic>? ?? [])
-          .map(
-            (c) => ConditionalBranchIR.fromJson(
-              c as Map<String, dynamic>,
-              sourceLocation,
-            ),
-          )
-          .toList(),
-      iterationPatterns: (json['iterationPatterns'] as List<dynamic>? ?? [])
-          .map(
-            (i) => IterationPatternIR.fromJson(
-              i as Map<String, dynamic>,
-              sourceLocation,
-            ),
-          )
-          .toList(),
-      constWidgetCount: json['constWidgetCount'] as int? ?? 0,
-      nonConstWidgetCount: json['nonConstWidgetCount'] as int? ?? 0,
-      unkeyedDynamicWidgetCount: json['unkeyedDynamicWidgetCount'] as int? ?? 0,
-      metrics: TreeMetricsIR.fromJson(
-        json['metrics'] as Map<String, dynamic>? ?? {},
-        sourceLocation,
-      ),
-    );
-  }
+  
 }
 
 /// Represents a conditional branch in the widget tree

@@ -123,26 +123,6 @@ class FunctionTypeIR extends TypeIR {
     return parts.join(', ');
   }
 
-  factory FunctionTypeIR.fromJson(
-    Map<String, dynamic> json,
-    SourceLocationIR sourceLocation,
-  ) {
-    return FunctionTypeIR(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      isNullable: json['isNullable'] as bool? ?? false,
-      returnType: TypeIR.fromJson(json['returnType'] as Map<String, dynamic>),
-      parameters: (json['parameters'] as List<dynamic>)
-          .map((e) => ParameterIR.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      typeParameters:
-          (json['typeParameters'] as List<dynamic>?)
-              ?.map((e) => TypeParameterIR.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      sourceLocation: sourceLocation,
-    );
-  }
 
   @override
   Map<String, dynamic> toJson() {
