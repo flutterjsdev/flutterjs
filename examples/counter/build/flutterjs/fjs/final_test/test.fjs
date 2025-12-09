@@ -1,0 +1,180 @@
+// ============================================================================
+// Generated from Dart IR - Advanced Code Generation (Phase 9)
+// WARNING: Do not edit manually - changes will be lost
+// Generated at: 2025-12-09 23:38:59.202546
+//
+// Smart Features Enabled:
+// ✓ Intelligent import detection
+// ✓ Unused widget filtering
+// ✓ Dependency-aware helper generation
+// ✓ Type-aware imports
+// ✓ Validation & Optimization (Phase 5)
+// ============================================================================
+
+
+import Flutter from 'flutter-js-framework';
+import {
+  // Core Framework
+  Widget,
+  State,
+  StatefulWidget,
+  StatelessWidget,
+  BuildContext,
+  Key,
+} from 'flutter-js-framework/widgets';
+
+
+// ===== RUNTIME HELPERS (3) =====
+
+function listCast(list, expectedType) {
+  return list.map(item => {
+    if (!(item instanceof expectedType)) {
+      throw new TypeError(`Item must be of type ${expectedType.name}`);
+    }
+    return item;
+  });
+}
+
+function mapCast(map, expectedKeyType, expectedValueType) {
+  const result = new Map();
+  for (const [key, value] of map) {
+    if (!(key instanceof expectedKeyType)) {
+      throw new TypeError(`Key must be of type ${expectedKeyType.name}`);
+    }
+    if (!(value instanceof expectedValueType)) {
+      throw new TypeError(`Value must be of type ${expectedValueType.name}`);
+    }
+    result.set(key, value);
+  }
+  return result;
+}
+
+function typeAssertion(value, expectedType, variableName) {
+  if (!(value instanceof expectedType)) {
+    throw new TypeError(`${variableName} must be of type ${expectedType.name}`);
+  }
+  return value;
+}
+
+
+
+
+
+
+
+// ===== CLASSES =====
+
+class CounterModel extends ChangeNotifier {
+  _count = 0;
+  status = "Idle";
+  history = [];
+
+  /**
+
+   * @returns {number}
+   */
+  get count() {
+  return _count;
+  }
+
+  /**
+
+   */
+  increment() {
+  _count++;
+  history.add(`+${count} at ${DateTime.now().toIso8601String()}`);
+  status = "Last action: increment";
+  this.notifyListeners();
+  }
+
+  /**
+
+   * @returns {Future<void>}
+   * @async
+   */
+  async fetchQuote() {
+  status = "Fetching...";
+  this.notifyListeners();
+  try {
+  {
+      const resp = await http.get(Uri.parse('https://api.quotable.io/random'));
+  if (resp.statusCode === 200) {
+  {
+          const data = jsonDecode(resp.body);
+          const quote = String(data["content"]);
+          history.add(`Quote: ${quote.substring(0, 30)}...`);
+          status = "Quote loaded";
+        }
+      } else {
+  {
+          status = (`HTTP ${resp.statusCode}`);
+        }
+      }
+    }
+  } catch (e) {
+  {
+      status = (`Error: ${e}`);
+    }
+  }
+  this.notifyListeners();
+  }
+
+  /**
+
+   */
+  reset() {
+  _count = 0;
+  history.clear();
+  status = "Reset";
+  this.notifyListeners();
+  }
+
+}
+
+class MyApp extends StatelessWidget {
+  /**
+   * @param {BuildContext} [context]
+   * @returns {Widget}
+   */
+  // @override
+  build(context = undefined) {
+  return ChangeNotifierProvider({ create: (_) => CounterModel(), child: MaterialApp({ title: "FlutterJs Stress Test", debugShowCheckedModeBanner: false, theme: ThemeData({ primarySwatch: Colors.indigo }), home: HomePage() }) });
+  }
+
+}
+
+class HomePage extends StatelessWidget {
+  /**
+   * @param {BuildContext} [context]
+   * @returns {Widget}
+   */
+  // @override
+  build(context = undefined) {
+  const model = context.watch<CounterModel>();
+  return Scaffold({ appBar: AppBar({ title: Text("FlutterJs Stress Test"), backgroundColor: Colors.indigo }), body: Padding({ padding: EdgeInsets.all(16), child: Column({ crossAxisAlignment: CrossAxisAlignment.start, children: [Text(`Count: ${model.count} ${math.min(10, 20)}`, { style: Theme.of(context).textTheme.headlineMedium!.copyWith({ color: (model.count.isEven) ? (Colors.indigo) : (Colors.purple) }) }), SizedBox({ height: 20 }), Row({ mainAxisAlignment: MainAxisAlignment.center, children: [ElevatedButton({ onPressed: model.increment, child: Text("+1") }), SizedBox({ width: 16 }), ElevatedButton({ onPressed: model.reset, child: Text("Reset") }), SizedBox({ width: 16 }), ElevatedButton({ onPressed: model.fetchQuote, child: Text("Fetch Quote") })] }), SizedBox({ height: 20 }), Text(`Status: ${model.status}`), SizedBox({ height: 20 }), Expanded({ child: ListView.builder({ itemCount: model.history.length, itemBuilder: (context, i) => Card({ child: ListTile({ leading: CircleAvatar({ child: Text(`${i + 1}`) }), title: Text(model.history[i]), subtitle: Text(`Item ${i}`) }) }) }) })] }) }), floatingActionButton: FloatingActionButton({ onPressed: model.increment, child: Icon(Icons.add) }) });
+  }
+
+}
+
+
+
+// ===== FUNCTIONS =====
+
+/**
+
+ */
+function main() {
+return runApp(MyApp());
+}
+
+
+
+// ===== EXPORTS =====
+
+export {
+  CounterModel,
+  MyApp,
+  HomePage,
+  main,
+};
+
