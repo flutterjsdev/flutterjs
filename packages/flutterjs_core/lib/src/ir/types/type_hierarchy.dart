@@ -123,39 +123,7 @@ class TypeHierarchy {
     return false;
   }
 
-  /// Find the most specific common supertype of [a] and [b]
-  /// Returns the lowest common ancestor in the type hierarchy
-  static TypeIR? commonSupertype(TypeIR a, TypeIR b) {
-    // Identical types
-    if (a.name == b.name) return a;
 
-    // Dynamic is common supertype of everything
-    if (a.name == 'dynamic' || b.name == 'dynamic') {
-      return TypeIR.fromJson({
-        'id': 'common_dynamic',
-        'name': 'dynamic',
-        'type': 'DynamicTypeIR',
-      });
-    }
-
-    // Never is subtype, so other type is the supertype
-    if (a.name == 'Never') return b;
-    if (b.name == 'Never') return a;
-
-    // For standard types, find common ancestors
-    final aAncestors = _getAncestors(a.name);
-    final bAncestors = _getAncestors(b.name);
-
-    // Find most specific common ancestor
-    for (final ancestor in aAncestors) {
-      if (bAncestors.contains(ancestor)) {
-        return _createTypeFromName(ancestor);
-      }
-    }
-
-    // Fall back to Object if no common ancestor found
-    return _createTypeFromName('Object');
-  }
 
   /// Get all ancestors of a type (including itself)
   static List<String> _getAncestors(String typeName) {
@@ -211,17 +179,5 @@ class TypeHierarchy {
     return false;
   }
 
-  /// Create a TypeIR from a standard type name
-  static TypeIR _createTypeFromName(String name) {
-    // This is a simplified version - in production would use proper factory
-    return TypeIR.fromJson({
-      'id': 'type_$name',
-      'name': name,
-      'type': name == 'dynamic'
-          ? 'DynamicTypeIR'
-          : name == 'Never'
-          ? 'NeverTypeIR'
-          : 'SimpleTypeIR',
-    });
-  }
+ 
 }

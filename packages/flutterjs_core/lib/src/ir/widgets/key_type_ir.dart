@@ -85,24 +85,7 @@ class KeyTypeIR extends IRNode {
     };
   }
 
-  factory KeyTypeIR.fromJson(
-    Map<String, dynamic> json,
-    SourceLocationIR sourceLocation,
-  ) {
-    return KeyTypeIR(
-      id: json['id'] as String,
-      sourceLocation: sourceLocation,
-      kind: KeyKindIR.values.byName(json['kind'] as String? ?? 'valueKey'),
-      valueType: json['valueType'] != null
-          ? TypeIR.fromJson(json['valueType'] as Map<String, dynamic>)
-          : null,
-      targetStateType: json['targetStateType'] != null
-          ? TypeIR.fromJson(json['targetStateType'] as Map<String, dynamic>)
-          : null,
-      keyValue: json['keyValue'] as String?,
-      isConst: json['isConst'] as bool? ?? false,
-    );
-  }
+ 
 }
 
 /// Enum for different key types available in Flutter
@@ -189,25 +172,7 @@ class AsyncBuilderIR extends IRNode {
     };
   }
 
-  factory AsyncBuilderIR.fromJson(
-    Map<String, dynamic> json,
-    SourceLocationIR sourceLocation,
-  ) {
-    return AsyncBuilderIR(
-      id: json['id'] as String,
-      sourceLocation: sourceLocation,
-      kind: AsyncBuilderKindIR.values.byName(
-        json['kind'] as String? ?? 'futureBuilder',
-      ),
-      futureOrStreamExpression: json['futureOrStreamExpression'] as String,
-      dataType: TypeIR.fromJson(json['dataType'] as Map<String, dynamic>),
-      initialData: json['initialData'] as String?,
-      builderExpression: json['builderExpression'] as String,
-      canFail: json['canFail'] as bool? ?? true,
-      handlesErrors: json['handlesErrors'] as bool? ?? false,
-      handlesLoading: json['handlesLoading'] as bool? ?? false,
-    );
-  }
+ 
 }
 
 /// Enum for async builder kinds

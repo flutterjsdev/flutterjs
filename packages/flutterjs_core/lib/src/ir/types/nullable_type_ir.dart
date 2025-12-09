@@ -99,20 +99,7 @@ class NullableTypeIR extends TypeIR {
     return {...super.toJson(), 'innerType': innerType.toJson()};
   }
 
-  factory NullableTypeIR.fromJson(
-    Map<String, dynamic> json,
-    SourceLocationIR sourceLocation,
-  ) {
-    final innerTypeJson = json['innerType'] as Map<String, dynamic>;
-    final innerType = TypeIR.fromJson(innerTypeJson);
 
-    return NullableTypeIR.flatten(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      sourceLocation: sourceLocation,
-      type: innerType,
-    );
-  }
 
   /// Creates a new nullable type with a different inner type
   NullableTypeIR withInnerType(TypeIR newInnerType) {

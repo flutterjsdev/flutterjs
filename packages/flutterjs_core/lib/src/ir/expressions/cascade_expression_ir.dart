@@ -493,16 +493,7 @@ class StringInterpolationPart {
     };
   }
 
-  factory StringInterpolationPart.fromJson(Map<String, dynamic> json) {
-    final isExpr = json['isExpression'] as bool;
-    if (isExpr) {
-      return StringInterpolationPart.expression(
-        ExpressionIR.fromJson(json['expression'] as Map<String, dynamic>),
-      );
-    } else {
-      return StringInterpolationPart.text(json['text'] as String);
-    }
-  }
+ 
 
   @override
   String toString() {

@@ -90,27 +90,7 @@ class ClassTypeIR extends TypeIR {
     };
   }
 
-  factory ClassTypeIR.fromJson(
-    Map<String, dynamic> json,
-    SourceLocationIR sourceLocation,
-  ) {
-    final typeArgumentsJson = json['typeArguments'] as List<dynamic>? ?? [];
-    final typeArguments = typeArgumentsJson
-        .cast<Map<String, dynamic>>()
-        .map((argJson) => TypeIR.fromJson(argJson))
-        .toList();
-
-    return ClassTypeIR(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      sourceLocation: sourceLocation,
-      className: json['className'] as String,
-      libraryUri: json['libraryUri'] as String?,
-      typeArguments: typeArguments,
-      isAbstract: json['isAbstract'] as bool? ?? false,
-      isNullable: json['isNullable'] as bool? ?? false,
-    );
-  }
+ 
 
   /// Creates a generic class type with type arguments
   ClassTypeIR withTypeArguments(List<TypeIR> args) {

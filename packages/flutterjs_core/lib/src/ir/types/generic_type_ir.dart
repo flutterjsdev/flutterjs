@@ -51,27 +51,7 @@ class GenericTypeIR extends TypeIR {
   @override
   bool get isBuiltIn => false;
 
-  @override
-  bool get isGeneric => true;
-  factory GenericTypeIR.fromJson(
-    Map<String, dynamic> json,
-    SourceLocationIR sourceLocation,
-  ) {
-    return GenericTypeIR(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      isNullable: json['isNullable'] as bool? ?? false,
-      typeArguments: (json['typeArguments'] as List<dynamic>)
-          .map((e) => TypeIR.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      typeParameters:
-          (json['typeParameters'] as List<dynamic>?)
-              ?.map((e) => TypeParameterIR.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      sourceLocation: sourceLocation,
-    );
-  }
+ 
 
   @override
   bool operator ==(Object other) =>

@@ -336,7 +336,7 @@ class ExpressionCodeGen {
                 return '${generate(s.expression, parenthesize: false)};';
               } else if (s is ReturnStmt && s.expression != null) {
                 return 'return ${generate(s.expression!, parenthesize: false)};';
-    } else {
+              } else {
                 return '';
               }
             })
@@ -345,7 +345,7 @@ class ExpressionCodeGen {
 
         bodyCode = '{ $stmtCode }';
         print('   📍 Body type: multiple statements');
-    }
+      }
     } else {
       print('   ⚠️  No body statements found');
     }
@@ -928,17 +928,20 @@ class ExpressionCodeGen {
   // =========================================================================
 
   String _generateMethodCall(MethodCallExpressionIR expr) {
+    // ✅ GENERATE TYPE ARGUMENTS <CounterModel>, <List<String>>, etc.
+    final typeArgStr = _generateTypeArguments(expr.typeArguments);
+
     // If target is explicitly provided, use it
     if (expr.target != null) {
       final target = generate(expr.target!, parenthesize: false);
       final args = _generateArgumentList(expr.arguments, expr.namedArguments);
 
       if (expr.isNullAware) {
-        return '$target?.${expr.methodName}($args)';
+        return '$target?.${expr.methodName}$typeArgStr($args)';
       } else if (expr.isCascade) {
-        return '$target..${expr.methodName}($args)';
+        return '$target..${expr.methodName}$typeArgStr($args)';
       } else {
-        return '$target.${expr.methodName}($args)';
+        return '$target.${expr.methodName}$typeArgStr($args)';
       }
     }
 
@@ -951,7 +954,7 @@ class ExpressionCodeGen {
         expr.methodName[0].toUpperCase() == expr.methodName[0];
 
     if (isWidgetCall) {
-      return '${expr.methodName}($args)';
+      return '${expr.methodName}$typeArgStr($args)';
     }
 
     // ✅ NEW: Use context from the function declaration
@@ -959,11 +962,59 @@ class ExpressionCodeGen {
     if (_currentFunctionContext != null &&
         !_currentFunctionContext!.isTopLevel) {
       // Inside a class method: use 'this.'
-      return 'this.${expr.methodName}($args)';
+      return 'this.${expr.methodName}$typeArgStr($args)';
     }
 
     // Top-level function: direct call (no 'this.')
-    return '${expr.methodName}($args)';
+    return '${expr.methodName}$typeArgStr($args)';
+  }
+
+  /// ✅ NEW HELPER: Generate type arguments like <CounterModel>, <List<String>>
+  String _generateTypeArguments(List<TypeIR> typeArguments) {
+    if (typeArguments.isEmpty) {
+      return '';
+    }
+
+    final typeStrs = typeArguments.map((typeIR) {
+      return _generateType(typeIR);
+    }).toList();
+
+    return '<${typeStrs.join(", ")}>';
+  }
+
+  /// Generate a single TypeIR to string
+  String _generateType(TypeIR typeIR) {
+    if (typeIR is SimpleTypeIR) {
+      final nullable = typeIR.isNullable ? '?' : '';
+      return '${typeIR.name}$nullable';
+    }
+
+    if (typeIR is ClassTypeIR) {
+      final typeArgs = typeIR.typeArguments.isNotEmpty
+          ? '<${typeIR.typeArguments.map(_generateType).join(", ")}>'
+          : '';
+      final nullable = typeIR.isNullable ?? false ? '?' : '';
+      return '${typeIR.className}$typeArgs$nullable';
+    }
+
+    if (typeIR is DynamicTypeIR) {
+      return 'dynamic';
+    }
+
+    if (typeIR is VoidTypeIR) {
+      return 'void';
+    }
+
+    if (typeIR is NeverTypeIR) {
+      return 'Never';
+    }
+
+    if (typeIR is FunctionTypeIR) {
+      return 'Function';
+    }
+
+    // Fallback
+    return 'dynamic';
   }
 
   String _generateFunctionCall(FunctionCallExpr expr) {

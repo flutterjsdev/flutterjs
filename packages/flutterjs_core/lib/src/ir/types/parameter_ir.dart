@@ -97,26 +97,6 @@ class ParameterIR extends IRNode {
     return sig;
   }
 
-  /// Factory constructor from JSON
-  factory ParameterIR.fromJson(Map<String, dynamic> json) {
-    return ParameterIR(
-      name: json['name'] as String,
-      type: TypeIR.fromJson(json['type'] as Map<String, dynamic>),
-      isOptional: json['isOptional'] as bool? ?? false,
-      isNamed: json['isNamed'] as bool? ?? false,
-      isRequired: json['isRequired'] as bool? ?? false,
-      defaultValue: json['defaultValue'] != null
-          ? ExpressionIR.fromJson(json['defaultValue'] as Map<String, dynamic>)
-          : null,
-      id: json['id'] as String,
-      sourceLocation: SourceLocationIR.fromJson(
-        json['sourceLocation'] as Map<String, dynamic>,
-      ),
-      metadata: json['metadata'] != null
-          ? json['metadata'] as Map<String, dynamic>
-          : null,
-    );
-  }
 
   /// Serialize to JSON
   Map<String, dynamic> toJson() {

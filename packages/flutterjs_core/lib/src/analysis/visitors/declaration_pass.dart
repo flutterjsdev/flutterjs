@@ -2,6 +2,7 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/analysis/extraction/component_registry.dart';
@@ -1313,6 +1314,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     };
     return builtIns.contains(typeName);
   }
+
 
   SourceLocationIR _extractSourceLocation(AstNode node, int startOffset) {
     int line = 1;

@@ -2,6 +2,7 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 
+import '../visitors/analyzer_widget_detection_setup.dart';
 import 'lambda_function_extractor.dart';
 
 /// <---------------------------------------------------------------------------->
@@ -671,7 +672,7 @@ class StatementExtractionPass {
     if (expr is IntegerLiteral) {
       return LiteralExpressionIR(
         id: builder.generateId('expr_lit'),
-        value: expr.value.toString(),
+        value: expr.value,
         literalType: LiteralType.intValue,
         resultType: SimpleTypeIR(
           id: builder.generateId('type'),
@@ -744,7 +745,7 @@ class StatementExtractionPass {
     if (expr is BooleanLiteral) {
       return LiteralExpressionIR(
         id: builder.generateId('expr_lit'),
-        value: expr.value.toString(),
+        value: expr.value,
         literalType: LiteralType.boolValue,
         resultType: SimpleTypeIR(
           id: builder.generateId('type'),
@@ -776,7 +777,7 @@ class StatementExtractionPass {
     if (expr is DoubleLiteral) {
       return LiteralExpressionIR(
         id: builder.generateId('expr_lit'),
-        value: expr.value.toString(),
+        value: expr.value,
         literalType: LiteralType.doubleValue,
         resultType: SimpleTypeIR(
           id: builder.generateId('type'),
@@ -857,25 +858,65 @@ class StatementExtractionPass {
 
     // Method calls
     if (expr is MethodInvocation) {
+      final typeArgs = <TypeIR>[];
       final positionalArgs = <ExpressionIR>[];
       final namedArgs = <String, ExpressionIR>{};
 
+      // ✅ EXTRACT TYPE ARGUMENTS FROM <...>
+      if (expr.typeArguments != null) {
+        for (final typeArgAnnotation in expr.typeArguments!.arguments) {
+          // typeArgAnnotation is a TypeAnnotation
+          // Get the resolved DartType from the analyzer
+          final dartType = typeArgAnnotation.type;
+
+          if (dartType != null) {
+            // ✅ Use the helper to convert DartType to TypeIR
+            typeArgs.add(
+              MethodCallExpressionType(
+                builder: builder,
+                filePath: filePath,
+              ).extractTypeFromDartType(dartType, typeArgAnnotation.offset),
+            );
+          } else {
+            // Fallback: parse the string representation
+            final typeName = typeArgAnnotation
+                .toString()
+                .replaceAll('?', '')
+                .trim();
+            typeArgs.add(
+              ClassTypeIR(
+                name: typeName,
+                id: builder.generateId('type_arg'),
+                className: typeName,
+                typeArguments: [],
+                sourceLocation: _extractSourceLocation(
+                  typeArgAnnotation,
+                  typeArgAnnotation.offset,
+                ),
+              ),
+            );
+          }
+        }
+      }
+
+      // Extract positional and named arguments
       for (final arg in expr.argumentList.arguments) {
         if (arg is NamedExpression) {
           final argName = arg.name.label.name;
           final argValue = extractExpression(arg.expression);
-          namedArgs[argName] = argValue; // âœ… PRESERVE NAME
+          namedArgs[argName] = argValue;
         } else {
           positionalArgs.add(extractExpression(arg));
         }
       }
 
       return MethodCallExpressionIR(
+        typeArguments: typeArgs, // ✅ Now includes <CounterModel>
         id: builder.generateId('expr_call'),
         methodName: expr.methodName.name,
         target: expr.target != null ? extractExpression(expr.target!) : null,
-        arguments: positionalArgs, // âœ… POSITIONAL ONLY
-        namedArguments: namedArgs, // âœ… ADD THIS FIELD!
+        arguments: positionalArgs,
+        namedArguments: namedArgs,
         resultType: DynamicTypeIR(
           id: builder.generateId('type'),
           sourceLocation: sourceLoc,
