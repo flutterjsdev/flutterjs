@@ -1,0 +1,51 @@
+{
+  "name": "flutterjs-analyzer",
+  "displayName": "FlutterJS Analyzer",
+  "description": "Custom analyzer for .fjs files - Dart-to-JS transpiled code",
+  "version": "1.0.0",
+  "publisher": "flutterjs",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "activationEvents": [
+    "onLanguage:fjs"
+  ],
+  "main": "./src/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "fjs",
+        "aliases": ["FlutterJS", "fjs"],
+        "extensions": [".fjs"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "fjs",
+        "scopeName": "source.fjs",
+        "path": "./syntaxes/fjs.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "FlutterJS Analyzer",
+      "properties": {
+        "flutterjs.enableDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable custom FJS diagnostics"
+        },
+        "flutterjs.validateImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate imports in FJS files"
+        }
+      }
+    }
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.75.0",
+    "vsce": "^2.15.0"
+  }
+}

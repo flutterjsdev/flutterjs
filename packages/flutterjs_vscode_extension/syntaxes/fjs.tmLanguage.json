@@ -1,0 +1,142 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "FlutterJS",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#functions" },
+    { "include": "#classes" },
+    { "include": "#types" },
+    { "include": "#dart-methods" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.fjs",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.fjs",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.fjs",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "name": "constant.character.escape.fjs", "match": "\\\\." }
+          ]
+        },
+        {
+          "name": "string.quoted.single.fjs",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            { "name": "constant.character.escape.fjs", "match": "\\\\." }
+          ]
+        },
+        {
+          "name": "string.template.fjs",
+          "begin": "`",
+          "end": "`",
+          "patterns": [
+            { "name": "constant.character.escape.fjs", "match": "\\\\." },
+            {
+              "name": "meta.template.expression.fjs",
+              "begin": "\\$\\{",
+              "end": "\\}",
+              "patterns": [{ "include": "$self" }]
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.fjs",
+          "match": "\\b(\\d+\\.\\d*|\\d+)\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.fjs",
+          "match": "\\b(if|else|for|while|do|switch|case|default|break|continue|return|throw|try|catch|finally|async|await|const|let|var|function|class|extends|import|export|from|as|default|new)\\b"
+        },
+        {
+          "name": "keyword.operator.fjs",
+          "match": "(===|!==|==|!=|<=|>=|&&|\\|\\||!|\\?\\?|\\?|\\.\\.|\\.\\.\\.|=>)"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "name": "meta.function.fjs",
+          "match": "\\b([a-zA-Z_]\\w*)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.fjs" }
+          }
+        }
+      ]
+    },
+    "classes": {
+      "patterns": [
+        {
+          "name": "meta.class.fjs",
+          "match": "\\bclass\\s+([a-zA-Z_]\\w*)",
+          "captures": {
+            "1": { "name": "entity.name.class.fjs" }
+          }
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.fjs",
+          "match": "\\b(String|int|double|bool|List|Map|Set|dynamic|void|Never)\\b"
+        },
+        {
+          "name": "meta.type.fjs",
+          "match": "<([A-Za-z_]\\w*)>",
+          "captures": {
+            "1": { "name": "support.type.fjs" }
+          }
+        }
+      ]
+    },
+    "dart-methods": {
+      "patterns": [
+        {
+          "name": "support.function.dart.fjs",
+          "match": "\\b(increment|fetchQuote|reset|notifyListeners|watch|read|select|jsonDecode|jsonEncode)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arithmetic.fjs",
+          "match": "[+\\-*/%]"
+        },
+        {
+          "name": "keyword.operator.comparison.fjs",
+          "match": "(===|!==|==|!=|<|>|<=|>=)"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.fjs"
+}
