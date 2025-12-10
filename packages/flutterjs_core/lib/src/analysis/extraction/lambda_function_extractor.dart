@@ -91,7 +91,7 @@ class SimpleLambdaExtractor {
         isGenerator: expr.body.isGenerator,
       );
     } catch (e, st) {
-      print('   ❌ Lambda extraction failed: $e');
+      print('   ❌ Lambda extraction failed: $e\n$st');
       return _createFallbackLambda(expr, sourceLocation, e.toString());
     }
   }

@@ -114,7 +114,7 @@ class ProjectAnalyzer {
       } catch (e, stackTrace) {
         debugger.log(
           DebugLevel.error,
-          'Failed to initialize analyzer: $e',
+          'Failed to initialize analyzer: $e\n$stackTrace',
           category: 'analyzer',
         );
         rethrow;
@@ -163,7 +163,7 @@ class ProjectAnalyzer {
     } catch (e, stackTrace) {
       debugger.log(
         DebugLevel.error,
-        'Failed to initialize output directories: $e',
+        'Failed to initialize output directories: $e\n$stackTrace',
         category: 'analyzer',
       );
       rethrow;
@@ -322,7 +322,7 @@ class ProjectAnalyzer {
     } catch (e, stackTrace) {
       debugger.log(
         DebugLevel.error,
-        'Failed to build dependency graph: $e',
+        'Failed to build dependency graph: $e\n$stackTrace',
         category: 'analysis',
       );
       rethrow;
@@ -343,7 +343,7 @@ class ProjectAnalyzer {
     );
 
     final parsedFiles = <String, ParsedFileInfo>{};
-    int processed = 0;
+    
 
     for (final filePath in filesInOrder) {
       try {
@@ -371,11 +371,11 @@ class ProjectAnalyzer {
           needsIRGeneration: true,
         );
 
-        processed++;
+     
       } catch (e, stackTrace) {
         debugger.log(
           DebugLevel.warn,
-          'Error parsing ${path.basename(filePath)}: $e',
+          'Error parsing ${path.basename(filePath)}: $e \n$stackTrace',
           category: 'analysis',
         );
       }
@@ -431,7 +431,7 @@ class ProjectAnalyzer {
     } catch (e, stackTrace) {
       debugger.log(
         DebugLevel.error,
-        'Failed to generate output files: $e',
+        'Failed to generate output files: $e\n$stackTrace',
         category: 'analysis',
       );
     }
@@ -610,7 +610,7 @@ class ProjectAnalyzer {
     } catch (e, stackTrace) {
       debugger.log(
         DebugLevel.error,
-        'Failed to analyze file: $filePath - $e',
+        'Failed to analyze file: $filePath - $e\n$stackTrace',
         category: 'analysis',
       );
       return null;
