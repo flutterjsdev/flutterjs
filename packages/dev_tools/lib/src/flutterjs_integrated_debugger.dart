@@ -1,3 +1,10 @@
+
+import 'dart:async';
+import 'dart:io';
+import 'package:intl/intl.dart';
+import 'package:watcher/watcher.dart';
+
+enum DebugLevel { trace, debug, info, warn, error }
 /// ============================================================================
 /// Flutter.js Integrated Debugger System
 ///
@@ -12,13 +19,6 @@
 /// ✅ Performance metrics
 /// ✅ Production-ready (can be toggled off)
 /// ============================================================================
-
-import 'dart:async';
-import 'dart:io';
-import 'package:intl/intl.dart';
-import 'package:watcher/watcher.dart';
-
-enum DebugLevel { trace, debug, info, warn, error }
 
 /// ============================================================================
 /// INTEGRATED DEBUGGER - Drop-in to your existing pipeline
@@ -46,7 +46,6 @@ class FlutterJSIntegratedDebugger {
   int maxLogs = 5000;
 
   // ✅ NEW: Defer reporting
-  bool _shouldDeferReport = false;
   bool _reportPrinted = false;
 
   /// Initialize from CLI flags
@@ -68,7 +67,6 @@ class FlutterJSIntegratedDebugger {
     _printBanner(verbose: verboseHelp);
 
     if (watch) {
-      debugger._shouldDeferReport = true; // ✅ Defer reports in watch mode
       debugger._initFileWatcher();
     }
   }
