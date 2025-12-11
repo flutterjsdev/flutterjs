@@ -908,3 +908,122 @@ $ flutterjs build
 [Metadata] Widget registry generated ✓
 [Metadata] Dependency graph built ✓
 [VNode] Converting widgets to VNodes... ✓ (12ms)
+[Renderer] Rendering to HTML... ✓ (8ms)
+[Bundler] Bundling JavaScript... ✓ (120ms)
+[Optimization] Minifying... ✓
+[Optimization] Obfuscating... ✓
+[Optimization] Tree-shaking unused exports... ✓
+[Output] Generated build/index.html (8.2 KB)
+[Output] Generated build/static/_flutterjs/app.bundle.js (3.1 KB)
+[Output] Generated build/manifest.json
+
+📊 Build Summary:
+   ├─ Total Size: 49.7 KB (unminified)
+   ├─ Gzipped: 13.2 KB
+   ├─ Runtime: 12.4 KB
+   ├─ App Code: 3.1 KB
+   ├─ Material CSS: 20.8 KB
+   ├─ Icons CSS: 5.2 KB
+   ├─ Parse Time: 45ms
+   ├─ Build Time: 185ms
+   └─ ✅ Build successful!
+
+⚠️  Warnings:
+   ├─ Unused export: 'buildUserCard'
+   ├─ Unused export: 'buildPriceWidget'
+   ├─ Unused export: 'appTest'
+   └─ Unused export: 'ex'
+   (These were removed from production bundle)
+```
+
+### 6.2 Dev Server Output
+
+```
+$ flutterjs dev
+
+[FlutterJS] Dev Server Starting...
+[Server] Listening on http://localhost:3000
+[HMR] WebSocket server ready on ws://localhost:3000/__hmr
+[Analysis] Quick-parsed main.fjs (8ms)
+[Watcher] Watching for changes...
+
+Ready! Open http://localhost:3000 in your browser.
+
+[Browser] Connected via HMR
+[App] MyApp rendered successfully
+[App] Initial state: { _counter: 0 }
+[App] Waiting for user interaction...
+
+← User opens DevTools
+[DevTools] Widget Tree Inspector ready
+[DevTools] Available widgets: MyApp, MyHomePage, _MyHomePageState
+[DevTools] State variables: _counter = 0
+
+← User clicks FAB button
+[Event] fab-increment (click) → _incrementCounter()
+[State] _counter: 0 → 1
+[Update] Rebuild scheduled
+[Perf] Build: 5.2ms, Diff: 1.1ms, Patch: 0.8ms
+[Perf] Total update: 7.1ms
+
+← User clicks again
+[Event] fab-increment (click) → _incrementCounter()
+[State] _counter: 1 → 2
+[Update] Rebuild scheduled
+[Perf] Total update: 6.8ms
+
+```
+
+---
+
+## 7. Expected User Experience
+
+### 7.1 Initial Page Load
+
+1. **Blank page** (< 50ms) - HTML downloading
+2. **Static page** (< 200ms) - HTML rendered, looks like Flutter app
+3. **Interactive page** (< 1s) - JavaScript loaded, ready for clicks
+
+### 7.2 Interaction Flow
+
+1. **User clicks FAB button**
+2. **Instant visual feedback** - Counter text changes from "0" to "1"
+3. **No page flash, no loading**
+4. **Smooth 60 FPS animation**
+5. **Responsive to all clicks**
+
+### 7.3 Responsive Design
+
+- ✅ Mobile-first design
+- ✅ Flexbox-based layout
+- ✅ Touch-friendly (56px FAB)
+- ✅ Dark/Light theme support (via CSS variables)
+
+---
+
+## 8. Key Insights from this Example
+
+| Aspect | Finding |
+|--------|---------|
+| **Complexity** | Simple counter app, minimal state |
+| **Widget Tree** | MyApp → MaterialApp → Scaffold → (AppBar + Center + FAB) |
+| **State Management** | Single StatefulWidget with one state variable |
+| **Performance** | Fast updates (< 10ms), smooth 60 FPS |
+| **Bundle Size** | ~13KB gzipped (runtime + app + Material) |
+| **Unused Code** | 4 functions never referenced (cleanly removed) |
+| **Runtime Requirements** | Theme provider only (MediaQuery, Navigator not needed) |
+| **Error Handling** | Constructor validation, type checking |
+
+---
+
+## Summary
+
+When **main.fjs** is processed by the FlutterJS framework:
+
+✅ **Analyzed** → Widget registry, dependency graph, runtime requirements extracted  
+✅ **Converted** → VNode tree generated with proper state bindings  
+✅ **Rendered** → HTML + CSS + JS bundle produced (both CSR and SSR modes)  
+✅ **Optimized** → Dead code removed, minified, obfuscated, tree-shaken  
+✅ **Delivered** → ~13KB gzipped bundle with instant interactivity  
+
+The output is a **production-ready Flutter app running on the web**, with Material Design styling, state management, and smooth 60 FPS interactions.
