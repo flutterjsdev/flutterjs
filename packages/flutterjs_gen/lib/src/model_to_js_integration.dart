@@ -89,7 +89,6 @@ class ModelToJSPipeline {
         return GenerationResult.failed(
           message: 'Generated code validation failed',
           issues: outputReport.issues,
-          
         );
       }
       _log('✅ Generated code is valid');
@@ -152,15 +151,17 @@ class ModelToJSPipeline {
         _log('  Generating class: ${cls.name}');
         buffer.writeln(classGen.generate(cls));
         buffer.writeln();
-      } catch (e,st) {
+      } catch (e, st) {
         _log('  ❌ Error generating class ${cls.name}: $e');
-        issues.add(DiagnosticIssue(
-          severity: DiagnosticSeverity.error,
-          code: 'GEN001',
-          message: 'Failed to generate class ${cls.name}: $e',
-          affectedNode: cls.name,
-          stackTrace: st
-        ));
+        issues.add(
+          DiagnosticIssue(
+            severity: DiagnosticSeverity.error,
+            code: 'GEN001',
+            message: 'Failed to generate class ${cls.name}: $e',
+            affectedNode: cls.name,
+            stackTrace: st,
+          ),
+        );
       }
     }
 
@@ -170,15 +171,17 @@ class ModelToJSPipeline {
         _log('  Generating function: ${func.name}');
         buffer.writeln(funcGen.generate(func));
         buffer.writeln();
-      } catch (e,st) {
+      } catch (e, st) {
         _log('  ❌ Error generating function ${func.name}: $e');
-        issues.add(DiagnosticIssue(
-          severity: DiagnosticSeverity.error,
-          code: 'GEN002',
-          message: 'Failed to generate function ${func.name}: $e',
-          affectedNode: func.name,
-          stackTrace: st
-        ));
+        issues.add(
+          DiagnosticIssue(
+            severity: DiagnosticSeverity.error,
+            code: 'GEN002',
+            message: 'Failed to generate function ${func.name}: $e',
+            affectedNode: func.name,
+            stackTrace: st,
+          ),
+        );
       }
     }
 
@@ -193,41 +196,47 @@ class ModelToJSPipeline {
 
     // Basic syntax validation
     if (!_validateBraces(jsCode)) {
-      report.addIssue(DiagnosticIssue(
-        severity: DiagnosticSeverity.error,
-        code: 'VAL001',
-        message: 'Unmatched braces in generated code',
-       
-
-      ));
+      report.addIssue(
+        DiagnosticIssue(
+          severity: DiagnosticSeverity.error,
+          code: 'VAL001',
+          message: 'Unmatched braces in generated code',
+        ),
+      );
     }
 
     if (!_validateParentheses(jsCode)) {
-      report.addIssue(DiagnosticIssue(
-        severity: DiagnosticSeverity.error,
-        code: 'VAL002',
-        message: 'Unmatched parentheses in generated code',
-      ));
+      report.addIssue(
+        DiagnosticIssue(
+          severity: DiagnosticSeverity.error,
+          code: 'VAL002',
+          message: 'Unmatched parentheses in generated code',
+        ),
+      );
     }
 
     // Check for critical markers
     if (jsCode.contains('/* TODO:') || jsCode.contains('// FIXME:')) {
-      report.addIssue(DiagnosticIssue(
-        severity: DiagnosticSeverity.warning,
-        code: 'VAL003',
-        message: 'Generated code contains TODO/FIXME markers',
-        suggestion: 'Review incomplete implementations',
-      ));
+      report.addIssue(
+        DiagnosticIssue(
+          severity: DiagnosticSeverity.warning,
+          code: 'VAL003',
+          message: 'Generated code contains TODO/FIXME markers',
+          suggestion: 'Review incomplete implementations',
+        ),
+      );
     }
 
     // Check minimum size
     if (jsCode.length < 100) {
-      report.addIssue(DiagnosticIssue(
-        severity: DiagnosticSeverity.warning,
-        code: 'VAL004',
-        message: 'Generated code is suspiciously small',
-        suggestion: 'Verify code generation completed correctly',
-      ));
+      report.addIssue(
+        DiagnosticIssue(
+          severity: DiagnosticSeverity.warning,
+          code: 'VAL004',
+          message: 'Generated code is suspiciously small',
+          suggestion: 'Verify code generation completed correctly',
+        ),
+      );
     }
 
     return report;
@@ -275,9 +284,13 @@ class ModelToJSPipeline {
   String _generateExports(DartFile dartFile) {
     final buffer = StringBuffer();
 
-    buffer.writeln('\n// ============================================================================');
+    buffer.writeln(
+      '\n// ============================================================================',
+    );
     buffer.writeln('// EXPORTS');
-    buffer.writeln('// ============================================================================\n');
+    buffer.writeln(
+      '// ============================================================================\n',
+    );
     buffer.writeln('export {');
 
     for (final cls in dartFile.classDeclarations) {
@@ -334,26 +347,24 @@ class GenerationResult {
   final List<DiagnosticIssue> issues;
   final Map<String, dynamic>? statistics;
 
-  GenerationResult.success({
-    required this.code,
-    this.statistics,
-  })  : success = true,
-        message = null,
-        issues = [];
+  GenerationResult.success({required this.code, this.statistics})
+    : success = true,
+      message = null,
+      issues = [];
 
-  GenerationResult.failed({
-    required this.message,
-    required this.issues,
-  })  : success = false,
-        code = null,
-        statistics = null;
+  GenerationResult.failed({required this.message, required this.issues})
+    : success = false,
+      code = null,
+      statistics = null;
 
   void printSummary() {
     print('\n╔════════════════════════════════════════════════════════╗');
     if (success) {
       print('║               ✅ GENERATION SUCCESSFUL                ║');
       print('╠════════════════════════════════════════════════════════╣');
-      print('║ Generated Code Length: ${(code?.length ?? 0).toString().padRight(34)}║');
+      print(
+        '║ Generated Code Length: ${(code?.length ?? 0).toString().padRight(34)}║',
+      );
       if (statistics != null) {
         for (final entry in statistics!.entries) {
           print('║ ${entry.key}: ${entry.value.toString().padRight(42)}║');
@@ -365,12 +376,13 @@ class GenerationResult {
       print('║ ${(message ?? 'Unknown error').padRight(54)}║');
       if (issues.isNotEmpty) {
         print('║                                                        ║');
-        print('║ Issues (${issues.length}):                                          ║');
+        print(
+          '║ Issues (${issues.length}):                                          ║',
+        );
         for (final issue in issues.take(3)) {
-          final msg =
-              '  - ${issue.message}'.length > 50
-                  ? '  - ${issue.message}'.substring(0, 47) + '...'
-                  : '  - ${issue.message}'.padRight(50);
+          final msg = '  - ${issue.message}'.length > 50
+              ? '  - ${issue.message}'.substring(0, 47) + '...'
+              : '  - ${issue.message}'.padRight(50);
           print('║ $msg ║');
         }
       }

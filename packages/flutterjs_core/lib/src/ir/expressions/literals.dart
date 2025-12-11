@@ -198,8 +198,6 @@ class MapEntryIR extends IRNode {
       if (metadata.isNotEmpty) 'metadata': metadata,
     };
   }
-
-
 }
 
 @immutable

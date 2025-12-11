@@ -3,7 +3,6 @@ import '../core/source_location.dart';
 import '../core/ir_node.dart';
 import '../types/type_ir.dart';
 
-
 /// <---------------------------------------------------------------------------->
 /// key_type_ir.dart
 /// ----------------------------------------------------------------------------
@@ -11,22 +10,21 @@ import '../types/type_ir.dart';
 /// IR representation of different widget key types used within Flutter.js.
 ///
 /// Purpose:
-/// • Track key usage on IR-based widget nodes  
-/// • Support compiler-time validation (e.g., duplicated keys in lists)  
-/// • Represent key types in a JSON-friendly, enum-stable form  
+/// • Track key usage on IR-based widget nodes
+/// • Support compiler-time validation (e.g., duplicated keys in lists)
+/// • Represent key types in a JSON-friendly, enum-stable form
 ///
 /// Supported key forms:
-/// • `ValueKey<T>`  
-/// • `ObjectKey`  
-/// • `UniqueKey`  
+/// • `ValueKey<T>`
+/// • `ObjectKey`
+/// • `UniqueKey`
 /// • `GlobalKey` (limited structural representation)
 ///
 /// This module helps ensure:
-/// • Consistency across widget-level IR  
-/// • Predictable diffing behavior for rebuilds  
-/// • Accurate AST-to-IR conversion for key-based widgets  
+/// • Consistency across widget-level IR
+/// • Predictable diffing behavior for rebuilds
+/// • Accurate AST-to-IR conversion for key-based widgets
 ///
-
 
 @immutable
 class KeyTypeIR extends IRNode {
@@ -84,8 +82,6 @@ class KeyTypeIR extends IRNode {
       'sourceLocation': sourceLocation.toJson(),
     };
   }
-
- 
 }
 
 /// Enum for different key types available in Flutter
@@ -171,8 +167,6 @@ class AsyncBuilderIR extends IRNode {
       'sourceLocation': sourceLocation.toJson(),
     };
   }
-
- 
 }
 
 /// Enum for async builder kinds

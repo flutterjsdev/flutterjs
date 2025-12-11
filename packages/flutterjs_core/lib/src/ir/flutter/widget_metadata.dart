@@ -2,7 +2,6 @@ library;
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 
-
 /// <---------------------------------------------------------------------------->
 /// widget_metadata.dart
 /// ----------------------------------------------------------------------------
@@ -125,7 +124,6 @@ class WidgetMetadata {
   Set<String> getAccessedFields(String methodId) {
     return fieldAccesses[methodId] ?? {};
   }
-
 
   /// Convert to JSON-friendly format for serialization
   Map<String, dynamic> toJson() => {

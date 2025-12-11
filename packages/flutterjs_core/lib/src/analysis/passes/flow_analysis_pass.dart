@@ -1,4 +1,3 @@
-
 import '../../ir/declarations/dart_file_builder.dart';
 import '../../ir/declarations/function_decl.dart';
 import '../../ir/statements/statement_ir.dart';
@@ -114,7 +113,7 @@ class FlowAnalysisPass {
           final cfg = _buildConstructorCFG(constructor);
           controlFlowGraphs[constructor.id] = cfg;
         }
-      
+
         // For State classes, handle lifecycle methods specially
         if (classDecl is StateDecl) {
           if (classDecl.initState != null) {

@@ -6,10 +6,10 @@
 
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_core/src/analysis/extraction/statement_extraction_pass.dart' show ForStatementHelper;
+import 'package:flutterjs_core/src/analysis/extraction/statement_extraction_pass.dart'
+    show ForStatementHelper;
 import 'component_registry.dart';
 import 'flutter_component_system.dart';
-
 
 class ComponentExtractor {
   final String filePath;
@@ -210,7 +210,6 @@ class ComponentExtractor {
   }
 }
 
-
 /// Enhanced component extractor with improved detection
 class EnhancedComponentExtractor extends ComponentExtractor {
   final Map<String, dynamic> extractionStats = {};
@@ -228,10 +227,7 @@ class EnhancedComponentExtractor extends ComponentExtractor {
   @override
   FlutterComponent extract(dynamic astNode, {String? hint}) {
     if (_recursionDepth >= MAX_RECURSION_DEPTH) {
-      return _createFallback(
-        astNode,
-        'Maximum recursion depth exceeded',
-      );
+      return _createFallback(astNode, 'Maximum recursion depth exceeded');
     }
 
     _recursionDepth++;
@@ -257,10 +253,7 @@ class EnhancedComponentExtractor extends ComponentExtractor {
   }
 
   /// Enhanced detection with better type checking
-  FlutterComponent _detectAndExtractEnhanced(
-    dynamic node,
-    String? hint,
-  ) {
+  FlutterComponent _detectAndExtractEnhanced(dynamic node, String? hint) {
     // Type-based detection (most reliable)
     if (node is InstanceCreationExpression) {
       return _extractWidgetEnhanced(node);
@@ -319,9 +312,7 @@ class EnhancedComponentExtractor extends ComponentExtractor {
   }
 
   /// Enhanced widget extraction with full property analysis
-  FlutterComponent _extractWidgetEnhanced(
-    InstanceCreationExpression expr,
-  ) {
+  FlutterComponent _extractWidgetEnhanced(InstanceCreationExpression expr) {
     try {
       final className = expr.constructorName.type.name.toString();
       final constructorName = expr.constructorName.name?.name;
@@ -348,10 +339,7 @@ class EnhancedComponentExtractor extends ComponentExtractor {
 
       return widget;
     } catch (e) {
-      return _createFallback(
-        expr,
-        'Widget extraction failed: $e',
-      );
+      return _createFallback(expr, 'Widget extraction failed: $e');
     }
   }
 
@@ -401,13 +389,9 @@ class EnhancedComponentExtractor extends ComponentExtractor {
           }
         } catch (_) {}
 
-        properties.add(
-          LiteralPropertyBinding(name: propName, value: valueStr),
-        );
+        properties.add(LiteralPropertyBinding(name: propName, value: valueStr));
       } else {
-        properties.add(
-          LiteralPropertyBinding(name: propName, value: valueStr),
-        );
+        properties.add(LiteralPropertyBinding(name: propName, value: valueStr));
       }
     }
 
@@ -465,9 +449,7 @@ class EnhancedComponentExtractor extends ComponentExtractor {
   }
 
   /// Enhanced conditional extraction
-  FlutterComponent _extractConditionalEnhanced(
-    ConditionalExpression expr,
-  ) {
+  FlutterComponent _extractConditionalEnhanced(ConditionalExpression expr) {
     try {
       final thenComponent = extract(
         expr.thenExpression,
@@ -640,9 +622,7 @@ class EnhancedComponentExtractor extends ComponentExtractor {
   }
 
   /// Extract binary expressions (null coalesce, etc.)
-  FlutterComponent _extractBinaryExpressionEnhanced(
-    BinaryExpression expr,
-  ) {
+  FlutterComponent _extractBinaryExpressionEnhanced(BinaryExpression expr) {
     try {
       // Handle null coalescing specially
       if (expr.operator.lexeme == '??') {
@@ -666,9 +646,7 @@ class EnhancedComponentExtractor extends ComponentExtractor {
   }
 
   /// Extract method invocations
-  FlutterComponent _extractMethodInvocationEnhanced(
-    MethodInvocation expr,
-  ) {
+  FlutterComponent _extractMethodInvocationEnhanced(MethodInvocation expr) {
     try {
       final methodName = expr.methodName.name;
 
@@ -686,10 +664,7 @@ class EnhancedComponentExtractor extends ComponentExtractor {
 
       return _createFallback(expr, 'Method invocation: $methodName');
     } catch (e) {
-      return _createFallback(
-        expr,
-        'Method invocation extraction failed: $e',
-      );
+      return _createFallback(expr, 'Method invocation extraction failed: $e');
     }
   }
 
@@ -803,5 +778,3 @@ class EnhancedComponentExtractor extends ComponentExtractor {
     });
   }
 }
-
-

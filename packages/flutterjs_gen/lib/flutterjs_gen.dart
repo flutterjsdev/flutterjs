@@ -11,7 +11,8 @@ export 'src/widget_generation/prop_conversion/flutter_prop_converters.dart';
 export 'src/code_generation/function/function_code_generator.dart';
 export 'src/validation_optimization/output_validator.dart';
 
-export 'src/widget_generation/stateless_widget/stateless_widget_js_code_gen.dart' hide FirstWhereOrNull;
+export 'src/widget_generation/stateless_widget/stateless_widget_js_code_gen.dart'
+    hide FirstWhereOrNull;
 export 'src/widget_generation/stateful_widget/stateful_widget_js_code_gen.dart'
     hide CodeGenError, WarningSeverity, CodeGenWarning;
 export 'src/code_generation/special_features/special_language_features.dart';
@@ -25,8 +26,4 @@ export 'src/ir_validation/ir_control_flow_analyzer.dart';
 export 'src/ir_validation/ir_scope_analyzer.dart';
 export 'src/ir_validation/phase0_orchestrator.dart';
 
-
 export 'src/file_generation/runtime_requirements.dart';
-
-
-

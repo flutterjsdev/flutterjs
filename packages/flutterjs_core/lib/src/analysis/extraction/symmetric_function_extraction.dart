@@ -20,17 +20,17 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 /// both UI code and logic code with equal depth, detail, and structure.
 ///
 /// The system ensures that:
-///   • Widget-returning functions → become `FlutterComponent` trees  
-///   • Non-widget functions → become `PureFunctionData` variants  
+///   • Widget-returning functions → become `FlutterComponent` trees
+///   • Non-widget functions → become `PureFunctionData` variants
 ///
 /// This means every function in a file is analyzed, classified, normalized, and
 /// stored in a consistent format, enabling:
 ///
-///   ✔ Static analysis  
-///   ✔ Code intelligence  
-///   ✔ Visualization (UI + logic trees)  
-///   ✔ Function summaries  
-///   ✔ Cross-language transformations  
+///   ✔ Static analysis
+///   ✔ Code intelligence
+///   ✔ Visualization (UI + logic trees)
+///   ✔ Function summaries
+///   ✔ Cross-language transformations
 ///
 ///
 /// ============================================================================
@@ -42,11 +42,11 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 /// category (validation, computation, factory, helpers, mixed) extends
 /// `FlutterComponent` and provides:
 ///
-///   • A name / signature  
-///   • Input & output types  
-///   • Structured body statements (`StatementIR`)  
-///   • Complexity metrics (loops, conditions)  
-///   • Semantic analysis data  
+///   • A name / signature
+///   • Input & output types
+///   • Structured body statements (`StatementIR`)
+///   • Complexity metrics (loops, conditions)
+///   • Semantic analysis data
 ///
 /// This allows a pure function to be analyzed just as deeply as a widget tree.
 ///
@@ -57,22 +57,22 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///
 /// Supported pure function categories include:
 ///
-///   • `ComputationFunctionData`  
-///        Mathematical / transformation logic  
+///   • `ComputationFunctionData`
+///        Mathematical / transformation logic
 ///        Tracks loop depth, conditional depth, variable count, etc.
 ///
-///   • `ValidationFunctionData`  
-///        Checks, rules, assertions, boolean returns  
+///   • `ValidationFunctionData`
+///        Checks, rules, assertions, boolean returns
 ///
-///   • `FactoryFunctionData`  
-///        Object creation & field initialization  
+///   • `FactoryFunctionData`
+///        Object creation & field initialization
 ///
-///   • `HelperFunctionData`  
-///        Setup/configure/prepare/reset/cleanup style functions  
-///        Includes side-effect detection  
+///   • `HelperFunctionData`
+///        Setup/configure/prepare/reset/cleanup style functions
+///        Includes side-effect detection
 ///
-///   • `MixedFunctionData`  
-///        Functions containing multiple semantic components  
+///   • `MixedFunctionData`
+///        Functions containing multiple semantic components
 ///
 /// Each type has a `describe()` method and a JSON representation.
 ///
@@ -87,17 +87,17 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///
 /// Extraction workflow:
 ///
-///   1. Classify function  
-///         → Based on naming conventions + statement structure  
+///   1. Classify function
+///         → Based on naming conventions + statement structure
 ///
-///   2. Run specialized extractor method  
-///         → `_extractComputation()`  
-///         → `_extractValidation()`  
-///         → `_extractFactory()`  
-///         → `_extractHelper()`  
-///         → Fallback to generic extraction  
+///   2. Run specialized extractor method
+///         → `_extractComputation()`
+///         → `_extractValidation()`
+///         → `_extractFactory()`
+///         → `_extractHelper()`
+///         → Fallback to generic extraction
 ///
-///   3. Generate typed `FlutterComponent`-based function data  
+///   3. Generate typed `FlutterComponent`-based function data
 ///
 /// This gives every standalone function a clear, analyzable structure.
 ///
@@ -108,19 +108,19 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///
 /// The system uses combined heuristics:
 ///
-///   • Name-based signals:  
-///       “validate…” → validation  
-///       “create…/build…” → factory  
-///       “calculate…/convert…” → computation  
-///       “setup…/initialize…” → helper  
+///   • Name-based signals:
+///       “validate…” → validation
+///       “create…/build…” → factory
+///       “calculate…/convert…” → computation
+///       “setup…/initialize…” → helper
 ///
-///   • Structural signals:  
-///       loops     → computation  
-///       conditionals → computation or validation  
+///   • Structural signals:
+///       loops     → computation
+///       conditionals → computation or validation
 ///
-///   • Fallbacks:  
-///       complex logic → computation  
-///       simple logic  → helper  
+///   • Fallbacks:
+///       complex logic → computation
+///       simple logic  → helper
 ///
 /// This enables highly accurate auto-classification of arbitrary functions.
 ///
@@ -131,20 +131,20 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///
 /// `DeclarationPass` integrates symmetric extraction:
 ///
-///   • Widget-producing functions → extracted as FlutterComponents  
-///   • Pure functions → extracted as PureFunctionData  
+///   • Widget-producing functions → extracted as FlutterComponents
+///   • Pure functions → extracted as PureFunctionData
 ///
 /// Inside `visitFunctionDeclaration`:
 ///
-///   1. Determine if function produces a widget (via WidgetProducerDetector)  
-///   2. Extract body statements (for *all* functions)  
-///   3. If widget:  
-///         → Use ComponentExtractor  
-///   4. If pure function:  
-///         → Use PureFunctionExtractor  
+///   1. Determine if function produces a widget (via WidgetProducerDetector)
+///   2. Extract body statements (for *all* functions)
+///   3. If widget:
+///         → Use ComponentExtractor
+///   4. If pure function:
+///         → Use PureFunctionExtractor
 ///   5. Annotate FunctionDecl with metadata:
-///         - extractionType: widget / pure_function  
-///         - componentCount or dataType  
+///         - extractionType: widget / pure_function
+///         - componentCount or dataType
 ///
 /// This creates a unified representation of ALL functions in the file.
 ///
@@ -155,12 +155,12 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///
 /// This symmetric extraction system provides:
 ///
-/// ✔ One extraction pipeline for *both UI and logic*  
-/// ✔ Deep statement-level analysis for pure functions  
-/// ✔ Compatibility with UI component structures  
-/// ✔ Extensibility for new function categories  
-/// ✔ Support for advanced analysis (complexity, flow, rules, etc.)  
-/// ✔ Perfect integration with the component tree visualizer  
+/// ✔ One extraction pipeline for *both UI and logic*
+/// ✔ Deep statement-level analysis for pure functions
+/// ✔ Compatibility with UI component structures
+/// ✔ Extensibility for new function categories
+/// ✔ Support for advanced analysis (complexity, flow, rules, etc.)
+/// ✔ Perfect integration with the component tree visualizer
 ///
 ///
 /// ============================================================================
@@ -169,10 +169,10 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///
 /// This system depends on:
 ///
-///   • `ComponentExtractor` (for widget functions)  
-///   • `StatementExtractorPass` (for IR-level statements)  
-///   • `WidgetProducerDetector` (to detect UI-returning functions)  
-///   • `SourceLocationIR` mapping  
+///   • `ComponentExtractor` (for widget functions)
+///   • `StatementExtractorPass` (for IR-level statements)
+///   • `WidgetProducerDetector` (to detect UI-returning functions)
+///   • `SourceLocationIR` mapping
 ///
 ///
 /// ============================================================================
@@ -187,11 +187,11 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///
 /// This unlocks powerful features:
 ///
-///   • Code editors & visualizers  
-///   • Smart refactoring  
-///   • Cross-platform rewriters  
-///   • Code intelligence  
-///   • Static analysis at UI + logic levels  
+///   • Code editors & visualizers
+///   • Smart refactoring
+///   • Cross-platform rewriters
+///   • Code intelligence
+///   • Static analysis at UI + logic levels
 /// ============================================================================
 
 @immutable

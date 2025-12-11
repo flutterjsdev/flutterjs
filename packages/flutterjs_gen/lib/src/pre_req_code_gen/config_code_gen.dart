@@ -35,17 +35,17 @@
 // routing:
 //   mode: mpa  # Each route = separate HTML page
 //   base_path: /
-  
+
 //   # Route definitions (maps Dart pages to URLs)
 //   routes:
 //     '/': 'lib/pages/home.dart'
 //     '/profile': 'lib/pages/profile.dart'
 //     '/dashboard': 'lib/pages/dashboard.dart'
 //     '/settings': 'lib/pages/settings.dart'
-  
+
 //   # 404 handling
 //   not_found: 'lib/pages/not_found.dart'
-  
+
 //   # Meta tags per route (SEO)
 //   meta:
 //     '/':
@@ -70,18 +70,18 @@
 //       - firestore
 //       - storage
 //       - analytics
-  
+
 //   # REST API
 //   rest_api:
 //     enabled: ${services.hasHttp || services.hasDio}
 //     base_url: 'https://api.example.com'
 //     timeout: 30
-  
+
 //   # GraphQL
 //   graphql:
 //     enabled: ${services.hasGraphQL}
 //     endpoint: 'https://api.example.com/graphql'
-  
+
 //   # Custom services
 //   custom: []
 
@@ -98,17 +98,17 @@
 // # Build settings
 // build:
 //   structure: mirrored
-  
+
 //   dev:
 //     minify: false
 //     obfuscate: false
 //     source_maps: true
-  
+
 //   production:
 //     minify: true
 //     obfuscate: true
 //     source_maps: false
-    
+
 //   # SEO & Meta
 //   seo:
 //     generate_sitemap: true
@@ -120,7 +120,7 @@
 //   widget_classification: true
 //   reactivity_analysis: true
 //   material_design: true
-  
+
 //   per_widget_output:
 //     html: true
 //     css: true

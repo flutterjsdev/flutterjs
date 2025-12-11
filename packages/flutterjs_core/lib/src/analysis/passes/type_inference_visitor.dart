@@ -132,7 +132,9 @@ class ExpressionBasedTypeInferencer implements ExpressionVisitor<TypeIR?> {
         return _createType('double');
       }
       if (_isType(left, 'int') && _isType(right, 'int')) {
-        return expr.operator == '/' ? _createType('double') : _createType('int');
+        return expr.operator == '/'
+            ? _createType('double')
+            : _createType('int');
       }
     }
 

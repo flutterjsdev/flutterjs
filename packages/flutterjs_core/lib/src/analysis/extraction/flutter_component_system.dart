@@ -1,8 +1,8 @@
-
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:meta/meta.dart';
 
 import 'component_registry.dart';
+
 /// ============================================================================
 /// flutter_component_system.dart
 /// COMPREHENSIVE FLUTTER COMPONENT HANDLER SYSTEM
@@ -36,11 +36,11 @@ import 'component_registry.dart';
 /// extends this base class.
 ///
 /// A `FlutterComponent` includes:
-///   • A unique ID  
-///   • A `ComponentType` describing its role  
-///   • A `displayName`  
-///   • A source-code location (`SourceLocationIR`)  
-///   • Optional metadata  
+///   • A unique ID
+///   • A `ComponentType` describing its role
+///   • A `displayName`
+///   • A source-code location (`SourceLocationIR`)
+///   • Optional metadata
 ///
 /// This allows:
 ///   - Visual tree rendering
@@ -56,13 +56,13 @@ import 'component_registry.dart';
 ///
 /// The following extractable component types are supported:
 ///
-///   • `WidgetComponent`  
-///   • `BuilderComponent`  
-///   • `ConditionalComponent`  
-///   • `LoopComponent`  
-///   • `CollectionComponent`  
-///   • `ContainerFallbackComponent`  
-///   • `UnsupportedComponent`  
+///   • `WidgetComponent`
+///   • `BuilderComponent`
+///   • `ConditionalComponent`
+///   • `LoopComponent`
+///   • `CollectionComponent`
+///   • `ContainerFallbackComponent`
+///   • `UnsupportedComponent`
 ///
 /// These types represent:
 ///   - Widgets with properties and children
@@ -74,9 +74,9 @@ import 'component_registry.dart';
 ///   - Unsupported syntax (for debugging)
 ///
 /// Every component implements:
-///   - `describe()` → human-readable summary  
-///   - `toJson()` → serialization  
-///   - `getChildren()` → recursive children  
+///   - `describe()` → human-readable summary
+///   - `toJson()` → serialization
+///   - `getChildren()` → recursive children
 ///
 ///
 /// ============================================================================
@@ -92,9 +92,9 @@ import 'component_registry.dart';
 ///
 /// These distinctions are captured using:
 ///
-///   • `LiteralPropertyBinding`  
-///   • `CallbackPropertyBinding`  
-///   • `BuilderPropertyBinding`  
+///   • `LiteralPropertyBinding`
+///   • `CallbackPropertyBinding`
+///   • `BuilderPropertyBinding`
 ///
 /// These bindings allow accurate UI rewrites, previews, or code generation.
 ///
@@ -104,31 +104,31 @@ import 'component_registry.dart';
 /// ============================================================================
 ///
 /// The extractor maps AST offsets to:
-///   - Line number  
-///   - Column number  
-///   - Raw code substring range  
+///   - Line number
+///   - Column number
+///   - Raw code substring range
 ///
 /// This enables:
-///   • Highlighting source in editors  
-///   • Error messages tied to original code  
-///   • Click-to-navigate in UI inspectors  
+///   • Highlighting source in editors
+///   • Error messages tied to original code
+///   • Click-to-navigate in UI inspectors
 ///
 ///
 /// ============================================================================
 /// 5. COMPONENT EXTRACTOR
 /// ============================================================================
 ///
-/// `ComponentExtractor` is the core engine.  
+/// `ComponentExtractor` is the core engine.
 /// Given any AST node, it:
 ///
 ///   1. Identifies its type using `ComponentRegistry`
 ///   2. Delegates to an appropriate extraction method:
-///        - `_extractWidget`  
-///        - `_extractConditional`  
-///        - `_extractLoop`  
-///        - `_extractCollection`  
-///        - `_extractBuilder`  
-///        - `_extractCallback`  
+///        - `_extractWidget`
+///        - `_extractConditional`
+///        - `_extractLoop`
+///        - `_extractCollection`
+///        - `_extractBuilder`
+///        - `_extractCallback`
 ///   3. Recursively builds a component tree
 ///
 /// This creates a fully typed `FlutterComponent` tree that mirrors the structure
@@ -142,26 +142,26 @@ import 'component_registry.dart';
 /// `ComponentRegistry` is an extensible system that delegates parsing logic to
 /// custom detectors such as:
 ///
-///   - AST-based detectors  
-///   - Reflection-based detectors  
-///   - Plugin-based detectors  
+///   - AST-based detectors
+///   - Reflection-based detectors
+///   - Plugin-based detectors
 ///
 /// It exposes high-level detection functions:
 ///
-///   • `isWidgetCreation(node)`  
-///   • `isBuilder(node)`  
-///   • `isCallback(node)`  
-///   • `isLoop(node)`  
-///   • `isCollection(node)`  
-///   • `isConditional(node)`  
+///   • `isWidgetCreation(node)`
+///   • `isBuilder(node)`
+///   • `isCallback(node)`
+///   • `isLoop(node)`
+///   • `isCollection(node)`
+///   • `isConditional(node)`
 ///
 /// Each of these checks is delegated to the registered detectors.
 ///
 /// This architecture allows:
-///   - Plug-and-play detectors  
-///   - Multiple environments (AST, runtime, hybrid)  
-///   - Custom DSLs  
-///   - Versioned Flutter support  
+///   - Plug-and-play detectors
+///   - Multiple environments (AST, runtime, hybrid)
+///   - Custom DSLs
+///   - Versioned Flutter support
 ///
 ///
 /// ============================================================================
@@ -170,15 +170,15 @@ import 'component_registry.dart';
 ///
 /// `ComponentModifier` provides optional mutation helpers to support:
 ///
-///   • Adding/removing/replacing child components  
-///   • Reordering child lists  
-///   • Updating property values  
+///   • Adding/removing/replacing child components
+///   • Reordering child lists
+///   • Updating property values
 ///
 /// These are essential for:
-///   - Live preview editing  
-///   - Full UI editors  
-///   - Hot reload visualization  
-///   - Dynamic code generation tools  
+///   - Live preview editing
+///   - Full UI editors
+///   - Hot reload visualization
+///   - Dynamic code generation tools
 ///
 /// The system is designed with **immutable patterns** so original components
 /// stay pure while modified copies are generated.
@@ -189,10 +189,10 @@ import 'component_registry.dart';
 /// ============================================================================
 ///
 /// This system requires:
-///   • A valid `ComponentDetector` implementation (e.g., ASTComponentAdapter)  
-///   • FlutterJS Core (`flutterjs_core`)  
-///   • Proper AST parsing (Dart Analyzer if using AST detection)  
-///   • Source code string & file path for location tracking  
+///   • A valid `ComponentDetector` implementation (e.g., ASTComponentAdapter)
+///   • FlutterJS Core (`flutterjs_core`)
+///   • Proper AST parsing (Dart Analyzer if using AST detection)
+///   • Source code string & file path for location tracking
 ///
 ///
 /// ============================================================================
@@ -203,12 +203,12 @@ import 'component_registry.dart';
 /// FlutterJS UI engine. It forms a complete, extensible foundation for analyzing
 /// Flutter code, representing it structurally, and enabling tools such as:
 ///
-///   ✔ UI tree previews  
-///   ✔ Code inspectors  
-///   ✔ Flutter → Web/JS transformers  
-///   ✔ Behavior visualizers  
-///   ✔ Hot reload visual editors  
-///   ✔ Smart refactoring tools  
+///   ✔ UI tree previews
+///   ✔ Code inspectors
+///   ✔ Flutter → Web/JS transformers
+///   ✔ Behavior visualizers
+///   ✔ Hot reload visual editors
+///   ✔ Smart refactoring tools
 ///
 /// It is the central "model layer" for everything related to UI extraction.
 ///
@@ -640,7 +640,6 @@ class BuilderPropertyBinding extends PropertyBinding {
 // 5. COMPONENT EXTRACTOR (Main Handler)
 // ============================================================================
 
-
 // ============================================================================
 // 6. COMPONENT REGISTRY (Extensible Detection)
 // ============================================================================
@@ -753,7 +752,6 @@ class ComponentRegistry {
 }
 
 /// Interface for custom detectors
-
 
 // ============================================================================
 // 7. HOT RELOAD SUPPORT

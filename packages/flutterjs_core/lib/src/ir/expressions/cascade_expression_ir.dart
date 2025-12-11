@@ -493,8 +493,6 @@ class StringInterpolationPart {
     };
   }
 
- 
-
   @override
   String toString() {
     if (isExpression && expression != null) {

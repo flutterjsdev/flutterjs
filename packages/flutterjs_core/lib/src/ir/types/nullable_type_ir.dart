@@ -99,8 +99,6 @@ class NullableTypeIR extends TypeIR {
     return {...super.toJson(), 'innerType': innerType.toJson()};
   }
 
-
-
   /// Creates a new nullable type with a different inner type
   NullableTypeIR withInnerType(TypeIR newInnerType) {
     return NullableTypeIR(

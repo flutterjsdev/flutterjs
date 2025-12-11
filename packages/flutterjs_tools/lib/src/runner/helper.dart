@@ -16,10 +16,10 @@ import 'dart:io';
 ///
 /// It provides:
 ///
-///   • **Synchronous AST parsing** via `getParsedUnit()`  
-///   • **Asynchronous semantic resolution** via `getResolvedUnit()`  
-///   • **One-time initialization** of the analyzer context  
-///   • **Safe disposal** of the underlying context collection  
+///   • **Synchronous AST parsing** via `getParsedUnit()`
+///   • **Asynchronous semantic resolution** via `getResolvedUnit()`
+///   • **One-time initialization** of the analyzer context
+///   • **Safe disposal** of the underlying context collection
 ///
 ///
 /// # Why This Exists
@@ -27,10 +27,10 @@ import 'dart:io';
 /// The analyzer package is highly flexible but verbose. A simple "`parse this
 /// file`" operation normally requires:
 ///
-///   • creating a file system resource provider  
-///   • creating an `AnalysisContextCollection`  
-///   • retrieving the correct context  
-///   • handling both `ParsedUnitResult` and `ResolvedUnitResult`  
+///   • creating a file system resource provider
+///   • creating an `AnalysisContextCollection`
+///   • retrieving the correct context
+///   • handling both `ParsedUnitResult` and `ResolvedUnitResult`
 ///
 /// This helper class encapsulates all of that into clean and safe APIs.
 ///
@@ -85,8 +85,8 @@ import 'dart:io';
 /// ```
 ///
 /// Returns:
-///   • `CompilationUnit` on success  
-///   • `null` if parsing fails or analyzer cannot handle the input  
+///   • `CompilationUnit` on success
+///   • `null` if parsing fails or analyzer cannot handle the input
 ///
 /// **Does NOT include type information.**
 ///
@@ -99,24 +99,24 @@ import 'dart:io';
 /// ```
 ///
 /// Returns:
-///   • `CompilationUnit` with resolved types  
-///   • `null` on failure  
+///   • `CompilationUnit` with resolved types
+///   • `null` on failure
 ///
 ///
 /// ## `dispose()`
-/// Safely releases the `AnalysisContextCollection`.  
+/// Safely releases the `AnalysisContextCollection`.
 /// Should be called when shutting down the analyzer pipeline.
 ///
 ///
 /// # Implementation Notes
 ///
-/// • `getParsedUnit()` is synchronous and fast — best for passes like  
-///   DeclarationPass where only the AST structure is needed.  
+/// • `getParsedUnit()` is synchronous and fast — best for passes like
+///   DeclarationPass where only the AST structure is needed.
 ///
 /// • `getResolvedUnit()` is asynchronous and slow — use only when type
 ///   information is required (e.g., type checking or advanced analysis).
 ///
-/// • Both methods require type checking (`is ParsedUnitResult` and  
+/// • Both methods require type checking (`is ParsedUnitResult` and
 ///   `is ResolvedUnitResult`) because the analyzer returns abstract result types.
 ///
 ///
@@ -125,10 +125,10 @@ import 'dart:io';
 /// `DartFileParser` provides a minimal, stable, and developer-friendly interface
 /// around the Dart analyzer for:
 ///
-///   ✔ AST parsing  
-///   ✔ Full semantic resolution  
-///   ✔ Project-wide context management  
-///   ✔ Error-safe handling  
+///   ✔ AST parsing
+///   ✔ Full semantic resolution
+///   ✔ Project-wide context management
+///   ✔ Error-safe handling
 ///
 /// It is the recommended entry point for all parsing inside Flutter.js.
 ///

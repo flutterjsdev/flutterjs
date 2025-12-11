@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+
 /// ============================================================================
 /// DocsCommand
 /// ============================================================================
@@ -19,10 +20,10 @@ import 'package:args/command_runner.dart';
 /// # Purpose
 ///
 /// `DocsCommand` automates documentation generation for:
-///   • Widget mapping reference  
-///   • API and component documentation  
-///   • Migration guides  
-///   • Examples and usage snippets  
+///   • Widget mapping reference
+///   • API and component documentation
+///   • Migration guides
+///   • Examples and usage snippets
 ///
 /// It is designed to integrate with the analyzer and builder subsystems in the
 /// future, generating documentation directly from Flutter.js metadata.
@@ -30,25 +31,25 @@ import 'package:args/command_runner.dart';
 ///
 /// # Flags
 ///
-/// ## `--output` / `-o`  
-/// Specifies the output directory where documentation files will be written.  
+/// ## `--output` / `-o`
+/// Specifies the output directory where documentation files will be written.
 /// Defaults to:
 ///
 /// ```text
 /// docs
 /// ```
 ///
-/// ## `--serve` / `-s`  
-/// If enabled, the command will spin up a local documentation server.  
+/// ## `--serve` / `-s`
+/// If enabled, the command will spin up a local documentation server.
 /// (Server implementation is still a TODO placeholder.)
 ///
 ///
 /// # Constructor Parameters
 ///
-/// `verbose`  
+/// `verbose`
 ///     Inherited from the CLI root; enables verbose diagnostics.
 ///
-/// `verboseHelp`  
+/// `verboseHelp`
 ///     Enables extended help information for this command.
 ///
 ///
@@ -56,23 +57,23 @@ import 'package:args/command_runner.dart';
 ///
 /// `run()` performs the following:
 ///
-///   1. Reads CLI arguments (`output`, `serve`)  
-///   2. Prints a summary of documentation tasks  
-///   3. Simulates documentation generation  
-///   4. Outputs the directory where docs were created  
+///   1. Reads CLI arguments (`output`, `serve`)
+///   2. Prints a summary of documentation tasks
+///   3. Simulates documentation generation
+///   4. Outputs the directory where docs were created
 ///   5. If `serve` is enabled:
-///        • Starts a lightweight local server (TODO)  
-///        • Waits for Ctrl+C (SIGINT)  
+///        • Starts a lightweight local server (TODO)
+///        • Waits for Ctrl+C (SIGINT)
 ///
 ///
 /// # Future Extensions
 ///
 /// This command is designed to support:
 ///
-///   • Auto-generation of MD / HTML doc files  
-///   • Integration with Flutter.js AST analyzers  
-///   • Hot-reload documentation preview server  
-///   • Template-based documentation themes  
+///   • Auto-generation of MD / HTML doc files
+///   • Integration with Flutter.js AST analyzers
+///   • Hot-reload documentation preview server
+///   • Template-based documentation themes
 ///
 ///
 /// # Summary

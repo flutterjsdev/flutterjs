@@ -159,8 +159,6 @@ class WidgetTreeIR extends IRNode {
       'sourceLocation': sourceLocation.toJson(),
     };
   }
-
-  
 }
 
 /// Represents a conditional branch in the widget tree

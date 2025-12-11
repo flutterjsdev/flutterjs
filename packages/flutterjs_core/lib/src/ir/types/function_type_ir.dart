@@ -123,7 +123,6 @@ class FunctionTypeIR extends TypeIR {
     return parts.join(', ');
   }
 
-
   @override
   Map<String, dynamic> toJson() {
     return {

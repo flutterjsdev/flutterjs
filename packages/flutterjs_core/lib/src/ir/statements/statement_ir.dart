@@ -159,7 +159,6 @@ class VariableDeclarationStmt extends StatementIR {
   }
 }
 
-
 @immutable
 class ReturnStmt extends StatementIR {
   final ExpressionIR? expression;
@@ -1008,7 +1007,6 @@ class WildcardPatternIR extends PatternIR {
     return {...super.toJson(), 'type': 'WildcardPattern'};
   }
 }
-
 
 @immutable
 class VariablePatternIR extends PatternIR {

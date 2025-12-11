@@ -1,5 +1,3 @@
-
-
 class JSOptimizer {
   String code;
   final Map<String, String> constantCache = {};

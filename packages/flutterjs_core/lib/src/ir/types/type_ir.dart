@@ -4,7 +4,6 @@ import '../core/ir_node.dart';
 import 'function_type_ir.dart';
 import 'generic_type_ir.dart';
 
-
 abstract class TypeIR extends IRNode {
   final String name;
   final bool isNullable;
@@ -58,7 +57,6 @@ abstract class TypeIR extends IRNode {
   @override
   String toShortString() => displayName();
 
-  
   /// Create a Widget type (commonly used in build methods)
   factory TypeIR.widget() {
     return SimpleTypeIR(
@@ -161,8 +159,6 @@ class SimpleTypeIR extends TypeIR {
   @override
   bool get isGeneric => typeArguments.isNotEmpty;
 
- 
-
   @override
   Map<String, dynamic> toJson() {
     return {
@@ -177,8 +173,6 @@ class TypeParameterIR {
   final TypeIR? bound;
 
   TypeParameterIR({required this.name, this.bound});
-
-
 
   @override
   bool operator ==(Object other) =>

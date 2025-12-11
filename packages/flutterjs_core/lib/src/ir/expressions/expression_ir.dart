@@ -119,9 +119,6 @@ abstract class ExpressionIR extends IRNode {
       'expressionType': runtimeType.toString(),
     };
   }
-
-
-
 }
 
 // =============================================================================
@@ -332,14 +329,14 @@ class MethodCallExpressionIR extends ExpressionIR {
   /// Whether this is a cascade call (..method())
   final bool isCascade;
 
-  final List<TypeIR> typeArguments;  // ← ADD THIS
+  final List<TypeIR> typeArguments; // ← ADD THIS
 
   const MethodCallExpressionIR({
     required super.id,
     required super.resultType,
     required super.sourceLocation,
     required this.methodName,
-     required this.typeArguments,  // ← ADD THIS
+    required this.typeArguments, // ← ADD THIS
     this.target,
     this.arguments = const [],
     this.namedArguments = const {},
@@ -530,7 +527,7 @@ class FlutterWidgetConstructorIR extends ConstructorCallExpressionIR {
 class FunctionExpressionIR extends ExpressionIR {
   final List<ParameterDecl> parameter;
   final FunctionBodyIR? body; // null if not yet analyzed
-  final TypeIR?  returnType;
+  final TypeIR? returnType;
   final bool isAsync;
   final bool isGenerator;
 
@@ -541,9 +538,8 @@ class FunctionExpressionIR extends ExpressionIR {
     this.body,
     super.metadata,
     this.returnType,
-    this.isAsync=false,
-    this.isGenerator=false,
-
+    this.isAsync = false,
+    this.isGenerator = false,
   }) : super(
          resultType: DynamicTypeIR(
            id: 'dynamic',
@@ -560,18 +556,18 @@ class FunctionExpressionIR extends ExpressionIR {
 
   @override
   String toShortString() => '(${parameter.join(', ')}) => ...';
-@override
+  @override
   Map<String, dynamic> toJson() {
     return {
       ...super.toJson(),
-       "parameter": parameter.map((e) => e.toJson()).toList(),
-       'returnType': returnType?.toJson() ?? {},
+      "parameter": parameter.map((e) => e.toJson()).toList(),
+      'returnType': returnType?.toJson() ?? {},
       "body": body?.toJson() ?? {},
       "isAsync": isAsync,
       "isGenerator": isGenerator,
     };
   }
-  }
+}
 
 // =============================================================================
 // CONDITIONAL EXPRESSION
@@ -794,7 +790,7 @@ class UnaryExpressionIR extends ExpressionIR {
   Map<String, dynamic> toJson() {
     return {
       ...super.toJson(),
-      'operator':  operator.name,
+      'operator': operator.name,
       'operand': operand.toJson(),
       'isPrefix': isPrefix,
     };

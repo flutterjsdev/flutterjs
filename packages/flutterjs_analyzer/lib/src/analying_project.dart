@@ -343,7 +343,6 @@ class ProjectAnalyzer {
     );
 
     final parsedFiles = <String, ParsedFileInfo>{};
-    
 
     for (final filePath in filesInOrder) {
       try {
@@ -370,8 +369,6 @@ class ProjectAnalyzer {
           analysisResult: result,
           needsIRGeneration: true,
         );
-
-     
       } catch (e, stackTrace) {
         debugger.log(
           DebugLevel.warn,

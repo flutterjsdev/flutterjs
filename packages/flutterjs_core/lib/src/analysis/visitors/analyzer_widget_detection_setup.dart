@@ -290,10 +290,10 @@ class WidgetProducerDetector {
 
 class MethodCallExpressionType {
   final String filePath;
-  
+
   final DartFileBuilder builder;
 
-  MethodCallExpressionType({required this.builder,required this.filePath});
+  MethodCallExpressionType({required this.builder, required this.filePath});
   TypeIR extractTypeFromDartType(DartType dartType, int offset) {
     // ✅ Create SourceLocationIR directly
     final sourceLoc = SourceLocationIR(

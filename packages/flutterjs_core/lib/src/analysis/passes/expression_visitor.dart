@@ -84,7 +84,6 @@ abstract class ExpressionVisitor<R> {
   R visitEnumMemberAccess(EnumMemberAccessExpressionIR expr);
 }
 
-
 // =============================================================================
 // EXPRESSION VISITORS
 // =============================================================================
@@ -846,4 +845,3 @@ class DependencyExtractor implements ExpressionVisitor<Set<String>> {
     return dependencies;
   }
 }
-

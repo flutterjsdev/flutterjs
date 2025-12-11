@@ -18,10 +18,10 @@ import 'version_command.dart';
 /// This class extends `CommandRunner` from the `args` package and is responsible
 /// for:
 ///
-///   • Defining global CLI flags (`--verbose`, `--version`)  
-///   • Routing execution to subcommands  
-///   • Controlling verbosity, help formatting, and logging behavior  
-///   • Displaying version information  
+///   • Defining global CLI flags (`--verbose`, `--version`)
+///   • Routing execution to subcommands
+///   • Controlling verbosity, help formatting, and logging behavior
+///   • Displaying version information
 ///
 ///
 /// # Purpose
@@ -37,18 +37,18 @@ import 'version_command.dart';
 /// ```
 ///
 /// this runner determines:
-///   1. Which command to execute  
-///   2. Whether to show verbose output  
-///   3. Whether help should be shown  
-///   4. Whether command logging should be muted  
+///   1. Which command to execute
+///   2. Whether to show verbose output
+///   3. Whether help should be shown
+///   4. Whether command logging should be muted
 ///
 ///
 /// # Global Flags
 ///
-/// ## `--verbose` / `-v`  
+/// ## `--verbose` / `-v`
 /// Enables extended logging for debugging.
-///  
-/// ## `--version`  
+///
+/// ## `--version`
 /// Prints the CLI version and exits.
 ///
 ///
@@ -57,23 +57,23 @@ import 'version_command.dart';
 /// These flags are injected by the entrypoint (`main.dart`) before invoking
 /// the runner:
 ///
-///   • `verbose`          → normal verbose mode  
-///   • `verboseHelp`      → prints detailed help output  
-///   • `muteCommandLogging`  
-///       hides internal logging when running help/doctor to avoid clutter  
+///   • `verbose`          → normal verbose mode
+///   • `verboseHelp`      → prints detailed help output
+///   • `muteCommandLogging`
+///       hides internal logging when running help/doctor to avoid clutter
 ///
 ///
 /// # Command Registration
 ///
 /// `_addCommands()` installs all CLI subcommands:
 ///
-///   • **InitProject** – project scaffolding  
-///   • **BuildCommand** – build output generator  
-///   • **RunCommand** – runtime renderer / local server  
-///   • **AnalyzeCommand** – static analyzer + UI inspector  
-///   • **DocsCommand** – generate documentation  
-///   • **CleanCommand** – clean temp/cache output  
-///   • **VersionCommand** – manual version print  
+///   • **InitProject** – project scaffolding
+///   • **BuildCommand** – build output generator
+///   • **RunCommand** – runtime renderer / local server
+///   • **AnalyzeCommand** – static analyzer + UI inspector
+///   • **DocsCommand** – generate documentation
+///   • **CleanCommand** – clean temp/cache output
+///   • **VersionCommand** – manual version print
 ///
 /// Each command receives the same verbose/help settings for consistent behavior.
 ///
@@ -102,25 +102,24 @@ import 'version_command.dart';
 /// ```
 ///
 /// allowing the underlying command system to handle:
-///   • required arguments  
-///   • usage exceptions  
-///   • command-specific errors  
+///   • required arguments
+///   • usage exceptions
+///   • command-specific errors
 ///
 ///
 /// # Summary
 ///
-/// `FlutterJSCommandRunner` is the orchestration layer for the entire CLI.  
+/// `FlutterJSCommandRunner` is the orchestration layer for the entire CLI.
 /// It provides:
 ///
-///   ✔ Unified argument parsing  
-///   ✔ Centralized flag handling  
-///   ✔ Automatic registration of all tool commands  
-///   ✔ Clean version/reporting behavior  
-///   ✔ Configurable verbosity & logging  
+///   ✔ Unified argument parsing
+///   ✔ Centralized flag handling
+///   ✔ Automatic registration of all tool commands
+///   ✔ Clean version/reporting behavior
+///   ✔ Configurable verbosity & logging
 ///
 /// Every CLI feature ultimately flows through this runner.
 ///
-
 
 class FlutterJSCommandRunner extends CommandRunner<void> {
   FlutterJSCommandRunner({

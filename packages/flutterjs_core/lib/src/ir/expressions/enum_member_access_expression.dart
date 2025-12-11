@@ -62,18 +62,18 @@ class EnumMemberAccessExpressionIR extends ExpressionIR {
     this.typeInferenceSuccessful = false,
     super.metadata,
   }) : super(
-    resultType: DynamicTypeIR(
-      id: 'dynamic',
-      sourceLocation: SourceLocationIR(
-        id: 'loc_dynamic',
-        file: 'builtin',
-        line: 0,
-        column: 0,
-        offset: 0,
-        length: 0,
-      ),
-    ),
-  );
+         resultType: DynamicTypeIR(
+           id: 'dynamic',
+           sourceLocation: SourceLocationIR(
+             id: 'loc_dynamic',
+             file: 'builtin',
+             line: 0,
+             column: 0,
+             offset: 0,
+             length: 0,
+           ),
+         ),
+       );
 
   /// Factory: Parse from source text with automatic classification
   factory EnumMemberAccessExpressionIR.parse({
@@ -191,4 +191,3 @@ class EnumMemberAccessExpressionIR extends ExpressionIR {
   @override
   int get hashCode => source.hashCode ^ kind.hashCode;
 }
-
