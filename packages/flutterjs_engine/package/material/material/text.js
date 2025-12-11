@@ -1,5 +1,5 @@
-import { StatelessWidget } from '../../core/widget.js';
-import { VNode } from '../../vdom/vnode.js';
+import { StatelessWidget } from '../core/widget.js';
+import { VNode } from '../../../src/vdom/vnode.js';
 import { TextAlign, TextOverflow, TextDirection } from '../utils/utils.js';
 
 /**
