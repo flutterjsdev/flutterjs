@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { loadConfig } = require('../src/utils/config');
+const { loadConfig } = require('../../src/utils/config');
 
 // Simple mkdir -p implementation
 function mkdirp(dir) {

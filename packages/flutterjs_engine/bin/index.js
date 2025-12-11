@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-const { init } = require('../commands/init');
-const { dev } = require('../commands/dev');
-const { build } = require('../commands/build');
-const { preview } = require('../commands/preview');
+const { init } = require('./commands/init');
+const { dev } = require('./commands/dev');
+const { build } = require('./commands/build');
+const { preview } = require('./commands/preview');
+const { run } = require('./commands/run');
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -44,6 +45,7 @@ Usage:
 
 Commands:
   init <name>   Create a new Flutter.js project
+  run           Run your Flutter.js project (transpile + build + serve)
   dev           Start development server
   build         Build the application for production
   preview       Preview production build locally
@@ -51,6 +53,13 @@ Commands:
 Init Options:
   flutter_js init my-app              Create new project
   flutter_js init my-app --template   Use specific template
+
+Run Options (All-in-one workflow):
+  -p, --port <port>      Port number [default: 3000]
+  -m, --mode <mode>      Build mode [default: dev]
+  --open                Open browser automatically
+  --serve               Start server after build [default: true]
+  --verbose             Show detailed error messages
 
 Dev Options:
   -p, --port <port>      Port number [default: 3000]
@@ -72,7 +81,9 @@ Global Options:
 
 Examples:
   flutter_js init my-app
-  flutter_js dev --port 8080
+  flutter_js run                          # Run project with defaults
+  flutter_js run --port 8080 --no-minify  # Custom port, no minification
+  flutter_js dev --port 3000
   flutter_js build --mode ssr
   flutter_js preview
 `);
@@ -108,6 +119,9 @@ async function main() {
     switch (command) {
       case 'init':
         await init(args[1], options);
+        break;
+      case 'run':
+        await run(options);
         break;
       case 'dev':
         await dev(options);
