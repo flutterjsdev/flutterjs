@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { loadConfig } = require('../src/utils/config');
+const { loadConfig } = require('../../src/utils/config');
 
 async function preview(options) {
   console.log('🔍 Starting Flutter.js preview server...\n');
