@@ -14,7 +14,6 @@ class ValidationError {
   final String? suggestion;
   final int? lineNumber;
   final String? code;
-  
 
   ValidationError({
     required this.message,

@@ -146,18 +146,18 @@
 //   async initAPI() {
 //     window.apiClient = {
 //       baseURL: this.config.api.baseURL,
-      
+
 //       async request(method, endpoint, data = null) {
 //         const url = \`\${this.baseURL}\${endpoint}\`;
 //         const options = {
 //           method,
 //           headers: FlutterJSServices.config.api.headers,
 //         };
-        
+
 //         if (data) {
 //           options.body = JSON.stringify(data);
 //         }
-        
+
 //         try {
 //           const response = await fetch(url, options);
 //           if (!response.ok) throw new Error(\`API error: \${response.status}\`);
@@ -167,24 +167,24 @@
 //           throw error;
 //         }
 //       },
-      
+
 //       get(endpoint) {
 //         return this.request('GET', endpoint);
 //       },
-      
+
 //       post(endpoint, data) {
 //         return this.request('POST', endpoint, data);
 //       },
-      
+
 //       put(endpoint, data) {
 //         return this.request('PUT', endpoint, data);
 //       },
-      
+
 //       delete(endpoint) {
 //         return this.request('DELETE', endpoint);
 //       }
 //     };
-    
+
 //     console.log('[Services] API client initialized');
 //   }''');
 //   }
@@ -195,7 +195,7 @@
 //   async initGraphQL() {
 //     window.graphqlClient = {
 //       endpoint: this.config.graphql.endpoint,
-      
+
 //       async query(query, variables = {}) {
 //         try {
 //           const response = await fetch(this.endpoint, {
@@ -203,7 +203,7 @@
 //             headers: { 'Content-Type': 'application/json' },
 //             body: JSON.stringify({ query, variables })
 //           });
-          
+
 //           const result = await response.json();
 //           if (result.errors) throw new Error(result.errors[0].message);
 //           return result.data;
@@ -213,7 +213,7 @@
 //         }
 //       }
 //     };
-    
+
 //     console.log('[Services] GraphQL client initialized');
 //   }''');
 //   }
@@ -243,12 +243,12 @@
 //   config: {
 // ${configParts.join(',\n    \n')}
 //   },
-  
+
 //   // Initialize all services
 //   async init() {
 //     console.log('[Services] Initializing...');
 // ${initCalls.join('\n    \n')}
-    
+
 //     console.log('[Services] ✅ All services initialized');
 //   },
 // ${methods.join(',\n  \n')}

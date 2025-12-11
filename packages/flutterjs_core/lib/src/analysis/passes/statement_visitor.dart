@@ -194,7 +194,6 @@ class VariableDeclarationExtractor implements StatementVisitor<Set<String>> {
   final Map<String, int> counts = {};
   final DependencyExtractor _exprExtractor = DependencyExtractor();
 
-
   // ✅ NEW: Add this method to handle FunctionBodyIR
   Set<String> analyzeFunctionBody(FunctionBodyIR body) {
     variables.clear();

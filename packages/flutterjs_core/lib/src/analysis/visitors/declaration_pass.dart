@@ -1174,17 +1174,6 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     return null;
   }
 
-  TypeAnnotation? _getParameterType(NormalFormalParameter param) {
-    if (param is SimpleFormalParameter) {
-      return param.type;
-    } else if (param is FieldFormalParameter) {
-      return param.type;
-    } else if (param is FunctionTypedFormalParameter) {
-      return param.returnType;
-    }
-    return null;
-  }
-
   List<TypeParameterDecl> _extractTypeParameters(
     TypeParameterList? typeParams,
   ) {
@@ -1313,7 +1302,6 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     };
     return builtIns.contains(typeName);
   }
-
 
   SourceLocationIR _extractSourceLocation(AstNode node, int startOffset) {
     int line = 1;

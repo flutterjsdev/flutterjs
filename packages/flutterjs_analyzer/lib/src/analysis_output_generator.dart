@@ -21,9 +21,7 @@ class AnalysisOutputGenerator {
   }
 
   /// Generate type registry JSON
-  static Map<String, dynamic> generateTypeRegistryJson(
-    TypeRegistry registry,
-  ) {
+  static Map<String, dynamic> generateTypeRegistryJson(TypeRegistry registry) {
     return {
       'timestamp': DateTime.now().toIso8601String(),
       ...registry.toJsonWithStats(),

@@ -40,7 +40,7 @@
 // class GenerateCommand extends Command<void> {
 //   @override
 //   String get name => 'doc';
-  
+
 //   @override
 //   String get description => 'Generate FlutterJS API documentation';
 
@@ -70,7 +70,7 @@
 //   @override
 //   Future<void> run() async {
 //     logger.init(verbose: argResults!['verbose'] as bool);
-    
+
 //     logger.info('🚀 FlutterJS Documentation Generator');
 //     logger.info('Generating beautiful API docs...\n');
 
@@ -128,7 +128,7 @@
 //         logger.info('🌐 Starting development server...');
 //         logger.info('   → http://localhost:8080\n');
 //         logger.info('Press Ctrl+C to stop.\n');
-        
+
 //         // Launch dev server
 //         const Duration(milliseconds: 500).delay();
 //         Process.run('dart', ['run', 'flutterjs_doc:serve', '--dir', outputDir]);
@@ -183,7 +183,7 @@
 //             final element = _parseDeclaration(decl, result);
 //             if (element != null) {
 //               elements.add(element);
-              
+
 //               // Group by library
 //               final lib = element.library;
 //               libraryMap.putIfAbsent(lib, () => []).add(element);
@@ -244,7 +244,7 @@
 //     // This is simplified - full impl would use element.documentationComment
 //     return '''
 //       A responsive widget that follows Material 3 guidelines.
-      
+
 //       Use this for primary actions on your screen.
 //     ''';
 //   }

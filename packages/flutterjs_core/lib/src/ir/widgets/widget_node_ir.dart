@@ -12,24 +12,23 @@ import 'key_type_ir.dart';
 /// Core IR structure representing a single widget node in the widget tree.
 ///
 /// Responsibilities:
-/// • Capture widget constructor type and arguments  
-/// • Hold references to child widget nodes  
-/// • Store metadata (keys, attributes, source locations)  
+/// • Capture widget constructor type and arguments
+/// • Hold references to child widget nodes
+/// • Store metadata (keys, attributes, source locations)
 ///
 /// WidgetNodeIR is used in:
-/// • Build method IR output  
-/// • Widget tree diffing / reconciliation  
-/// • Visual widget tree inspectors  
-/// • Code transformation (e.g., automated refactoring)  
+/// • Build method IR output
+/// • Widget tree diffing / reconciliation
+/// • Visual widget tree inspectors
+/// • Code transformation (e.g., automated refactoring)
 ///
 /// Design Principles:
-/// • Immutable, clean IR  
-/// • JSON serializable  
-/// • Independent of Flutter runtime (pure data)  
-/// • Supports complex nested widget structures  
+/// • Immutable, clean IR
+/// • JSON serializable
+/// • Independent of Flutter runtime (pure data)
+/// • Supports complex nested widget structures
 ///
 /// This file forms the **foundation of the entire widget IR system**.
-
 
 @immutable
 class WidgetNodeIR extends IRNode {
@@ -208,8 +207,6 @@ class WidgetNodeIR extends IRNode {
       'sourceLocation': sourceLocation.toJson(),
     };
   }
-
- 
 }
 
 /// Analysis metadata for a widget node

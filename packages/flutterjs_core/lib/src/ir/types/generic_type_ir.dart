@@ -51,8 +51,6 @@ class GenericTypeIR extends TypeIR {
   @override
   bool get isBuiltIn => false;
 
- 
-
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

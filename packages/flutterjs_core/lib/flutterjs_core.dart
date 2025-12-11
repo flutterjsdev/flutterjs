@@ -13,7 +13,7 @@
 /// flutterjs_core.dart
 /// ----------------------------------------------------------------------------
 ///
-/// Primary entry point for the Flutter.js Core engine.  
+/// Primary entry point for the Flutter.js Core engine.
 /// This file aggregates all IR types, AST transformation passes, diagnostics,
 /// utilities, and builder helpers into a single consumable API.
 ///
@@ -40,10 +40,10 @@
 /// ```
 ///
 /// Design Goals:
-/// • Provide a clean, minimal, stable API surface  
-/// • Decouple analyzer internals from tooling layers  
-/// • Ensure IR nodes are immutable, serializable, and predictable  
-/// • Support advanced features like pattern matching, records, and cascades  
+/// • Provide a clean, minimal, stable API surface
+/// • Decouple analyzer internals from tooling layers
+/// • Ensure IR nodes are immutable, serializable, and predictable
+/// • Support advanced features like pattern matching, records, and cascades
 ///
 /// This file should remain lightweight and contain only exports, not logic.
 /// <---------------------------------------------------------------------------->

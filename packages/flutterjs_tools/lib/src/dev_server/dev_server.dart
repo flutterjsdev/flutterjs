@@ -10,7 +10,7 @@ import 'package:watcher/watcher.dart';
 /// ============================================================================
 ///
 /// A fully-featured local development server designed for **Flutter.js**
-/// projects.  
+/// projects.
 ///
 /// It serves your generated web build output **(SPA or MPA)**, provides
 /// **hot reload via WebSockets**, watches file changes, supports interactive
@@ -19,12 +19,12 @@ import 'package:watcher/watcher.dart';
 ///
 /// # Features
 ///
-/// ### ✔ Static File Server  
+/// ### ✔ Static File Server
 /// Serves HTML, CSS, JS, images, fonts, and runtime files from the build
 /// directory (`build/web` or custom path).
 ///
-/// ### ✔ SPA + MPA Support  
-/// - SPA fallback: unknown routes → `index.html`  
+/// ### ✔ SPA + MPA Support
+/// - SPA fallback: unknown routes → `index.html`
 /// - MPA routing: resolves HTML files inside `/pages`, nested directories, and
 ///   page-specific entry points
 ///
@@ -32,17 +32,17 @@ import 'package:watcher/watcher.dart';
 /// Automatically refreshes connected browsers when files change.
 ///
 /// Reload strategies include:
-/// - `css`: live CSS swapping (no full reload)  
-/// - `component`: stateless component hot-swap  
-/// - `page`: reload only if page HTML changes  
-/// - `full`: full browser refresh (JS/HTML)  
+/// - `css`: live CSS swapping (no full reload)
+/// - `component`: stateless component hot-swap
+/// - `page`: reload only if page HTML changes
+/// - `full`: full browser refresh (JS/HTML)
 ///
 /// WebSocket endpoint:
 /// ```
 /// ws://localhost:<port>/__hot_reload
 /// ```
 ///
-/// ### ✔ Interactive CLI Controls  
+/// ### ✔ Interactive CLI Controls
 /// The server listens to single-key commands in the terminal:
 ///
 /// | Key | Action                            |
@@ -51,20 +51,20 @@ import 'package:watcher/watcher.dart';
 /// | `r` | Restart server without exiting    |
 /// | `q` | Quit the server cleanly           |
 ///
-/// ### ✔ File Watching  
+/// ### ✔ File Watching
 /// Uses `watcher` package to detect changes to:
 ///
-/// - HTML, CSS, JS  
-/// - `/pages`, `/components`, `/models`, `/services`  
-/// - `/assets`, `/images`, `/styles`, `/runtime`  
+/// - HTML, CSS, JS
+/// - `/pages`, `/components`, `/models`, `/services`
+/// - `/assets`, `/images`, `/styles`, `/runtime`
 ///
 /// Automatically dispatches a reload message to all connected WebSocket clients.
 ///
 ///
-/// ### ✔ Extensible API Endpoints  
+/// ### ✔ Extensible API Endpoints
 /// Built-in example APIs:
-/// - `/api/health`  
-/// - `/api/build-info`  
+/// - `/api/health`
+/// - `/api/build-info`
 ///
 /// Developers can extend `_handleApiRequest()` for custom endpoints.
 ///
@@ -94,11 +94,11 @@ import 'package:watcher/watcher.dart';
 ///
 /// # Lifecycle
 ///
-/// ## `initialize()`  
+/// ## `initialize()`
 /// Binds the HTTP server, optionally sets up hot reload, starts file watchers,
 /// and begins handling requests.
 ///
-/// ## `stop()`  
+/// ## `stop()`
 /// Closes WebSockets, file watchers, stdin listeners, and HTTP server.
 ///
 /// The server auto-handles `SIGINT` (Ctrl+C) for graceful shutdown.
@@ -106,17 +106,17 @@ import 'package:watcher/watcher.dart';
 ///
 /// # Architecture Overview
 ///
-/// - **HTTP Server** → Serves static assets and API routes  
-/// - **WebSocket Server** → Pushes hot reload notifications  
-/// - **File System Watchers** → Detect file changes  
-/// - **CLI Listener** → Interactive commands during development  
+/// - **HTTP Server** → Serves static assets and API routes
+/// - **WebSocket Server** → Pushes hot reload notifications
+/// - **File System Watchers** → Detect file changes
+/// - **CLI Listener** → Interactive commands during development
 ///
 ///
 /// # Notes
 ///
 /// - CLI input is captured using raw mode (`stdin.echoMode = false`), so only
 ///   single-key commands are processed.
-/// - WebSocket connections are tracked in `_wsClients`.  
+/// - WebSocket connections are tracked in `_wsClients`.
 /// - HTML responses automatically get an injected `<script>` enabling live
 ///   reload in the browser.
 /// - MPA routing is smart: checks `/pages/route.html`, `/route.html`,
@@ -126,7 +126,6 @@ import 'package:watcher/watcher.dart';
 /// This class powers the Flutter.js development workflow, enabling a smooth,
 /// framework-like DX similar to Vite, Next.js, and Flutter’s own hot reload.
 ///
-
 
 /// Main Dev Server for Flutter.js
 class DevServer {

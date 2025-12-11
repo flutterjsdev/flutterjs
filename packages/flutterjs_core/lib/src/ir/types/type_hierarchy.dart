@@ -123,8 +123,6 @@ class TypeHierarchy {
     return false;
   }
 
-
-
   /// Get all ancestors of a type (including itself)
   static List<String> _getAncestors(String typeName) {
     final ancestors = <String>[typeName];
@@ -178,6 +176,4 @@ class TypeHierarchy {
     // For now, return false for unknown relationships
     return false;
   }
-
- 
 }

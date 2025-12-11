@@ -21,7 +21,7 @@
 //   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 //   <meta name="description" content="Flutter app transpiled to HTML/CSS/JS">
 //   <title>FlutterJS MPA</title>
-  
+
 //   <!-- FlutterJS MPA Loader -->
 //   <script>
 //     /**
@@ -31,27 +31,27 @@
 //      */
 //     (function() {
 //       'use strict';
-      
+
 //       // Detect base path
 //       const BASE_PATH = (() => {
 //         const currentPath = window.location.pathname;
 //         const webIndex = currentPath.indexOf('/web/');
 //         return webIndex !== -1 ? currentPath.substring(0, webIndex) : '';
 //       })();
-      
+
 //       const CONFIG = {
 //         devPath: \`\${BASE_PATH}/build/flutterjs-cache/output\`,
 //         buildPath: \`\${BASE_PATH}/build/flutterjs/output\`,
 //         retryInterval: 2000,
 //         servicesConfigPath: \`\${BASE_PATH}/web/services-config.js\`,
 //       };
-      
+
 //       let currentMode = null;
 //       let manifestCache = null;
 //       let servicesLoaded = false;
-      
+
 //       console.log('[FlutterJS MPA] Base path:', BASE_PATH || '/');
-      
+
 //       // Parse route from URL
 //       function getCurrentRoute() {
 //         // Support both hash and path-based routing
@@ -59,7 +59,7 @@
 //         const path = window.location.pathname.replace(/^\\/web\\/index\\.html/, '');
 //         return hash || path || '/';
 //       }
-      
+
 //       // Detect mode
 //       async function detectMode() {
 //         try {
@@ -69,7 +69,7 @@
 //             return { mode: 'build', path: CONFIG.buildPath };
 //           }
 //         } catch (e) {}
-        
+
 //         try {
 //           const devResponse = await fetch(\`\${CONFIG.devPath}/manifest.json?v=\${Date.now()}\`);
 //           if (devResponse.ok) {
@@ -77,23 +77,23 @@
 //             return { mode: 'dev', path: CONFIG.devPath };
 //           }
 //         } catch (e) {}
-        
+
 //         return null;
 //       }
-      
+
 //       // Load manifest
 //       async function loadManifest(basePath) {
 //         const response = await fetch(\`\${basePath}/manifest.json?v=\${Date.now()}\`);
 //         if (!response.ok) throw new Error('Manifest not found');
 //         return await response.json();
 //       }
-      
+
 //       // Load services (Firebase, APIs, etc.)
 //       async function loadServices(basePath) {
 //         if (servicesLoaded) return;
-        
+
 //         console.log('[FlutterJS MPA] Loading services...');
-        
+
 //         // 1. Load services config
 //         try {
 //           await loadScript(CONFIG.servicesConfigPath);
@@ -101,7 +101,7 @@
 //         } catch (e) {
 //           console.log('[FlutterJS MPA] No services config found (optional)');
 //         }
-        
+
 //         // 2. Load service files from manifest
 //         if (manifestCache.files?.services) {
 //           for (const service of manifestCache.files.services) {
@@ -109,16 +109,16 @@
 //             console.log('[FlutterJS MPA] Loaded service:', service);
 //           }
 //         }
-        
+
 //         // 3. Initialize services
 //         if (window.FlutterJSServices && window.FlutterJSServices.init) {
 //           await window.FlutterJSServices.init();
 //           console.log('[FlutterJS MPA] Services initialized');
 //         }
-        
+
 //         servicesLoaded = true;
 //       }
-      
+
 //       // Load CSS
 //       function loadCSS(href) {
 //         return new Promise((resolve, reject) => {
@@ -130,7 +130,7 @@
 //           document.head.appendChild(link);
 //         });
 //       }
-      
+
 //       // Load JS
 //       function loadScript(src) {
 //         return new Promise((resolve, reject) => {
@@ -141,42 +141,42 @@
 //           document.body.appendChild(script);
 //         });
 //       }
-      
+
 //       // Load HTML content
 //       async function loadHTML(url) {
 //         const response = await fetch(url);
 //         if (!response.ok) throw new Error(\`Failed to load: \${url}\`);
 //         return await response.text();
 //       }
-      
+
 //       // Load page
 //       async function loadPage(route) {
 //         const basePath = currentMode === 'dev' ? CONFIG.devPath : CONFIG.buildPath;
 //         const pageInfo = manifestCache.routes?.[route] || manifestCache.routes?.['/'];
-        
+
 //         if (!pageInfo) {
 //           showError(new Error(\`Route not found: \${route}\`));
 //           return;
 //         }
-        
+
 //         console.log('[FlutterJS MPA] Loading page:', route);
-        
+
 //         try {
 //           // Show loading
 //           document.body.innerHTML = '<div id="flutterjs-root"><div style="padding: 40px; text-align: center;">Loading...</div></div>';
-          
+
 //           const version = manifestCache.version + '-' + manifestCache.generated;
-          
+
 //           // 1. Load page CSS
 //           if (pageInfo.css) {
 //             await loadCSS(\`\${basePath}/\${pageInfo.css}?v=\${version}\`);
 //           }
-          
+
 //           // 2. Load page HTML
 //           if (pageInfo.html) {
 //             const html = await loadHTML(\`\${basePath}/\${pageInfo.html}?v=\${version}\`);
 //             document.getElementById('flutterjs-root').innerHTML = html;
-            
+
 //             // Update meta tags
 //             if (pageInfo.meta) {
 //               document.title = pageInfo.meta.title || 'FlutterJS App';
@@ -184,25 +184,25 @@
 //               updateMetaTag('keywords', pageInfo.meta.keywords);
 //             }
 //           }
-          
+
 //           // 3. Load page JS
 //           if (pageInfo.js) {
 //             await loadScript(\`\${basePath}/\${pageInfo.js}?v=\${version}\`);
 //           }
-          
+
 //           // 4. Notify page loaded
 //           if (window.FlutterJS && window.FlutterJS.onPageLoad) {
 //             window.FlutterJS.onPageLoad(route);
 //           }
-          
+
 //           console.log('[FlutterJS MPA] Page loaded:', route);
-          
+
 //         } catch (error) {
 //           console.error('[FlutterJS MPA] Page load error:', error);
 //           showError(error);
 //         }
 //       }
-      
+
 //       // Update meta tag
 //       function updateMetaTag(name, content) {
 //         if (!content) return;
@@ -214,7 +214,7 @@
 //         }
 //         meta.content = content;
 //       }
-      
+
 //       // Show loading screen
 //       function showLoadingScreen() {
 //         document.body.innerHTML = \`
@@ -237,7 +237,7 @@
 //           </style>
 //         \`;
 //       }
-      
+
 //       // Show error
 //       function showError(error) {
 //         document.body.innerHTML = \`
@@ -255,77 +255,77 @@
 //           </div>
 //         \`;
 //       }
-      
+
 //       // Initialize
 //       async function init() {
 //         showLoadingScreen();
-        
+
 //         const modeInfo = await detectMode();
 //         if (!modeInfo) {
 //           console.warn('[FlutterJS MPA] No output found. Waiting...');
 //           setTimeout(init, CONFIG.retryInterval);
 //           return;
 //         }
-        
+
 //         currentMode = modeInfo.mode;
 //         const basePath = modeInfo.path;
-        
+
 //         try {
 //           // Load manifest
 //           manifestCache = await loadManifest(basePath);
 //           console.log('[FlutterJS MPA] Manifest loaded');
-          
+
 //           const version = manifestCache.version + '-' + manifestCache.generated;
-          
+
 //           // Clear loading
 //           document.body.innerHTML = '<div id="flutterjs-root"></div>';
-          
+
 //           // Load runtime
 //           if (manifestCache.files?.runtime) {
 //             await loadScript(\`\${basePath}/\${manifestCache.files.runtime}?v=\${version}\`);
 //             console.log('[FlutterJS MPA] Runtime loaded');
 //           }
-          
+
 //           // Load services (Firebase, APIs, etc.)
 //           await loadServices(basePath);
-          
+
 //           // Load global styles
 //           if (manifestCache.files?.styles) {
 //             for (const style of manifestCache.files.styles) {
 //               await loadCSS(\`\${basePath}/\${style}?v=\${version}\`);
 //             }
 //           }
-          
+
 //           // Load current page
 //           const currentRoute = getCurrentRoute();
 //           await loadPage(currentRoute);
-          
+
 //           // Setup navigation for hash changes
 //           window.addEventListener('hashchange', () => {
 //             const route = getCurrentRoute();
 //             loadPage(route);
 //           });
-          
+
 //           // Expose navigation API
 //           window.FlutterJSNavigate = (route) => {
 //             window.location.hash = route;
 //           };
-          
+
 //           console.log('[FlutterJS MPA] ✅ Initialization complete');
-          
+
 //         } catch (error) {
 //           console.error('[FlutterJS MPA] Error:', error);
 //           showError(error);
 //         }
 //       }
-      
+
 //       // Start
 //       if (document.readyState === 'loading') {
 //         document.addEventListener('DOMContentLoaded', init);
 //       } else {
 //         init();
 //       }
-      
+
 //     })();
 //   </script>
 // </head>

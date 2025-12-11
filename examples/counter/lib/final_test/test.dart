@@ -2,11 +2,11 @@
 // The ultimate minimal stress-test for your FlutterJs compiler
 // If this file compiles to working <80 KB JS → you have won.
 
-import 'package:flutter/material.dart';          // ← your @flutterjs/material
-import 'package:provider/provider.dart';       // ← your @flutterjs/provider
-import 'package:http/http.dart' as http;        // ← your @flutterjs/http
-import 'dart:convert';                          // ← your @flutterjs/convert
-import 'dart:math' as math;                           // ← your @flutterjs/math
+import 'package:flutter/material.dart'; // ← your @flutterjs/material
+import 'package:provider/provider.dart'; // ← your @flutterjs/provider
+import 'package:http/http.dart' as http; // ← your @flutterjs/http
+import 'dart:convert'; // ← your @flutterjs/convert
+import 'dart:math' as math; // ← your @flutterjs/math
 import 'dart:async';
 
 void main() => runApp(MyApp());
@@ -87,8 +87,8 @@ class HomePage extends StatelessWidget {
             Text(
               'Count: ${model.count} ${math.min(10, 20)}',
               style: Theme.of(context).textTheme.headlineMedium!.copyWith(
-                    color: model.count.isEven ? Colors.indigo : Colors.purple,
-                  ),
+                color: model.count.isEven ? Colors.indigo : Colors.purple,
+              ),
             ),
             SizedBox(height: 20),
 
@@ -96,15 +96,9 @@ class HomePage extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                ElevatedButton(
-                  onPressed: model.increment,
-                  child: Text('+1'),
-                ),
+                ElevatedButton(onPressed: model.increment, child: Text('+1')),
                 SizedBox(width: 16),
-                ElevatedButton(
-                  onPressed: model.reset,
-                  child: Text('Reset'),
-                ),
+                ElevatedButton(onPressed: model.reset, child: Text('Reset')),
                 SizedBox(width: 16),
                 ElevatedButton(
                   onPressed: model.fetchQuote,
@@ -141,6 +135,4 @@ class HomePage extends StatelessWidget {
       ),
     );
   }
-
-
 }

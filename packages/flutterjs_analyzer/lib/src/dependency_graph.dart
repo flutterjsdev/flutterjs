@@ -130,8 +130,7 @@ class DependencyGraph {
     }
   }
 
-
-   /// Returns the number of edges in the graph
+  /// Returns the number of edges in the graph
   int get edgeCount {
     return _dependencies.values.fold<int>(0, (sum, deps) => sum + deps.length);
   }
@@ -165,7 +164,7 @@ class DependencyGraph {
     for (final node in _dependencies.keys) {
       final deps = _dependencies[node] ?? <String>{};
       final dependents = _dependents[node] ?? <String>{};
-      
+
       nodes[node] = {
         'dependencies': deps.toList(),
         'dependents': dependents.toList(),
@@ -175,7 +174,7 @@ class DependencyGraph {
         'transitiveDependents': getTransitiveDependents(node).toList(),
       };
     }
-    
+
     return {
       'totalNodes': nodeCount,
       'totalEdges': edgeCount,

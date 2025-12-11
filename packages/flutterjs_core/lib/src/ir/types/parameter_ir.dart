@@ -97,7 +97,6 @@ class ParameterIR extends IRNode {
     return sig;
   }
 
-
   /// Serialize to JSON
   Map<String, dynamic> toJson() {
     return {

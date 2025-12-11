@@ -90,8 +90,6 @@ class ClassTypeIR extends TypeIR {
     };
   }
 
- 
-
   /// Creates a generic class type with type arguments
   ClassTypeIR withTypeArguments(List<TypeIR> args) {
     return ClassTypeIR(

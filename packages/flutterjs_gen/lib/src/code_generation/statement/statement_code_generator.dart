@@ -77,9 +77,6 @@ class StatementCodeGen {
     indenter = Indenter(this.config.indent);
   }
 
-
-  
-
   /// Generate JavaScript code from a statement IR
   String generate(StatementIR stmt) {
     try {
@@ -95,10 +92,11 @@ class StatementCodeGen {
     }
   }
 
-
-
- /// ✅ NEW: Generate with function context
-  String generateWithContext(StatementIR stmt, {FunctionDecl? functionContext}) {
+  /// ✅ NEW: Generate with function context
+  String generateWithContext(
+    StatementIR stmt, {
+    FunctionDecl? functionContext,
+  }) {
     try {
       if (functionContext != null) {
         exprGen.setFunctionContext(functionContext);

@@ -1,10 +1,10 @@
-
 import 'dart:async';
 import 'dart:io';
 import 'package:intl/intl.dart';
 import 'package:watcher/watcher.dart';
 
 enum DebugLevel { trace, debug, info, warn, error }
+
 /// ============================================================================
 /// Flutter.js Integrated Debugger System
 ///

@@ -220,21 +220,25 @@ class TypeRegistry {
     final typesByFile = <String, int>{};
 
     for (final type in types) {
-      typesByKind[type.kind.toString()] = 
+      typesByKind[type.kind.toString()] =
           (typesByKind[type.kind.toString()] ?? 0) + 1;
       typesByFile[type.filePath] = (typesByFile[type.filePath] ?? 0) + 1;
     }
 
     return {
       'totalTypes': typeCount,
-      'types': types.map((t) => {
-        'name': t.name,
-        'kind': t.kind.toString(),
-        'filePath': t.filePath,
-        'isWidget': t.isWidget,
-        'isStatefulWidget': t.isStatefulWidget,
-        'isState': t.isState,
-      }).toList(),
+      'types': types
+          .map(
+            (t) => {
+              'name': t.name,
+              'kind': t.kind.toString(),
+              'filePath': t.filePath,
+              'isWidget': t.isWidget,
+              'isStatefulWidget': t.isStatefulWidget,
+              'isState': t.isState,
+            },
+          )
+          .toList(),
       'statistics': {
         'typesByKind': typesByKind,
         'typesByFile': typesByFile,
