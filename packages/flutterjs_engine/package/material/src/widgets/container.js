@@ -1,6 +1,6 @@
 import { Widget, StatelessWidget, Element } from '../../../core/widget.js';
 import { VNode } from '../core/vdom/vnode.js';
-import { Clip, TextDirection, Alignment } from '../../utils/utils.js';
+import { Clip, TextDirection, Alignment } from '../utils/utils.js';
 
 // ============================================================================
 // ENUMS

@@ -1,0 +1,15 @@
+{
+  "name": "@flutterjs/material",
+  "version": "1.0.0",
+  "description": "Widget handler for Material",
+  "main": "material.js",
+  "scripts": {
+    "test": "npm test"
+  },
+  "keywords": [
+    "widget",
+    "material"
+  ],
+  "author": "Jayprakash Pal",
+  "license": "MIT"
+}

@@ -1,10 +1,10 @@
 {
-  "name": "flutter_js",
+  "name": "flutter-js",
   "version": "1.0.0",
   "description": "Lightweight Flutter.js CLI with zero external dependencies - Build tool for Flutter to JavaScript projects",
   "main": "bin/index.js",
   "bin": {
-    "flutter_js": "./bin/index.js"
+    "flutter-js": "./bin/index.js"
   },
   "scripts": {
     "dev": "node bin/index.js dev",
@@ -12,15 +12,15 @@
     "preview": "node bin/index.js preview",
     "test": "node test/test.js",
     "build:binary": "pkg . --compress Brotli",
-    "build:linux": "pkg . -t node18-linux-x64 -o dist/flutter_js-linux",
-    "build:macos": "pkg . -t node18-macos-x64 -o dist/flutter_js-macos",
-    "build:windows": "pkg . -t node18-win-x64 -o dist/flutter_js.exe",
+    "build:linux": "pkg . -t node18-linux-x64 -o dist/flutter-js-linux",
+    "build:macos": "pkg . -t node18-macos-x64 -o dist/flutter-js-macos",
+    "build:windows": "pkg . -t node18-win-x64 -o dist/flutter-js.exe",
     "build:all": "npm run build:linux && npm run build:macos && npm run build:windows"
   },
   "keywords": [
     "flutter",
     "flutter.js",
-    "flutter_js",
+    "flutter-js",
     "dart",
     "framework",
     "cli",
