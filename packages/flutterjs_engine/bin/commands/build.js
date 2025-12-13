@@ -15,11 +15,11 @@ function mkdirp(dir) {
 function copyDir(src, dest) {
   mkdirp(dest);
   const entries = fs.readdirSync(src, { withFileTypes: true });
-  
+
   for (const entry of entries) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
-    
+
     if (entry.isDirectory()) {
       copyDir(srcPath, destPath);
     } else {
@@ -42,7 +42,7 @@ function minifyJS(code) {
 function obfuscateJS(code) {
   const vars = new Map();
   let counter = 0;
-  
+
   // Generate short variable names
   function getVarName() {
     const chars = 'abcdefghijklmnopqrstuvwxyz';
@@ -54,25 +54,25 @@ function obfuscateJS(code) {
     } while (n >= 0);
     return '_' + name;
   }
-  
+
   // Find variable declarations
   const varPattern = /\b(var|let|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
   let match;
-  
+
   while ((match = varPattern.exec(code)) !== null) {
     const originalName = match[2];
     if (!vars.has(originalName) && originalName.length > 2) {
       vars.set(originalName, getVarName());
     }
   }
-  
+
   // Replace variables
   let obfuscated = code;
   vars.forEach((newName, oldName) => {
     const regex = new RegExp('\\b' + oldName + '\\b', 'g');
     obfuscated = obfuscated.replace(regex, newName);
   });
-  
+
   return obfuscated;
 }
 
@@ -92,23 +92,23 @@ function formatBytes(bytes) {
 
 async function build(options, projectContext) {
   console.log('🚀 Building Flutter.js application...\n');
-  
+
   const { config, paths, projectRoot } = projectContext;
-  
+
   // Merge CLI options with config
   const mode = options.mode || config.render?.mode || 'dev';
   const output = options.output || config.build?.output || 'dist';
   const shouldMinify = options.minify !== false && (config.build?.production?.minify !== false);
   const shouldObfuscate = options.obfuscate !== false && (config.build?.production?.obfuscate !== false);
-  
+
   try {
     // 1. Check if entry file exists
     console.log('📦 Loading entry file...');
-    
+
     if (!fs.existsSync(paths.entryFile)) {
       throw new Error(`Entry file not found: ${paths.entryFile}`);
     }
-    
+
     // 2. Load framework runtime (simulated)
     console.log('⚙️ Loading flutter_js runtime...');
     let frameworkCode = `
@@ -121,11 +121,11 @@ window.FlutterJS.mount = function(selector) {
   }
 };
 `;
-    
+
     // 3. Load application code
     console.log('📖 Loading application code...');
     const appCode = fs.readFileSync(paths.entryFile, 'utf8');
-    
+
     // 4. Create render configuration
     console.log(`📋 Bundling in ${mode.toUpperCase()} mode...`);
     const renderConfig = {
@@ -136,7 +136,7 @@ window.FlutterJS.mount = function(selector) {
       projectRoot: projectRoot,
       entryPoint: config.entry?.main || 'src/main.fjs',
     };
-    
+
     // 5. Combine all code
     let finalCode = `
 // Flutter.js Runtime
@@ -157,55 +157,55 @@ if (typeof window !== 'undefined') {
   });
 }
 `;
-    
+
     // 6. Minify if enabled
     if (shouldMinify) {
       console.log('📉 Minifying...');
       finalCode = minifyJS(finalCode);
     }
-    
+
     // 7. Obfuscate if enabled
     if (shouldObfuscate) {
       console.log('🔒 Obfuscating...');
       finalCode = obfuscateJS(finalCode);
     }
-    
+
     // 8. Create output directory
     console.log('📁 Creating output directory...');
     const outputPath = path.resolve(projectRoot, output);
     mkdirp(outputPath);
-    
+
     // 9. Write JavaScript
     const jsFileName = shouldMinify ? 'app.min.js' : 'app.js';
     const jsPath = path.join(outputPath, jsFileName);
     fs.writeFileSync(jsPath, finalCode);
     console.log(`   ✓ ${jsFileName}`);
-    
+
     // 10. Generate HTML
     console.log('📄 Generating HTML...');
     generateHTML(outputPath, jsFileName, renderConfig);
-    
+
     // 11. Process CSS
     console.log('🎨 Processing CSS...');
     processCSS(outputPath, shouldMinify);
-    
+
     // 12. Copy public assets if they exist
     const publicPath = path.join(projectRoot, 'public');
     if (fs.existsSync(publicPath)) {
       console.log('🎨 Copying public assets...');
       copyDir(publicPath, path.join(outputPath, 'assets'));
     }
-    
+
     // 13. Copy assets folder
     const assetsPath = path.join(projectRoot, 'assets');
     if (fs.existsSync(assetsPath)) {
       console.log('🖼️ Copying assets...');
       copyDir(assetsPath, path.join(outputPath, 'assets'));
     }
-    
+
     // 14. Generate stats
     const stats = generateStats(outputPath, finalCode);
-    
+
     console.log('\n✅ Build complete!\n');
     console.log(`📊 Build Stats:`);
     console.log(`   Mode: ${renderConfig.mode.toUpperCase()}`);
@@ -216,7 +216,7 @@ if (typeof window !== 'undefined') {
     console.log(`   CSS: ${stats.cssSize}`);
     console.log(`   Total: ${stats.totalSize}`);
     console.log(`   Gzipped: ~${stats.gzippedSize}\n`);
-    
+
   } catch (error) {
     console.error('\n❌ Build failed:', error.message);
     if (options.verbose) {
@@ -241,7 +241,7 @@ function generateHTML(outputDir, jsFileName, renderConfig) {
   <script src="${jsFileName}"></script>
 </body>
 </html>`;
-  
+
   fs.writeFileSync(
     path.join(outputDir, 'index.html'),
     htmlTemplate
@@ -268,11 +268,11 @@ body {
   min-height: 100vh;
 }
 `;
-  
+
   if (shouldMinify) {
     css = minifyCSS(css);
   }
-  
+
   fs.writeFileSync(
     path.join(outputDir, 'styles.css'),
     css
@@ -281,17 +281,17 @@ body {
 
 function generateStats(outputDir, jsCode) {
   const jsSize = formatBytes(Buffer.byteLength(jsCode, 'utf8'));
-  
+
   const cssPath = path.join(outputDir, 'styles.css');
   const cssSize = fs.existsSync(cssPath)
     ? formatBytes(fs.statSync(cssPath).size)
     : '0 KB';
-  
+
   const totalBytes = Buffer.byteLength(jsCode, 'utf8') +
     (fs.existsSync(cssPath) ? fs.statSync(cssPath).size : 0);
-  
+
   const gzippedSize = formatBytes(Math.floor(totalBytes * 0.3));
-  
+
   return {
     jsSize,
     cssSize,
