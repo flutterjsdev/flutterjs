@@ -12,7 +12,7 @@ import {
   DependencyGraph,
   ValidationResult,
   AnalysisSummary,
-} from '../src/ats/state-analyzer-data.js';
+} from '../src/ats/state_analyzer_data.js';
 
 console.log('\n' + '='.repeat(80));
 console.log('🧪 STATE ANALYZER DATA CLASSES - UNIT TESTS');

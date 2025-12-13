@@ -1,8 +1,12 @@
 /**
- * FlutterJS Analyzer - Main Orchestrator
- * Coordinates all analysis phases and report generation
+ * FlutterJS Analyzer - Main Orchestrator (Enhanced with Phase 3)
+ * Coordinates all analysis phases (Phase 1, 2, 3) and report generation
  * 
- * Pipeline: Source → Lexer → Parser → WidgetAnalyzer → StateAnalyzer → ReportGenerator
+ * Pipeline: Source → Lexer → Parser → WidgetAnalyzer (Phase 1)
+ *           → StateAnalyzer (Phase 2)
+ *           → ContextAnalyzer (Phase 3)
+ *           → SSRAnalyzer (Phase 3)
+ *           → ReportGenerator
  */
 
 import fs from 'fs';
@@ -11,6 +15,8 @@ import { Lexer } from './lexer.js';
 import { Parser } from './flutterjs_parser.js';
 import { WidgetAnalyzer } from './flutterjs_widget_analyzer.js';
 import { StateAnalyzer } from './state_analyzer_implementation.js';
+import { ContextAnalyzer } from './context_analyzer.js';
+import { SSRAnalyzer } from './ssr_analyzer.js';
 import { ReportGenerator } from './flutterjs_report_generator.js';
 
 // ============================================================================
@@ -30,6 +36,8 @@ class Analyzer {
       includeTree: true,
       includeValidation: true,
       includeSuggestions: true,
+      includeContext: true,          // Phase 3: Include context analysis
+      includeSsr: true,              // Phase 3: Include SSR analysis
       prettyPrint: true,
       ...options,
     };
@@ -40,6 +48,8 @@ class Analyzer {
       ast: null,
       widgets: null,
       state: null,
+      context: null,                 // Phase 3 NEW
+      ssr: null,                      // Phase 3 NEW
       report: null,
     };
 
@@ -52,7 +62,7 @@ class Analyzer {
    */
   async analyze() {
     this.log('\n' + '='.repeat(80));
-    this.log('🚀 FlutterJS ANALYZER - FULL PIPELINE');
+    this.log('🚀 FlutterJS ANALYZER - FULL PIPELINE (Phase 1 + 2 + 3)');
     this.log('='.repeat(80) + '\n');
 
     try {
@@ -71,23 +81,37 @@ class Analyzer {
       this.parse();
       this.log(`  ✓ ${this.results.ast.body.length} top-level items\n`);
 
-      // Step 4: Widget Analysis
+      // Step 4: Widget Analysis (Phase 1)
       this.log('STEP 4: Widget Analysis (Phase 1)...');
       this.analyzeWidgets();
       this.log(`  ✓ ${this.results.widgets.widgets.length} widgets detected\n`);
 
-      // Step 5: State Analysis
+      // Step 5: State Analysis (Phase 2)
       this.log('STEP 5: State Analysis (Phase 2)...');
       this.analyzeState();
       this.log(`  ✓ ${this.results.state.stateClasses.length} state classes analyzed\n`);
 
-      // Step 6: Report Generation
-      this.log('STEP 6: Generating Report...');
+      // Step 6: Context Analysis (Phase 3)
+      if (this.options.includeContext) {
+        this.log('STEP 6: Context Analysis (Phase 3)...');
+        this.analyzeContext();
+        this.log(`  ✓ ${this.results.context.inheritedWidgets?.length || 0} inherited widgets detected\n`);
+      }
+
+      // Step 7: SSR Analysis (Phase 3)
+      if (this.options.includeSsr) {
+        this.log('STEP 7: SSR Compatibility Analysis (Phase 3)...');
+        this.analyzeSsr();
+        this.log(`  ✓ SSR Score: ${this.results.ssr.ssrCompatibilityScore}/100\n`);
+      }
+
+      // Step 8: Report Generation
+      this.log('STEP 8: Generating Report...');
       this.generateReport();
       this.log('  ✓ Report generated\n');
 
-      // Step 7: Output
-      this.log('STEP 7: Output...');
+      // Step 9: Output
+      this.log('STEP 9: Output...');
       this.output();
       this.log('  ✓ Output complete\n');
 
@@ -227,7 +251,63 @@ class Analyzer {
   }
 
   /**
-   * Step 6: Generate report
+   * Step 6: Analyze context (Phase 3)
+   * NEW: Detects InheritedWidget, ChangeNotifier, Provider patterns
+   */
+  analyzeContext() {
+    const start = Date.now();
+
+    try {
+      const analyzer = new ContextAnalyzer(
+        this.results.ast,
+        this.results.widgets.widgets,
+        { strict: this.options.strict }
+      );
+      this.results.context = analyzer.analyze();
+
+      if (this.results.context.errors && this.results.context.errors.length > 0) {
+        this.log('  ⚠️  Context analysis errors:');
+        this.results.context.errors.forEach((err) => {
+          this.log(`    - ${err.message}`);
+        });
+      }
+    } catch (error) {
+      throw new Error(`Context analysis failed: ${error.message}`);
+    }
+
+    this.timings.analyzeContext = Date.now() - start;
+  }
+
+  /**
+   * Step 7: Analyze SSR compatibility (Phase 3)
+   * NEW: Detects SSR-safe/unsafe patterns, hydration needs, migration path
+   */
+  analyzeSsr() {
+    const start = Date.now();
+
+    try {
+      const analyzer = new SSRAnalyzer(
+        this.results.context,
+        this.results.state,
+        { strict: this.options.strict }
+      );
+      this.results.ssr = analyzer.analyze();
+
+      if (this.results.ssr.errors && this.results.ssr.errors.length > 0) {
+        this.log('  ⚠️  SSR analysis errors:');
+        this.results.ssr.errors.forEach((err) => {
+          this.log(`    - ${err.message}`);
+        });
+      }
+    } catch (error) {
+      throw new Error(`SSR analysis failed: ${error.message}`);
+    }
+
+    this.timings.analyzeSsr = Date.now() - start;
+  }
+
+  /**
+   * Step 8: Generate report
    */
   generateReport() {
     const start = Date.now();
@@ -236,12 +316,16 @@ class Analyzer {
       const generator = new ReportGenerator(
         this.results.widgets,
         this.results.state,
+        this.results.context,     // Phase 3 NEW
+        this.results.ssr,         // Phase 3 NEW
         {
           format: this.options.outputFormat,
           includeMetrics: this.options.includeMetrics,
           includeTree: this.options.includeTree,
           includeValidation: this.options.includeValidation,
           includeSuggestions: this.options.includeSuggestions,
+          includeContext: this.options.includeContext,
+          includeSsr: this.options.includeSsr,
           prettyPrint: this.options.prettyPrint,
         }
       );
@@ -255,7 +339,7 @@ class Analyzer {
   }
 
   /**
-   * Step 7: Output report (console or file)
+   * Step 9: Output report (console or file)
    */
   output() {
     if (this.options.outputFile) {
@@ -300,6 +384,23 @@ class Analyzer {
         eventHandlers: this.results.state?.eventHandlers?.length || 0,
         validationIssues: this.results.state?.validationResults?.length || 0,
       },
+      // Phase 3 NEW: Context results
+      context: this.options.includeContext ? {
+        inheritedWidgets: this.results.context?.inheritedWidgets?.length || 0,
+        changeNotifiers: this.results.context?.changeNotifiers?.length || 0,
+        providers: this.results.context?.providers?.length || 0,
+        contextAccessPoints: this.results.context?.contextAccessPoints?.length || 0,
+      } : null,
+      // Phase 3 NEW: SSR results
+      ssr: this.options.includeSsr ? {
+        compatibility: this.results.ssr?.overallCompatibility || 'unknown',
+        compatibilityScore: this.results.ssr?.ssrCompatibilityScore || 0,
+        safePatterns: this.results.ssr?.ssrSafePatterns?.length || 0,
+        unsafePatterns: this.results.ssr?.ssrUnsafePatterns?.length || 0,
+        hydrationNeeded: this.results.ssr?.hydrationCount || 0,
+        migrationSteps: this.results.ssr?.ssrMigrationPath?.length || 0,
+        estimatedEffort: this.results.ssr?.estimatedEffort || 'unknown',
+      } : null,
       timings: this.timings,
       report: this.results.report,
     };
@@ -375,6 +476,8 @@ async function runCLI() {
   let outputFile = null;
   let outputFormat = 'json';
   let verbose = true;
+  let includeContext = true;
+  let includeSsr = true;
 
   // Parse options
   for (let i = 1; i < args.length; i++) {
@@ -386,6 +489,19 @@ async function runCLI() {
       outputFormat = args[++i];
     } else if (arg === '-q' || arg === '--quiet') {
       verbose = false;
+    } else if (arg === '--no-context') {
+      includeContext = false;
+    } else if (arg === '--no-ssr') {
+      includeSsr = false;
+    } else if (arg === '--phase1') {
+      includeContext = false;
+      includeSsr = false;
+    } else if (arg === '--phase1-2') {
+      includeContext = false;
+      includeSsr = false;
+    } else if (arg === '--phase1-2-3') {
+      includeContext = true;
+      includeSsr = true;
     } else if (arg === '-h' || arg === '--help') {
       printUsage();
       process.exit(0);
@@ -405,6 +521,8 @@ async function runCLI() {
       outputFile,
       outputFormat,
       verbose,
+      includeContext,
+      includeSsr,
     });
 
     await analyzer.analyze();
@@ -420,22 +538,28 @@ async function runCLI() {
  */
 function printUsage() {
   console.log(`
-FlutterJS Analyzer
+FlutterJS Analyzer (Phase 1 + 2 + 3)
 
 Usage:
   node analyzer.js <source-file> [options]
 
 Options:
-  -o, --output <file>    Output file (default: print to console)
-  -f, --format <format>  Output format: json, markdown, console (default: json)
-  -q, --quiet            Suppress verbose output
-  -h, --help             Show this help message
+  -o, --output <file>      Output file (default: print to console)
+  -f, --format <format>    Output format: json, markdown, console (default: json)
+  -q, --quiet              Suppress verbose output
+  --no-context             Skip Phase 3 context analysis
+  --no-ssr                 Skip Phase 3 SSR analysis
+  --phase1                 Only Phase 1 analysis (widget detection)
+  --phase1-2               Phase 1 + 2 analysis (widgets + state)
+  --phase1-2-3             Full analysis (default)
+  -h, --help               Show this help message
 
 Examples:
   node analyzer.js test.fjs
   node analyzer.js test.fjs -o report.json
   node analyzer.js test.fjs -f markdown -o report.md
-  node analyzer.js test.fjs -f console
+  node analyzer.js test.fjs --phase1-2
+  node analyzer.js test.fjs --phase1-2-3 -f console
 `);
 }
 

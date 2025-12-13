@@ -1,8 +1,9 @@
 /**
- * FlutterJS Report Generator - Enhanced Phase 2
+ * FlutterJS Report Generator - Enhanced Phase 3
  * Generates JSON, Markdown, and Console reports from analysis results
  * 
- * Integrates Phase 1 (Widget Analysis) and Phase 2 (State Analysis)
+ * Integrates Phase 1 (Widget Analysis), Phase 2 (State Analysis),
+ * and Phase 3 (Context + SSR Analysis)
  */
 
 // ============================================================================
@@ -10,16 +11,20 @@
 // ============================================================================
 
 class ReportGenerator {
-  constructor(widgetResults, stateResults, options = {}) {
-    this.widgetResults = widgetResults;  // From Phase 1 WidgetAnalyzer
-    this.stateResults = stateResults;    // From Phase 2 StateAnalyzer
-    
+  constructor(widgetResults, stateResults, contextResults = null, ssrResults = null, options = {}) {
+    this.widgetResults = widgetResults;      // From Phase 1 WidgetAnalyzer
+    this.stateResults = stateResults;        // From Phase 2 StateAnalyzer
+    this.contextResults = contextResults;    // Phase 3 NEW: ContextAnalyzer
+    this.ssrResults = ssrResults;            // Phase 3 NEW: SSRAnalyzer
+
     this.options = {
-      format: 'json',                    // 'json', 'markdown', 'console'
+      format: 'json',                         // 'json', 'markdown', 'console'
       includeMetrics: true,
       includeTree: true,
       includeValidation: true,
       includeSuggestions: true,
+      includeContext: true,                   // Phase 3 NEW
+      includeSsr: true,                       // Phase 3 NEW
       prettyPrint: true,
       ...options,
     };
@@ -33,7 +38,7 @@ class ReportGenerator {
    */
   generate() {
     console.log('[ReportGenerator] Generating report...');
-    
+
     this.calculateMetrics();
     this.buildReport();
 
@@ -62,19 +67,45 @@ class ReportGenerator {
     const lifecycleMethods = this.stateResults.lifecycleMethods || [];
     const eventHandlers = this.stateResults.eventHandlers || [];
 
+    // Phase 3 NEW: Context metrics
+    const inheritedWidgets = this.contextResults?.inheritedWidgets || [];
+    const changeNotifiers = this.contextResults?.changeNotifiers || [];
+    const providers = this.contextResults?.providers || [];
+    const contextAccessPoints = this.contextResults?.contextAccessPoints || [];
+
+    // Phase 3 NEW: SSR metrics
+    const ssrScore = this.ssrResults?.ssrCompatibilityScore || 0;
+    const ssrSafePatterns = this.ssrResults?.ssrSafePatterns || [];
+    const ssrUnsafePatterns = this.ssrResults?.ssrUnsafePatterns || [];
+    const hydrationRequirements = this.ssrResults?.hydrationRequirements || [];
+
     this.metadata = {
-      // Widget metrics
+      // Widget metrics (Phase 1)
       totalWidgets: widgets.length,
       statelessWidgets: widgets.filter((w) => w.type === 'stateless').length,
       statefulWidgets: widgets.filter((w) => w.type === 'stateful').length,
       componentWidgets: widgets.filter((w) => w.type === 'component').length,
       stateClasses: stateClasses.length,
 
-      // State metrics
+      // State metrics (Phase 2)
       totalStateFields: stateFields.length,
       setStateCallCount: setStateCalls.length,
       lifecycleMethodCount: lifecycleMethods.length,
       eventHandlerCount: eventHandlers.length,
+
+      // Context metrics (Phase 3 NEW)
+      inheritedWidgets: inheritedWidgets.length,
+      changeNotifiers: changeNotifiers.length,
+      providers: providers.length,
+      contextAccessPoints: contextAccessPoints.length,
+
+      // SSR metrics (Phase 3 NEW)
+      ssrCompatibilityScore: ssrScore,
+      ssrCompatibility: this.ssrResults?.overallCompatibility || 'unknown',
+      ssrSafePatterns: ssrSafePatterns.length,
+      ssrUnsafePatterns: ssrUnsafePatterns.length,
+      hydrationRequired: hydrationRequirements.length > 0,
+      hydrationCount: hydrationRequirements.length,
 
       // Function metrics
       totalFunctions: functions.length,
@@ -83,9 +114,7 @@ class ReportGenerator {
 
       // Import metrics
       totalImports: imports.length,
-      externalPackages: new Set(
-        imports.map((imp) => imp.source)
-      ).size,
+      externalPackages: new Set(imports.map((imp) => imp.source)).size,
 
       // Widget tree metrics
       treeDepth: this.calculateTreeDepth(this.widgetResults.widgetTree),
@@ -146,6 +175,11 @@ class ReportGenerator {
       score -= 5;
     }
 
+    // Phase 3: Deduct for SSR incompatibility
+    if (this.metadata.ssrCompatibilityScore < 50) {
+      score -= 15;
+    }
+
     return Math.max(0, Math.min(100, score));
   }
 
@@ -169,6 +203,9 @@ class ReportGenerator {
       score += 10;
     }
 
+    // Phase 3: Context complexity
+    score += Math.min(this.metadata.contextAccessPoints * 3, 15);
+
     return Math.min(100, score);
   }
 
@@ -185,16 +222,18 @@ class ReportGenerator {
         file: this.widgetResults.file || 'analysis',
         timestamp: new Date().toISOString(),
         status: validationResults.some((r) => r.severity === 'error') ? 'warning' : 'success',
-        phase: 'phase1+phase2',
+        phase: 'phase1+phase2+phase3',
       },
 
       summary: {
+        // Phase 1 Summary
         widgets: {
           total: this.metadata.totalWidgets,
           stateless: this.metadata.statelessWidgets,
           stateful: this.metadata.statefulWidgets,
           components: this.metadata.componentWidgets,
         },
+        // Phase 2 Summary
         state: {
           stateClasses: this.metadata.stateClasses,
           stateFields: this.metadata.totalStateFields,
@@ -202,6 +241,23 @@ class ReportGenerator {
           lifecycleMethods: this.metadata.lifecycleMethodCount,
           eventHandlers: this.metadata.eventHandlerCount,
         },
+        // Phase 3 NEW: Context Summary
+        context: this.options.includeContext ? {
+          inheritedWidgets: this.metadata.inheritedWidgets,
+          changeNotifiers: this.metadata.changeNotifiers,
+          providers: this.metadata.providers,
+          contextAccessPoints: this.metadata.contextAccessPoints,
+        } : null,
+        // Phase 3 NEW: SSR Summary
+        ssr: this.options.includeSsr ? {
+          compatibility: this.metadata.ssrCompatibility,
+          compatibilityScore: this.metadata.ssrCompatibilityScore,
+          safePatterns: this.metadata.ssrSafePatterns,
+          unsafePatterns: this.metadata.ssrUnsafePatterns,
+          hydrationRequired: this.metadata.hydrationRequired,
+          hydrationCount: this.metadata.hydrationCount,
+        } : null,
+        // Other
         functions: this.metadata.totalFunctions,
         imports: this.metadata.totalImports,
         externalPackages: this.metadata.externalPackages,
@@ -212,17 +268,167 @@ class ReportGenerator {
         complexityScore: this.metadata.complexityScore,
       },
 
+      // Phase 1 & 2 Details
       widgets: this.formatWidgets(),
       stateClasses: this.formatStateClasses(),
       imports: this.formatImports(),
       functions: this.formatFunctions(),
-      
+
+      // Phase 3 NEW: Context Details
+      context: this.options.includeContext ? this.formatContext() : null,
+
+      // Phase 3 NEW: SSR Details
+      ssr: this.options.includeSsr ? this.formatSsr() : null,
+
+      // Other Details
       widgetTree: this.options.includeTree ? this.formatWidgetTree() : null,
       dependencyGraph: this.formatDependencyGraph(),
       validation: this.options.includeValidation ? this.formatValidation() : null,
       suggestions: this.options.includeSuggestions ? this.generateSuggestions() : null,
 
       metrics: this.options.includeMetrics ? this.getDetailedMetrics() : null,
+    };
+  }
+
+  /**
+   * Phase 3 NEW: Format context analysis results
+   */
+  formatContext() {
+    if (!this.contextResults) {
+      return {
+        inheritedWidgets: [],
+        changeNotifiers: [],
+        providers: [],
+        contextFlow: {},
+      };
+    }
+
+    return {
+      inheritedWidgets: this.contextResults.inheritedWidgets?.map((widget) => ({
+        name: widget.name,
+        properties: widget.properties,
+        staticAccessors: widget.staticAccessors?.map((a) => a.name),
+        updateShouldNotifyImplemented: widget.updateShouldNotifyImplemented,
+        usedIn: widget.usedIn,
+        usageCount: widget.usageCount,
+      })) || [],
+
+      changeNotifiers: this.contextResults.changeNotifiers?.map((notifier) => ({
+        name: notifier.name,
+        properties: notifier.properties?.length || 0,
+        getters: notifier.getters?.map((g) => g.name) || [],
+        methods: notifier.methods?.map((m) => ({
+          name: m.name,
+          callsNotifyListeners: m.callsNotifyListeners,
+          mutations: m.mutations,
+        })) || [],
+        consumers: notifier.consumers || [],
+      })) || [],
+
+      providers: this.contextResults.providers?.map((provider) => ({
+        type: provider.providerType,
+        valueType: provider.valueType,
+        consumers: provider.consumers || [],
+        accessPatterns: provider.accessPatterns || [],
+      })) || [],
+
+      contextFlow: {
+        inheritedWidgetGraph: this.contextResults.inheritedWidgetGraph || {},
+        providerGraph: this.contextResults.providerGraph || {},
+      },
+
+      contextAccessPoints: this.contextResults.contextAccessPoints?.map((usage) => ({
+        pattern: usage.pattern,
+        type: usage.type,
+        location: usage.location,
+        ssrSafe: usage.ssrSafe,
+        reason: usage.reason,
+      })) || [],
+    };
+  }
+
+  /**
+   * Phase 3 NEW: Format SSR analysis results
+   */
+  formatSsr() {
+    if (!this.ssrResults) {
+      return {
+        compatibility: 'unknown',
+        score: 0,
+        patterns: { safe: [], unsafe: [] },
+        hydration: [],
+        migration: [],
+      };
+    }
+
+    return {
+      overallCompatibility: this.ssrResults.overallCompatibility,
+      compatibilityScore: this.ssrResults.ssrCompatibilityScore,
+      readinessScore: this.ssrResults.ssrReadinessScore || this.ssrResults.ssrCompatibilityScore,
+      estimatedEffort: this.ssrResults.estimatedEffort,
+
+      patterns: {
+        safe: this.ssrResults.ssrSafePatterns?.map((p) => ({
+          pattern: p.pattern,
+          example: p.example,
+          why: p.why,
+          confidence: p.confidence,
+        })) || [],
+
+        unsafe: this.ssrResults.ssrUnsafePatterns?.map((p) => ({
+          pattern: p.pattern,
+          example: p.example,
+          why: p.why,
+          severity: p.severity,
+          suggestion: p.suggestion,
+          location: p.location,
+        })) || [],
+      },
+
+      hydration: {
+        required: this.ssrResults.hydrationCount > 0,
+        count: this.ssrResults.hydrationCount,
+        requirements: this.ssrResults.hydrationRequirements?.map((r) => ({
+          dependency: r.dependency,
+          reason: r.reason,
+          order: r.order,
+          requiredProviders: r.requiredProviders,
+          requiredState: r.requiredState,
+        })) || [],
+      },
+
+      lazyLoadingOpportunities: this.ssrResults.lazyLoadOpportunities?.map((opp) => ({
+        target: opp.target,
+        reason: opp.reason,
+        estimatedSize: opp.estimatedSize,
+        priority: opp.priority,
+        recommendation: opp.recommendation,
+      })) || [],
+
+      migrationPath: this.ssrResults.ssrMigrationPath?.map((step) => ({
+        step: step.step,
+        action: step.action,
+        description: step.description,
+        example: step.example,
+        effort: step.effort,
+        priority: step.priority,
+        locations: step.locations,
+      })) || [],
+
+      validationIssues: {
+        critical: this.ssrResults.criticalIssues?.map((i) => ({
+          type: i.type,
+          message: i.message,
+          suggestion: i.suggestion,
+          location: i.location,
+        })) || [],
+
+        warnings: this.ssrResults.warningIssues?.map((i) => ({
+          type: i.type,
+          message: i.message,
+          suggestion: i.suggestion,
+        })) || [],
+      },
     };
   }
 
@@ -237,9 +443,11 @@ class ReportGenerator {
         type: widget.type,
         superClass: widget.superClass || null,
         location: widget.location,
-        constructor: widget.constructor ? {
-          params: widget.constructor.params || [],
-        } : null,
+        constructor: widget.constructor
+          ? {
+            params: widget.constructor.params || [],
+          }
+          : null,
         methods: widget.methods.map((m) => ({
           name: m.name,
           params: m.params || [],
@@ -265,7 +473,7 @@ class ReportGenerator {
         name: metadata.name,
         linkedStatefulWidget: metadata.linkedStatefulWidget,
         location: metadata.location,
-        
+
         stateFields: metadata.stateFields.map((field) => ({
           name: field.name,
           type: field.type,
@@ -292,34 +500,6 @@ class ReportGenerator {
     });
 
     return stateClasses;
-  }
-
-  /**
-   * Format setState calls for report
-   */
-  formatSetStateCalls() {
-    return (this.stateResults.setStateCalls || []).map((call) => ({
-      location: call.location,
-      method: call.method,
-      updates: call.updates,
-      isValid: call.isValid,
-      issues: call.issues,
-    }));
-  }
-
-  /**
-   * Format event handlers for report
-   */
-  formatEventHandlers() {
-    return (this.stateResults.eventHandlers || []).map((handler) => ({
-      event: handler.event,
-      handler: handler.handler,
-      component: handler.component,
-      location: handler.location,
-      triggersSetState: handler.triggersSetState,
-      isValid: handler.isValid,
-      issues: handler.issues,
-    }));
   }
 
   /**
@@ -415,7 +595,7 @@ class ReportGenerator {
   generateSuggestions() {
     const suggestions = [];
 
-    // Widget structure suggestions
+    // Phase 1 & 2 Suggestions
     if (this.metadata.statefulWidgets > this.metadata.statelessWidgets) {
       suggestions.push({
         type: 'structure',
@@ -434,46 +614,70 @@ class ReportGenerator {
       });
     }
 
-    // State field suggestions
-    const unusedFields = Object.values(this.formatStateClasses())
-      .flatMap((sc) => sc.stateFields)
-      .filter((f) => !f.isUsed);
-
-    if (unusedFields.length > 0) {
-      unusedFields.forEach((field) => {
+    // Phase 3 NEW: SSR Suggestions
+    if (this.options.includeSsr && this.ssrResults) {
+      if (this.metadata.ssrCompatibilityScore < 50) {
         suggestions.push({
-          type: 'state',
+          type: 'ssr-compatibility',
           severity: 'warning',
-          message: `State field "${field.name}" is unused`,
-          suggestion: 'Remove the field or implement its usage',
-        });
-      });
-    }
-
-    // Missing lifecycle suggestions
-    const stateClasses = this.stateResults.stateClasses || [];
-    stateClasses.forEach((sc) => {
-      const hasInitState = sc.metadata.lifecycleMethods.some((m) => m.name === 'initState');
-      const hasDispose = sc.metadata.lifecycleMethods.some((m) => m.name === 'dispose');
-
-      if (!hasDispose && sc.metadata.stateFields.length > 0) {
-        suggestions.push({
-          type: 'lifecycle',
-          severity: 'info',
-          message: `State class "${sc.metadata.name}" has no dispose() method`,
-          suggestion: 'Add a dispose() method to clean up resources',
+          message: `Low SSR compatibility score (${this.metadata.ssrCompatibilityScore}/100)`,
+          suggestion: `Follow the ${this.ssrResults.ssrMigrationPath?.length || 0} migration steps to improve SSR support`,
+          migrationSteps: this.ssrResults.ssrMigrationPath?.length || 0,
         });
       }
-    });
 
-    // Entry point suggestion
-    if (!this.metadata.entryPoint) {
-      suggestions.push({
-        type: 'critical',
-        severity: 'error',
-        message: 'No entry point (main function) found',
-        suggestion: 'Add a main() function that calls runApp()',
-      });
+      if (this.metadata.unsafePatterns > 5) {
+        suggestions.push({
+          type: 'ssr-patterns',
+          severity: 'warning',
+          message: `Found ${this.metadata.ssrUnsafePatterns} SSR-unsafe patterns`,
+          suggestion: 'Refactor unsafe patterns to enable server-side rendering',
+          unsafePatterns: this.metadata.ssrUnsafePatterns,
+        });
+      }
+
+      if (this.metadata.hydrationRequired) {
+        suggestions.push({
+          type: 'hydration',
+          severity: 'info',
+          message: `App requires hydration for ${this.metadata.hydrationCount} dependencies`,
+          suggestion: 'Implement hydration layer to re-attach listeners after server render',
+          hydrationDependencies: this.metadata.hydrationCount,
+        });
+      }
+
+      if (this.ssrResults.lazyLoadOpportunities?.length > 0) {
+        suggestions.push({
+          type: 'optimization',
+          severity: 'info',
+          message: `Found ${this.ssrResults.lazyLoadOpportunities.length} lazy-load opportunities`,
+          suggestion: 'Implement code splitting to reduce initial bundle size',
+          opportunities: this.ssrResults.lazyLoadOpportunities.length,
+        });
+      }
+    }
+
+    // Phase 3 NEW: Context Suggestions
+    if (this.options.includeContext && this.contextResults) {
+      if (this.metadata.inheritedWidgets > 3) {
+        suggestions.push({
+          type: 'context-hierarchy',
+          severity: 'info',
+          message: `Multiple InheritedWidgets detected (${this.metadata.inheritedWidgets})`,
+          suggestion: 'Consider consolidating context providers to reduce nesting',
+          inheritedWidgets: this.metadata.inheritedWidgets,
+        });
+      }
+
+      if (this.metadata.providers > 0) {
+        suggestions.push({
+          type: 'state-management',
+          severity: 'info',
+          message: `Using Provider pattern (${this.metadata.providers} providers)`,
+          suggestion: 'Ensure providers are properly organized and lazy-initialized where possible',
+          providers: this.metadata.providers,
+        });
+      }
     }
 
     return suggestions;
@@ -484,6 +688,7 @@ class ReportGenerator {
    */
   getDetailedMetrics() {
     return {
+      // Phase 1 & 2 Metrics
       widgetMetrics: {
         total: this.metadata.totalWidgets,
         byType: {
@@ -492,46 +697,43 @@ class ReportGenerator {
           component: this.metadata.componentWidgets,
           state: this.metadata.stateClasses,
         },
-        averageMethodsPerWidget:
-          this.metadata.totalWidgets > 0
-            ? (this.widgetResults.widgets || []).reduce(
-                (sum, w) => sum + (w.methods || []).length,
-                0
-              ) / this.metadata.totalWidgets
-            : 0,
       },
 
       stateMetrics: {
         stateClasses: this.metadata.stateClasses,
         totalFields: this.metadata.totalStateFields,
-        averageFieldsPerClass:
-          this.metadata.stateClasses > 0
-            ? this.metadata.totalStateFields / this.metadata.stateClasses
-            : 0,
         setStateCalls: this.metadata.setStateCallCount,
         lifecycleMethods: this.metadata.lifecycleMethodCount,
         eventHandlers: this.metadata.eventHandlerCount,
       },
 
+      // Phase 3 NEW: Context Metrics
+      contextMetrics: this.options.includeContext ? {
+        inheritedWidgets: this.metadata.inheritedWidgets,
+        changeNotifiers: this.metadata.changeNotifiers,
+        providers: this.metadata.providers,
+        contextAccessPoints: this.metadata.contextAccessPoints,
+      } : null,
+
+      // Phase 3 NEW: SSR Metrics
+      ssrMetrics: this.options.includeSsr ? {
+        compatibilityScore: this.metadata.ssrCompatibilityScore,
+        compatibility: this.metadata.ssrCompatibility,
+        safePatterns: this.metadata.ssrSafePatterns,
+        unsafePatterns: this.metadata.ssrUnsafePatterns,
+        hydrationRequired: this.metadata.hydrationRequired,
+        hydrationCount: this.metadata.hydrationCount,
+      } : null,
+
+      // Other Metrics
       functionMetrics: {
         total: this.metadata.totalFunctions,
         entryPoint: this.metadata.entryPoint || 'none',
-        averageParamsPerFunction:
-          this.metadata.totalFunctions > 0
-            ? (this.widgetResults.functions || []).reduce(
-                (sum, f) => sum + (f.params || []).length,
-                0
-              ) / this.metadata.totalFunctions
-            : 0,
       },
 
       dependencyMetrics: {
         totalImports: this.metadata.totalImports,
         externalPackages: this.metadata.externalPackages,
-        imports: (this.widgetResults.imports || []).map((imp) => ({
-          source: imp.source,
-          itemCount: imp.items.length,
-        })),
       },
 
       structureMetrics: {
@@ -563,12 +765,12 @@ class ReportGenerator {
    * Generate Markdown report
    */
   toMarkdown() {
-    let md = '# FlutterJS Code Analysis Report\n\n';
+    let md = '# FlutterJS Code Analysis Report (Phase 1 + 2 + 3)\n\n';
 
     // Header
     md += `**Generated:** ${new Date().toISOString()}\n\n`;
 
-    // Summary
+    // Summary Table
     md += '## Summary\n\n';
     md += `| Metric | Count |\n`;
     md += `|--------|-------|\n`;
@@ -577,76 +779,104 @@ class ReportGenerator {
     md += `| Stateful | ${this.metadata.statefulWidgets} |\n`;
     md += `| State Classes | ${this.metadata.stateClasses} |\n`;
     md += `| State Fields | ${this.metadata.totalStateFields} |\n`;
-    md += `| setState Calls | ${this.metadata.setStateCallCount} |\n`;
-    md += `| Lifecycle Methods | ${this.metadata.lifecycleMethodCount} |\n`;
-    md += `| Event Handlers | ${this.metadata.eventHandlerCount} |\n`;
     md += `| Health Score | ${this.metadata.healthScore}/100 |\n`;
-    md += `| Complexity Score | ${this.metadata.complexityScore}/100 |\n\n`;
+    md += `| Complexity Score | ${this.metadata.complexityScore}/100 |\n`;
 
-    // Widgets
-    md += '## Widgets\n\n';
-    (this.widgetResults.widgets || []).forEach((widget) => {
-      md += `### ${widget.name}\n`;
-      md += `- **Type:** ${widget.type}\n`;
-      if (widget.superClass) {
-        md += `- **Extends:** ${widget.superClass}\n`;
-      }
-      if (widget.methods.length > 0) {
-        md += `- **Methods:** ${widget.methods.map((m) => m.name).join(', ')}\n`;
-      }
-      if (widget.properties.length > 0) {
-        md += `- **Properties:** ${widget.properties.map((p) => p.name).join(', ')}\n`;
-      }
-      md += '\n';
-    });
-
-    // State Classes
-    if (this.stateResults.stateClasses && this.stateResults.stateClasses.length > 0) {
-      md += '## State Classes\n\n';
-      (this.stateResults.stateClasses || []).forEach((sc) => {
-        const metadata = sc.metadata;
-        md += `### ${metadata.name}\n`;
-        md += `- **Extends:** State<${metadata.linkedStatefulWidget}>\n`;
-        
-        if (metadata.stateFields.length > 0) {
-          md += `- **State Fields:**\n`;
-          metadata.stateFields.forEach((field) => {
-            md += `  - \`${field.name}\`: ${field.type} = ${field.initialValueString}\n`;
-          });
-        }
-        
-        if (metadata.lifecycleMethods.length > 0) {
-          md += `- **Lifecycle Methods:** ${metadata.lifecycleMethods.map((m) => m.name).join(', ')}\n`;
-        }
-        md += '\n';
-      });
+    // Phase 3 Summary
+    if (this.options.includeContext) {
+      md += `| InheritedWidgets | ${this.metadata.inheritedWidgets} |\n`;
+      md += `| ChangeNotifiers | ${this.metadata.changeNotifiers} |\n`;
+      md += `| Providers | ${this.metadata.providers} |\n`;
     }
 
-    // Validation
-    if (this.stateResults.validationResults && this.stateResults.validationResults.length > 0) {
-      md += '## Validation Issues\n\n';
-      const issues = this.stateResults.validationResults;
-      
-      const errors = issues.filter((i) => i.severity === 'error');
-      if (errors.length > 0) {
-        md += '### Errors\n';
-        errors.forEach((issue) => {
-          md += `- **${issue.type}:** ${issue.message}\n`;
-          if (issue.suggestion) {
-            md += `  - _Suggestion:_ ${issue.suggestion}\n`;
+    if (this.options.includeSsr) {
+      md += `| SSR Compatibility | ${this.metadata.ssrCompatibility} |\n`;
+      md += `| SSR Score | ${this.metadata.ssrCompatibilityScore}/100 |\n`;
+      md += `| Hydration Required | ${this.metadata.hydrationRequired ? 'Yes' : 'No'} |\n`;
+    }
+
+    md += '\n';
+
+    // Phase 3 Context Section
+    if (this.options.includeContext && this.contextResults) {
+      md += '## Context Analysis (Phase 3)\n\n';
+
+      if (this.metadata.inheritedWidgets > 0) {
+        md += '### InheritedWidgets\n\n';
+        (this.contextResults.inheritedWidgets || []).forEach((widget) => {
+          md += `- **${widget.name}**\n`;
+          if (widget.properties && widget.properties.length > 0) {
+            md += `  - Properties: ${widget.properties.map((p) => p.name).join(', ')}\n`;
+          }
+          if (widget.usedIn && widget.usedIn.length > 0) {
+            md += `  - Used in: ${widget.usedIn.join(', ')}\n`;
           }
         });
         md += '\n';
       }
 
-      const warnings = issues.filter((i) => i.severity === 'warning');
-      if (warnings.length > 0) {
-        md += '### Warnings\n';
-        warnings.forEach((issue) => {
-          md += `- **${issue.type}:** ${issue.message}\n`;
-          if (issue.suggestion) {
-            md += `  - _Suggestion:_ ${issue.suggestion}\n`;
+      if (this.metadata.changeNotifiers > 0) {
+        md += '### ChangeNotifiers\n\n';
+        (this.contextResults.changeNotifiers || []).forEach((notifier) => {
+          md += `- **${notifier.name}**\n`;
+          if (notifier.consumers && notifier.consumers.length > 0) {
+            md += `  - Consumed by: ${notifier.consumers.join(', ')}\n`;
           }
+        });
+        md += '\n';
+      }
+    }
+
+    // Phase 3 SSR Section
+    if (this.options.includeSsr && this.ssrResults) {
+      md += '## SSR Compatibility Analysis (Phase 3)\n\n';
+      md += `**Overall Compatibility:** ${this.metadata.ssrCompatibility}\n`;
+      md += `**Score:** ${this.metadata.ssrCompatibilityScore}/100\n`;
+      md += `**Effort to fix:** ${this.ssrResults.estimatedEffort}\n\n`;
+
+      if (this.metadata.ssrUnsafePatterns > 0) {
+        md += `### Unsafe Patterns (${this.metadata.ssrUnsafePatterns})\n\n`;
+        (this.ssrResults.ssrUnsafePatterns || []).slice(0, 10).forEach((pattern) => {
+          md += `- **${pattern.pattern}**: ${pattern.why}\n`;
+        });
+        if (this.metadata.ssrUnsafePatterns > 10) {
+          md += `- ... and ${this.metadata.ssrUnsafePatterns - 10} more\n`;
+        }
+        md += '\n';
+      }
+
+      if (this.ssrResults.hydrationCount > 0) {
+        md += `### Hydration Requirements (${this.ssrResults.hydrationCount})\n\n`;
+        (this.ssrResults.hydrationRequirements || []).forEach((req) => {
+          md += `- **${req.dependency}**: ${req.reason}\n`;
+        });
+        md += '\n';
+      }
+
+      if (this.ssrResults.ssrMigrationPath && this.ssrResults.ssrMigrationPath.length > 0) {
+        md += `### Migration Path (${this.ssrResults.ssrMigrationPath.length} steps)\n\n`;
+        (this.ssrResults.ssrMigrationPath || []).forEach((step) => {
+          md += `**Step ${step.step}: ${step.action}**\n`;
+          if (step.description) {
+            md += `${step.description}\n`;
+          }
+          if (step.effort) {
+            md += `- Effort: ${step.effort}\n`;
+          }
+          md += '\n';
+        });
+      }
+    }
+
+    md += '\n';
+
+    // Suggestions
+    if (this.options.includeSuggestions) {
+      const suggestions = this.generateSuggestions();
+      if (suggestions.length > 0) {
+        md += '## Suggestions\n\n';
+        suggestions.forEach((sug) => {
+          md += `- **${sug.message}**: ${sug.suggestion}\n`;
         });
         md += '\n';
       }
@@ -662,7 +892,7 @@ class ReportGenerator {
     const lines = [];
 
     lines.push('\n' + '='.repeat(80));
-    lines.push('FlutterJS CODE ANALYSIS REPORT');
+    lines.push('FlutterJS CODE ANALYSIS REPORT (Phase 1 + 2 + 3)');
     lines.push('='.repeat(80) + '\n');
 
     // Summary
@@ -671,30 +901,74 @@ class ReportGenerator {
     lines.push(`  Widgets: ${this.metadata.totalWidgets} (${this.metadata.statelessWidgets} stateless, ${this.metadata.statefulWidgets} stateful)`);
     lines.push(`  State Classes: ${this.metadata.stateClasses}`);
     lines.push(`  State Fields: ${this.metadata.totalStateFields}`);
-    lines.push(`  setState Calls: ${this.metadata.setStateCallCount}`);
-    lines.push(`  Lifecycle Methods: ${this.metadata.lifecycleMethodCount}`);
-    lines.push(`  Event Handlers: ${this.metadata.eventHandlerCount}`);
     lines.push(`  Health Score: ${this.metadata.healthScore}/100`);
     lines.push(`  Complexity: ${this.metadata.complexityScore}/100`);
-    lines.push(`  Entry Point: ${this.metadata.entryPoint || 'NOT FOUND'}`);
-    lines.push(`  Root Widget: ${this.metadata.rootWidget || 'NOT FOUND'}\n`);
 
-    // State Classes
-    if (this.stateResults.stateClasses && this.stateResults.stateClasses.length > 0) {
-      lines.push('STATE CLASSES');
+    // Phase 3 Summary
+    if (this.options.includeContext) {
+      lines.push(`  InheritedWidgets: ${this.metadata.inheritedWidgets}`);
+      lines.push(`  ChangeNotifiers: ${this.metadata.changeNotifiers}`);
+      lines.push(`  Providers: ${this.metadata.providers}`);
+    }
+
+    if (this.options.includeSsr) {
+      lines.push(`  SSR Compatibility: ${this.metadata.ssrCompatibility}`);
+      lines.push(`  SSR Score: ${this.metadata.ssrCompatibilityScore}/100`);
+      lines.push(`  Migration Steps: ${this.ssrResults?.ssrMigrationPath?.length || 0}`);
+    }
+
+    lines.push('');
+
+    // Phase 3 Context Section
+    if (this.options.includeContext && this.contextResults && this.metadata.inheritedWidgets > 0) {
+      lines.push('CONTEXT ANALYSIS (Phase 3)');
       lines.push('-'.repeat(80));
-      (this.stateResults.stateClasses || []).forEach((sc) => {
-        const metadata = sc.metadata;
-        lines.push(`  ${metadata.name}`);
-        lines.push(`    Extends: State<${metadata.linkedStatefulWidget}>`);
-        lines.push(`    Fields: ${metadata.stateFields.map((f) => f.name).join(', ')}`);
-        lines.push(`    Lifecycle: ${metadata.lifecycleMethods.map((m) => m.name).join(', ')}`);
-      });
+
+      if (this.metadata.inheritedWidgets > 0) {
+        lines.push('  InheritedWidgets:');
+        (this.contextResults.inheritedWidgets || []).forEach((widget) => {
+          lines.push(`    - ${widget.name}`);
+          if (widget.usedIn && widget.usedIn.length > 0) {
+            lines.push(`      Used in: ${widget.usedIn.join(', ')}`);
+          }
+        });
+      }
+
+      if (this.metadata.changeNotifiers > 0) {
+        lines.push('  ChangeNotifiers:');
+        (this.contextResults.changeNotifiers || []).forEach((notifier) => {
+          lines.push(`    - ${notifier.name}`);
+          if (notifier.consumers && notifier.consumers.length > 0) {
+            lines.push(`      Consumers: ${notifier.consumers.join(', ')}`);
+          }
+        });
+      }
+
+      lines.push('');
+    }
+
+    // Phase 3 SSR Section
+    if (this.options.includeSsr && this.ssrResults) {
+      lines.push('SSR COMPATIBILITY ANALYSIS (Phase 3)');
+      lines.push('-'.repeat(80));
+      lines.push(`  Overall: ${this.metadata.ssrCompatibility} (${this.metadata.ssrCompatibilityScore}/100)`);
+      lines.push(`  Safe Patterns: ${this.metadata.ssrSafePatterns}`);
+      lines.push(`  Unsafe Patterns: ${this.metadata.ssrUnsafePatterns}`);
+
+      if (this.ssrResults.hydrationCount > 0) {
+        lines.push(`  Hydration Required: Yes (${this.ssrResults.hydrationCount} dependencies)`);
+      }
+
+      if (this.ssrResults.ssrMigrationPath && this.ssrResults.ssrMigrationPath.length > 0) {
+        lines.push(`  Migration Steps: ${this.ssrResults.ssrMigrationPath.length}`);
+        lines.push(`  Estimated Effort: ${this.ssrResults.estimatedEffort}`);
+      }
+
       lines.push('');
     }
 
     // Validation
-    if (this.stateResults.validationResults && this.stateResults.validationResults.length > 0) {
+    if (this.stateResults && this.stateResults.validationResults && this.stateResults.validationResults.length > 0) {
       lines.push('VALIDATION ISSUES');
       lines.push('-'.repeat(80));
       (this.stateResults.validationResults || []).forEach((result) => {
