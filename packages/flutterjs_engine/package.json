@@ -10,7 +10,7 @@
     "dev": "node bin/index.js dev",
     "build": "node bin/index.js build",
     "preview": "node bin/index.js preview",
-    "run":"node bin/index.js run",
+    "run": "node bin/index.js run",
     "test": "node test/test.js",
     "build:binary": "pkg . --compress Brotli",
     "build:linux": "pkg . -t node18-linux-x64 -o dist/flutter-js-linux",
@@ -41,6 +41,11 @@
     "bin/",
     "commands/",
     "src/",
+    "src/analyzer/",
+    "src/code_gen/",
+    "src/seo/",
+    "src/ssr/",
+    "src/vdom/",
     "templates/",
     "utils/",
     "dist/",
@@ -61,10 +66,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/flutterjsdev/flutter_js.git"
+    "url": "git+https://github.com/flutterjsdev/flutterjs.git"
   },
   "bugs": {
-    "url": "https://github.com/flutterjsdev/flutter_js/issues"
+    "url": "https://github.com/flutterjsdev/flutterjs/issues"
   },
-  "homepage": "https://github.com/flutterjsdev/flutter_js#readme"
+  "homepage": "https://github.com/flutterjsdev/flutterjs#readme"
 }
