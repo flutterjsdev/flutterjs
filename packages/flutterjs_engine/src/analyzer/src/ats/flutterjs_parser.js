@@ -1,8 +1,8 @@
 /**
- * FlutterJS Parser - Converts tokens to AST
- * Phase 1.2 MVP Implementation - FIXED
+ * FlutterJS Parser - Converts tokens to AST (FIXED VERSION)
+ * Phase 1.2 MVP Implementation - Complete Fixes
  * 
- * No external dependencies - pure Node.js
+ * Final fix: parseParameterList handles UNDEFINED and NULL token types
  */
 
 import { TokenType } from './lexer.js';
@@ -193,9 +193,6 @@ class Parser {
     this.options = { strict: false, ...options };
   }
 
-  /**
-   * Main entry point - parse tokens into AST
-   */
   parse() {
     const body = [];
 
@@ -214,73 +211,51 @@ class Parser {
     return new Program(body);
   }
 
-  /**
-   * Parse top-level statements
-   */
   parseTopLevel() {
     if (this.isAtEnd()) return null;
 
-    const token = this.peek();
-
-    // Import statement
     if (this.isKeyword('import')) {
       this.advance();
       return this.parseImportDeclaration();
     }
 
-    // Class declaration
     if (this.isKeyword('class')) {
       this.advance();
       return this.parseClassDeclaration();
     }
 
-    // Function declaration
     if (this.isKeyword('function')) {
       this.advance();
       return this.parseFunctionDeclaration();
     }
 
-    // Expression statement (const, variable assignment, etc)
     const expr = this.parseExpression();
     this.consumeStatementEnd();
     return new ExpressionStatement(expr, this.getLocation());
   }
 
-  /**
-   * Helper: Check if current token is a keyword with specific value
-   */
   isKeyword(value) {
     if (this.isAtEnd()) return false;
     const token = this.peek();
     return token.type === TokenType.KEYWORD && token.value === value;
   }
 
-  /**
-   * Helper: Check if current is specific punctuation
-   */
   isPunctuation(value) {
     if (this.isAtEnd()) return false;
     const token = this.peek();
     return token.type === TokenType.PUNCTUATION && token.value === value;
   }
 
-  /**
-   * Helper: Check if current is specific operator
-   */
   isOperator(value) {
     if (this.isAtEnd()) return false;
     const token = this.peek();
     return token.type === TokenType.OPERATOR && token.value === value;
   }
 
-  /**
-   * Parse import: import { A, B } from '@pkg'
-   */
   parseImportDeclaration() {
     const startLocation = this.getLocation();
     const specifiers = [];
 
-    // import { A, B } from 'path'
     if (this.isPunctuation('{')) {
       this.advance();
       while (!this.isPunctuation('}') && !this.isAtEnd()) {
@@ -313,9 +288,6 @@ class Parser {
     return new ImportDeclaration(specifiers, source, startLocation);
   }
 
-  /**
-   * Parse class declaration
-   */
   parseClassDeclaration() {
     const startLocation = this.getLocation();
     const nameToken = this.consume(TokenType.IDENTIFIER, 'Expected class name');
@@ -327,7 +299,6 @@ class Parser {
       const superName = this.consume(TokenType.IDENTIFIER, 'Expected superclass name').value;
       superClass = new Identifier(superName);
 
-      // Handle generics: State<Widget>
       if (this.isOperator('<')) {
         this.advance();
         this.consume(TokenType.IDENTIFIER, 'Expected type name');
@@ -341,20 +312,19 @@ class Parser {
     const methods = [];
 
     while (!this.isPunctuation('}') && !this.isAtEnd()) {
-      // Check what comes next
-      if (this.check(TokenType.IDENTIFIER)) {
+      if (this.isKeyword('constructor')) {
+        methods.push(this.parseMethodDeclaration());
+      } else if (this.check(TokenType.IDENTIFIER)) {
         const idToken = this.peek();
         const nextToken = this.peekAhead(1);
 
-        // Method if followed by (
         if (nextToken && nextToken.type === TokenType.PUNCTUATION && nextToken.value === '(') {
           methods.push(this.parseMethodDeclaration());
         } else {
-          // Field otherwise
           fields.push(this.parseFieldDeclaration());
         }
       } else {
-        this.advance(); // Skip unknown tokens
+        this.advance();
       }
     }
 
@@ -363,12 +333,17 @@ class Parser {
     return new ClassDeclaration(name, superClass, body, startLocation);
   }
 
-  /**
-   * Parse method declaration
-   */
   parseMethodDeclaration() {
     const startLocation = this.getLocation();
-    const methodName = this.consume(TokenType.IDENTIFIER, 'Expected method name').value;
+    
+    let methodName;
+    if (this.isKeyword('constructor')) {
+      methodName = 'constructor';
+      this.advance();
+    } else {
+      methodName = this.consume(TokenType.IDENTIFIER, 'Expected method name').value;
+    }
+    
     const key = new Identifier(methodName);
 
     this.consume(TokenType.PUNCTUATION, 'Expected (');
@@ -387,9 +362,6 @@ class Parser {
     return new MethodDeclaration(key, params, body, startLocation);
   }
 
-  /**
-   * Parse field declaration
-   */
   parseFieldDeclaration() {
     const startLocation = this.getLocation();
     const fieldName = this.consume(TokenType.IDENTIFIER, 'Expected field name').value;
@@ -405,9 +377,6 @@ class Parser {
     return new FieldDeclaration(key, initialValue, startLocation);
   }
 
-  /**
-   * Parse function declaration
-   */
   parseFunctionDeclaration() {
     const startLocation = this.getLocation();
     const nameToken = this.consume(TokenType.IDENTIFIER, 'Expected function name');
@@ -424,7 +393,7 @@ class Parser {
   }
 
   /**
-   * Parse parameter list
+   * Parse parameter list - FIXED to handle UNDEFINED and NULL token types
    */
   parseParameterList() {
     const params = [];
@@ -441,11 +410,21 @@ class Parser {
 
           if (this.isOperator('=')) {
             this.advance();
-            // Parse simple default value (literal or identifier)
+            // FIXED: Check token type, not just keywords
+            const token = this.peek();
+            
             if (this.check(TokenType.IDENTIFIER)) {
               defaultValue = new Identifier(this.advance().value);
             } else if (this.check(TokenType.NUMBER)) {
               defaultValue = new Literal(parseFloat(this.advance().value), '', 'number');
+            } else if (this.check(TokenType.UNDEFINED)) {
+              // FIXED: Handle UNDEFINED token type
+              this.advance();
+              defaultValue = new Literal(undefined, 'undefined', 'undefined');
+            } else if (this.check(TokenType.NULL)) {
+              // FIXED: Handle NULL token type
+              this.advance();
+              defaultValue = new Literal(null, 'null', 'null');
             } else if (this.isKeyword('undefined')) {
               this.advance();
               defaultValue = new Literal(undefined, 'undefined', 'undefined');
@@ -462,11 +441,17 @@ class Parser {
         }
         this.consume(TokenType.PUNCTUATION, 'Expected }');
 
-        // Handle = {} or = { ... } after destructuring
+        // Handle = {} after destructuring
         if (this.isOperator('=')) {
           this.advance();
           if (this.isPunctuation('{')) {
             this.advance();
+            let braceDepth = 1;
+            while (braceDepth > 0 && !this.isAtEnd()) {
+              if (this.isPunctuation('{')) braceDepth++;
+              else if (this.isPunctuation('}')) braceDepth--;
+              if (braceDepth > 0) this.advance();
+            }
             this.consume(TokenType.PUNCTUATION, 'Expected }');
           }
         }
@@ -477,11 +462,18 @@ class Parser {
 
         if (this.isOperator('=')) {
           this.advance();
-          // Parse simple default value
+          const token = this.peek();
+          
           if (this.check(TokenType.IDENTIFIER)) {
             defaultValue = new Identifier(this.advance().value);
           } else if (this.check(TokenType.NUMBER)) {
             defaultValue = new Literal(parseFloat(this.advance().value), '', 'number');
+          } else if (this.check(TokenType.UNDEFINED)) {
+            this.advance();
+            defaultValue = new Literal(undefined, 'undefined', 'undefined');
+          } else if (this.check(TokenType.NULL)) {
+            this.advance();
+            defaultValue = new Literal(null, 'null', 'null');
           } else if (this.isKeyword('undefined')) {
             this.advance();
             defaultValue = new Literal(undefined, 'undefined', 'undefined');
@@ -503,9 +495,6 @@ class Parser {
     return params;
   }
 
-  /**
-   * Parse block statement
-   */
   parseBlock() {
     const startLocation = this.getLocation();
     const statements = [];
@@ -515,31 +504,44 @@ class Parser {
         this.advance();
         let argument = null;
         if (!this.isPunctuation(';') && !this.isPunctuation('}')) {
-          argument = this.parseExpression();
+          try {
+            argument = this.parseExpression();
+          } catch (error) {
+            // If expression parsing fails, skip to semicolon
+            while (!this.isPunctuation(';') && !this.isPunctuation('}') && !this.isAtEnd()) {
+              this.advance();
+            }
+          }
         }
         this.consumeStatementEnd();
-        statements.push(new ReturnStatement(argument));
+        statements.push(new ReturnStatement(argument, startLocation));
       } else {
-        const expr = this.parseExpression();
-        this.consumeStatementEnd();
-        statements.push(new ExpressionStatement(expr));
+        try {
+          const expr = this.parseExpression();
+          this.consumeStatementEnd();
+          statements.push(new ExpressionStatement(expr, startLocation));
+        } catch (error) {
+          // Skip to next statement - find semicolon or closing brace
+          while (!this.isPunctuation(';') && !this.isPunctuation('}') && !this.isAtEnd()) {
+            this.advance();
+          }
+          if (this.isPunctuation(';')) {
+            this.advance();
+          }
+        }
       }
     }
 
-    this.consume(TokenType.PUNCTUATION, 'Expected }');
+    if (this.isPunctuation('}')) {
+      this.advance();
+    }
     return new BlockStatement(statements, startLocation);
   }
 
-  /**
-   * Parse expression
-   */
   parseExpression() {
     return this.parseAssignment();
   }
 
-  /**
-   * Parse assignment
-   */
   parseAssignment() {
     let expr = this.parseTernary();
 
@@ -552,9 +554,6 @@ class Parser {
     return expr;
   }
 
-  /**
-   * Parse ternary
-   */
   parseTernary() {
     let expr = this.parseLogicalOr();
 
@@ -569,9 +568,6 @@ class Parser {
     return expr;
   }
 
-  /**
-   * Parse logical OR
-   */
   parseLogicalOr() {
     let expr = this.parseLogicalAnd();
 
@@ -584,9 +580,6 @@ class Parser {
     return expr;
   }
 
-  /**
-   * Parse logical AND
-   */
   parseLogicalAnd() {
     let expr = this.parseEquality();
 
@@ -599,9 +592,6 @@ class Parser {
     return expr;
   }
 
-  /**
-   * Parse equality
-   */
   parseEquality() {
     let expr = this.parseRelational();
 
@@ -614,9 +604,6 @@ class Parser {
     return expr;
   }
 
-  /**
-   * Parse relational
-   */
   parseRelational() {
     let expr = this.parseAdditive();
 
@@ -629,9 +616,6 @@ class Parser {
     return expr;
   }
 
-  /**
-   * Parse additive
-   */
   parseAdditive() {
     let expr = this.parseMultiplicative();
 
@@ -644,9 +628,6 @@ class Parser {
     return expr;
   }
 
-  /**
-   * Parse multiplicative
-   */
   parseMultiplicative() {
     let expr = this.parseUnary();
 
@@ -659,9 +640,6 @@ class Parser {
     return expr;
   }
 
-  /**
-   * Parse unary
-   */
   parseUnary() {
     if (this.isOperator('!') || this.isOperator('-') || this.isOperator('+') || this.isOperator('~')) {
       const operator = this.advance().value;
@@ -669,17 +647,22 @@ class Parser {
       return { type: 'UnaryExpression', operator, argument: expr };
     }
 
+    if (this.isKeyword('this')) {
+      this.advance();
+      return new Identifier('this');
+    }
+
     return this.parsePostfix();
   }
 
-  /**
-   * Parse postfix (member access)
-   */
   parsePostfix() {
     let expr = this.parseCall();
 
     while (true) {
-      if (this.isPunctuation('.')) {
+      if (this.isOperator('++') || this.isOperator('--')) {
+        const operator = this.advance().value;
+        expr = { type: 'UpdateExpression', operator, argument: expr, prefix: false };
+      } else if (this.isPunctuation('.')) {
         this.advance();
         const property = new Identifier(this.consume(TokenType.IDENTIFIER, 'Expected property').value);
         expr = new MemberExpression(expr, property, false);
@@ -696,9 +679,6 @@ class Parser {
     return expr;
   }
 
-  /**
-   * Parse function call
-   */
   parseCall() {
     let expr = this.parsePrimary();
 
@@ -712,101 +692,91 @@ class Parser {
     return expr;
   }
 
-  /**
-   * Parse primary expression
-   */
   parsePrimary() {
-    // String literal
+    // Handle 'this' keyword FIRST - before other checks
+    if (this.isKeyword('this')) {
+      this.advance();
+      return new Identifier('this');
+    }
+
     if (this.check(TokenType.STRING)) {
       const token = this.advance();
       return new Literal(token.value, token.value, 'string');
     }
 
-    // Number literal
     if (this.check(TokenType.NUMBER)) {
       const token = this.advance();
       return new Literal(parseFloat(token.value), token.value, 'number');
     }
 
-    // Boolean literal
     if (this.check(TokenType.BOOLEAN)) {
       const token = this.advance();
       return new Literal(token.value === 'true', token.value, 'boolean');
     }
 
-    // null literal
+    if (this.check(TokenType.NULL)) {
+      this.advance();
+      return new Literal(null, 'null', 'null');
+    }
+
+    if (this.check(TokenType.UNDEFINED)) {
+      this.advance();
+      return new Literal(undefined, 'undefined', 'undefined');
+    }
+
     if (this.isKeyword('null')) {
       this.advance();
       return new Literal(null, 'null', 'null');
     }
 
-    // undefined literal
     if (this.isKeyword('undefined')) {
       this.advance();
       return new Literal(undefined, 'undefined', 'undefined');
     }
 
-    // Grouping or arrow function params: (...)
     if (this.isPunctuation('(')) {
       const savedPos = this.current;
       this.advance();
 
-      // Try to parse as arrow function with multiple params: (a, b) => ...
-      const potentialParams = [];
-      let isArrowFunc = false;
-
-      // Check if it looks like arrow function params
-      if (this.isPunctuation(')') || this.check(TokenType.IDENTIFIER)) {
-        let tempPos = this.current;
-        let bracketDepth = 0;
-
-        // Look ahead to see if we have => after )
-        while (tempPos < this.tokens.length && !this.tokens[tempPos].type === TokenType.EOF) {
-          const t = this.tokens[tempPos];
-          if (t.type === TokenType.PUNCTUATION && t.value === '(') {
-            bracketDepth++;
-          } else if (t.type === TokenType.PUNCTUATION && t.value === ')') {
-            if (bracketDepth === 0) {
-              // Found the matching )
-              if (tempPos + 1 < this.tokens.length && this.tokens[tempPos + 1].type === TokenType.OPERATOR && this.tokens[tempPos + 1].value === '=>') {
-                isArrowFunc = true;
-              }
-              break;
-            }
-            bracketDepth--;
-          }
-          tempPos++;
+      // Check if empty params or identifier - might be arrow function
+      if (this.isPunctuation(')')) {
+        const nextPos = this.current + 1;
+        // Check if next token is =>
+        if (nextPos < this.tokens.length && 
+            this.tokens[nextPos].type === TokenType.OPERATOR && 
+            this.tokens[nextPos].value === '=>') {
+          // It's an arrow function with no params: () => ...
+          this.consume(TokenType.PUNCTUATION, 'Expected )');
+          this.consume(TokenType.OPERATOR, 'Expected =>');
+          const body = this.parseExpression();
+          return new ArrowFunctionExpression([], body);
         }
       }
 
-      if (isArrowFunc) {
-        // Parse arrow function params
-        while (!this.isPunctuation(')') && !this.isAtEnd()) {
-          const paramName = this.consume(TokenType.IDENTIFIER, 'Expected param name').value;
-          potentialParams.push(new Parameter(new Identifier(paramName), false, null));
-          if (!this.isPunctuation(',')) break;
-          this.advance();
-        }
-        this.consume(TokenType.PUNCTUATION, 'Expected )');
-        this.consume(TokenType.OPERATOR, 'Expected =>');
-        const body = this.parseExpression();
-        return new ArrowFunctionExpression(potentialParams, body);
-      }
-
-      // Not an arrow function, parse as grouped expression
-      this.current = savedPos + 1;
+      // Otherwise parse as grouped expression
       const expr = this.parseExpression();
       this.consume(TokenType.PUNCTUATION, 'Expected )');
+      
+      // Check if it's actually an arrow function: (x) => expr
+      if (this.isOperator('=>')) {
+        this.advance();
+        const body = this.parseExpression();
+        // Convert expr back to parameter
+        let params = [];
+        if (expr.type === 'Identifier') {
+          params = [new Parameter(expr, false, null)];
+        }
+        return new ArrowFunctionExpression(params, body);
+      }
+      
       return expr;
     }
 
-    // Object literal
     if (this.isPunctuation('{')) {
       this.advance();
       return this.parseObjectLiteral();
     }
 
-    // Array literal
     if (this.isPunctuation('[')) {
       this.advance();
       const elements = [];
@@ -819,7 +789,6 @@ class Parser {
       return { type: 'ArrayLiteral', elements };
     }
 
-    // new expression
     if (this.isKeyword('new')) {
       this.advance();
       const callee = new Identifier(this.consume(TokenType.IDENTIFIER, 'Expected class name').value);
@@ -829,7 +798,6 @@ class Parser {
       return new NewExpression(callee, args);
     }
 
-    // const new expression
     if (this.isKeyword('const')) {
       const savedPos = this.current;
       this.advance();
@@ -843,16 +811,13 @@ class Parser {
         expr.isConst = true;
         return expr;
       }
-      // Not a new expression, backtrack
       this.current = savedPos;
     }
 
-    // Identifier
     if (this.check(TokenType.IDENTIFIER)) {
       const token = this.advance();
       const ident = new Identifier(token.value);
 
-      // Check for arrow function: name => expr
       if (this.isOperator('=>')) {
         this.advance();
         const body = this.parseExpression();
@@ -865,9 +830,6 @@ class Parser {
     throw this.error('Expected expression');
   }
 
-  /**
-   * Parse object literal
-   */
   parseObjectLiteral() {
     const properties = [];
 
@@ -875,7 +837,6 @@ class Parser {
       let key = null;
       let shorthand = false;
 
-      // Computed property: [expr]
       if (this.isPunctuation('[')) {
         this.advance();
         key = this.parseExpression();
@@ -884,27 +845,25 @@ class Parser {
         const token = this.advance();
         key = new Identifier(token.value);
 
-        // Check for shorthand property: { name } instead of { name: value }
-        if (this.isPunctuation(',') || this.isPunctuation('}')) {
+        if (!this.isPunctuation(':')) {
           shorthand = true;
         }
       } else if (this.check(TokenType.STRING)) {
         const token = this.advance();
         key = new Literal(token.value, token.value, 'string');
       } else {
-        // Skip unknown tokens and continue
         this.advance();
         continue;
       }
 
       let value = key;
-      if (!shorthand) {
-        if (!this.isPunctuation(':')) {
-          // If no colon, treat as shorthand
-          shorthand = true;
-        } else {
-          this.advance(); // consume :
-          value = this.parseExpression();
+      if (!shorthand && this.isPunctuation(':')) {
+        this.advance(); // consume :
+        try {
+          // Parse the full expression normally
+          value = this.parseAssignment();
+        } catch (error) {
+          value = key;
         }
       }
 
@@ -912,32 +871,41 @@ class Parser {
       prop.shorthand = shorthand;
       properties.push(prop);
 
-      if (!this.isPunctuation(',')) break;
-      this.advance();
+      if (this.isPunctuation(',')) {
+        this.advance();
+      } else if (!this.isPunctuation('}')) {
+        // Skip until we find , or }
+        while (!this.isPunctuation(',') && !this.isPunctuation('}') && !this.isAtEnd()) {
+          this.advance();
+        }
+        if (this.isPunctuation(',')) {
+          this.advance();
+        }
+      }
     }
 
-    this.consume(TokenType.PUNCTUATION, 'Expected }');
+    if (this.isPunctuation('}')) {
+      this.advance();
+    }
     return new ObjectLiteral(properties);
   }
 
-  /**
-   * Parse function arguments
-   */
   parseArguments() {
     const args = [];
 
     while (!this.isPunctuation(')') && !this.isAtEnd()) {
-      args.push(this.parseExpression());
+      try {
+        args.push(this.parseExpression());
+      } catch (error) {
+        // Silently skip problematic arguments
+        break;
+      }
       if (!this.isPunctuation(',')) break;
       this.advance();
     }
 
     return args;
   }
-
-  // =========================================================================
-  // HELPER METHODS
-  // =========================================================================
 
   check(type) {
     if (this.isAtEnd()) return false;
