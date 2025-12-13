@@ -1,8 +1,8 @@
 /**
- * FlutterJS Report Generator
- * Phase 1.4 MVP Implementation
+ * FlutterJS Report Generator - Enhanced Phase 2
+ * Generates JSON, Markdown, and Console reports from analysis results
  * 
- * Formats analysis results into structured reports (JSON, Markdown, Console)
+ * Integrates Phase 1 (Widget Analysis) and Phase 2 (State Analysis)
  */
 
 // ============================================================================
@@ -10,24 +10,32 @@
 // ============================================================================
 
 class ReportGenerator {
-  constructor(analysis, options = {}) {
-    this.analysis = analysis;
+  constructor(widgetResults, stateResults, options = {}) {
+    this.widgetResults = widgetResults;  // From Phase 1 WidgetAnalyzer
+    this.stateResults = stateResults;    // From Phase 2 StateAnalyzer
+    
     this.options = {
-      format: 'json', // 'json', 'markdown', 'console'
+      format: 'json',                    // 'json', 'markdown', 'console'
       includeMetrics: true,
       includeTree: true,
+      includeValidation: true,
       includeSuggestions: true,
       prettyPrint: true,
       ...options,
     };
-    this.metadata = null;
+
+    this.metadata = {};
+    this.report = {};
   }
 
   /**
    * Main entry point - generate report
    */
   generate() {
+    console.log('[ReportGenerator] Generating report...');
+    
     this.calculateMetrics();
+    this.buildReport();
 
     switch (this.options.format) {
       case 'json':
@@ -42,39 +50,73 @@ class ReportGenerator {
   }
 
   /**
-   * Calculate metrics from analysis
+   * Calculate metrics from analysis results
    */
   calculateMetrics() {
-    const widgets = this.analysis.widgets || [];
-    const functions = this.analysis.functions || [];
-    const imports = this.analysis.imports || [];
+    const widgets = this.widgetResults.widgets || [];
+    const functions = this.widgetResults.functions || [];
+    const imports = this.widgetResults.imports || [];
+    const stateClasses = this.stateResults.stateClasses || [];
+    const stateFields = this.stateResults.stateFields || [];
+    const setStateCalls = this.stateResults.setStateCalls || [];
+    const lifecycleMethods = this.stateResults.lifecycleMethods || [];
+    const eventHandlers = this.stateResults.eventHandlers || [];
 
-    // Initialize metadata first
     this.metadata = {
+      // Widget metrics
       totalWidgets: widgets.length,
       statelessWidgets: widgets.filter((w) => w.type === 'stateless').length,
       statefulWidgets: widgets.filter((w) => w.type === 'stateful').length,
       componentWidgets: widgets.filter((w) => w.type === 'component').length,
-      stateClasses: widgets.filter((w) => w.type === 'state').length,
+      stateClasses: stateClasses.length,
+
+      // State metrics
+      totalStateFields: stateFields.length,
+      setStateCallCount: setStateCalls.length,
+      lifecycleMethodCount: lifecycleMethods.length,
+      eventHandlerCount: eventHandlers.length,
+
+      // Function metrics
       totalFunctions: functions.length,
+      entryPoint: this.widgetResults.entryPoint,
+      rootWidget: this.widgetResults.rootWidget,
+
+      // Import metrics
       totalImports: imports.length,
-      externalPackages: new Set(this.analysis.externalDependencies || []).size,
-      treeDepth: this.calculateTreeDepth(this.analysis.widgetTree),
-      healthScore: 0, // Will be calculated below
+      externalPackages: new Set(
+        imports.map((imp) => imp.source)
+      ).size,
+
+      // Widget tree metrics
+      treeDepth: this.calculateTreeDepth(this.widgetResults.widgetTree),
+
+      // Validation metrics
+      errorCount: this.countValidationIssues(this.stateResults.validationResults, 'error'),
+      warningCount: this.countValidationIssues(this.stateResults.validationResults, 'warning'),
+      infoCount: this.countValidationIssues(this.stateResults.validationResults, 'info'),
     };
 
-    // Now calculate health score with metadata available
+    // Calculate scores
     this.metadata.healthScore = this.calculateHealthScore();
+    this.metadata.complexityScore = this.calculateComplexityScore();
   }
 
   /**
    * Calculate tree depth
    */
-  calculateTreeDepth(node) {
+  calculateTreeDepth(node, depth = 1) {
     if (!node || !node.children || node.children.length === 0) {
-      return 1;
+      return depth;
     }
-    return 1 + Math.max(...node.children.map((child) => this.calculateTreeDepth(child)));
+    return 1 + Math.max(...node.children.map((child) => this.calculateTreeDepth(child, depth + 1)));
+  }
+
+  /**
+   * Count validation issues by severity
+   */
+  countValidationIssues(results, severity) {
+    if (!results) return 0;
+    return results.filter((r) => r.severity === severity).length;
   }
 
   /**
@@ -83,66 +125,105 @@ class ReportGenerator {
   calculateHealthScore() {
     let score = 100;
 
-    // Deduct for poor structure
+    // Deduct for errors
+    score -= this.metadata.errorCount * 10;
+
+    // Deduct for warnings
+    score -= this.metadata.warningCount * 2;
+
+    // Bonus for having entry point
+    if (this.metadata.entryPoint) {
+      score += 5;
+    }
+
+    // Deduct if more stateful than stateless
     if (this.metadata.statefulWidgets > this.metadata.statelessWidgets) {
       score -= 10;
     }
 
+    // Deduct if tree too deep
     if (this.metadata.treeDepth > 5) {
       score -= 5;
-    }
-
-    if (this.metadata.totalFunctions > this.metadata.totalWidgets * 2) {
-      score -= 5;
-    }
-
-    // Bonus for having entry point
-    if (this.analysis.entryPoint) {
-      score += 5;
     }
 
     return Math.max(0, Math.min(100, score));
   }
 
   /**
-   * Generate JSON report
+   * Calculate complexity score (0-100)
    */
-  toJSON() {
-    const report = {
-      analysis: {
-        file: this.analysis.file || 'unknown',
-        timestamp: new Date().toISOString(),
-        status: this.analysis.errors.length === 0 ? 'success' : 'warning',
-        errorCount: this.analysis.errors.length,
-      },
-      summary: {
-        totalWidgets: this.metadata.totalWidgets,
-        statelessWidgets: this.metadata.statelessWidgets,
-        statefulWidgets: this.metadata.statefulWidgets,
-        componentWidgets: this.metadata.componentWidgets,
-        stateClasses: this.metadata.stateClasses,
-        totalFunctions: this.metadata.totalFunctions,
-        totalImports: this.metadata.totalImports,
-        externalPackages: this.metadata.externalPackages,
-        entryPoint: this.analysis.entryPoint || null,
-        rootWidget: this.analysis.rootWidget || null,
-        widgetTreeDepth: this.metadata.treeDepth,
-        healthScore: this.metadata.healthScore,
-      },
-      widgets: this.formatWidgets(),
-      functions: this.formatFunctions(),
-      imports: this.formatImports(),
-      widgetTree: this.options.includeTree ? this.formatWidgetTree() : null,
-      metrics: this.options.includeMetrics ? this.getDetailedMetrics() : null,
-      suggestions: this.options.includeSuggestions ? this.generateSuggestions() : null,
-      errors: this.analysis.errors || [],
-    };
+  calculateComplexityScore() {
+    let score = 0;
 
-    if (this.options.prettyPrint) {
-      return JSON.stringify(report, null, 2);
-    } else {
-      return JSON.stringify(report);
+    // State fields add complexity
+    score += Math.min(this.metadata.totalStateFields * 10, 40);
+
+    // setState calls add complexity
+    score += Math.min(this.metadata.setStateCallCount * 5, 30);
+
+    // Event handlers add complexity
+    score += Math.min(this.metadata.eventHandlerCount * 2, 20);
+
+    // Deep trees add complexity
+    if (this.metadata.treeDepth > 5) {
+      score += 10;
     }
+
+    return Math.min(100, score);
+  }
+
+  /**
+   * Build comprehensive report object
+   */
+  buildReport() {
+    const widgets = this.widgetResults.widgets || [];
+    const stateClasses = this.stateResults.stateClasses || [];
+    const validationResults = this.stateResults.validationResults || [];
+
+    this.report = {
+      analysis: {
+        file: this.widgetResults.file || 'analysis',
+        timestamp: new Date().toISOString(),
+        status: validationResults.some((r) => r.severity === 'error') ? 'warning' : 'success',
+        phase: 'phase1+phase2',
+      },
+
+      summary: {
+        widgets: {
+          total: this.metadata.totalWidgets,
+          stateless: this.metadata.statelessWidgets,
+          stateful: this.metadata.statefulWidgets,
+          components: this.metadata.componentWidgets,
+        },
+        state: {
+          stateClasses: this.metadata.stateClasses,
+          stateFields: this.metadata.totalStateFields,
+          setStateCalls: this.metadata.setStateCallCount,
+          lifecycleMethods: this.metadata.lifecycleMethodCount,
+          eventHandlers: this.metadata.eventHandlerCount,
+        },
+        functions: this.metadata.totalFunctions,
+        imports: this.metadata.totalImports,
+        externalPackages: this.metadata.externalPackages,
+        entryPoint: this.metadata.entryPoint,
+        rootWidget: this.metadata.rootWidget,
+        treeDepth: this.metadata.treeDepth,
+        healthScore: this.metadata.healthScore,
+        complexityScore: this.metadata.complexityScore,
+      },
+
+      widgets: this.formatWidgets(),
+      stateClasses: this.formatStateClasses(),
+      imports: this.formatImports(),
+      functions: this.formatFunctions(),
+      
+      widgetTree: this.options.includeTree ? this.formatWidgetTree() : null,
+      dependencyGraph: this.formatDependencyGraph(),
+      validation: this.options.includeValidation ? this.formatValidation() : null,
+      suggestions: this.options.includeSuggestions ? this.generateSuggestions() : null,
+
+      metrics: this.options.includeMetrics ? this.getDetailedMetrics() : null,
+    };
   }
 
   /**
@@ -151,20 +232,20 @@ class ReportGenerator {
   formatWidgets() {
     const widgets = {};
 
-    (this.analysis.widgets || []).forEach((widget) => {
+    (this.widgetResults.widgets || []).forEach((widget) => {
       widgets[widget.name] = {
         type: widget.type,
         superClass: widget.superClass || null,
         location: widget.location,
-        properties: widget.properties || [],
-        methods: (widget.methods || []).map((m) => ({
+        constructor: widget.constructor ? {
+          params: widget.constructor.params || [],
+        } : null,
+        methods: widget.methods.map((m) => ({
           name: m.name,
           params: m.params || [],
         })),
-        constructor: widget.constructor ? {
-          name: widget.constructor.name,
-          params: widget.constructor.params || [],
-        } : null,
+        properties: widget.properties || [],
+        linkedStateClass: widget.linkedStateClass || null,
         imports: widget.imports || [],
       };
     });
@@ -173,25 +254,72 @@ class ReportGenerator {
   }
 
   /**
-   * Format functions for report
+   * Format state classes for report
    */
-  formatFunctions() {
-    const functions = {};
+  formatStateClasses() {
+    const stateClasses = {};
 
-    (this.analysis.functions || []).forEach((func) => {
-      functions[func.name] = {
-        type: func.type,
-        location: func.location,
-        params: (func.params || []).map((p) => ({
-          name: p.name,
-          optional: p.optional,
+    (this.stateResults.stateClasses || []).forEach((sc) => {
+      const metadata = sc.metadata;
+      stateClasses[metadata.name] = {
+        name: metadata.name,
+        linkedStatefulWidget: metadata.linkedStatefulWidget,
+        location: metadata.location,
+        
+        stateFields: metadata.stateFields.map((field) => ({
+          name: field.name,
+          type: field.type,
+          initialValue: field.initialValueString,
+          isUsed: field.isUsed(),
+          usedInMethods: field.usedInMethods,
+          mutatedInMethods: field.mutatedInMethods,
+          mutationCount: field.mutations.length,
         })),
-        isEntryPoint: func.isEntryPoint || false,
-        isAsync: func.isAsync || false,
+
+        lifecycleMethods: metadata.lifecycleMethods.map((lc) => ({
+          name: lc.name,
+          callsSuper: lc.callsSuper,
+          hasSideEffects: lc.hasSideEffects,
+          isValid: lc.isValid(),
+          issues: lc.validationIssues,
+        })),
+
+        otherMethods: metadata.otherMethods.map((m) => ({
+          name: m.name,
+          params: m.params || [],
+        })),
       };
     });
 
-    return functions;
+    return stateClasses;
+  }
+
+  /**
+   * Format setState calls for report
+   */
+  formatSetStateCalls() {
+    return (this.stateResults.setStateCalls || []).map((call) => ({
+      location: call.location,
+      method: call.method,
+      updates: call.updates,
+      isValid: call.isValid,
+      issues: call.issues,
+    }));
+  }
+
+  /**
+   * Format event handlers for report
+   */
+  formatEventHandlers() {
+    return (this.stateResults.eventHandlers || []).map((handler) => ({
+      event: handler.event,
+      handler: handler.handler,
+      component: handler.component,
+      location: handler.location,
+      triggersSetState: handler.triggersSetState,
+      isValid: handler.isValid,
+      issues: handler.issues,
+    }));
   }
 
   /**
@@ -200,7 +328,7 @@ class ReportGenerator {
   formatImports() {
     const imports = {};
 
-    (this.analysis.imports || []).forEach((imp) => {
+    (this.widgetResults.imports || []).forEach((imp) => {
       imports[imp.source] = imp.items || [];
     });
 
@@ -208,14 +336,35 @@ class ReportGenerator {
   }
 
   /**
+   * Format functions for report
+   */
+  formatFunctions() {
+    const functions = {};
+
+    (this.widgetResults.functions || []).forEach((func) => {
+      functions[func.name] = {
+        type: func.type,
+        location: func.location,
+        params: (func.params || []).map((p) => ({
+          name: p.name,
+          optional: p.optional,
+        })),
+        isEntryPoint: func.isEntryPoint || false,
+      };
+    });
+
+    return functions;
+  }
+
+  /**
    * Format widget tree for report
    */
   formatWidgetTree() {
-    if (!this.analysis.widgetTree) {
+    if (!this.widgetResults.widgetTree) {
       return null;
     }
 
-    return this.treeNodeToObject(this.analysis.widgetTree);
+    return this.treeNodeToObject(this.widgetResults.widgetTree);
   }
 
   /**
@@ -225,11 +374,109 @@ class ReportGenerator {
     if (!node) return null;
 
     return {
-      name: node.widget.name,
-      type: node.widget.type,
-      depth: node.depth,
+      name: node.widget?.name || 'Unknown',
+      type: node.widget?.type || 'unknown',
+      depth: node.depth || 0,
       children: (node.children || []).map((child) => this.treeNodeToObject(child)),
     };
+  }
+
+  /**
+   * Format dependency graph for report
+   */
+  formatDependencyGraph() {
+    const graph = this.stateResults.dependencyGraph;
+    if (!graph) return null;
+
+    return {
+      stateToMethods: Object.fromEntries(graph.stateToMethods || []),
+      methodToState: Object.fromEntries(graph.methodToState || []),
+      eventToState: Object.fromEntries(graph.eventToState || []),
+    };
+  }
+
+  /**
+   * Format validation results for report
+   */
+  formatValidation() {
+    const results = this.stateResults.validationResults || [];
+
+    return {
+      totalIssues: results.length,
+      errors: results.filter((r) => r.severity === 'error'),
+      warnings: results.filter((r) => r.severity === 'warning'),
+      info: results.filter((r) => r.severity === 'info'),
+    };
+  }
+
+  /**
+   * Generate suggestions based on analysis
+   */
+  generateSuggestions() {
+    const suggestions = [];
+
+    // Widget structure suggestions
+    if (this.metadata.statefulWidgets > this.metadata.statelessWidgets) {
+      suggestions.push({
+        type: 'structure',
+        severity: 'info',
+        message: 'More stateful than stateless widgets',
+        suggestion: 'Consider using stateless widgets where possible for better performance',
+      });
+    }
+
+    if (this.metadata.treeDepth > 5) {
+      suggestions.push({
+        type: 'structure',
+        severity: 'warning',
+        message: 'Deep widget tree detected',
+        suggestion: 'Consider refactoring to reduce nesting depth (aim for < 5 levels)',
+      });
+    }
+
+    // State field suggestions
+    const unusedFields = Object.values(this.formatStateClasses())
+      .flatMap((sc) => sc.stateFields)
+      .filter((f) => !f.isUsed);
+
+    if (unusedFields.length > 0) {
+      unusedFields.forEach((field) => {
+        suggestions.push({
+          type: 'state',
+          severity: 'warning',
+          message: `State field "${field.name}" is unused`,
+          suggestion: 'Remove the field or implement its usage',
+        });
+      });
+    }
+
+    // Missing lifecycle suggestions
+    const stateClasses = this.stateResults.stateClasses || [];
+    stateClasses.forEach((sc) => {
+      const hasInitState = sc.metadata.lifecycleMethods.some((m) => m.name === 'initState');
+      const hasDispose = sc.metadata.lifecycleMethods.some((m) => m.name === 'dispose');
+
+      if (!hasDispose && sc.metadata.stateFields.length > 0) {
+        suggestions.push({
+          type: 'lifecycle',
+          severity: 'info',
+          message: `State class "${sc.metadata.name}" has no dispose() method`,
+          suggestion: 'Add a dispose() method to clean up resources',
+        });
+      }
+    });
+
+    // Entry point suggestion
+    if (!this.metadata.entryPoint) {
+      suggestions.push({
+        type: 'critical',
+        severity: 'error',
+        message: 'No entry point (main function) found',
+        suggestion: 'Add a main() function that calls runApp()',
+      });
+    }
+
+    return suggestions;
   }
 
   /**
@@ -247,113 +494,69 @@ class ReportGenerator {
         },
         averageMethodsPerWidget:
           this.metadata.totalWidgets > 0
-            ? (this.analysis.widgets || []).reduce((sum, w) => sum + (w.methods || []).length, 0) /
-              this.metadata.totalWidgets
-            : 0,
-        averagePropertiesPerWidget:
-          this.metadata.totalWidgets > 0
-            ? (this.analysis.widgets || []).reduce((sum, w) => sum + (w.properties || []).length, 0) /
-              this.metadata.totalWidgets
+            ? (this.widgetResults.widgets || []).reduce(
+                (sum, w) => sum + (w.methods || []).length,
+                0
+              ) / this.metadata.totalWidgets
             : 0,
       },
+
+      stateMetrics: {
+        stateClasses: this.metadata.stateClasses,
+        totalFields: this.metadata.totalStateFields,
+        averageFieldsPerClass:
+          this.metadata.stateClasses > 0
+            ? this.metadata.totalStateFields / this.metadata.stateClasses
+            : 0,
+        setStateCalls: this.metadata.setStateCallCount,
+        lifecycleMethods: this.metadata.lifecycleMethodCount,
+        eventHandlers: this.metadata.eventHandlerCount,
+      },
+
       functionMetrics: {
         total: this.metadata.totalFunctions,
+        entryPoint: this.metadata.entryPoint || 'none',
         averageParamsPerFunction:
           this.metadata.totalFunctions > 0
-            ? (this.analysis.functions || []).reduce(
-              (sum, f) => sum + (f.params || []).length,
-              0
-            ) / this.metadata.totalFunctions
+            ? (this.widgetResults.functions || []).reduce(
+                (sum, f) => sum + (f.params || []).length,
+                0
+              ) / this.metadata.totalFunctions
             : 0,
       },
+
       dependencyMetrics: {
         totalImports: this.metadata.totalImports,
         externalPackages: this.metadata.externalPackages,
-        imports: (this.analysis.imports || []).map((imp) => ({
+        imports: (this.widgetResults.imports || []).map((imp) => ({
           source: imp.source,
           itemCount: imp.items.length,
         })),
       },
+
       structureMetrics: {
         widgetTreeDepth: this.metadata.treeDepth,
-        rootWidget: this.analysis.rootWidget || 'none',
-        entryPoint: this.analysis.entryPoint || 'none',
+        rootWidget: this.metadata.rootWidget || 'none',
+      },
+
+      healthMetrics: {
+        healthScore: this.metadata.healthScore,
+        complexityScore: this.metadata.complexityScore,
+        errors: this.metadata.errorCount,
+        warnings: this.metadata.warningCount,
       },
     };
   }
 
   /**
-   * Generate suggestions based on analysis
+   * Generate JSON report
    */
-  generateSuggestions() {
-    const suggestions = [];
-
-    // Widget structure suggestions
-    if (this.metadata.statefulWidgets > this.metadata.statelessWidgets) {
-      suggestions.push({
-        type: 'warning',
-        category: 'structure',
-        message: 'More stateful than stateless widgets',
-        suggestion: 'Consider using stateless widgets where possible for better performance',
-        severity: 'low',
-      });
+  toJSON() {
+    if (this.options.prettyPrint) {
+      return JSON.stringify(this.report, null, 2);
+    } else {
+      return JSON.stringify(this.report);
     }
-
-    if (this.metadata.treeDepth > 5) {
-      suggestions.push({
-        type: 'warning',
-        category: 'structure',
-        message: 'Deep widget tree detected',
-        suggestion: 'Consider refactoring to reduce nesting depth (aim for < 5 levels)',
-        severity: 'medium',
-      });
-    }
-
-    // Function suggestions
-    if (this.metadata.totalFunctions === 0 && this.metadata.totalWidgets > 0) {
-      suggestions.push({
-        type: 'info',
-        category: 'code-organization',
-        message: 'No helper functions found',
-        suggestion: 'Consider extracting common widget patterns into functions',
-        severity: 'low',
-      });
-    }
-
-    // Import suggestions
-    if (this.metadata.externalPackages > 5) {
-      suggestions.push({
-        type: 'info',
-        category: 'dependencies',
-        message: `${this.metadata.externalPackages} external packages imported`,
-        suggestion: 'Monitor dependencies for maintenance burden',
-        severity: 'low',
-      });
-    }
-
-    // Entry point suggestion
-    if (!this.analysis.entryPoint) {
-      suggestions.push({
-        type: 'error',
-        category: 'critical',
-        message: 'No entry point (main function) found',
-        suggestion: 'Add a main() function that calls runApp()',
-        severity: 'high',
-      });
-    }
-
-    // Root widget suggestion
-    if (!this.analysis.rootWidget && this.metadata.totalWidgets > 0) {
-      suggestions.push({
-        type: 'warning',
-        category: 'critical',
-        message: 'Root widget not found',
-        suggestion: 'Ensure main() passes a widget to runApp()',
-        severity: 'high',
-      });
-    }
-
-    return suggestions;
   }
 
   /**
@@ -370,18 +573,19 @@ class ReportGenerator {
     md += `| Metric | Count |\n`;
     md += `|--------|-------|\n`;
     md += `| Total Widgets | ${this.metadata.totalWidgets} |\n`;
-    md += `| Stateless Widgets | ${this.metadata.statelessWidgets} |\n`;
-    md += `| Stateful Widgets | ${this.metadata.statefulWidgets} |\n`;
-    md += `| Component Widgets | ${this.metadata.componentWidgets} |\n`;
-    md += `| Total Functions | ${this.metadata.totalFunctions} |\n`;
-    md += `| Total Imports | ${this.metadata.totalImports} |\n`;
-    md += `| External Packages | ${this.metadata.externalPackages} |\n`;
-    md += `| Widget Tree Depth | ${this.metadata.treeDepth} |\n`;
-    md += `| Health Score | ${this.metadata.healthScore}/100 |\n\n`;
+    md += `| Stateless | ${this.metadata.statelessWidgets} |\n`;
+    md += `| Stateful | ${this.metadata.statefulWidgets} |\n`;
+    md += `| State Classes | ${this.metadata.stateClasses} |\n`;
+    md += `| State Fields | ${this.metadata.totalStateFields} |\n`;
+    md += `| setState Calls | ${this.metadata.setStateCallCount} |\n`;
+    md += `| Lifecycle Methods | ${this.metadata.lifecycleMethodCount} |\n`;
+    md += `| Event Handlers | ${this.metadata.eventHandlerCount} |\n`;
+    md += `| Health Score | ${this.metadata.healthScore}/100 |\n`;
+    md += `| Complexity Score | ${this.metadata.complexityScore}/100 |\n\n`;
 
     // Widgets
     md += '## Widgets\n\n';
-    (this.analysis.widgets || []).forEach((widget) => {
+    (this.widgetResults.widgets || []).forEach((widget) => {
       md += `### ${widget.name}\n`;
       md += `- **Type:** ${widget.type}\n`;
       if (widget.superClass) {
@@ -396,38 +600,53 @@ class ReportGenerator {
       md += '\n';
     });
 
-    // Functions
-    if (this.analysis.functions.length > 0) {
-      md += '## Functions\n\n';
-      (this.analysis.functions || []).forEach((func) => {
-        const params = (func.params || []).map((p) => p.name).join(', ');
-        md += `- **${func.name}(${params})**`;
-        if (func.isEntryPoint) {
-          md += ' [ENTRY POINT]';
+    // State Classes
+    if (this.stateResults.stateClasses && this.stateResults.stateClasses.length > 0) {
+      md += '## State Classes\n\n';
+      (this.stateResults.stateClasses || []).forEach((sc) => {
+        const metadata = sc.metadata;
+        md += `### ${metadata.name}\n`;
+        md += `- **Extends:** State<${metadata.linkedStatefulWidget}>\n`;
+        
+        if (metadata.stateFields.length > 0) {
+          md += `- **State Fields:**\n`;
+          metadata.stateFields.forEach((field) => {
+            md += `  - \`${field.name}\`: ${field.type} = ${field.initialValueString}\n`;
+          });
+        }
+        
+        if (metadata.lifecycleMethods.length > 0) {
+          md += `- **Lifecycle Methods:** ${metadata.lifecycleMethods.map((m) => m.name).join(', ')}\n`;
         }
         md += '\n';
       });
-      md += '\n';
     }
 
-    // Imports
-    if (this.analysis.imports.length > 0) {
-      md += '## Imports\n\n';
-      (this.analysis.imports || []).forEach((imp) => {
-        md += `- **${imp.source}**\n`;
-        md += `  - ${imp.items.join(', ')}\n`;
-      });
-      md += '\n';
-    }
+    // Validation
+    if (this.stateResults.validationResults && this.stateResults.validationResults.length > 0) {
+      md += '## Validation Issues\n\n';
+      const issues = this.stateResults.validationResults;
+      
+      const errors = issues.filter((i) => i.severity === 'error');
+      if (errors.length > 0) {
+        md += '### Errors\n';
+        errors.forEach((issue) => {
+          md += `- **${issue.type}:** ${issue.message}\n`;
+          if (issue.suggestion) {
+            md += `  - _Suggestion:_ ${issue.suggestion}\n`;
+          }
+        });
+        md += '\n';
+      }
 
-    // Suggestions
-    if (this.options.includeSuggestions) {
-      const suggestions = this.generateSuggestions();
-      if (suggestions.length > 0) {
-        md += '## Suggestions\n\n';
-        suggestions.forEach((sug) => {
-          md += `- **${sug.message}**\n`;
-          md += `  - ${sug.suggestion}\n`;
+      const warnings = issues.filter((i) => i.severity === 'warning');
+      if (warnings.length > 0) {
+        md += '### Warnings\n';
+        warnings.forEach((issue) => {
+          md += `- **${issue.type}:** ${issue.message}\n`;
+          if (issue.suggestion) {
+            md += `  - _Suggestion:_ ${issue.suggestion}\n`;
+          }
         });
         md += '\n';
       }
@@ -437,84 +656,58 @@ class ReportGenerator {
   }
 
   /**
-   * Generate Console output
+   * Generate Console report
    */
   toConsole() {
     const lines = [];
 
-    lines.push('\n' + '='.repeat(70));
+    lines.push('\n' + '='.repeat(80));
     lines.push('FlutterJS CODE ANALYSIS REPORT');
-    lines.push('='.repeat(70) + '\n');
+    lines.push('='.repeat(80) + '\n');
 
     // Summary
     lines.push('SUMMARY');
-    lines.push('-'.repeat(70));
+    lines.push('-'.repeat(80));
     lines.push(`  Widgets: ${this.metadata.totalWidgets} (${this.metadata.statelessWidgets} stateless, ${this.metadata.statefulWidgets} stateful)`);
-    lines.push(`  Functions: ${this.metadata.totalFunctions}`);
-    lines.push(`  External Packages: ${this.metadata.externalPackages}`);
-    lines.push(`  Widget Tree Depth: ${this.metadata.treeDepth}`);
+    lines.push(`  State Classes: ${this.metadata.stateClasses}`);
+    lines.push(`  State Fields: ${this.metadata.totalStateFields}`);
+    lines.push(`  setState Calls: ${this.metadata.setStateCallCount}`);
+    lines.push(`  Lifecycle Methods: ${this.metadata.lifecycleMethodCount}`);
+    lines.push(`  Event Handlers: ${this.metadata.eventHandlerCount}`);
     lines.push(`  Health Score: ${this.metadata.healthScore}/100`);
-    lines.push(`  Entry Point: ${this.analysis.entryPoint || 'NOT FOUND'}`);
-    lines.push(`  Root Widget: ${this.analysis.rootWidget || 'NOT FOUND'}\n`);
+    lines.push(`  Complexity: ${this.metadata.complexityScore}/100`);
+    lines.push(`  Entry Point: ${this.metadata.entryPoint || 'NOT FOUND'}`);
+    lines.push(`  Root Widget: ${this.metadata.rootWidget || 'NOT FOUND'}\n`);
 
-    // Widgets
-    if (this.analysis.widgets.length > 0) {
-      lines.push('WIDGETS');
-      lines.push('-'.repeat(70));
-      (this.analysis.widgets || []).forEach((widget) => {
-        lines.push(`  ${widget.name}`);
-        lines.push(`    Type: ${widget.type}`);
-        if (widget.superClass) {
-          lines.push(`    Extends: ${widget.superClass}`);
-        }
-        if (widget.methods.length > 0) {
-          lines.push(`    Methods: ${widget.methods.map((m) => m.name).join(', ')}`);
-        }
-        if (widget.properties.length > 0) {
-          lines.push(`    Properties: ${widget.properties.map((p) => p.name).join(', ')}`);
+    // State Classes
+    if (this.stateResults.stateClasses && this.stateResults.stateClasses.length > 0) {
+      lines.push('STATE CLASSES');
+      lines.push('-'.repeat(80));
+      (this.stateResults.stateClasses || []).forEach((sc) => {
+        const metadata = sc.metadata;
+        lines.push(`  ${metadata.name}`);
+        lines.push(`    Extends: State<${metadata.linkedStatefulWidget}>`);
+        lines.push(`    Fields: ${metadata.stateFields.map((f) => f.name).join(', ')}`);
+        lines.push(`    Lifecycle: ${metadata.lifecycleMethods.map((m) => m.name).join(', ')}`);
+      });
+      lines.push('');
+    }
+
+    // Validation
+    if (this.stateResults.validationResults && this.stateResults.validationResults.length > 0) {
+      lines.push('VALIDATION ISSUES');
+      lines.push('-'.repeat(80));
+      (this.stateResults.validationResults || []).forEach((result) => {
+        const icon = result.severity === 'error' ? '❌' : result.severity === 'warning' ? '⚠️ ' : 'ℹ️ ';
+        lines.push(`  ${icon} [${result.severity.toUpperCase()}] ${result.message}`);
+        if (result.suggestion) {
+          lines.push(`     → ${result.suggestion}`);
         }
       });
       lines.push('');
     }
 
-    // Functions
-    if (this.analysis.functions.length > 0) {
-      lines.push('FUNCTIONS');
-      lines.push('-'.repeat(70));
-      (this.analysis.functions || []).forEach((func) => {
-        const params = (func.params || []).map((p) => p.name).join(', ');
-        const label = func.isEntryPoint ? ' [ENTRY POINT]' : '';
-        lines.push(`  ${func.name}(${params})${label}`);
-      });
-      lines.push('');
-    }
-
-    // Imports
-    if (this.analysis.imports.length > 0) {
-      lines.push('IMPORTS');
-      lines.push('-'.repeat(70));
-      (this.analysis.imports || []).forEach((imp) => {
-        lines.push(`  From: ${imp.source}`);
-        lines.push(`    Items: ${imp.items.join(', ')}`);
-      });
-      lines.push('');
-    }
-
-    // Suggestions
-    if (this.options.includeSuggestions) {
-      const suggestions = this.generateSuggestions();
-      if (suggestions.length > 0) {
-        lines.push('SUGGESTIONS');
-        lines.push('-'.repeat(70));
-        suggestions.forEach((sug) => {
-          lines.push(`  [${sug.type.toUpperCase()}] ${sug.message}`);
-          lines.push(`    → ${sug.suggestion}`);
-        });
-        lines.push('');
-      }
-    }
-
-    lines.push('='.repeat(70) + '\n');
+    lines.push('='.repeat(80) + '\n');
 
     return lines.join('\n');
   }
@@ -533,6 +726,4 @@ class ReportGenerator {
 // EXPORTS
 // ============================================================================
 
-export {
-  ReportGenerator,
-};
+export { ReportGenerator };
