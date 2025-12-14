@@ -1,4 +1,4 @@
-import { Lexer } from '../src/ats/lexer.js';   // Adjust path if needed
+import { Lexer } from '../../src/ats/lexer.js';   // Adjust path if needed
 
 
 const source = `

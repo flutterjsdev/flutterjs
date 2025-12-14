@@ -1,10 +1,11 @@
 /**
- * WidgetAnalyzer - FIXED VERSION
+ * WidgetAnalyzer Enhancement - Track field references
  * 
- * Key fixes:
- * 1. Ensure analyze() returns results properly
- * 2. Ensure getResults() returns widgets array
- * 3. Handle empty results gracefully
+ * Understand that:
+ *   _count = 0;        <- field declaration
+ *   this._count        <- field reference
+ * 
+ * These are the same thing!
  */
 
 class WidgetAnalyzer {
@@ -91,6 +92,7 @@ class WidgetAnalyzer {
 
   /**
    * Extract a single class declaration
+   * Handles both field declarations and method declarations
    */
   extractClassDeclaration(classNode) {
     const name = classNode.id?.name;
@@ -101,16 +103,36 @@ class WidgetAnalyzer {
 
     const widget = {
       name,
-      type: 'class',  // Will be updated in detectWidgets phase
+      type: 'class',
       location,
       superClass,
       constructor: null,
-      properties: [],
+      properties: [],      // Fields with their initial values
       methods: [],
+      fieldReferences: {}, // Map of which methods use which fields
       imports: [],
       children: [],
       linkedStateClass: null,
     };
+
+    // Extract fields (declared with _count = 0; syntax)
+    if (classNode.body?.fields) {
+      classNode.body.fields.forEach((field) => {
+        const fieldName = field.key?.name;
+        const initialValue = field.initialValue ? this.expressionToString(field.initialValue) : null;
+        
+        widget.properties.push({
+          name: fieldName,
+          initialValue: initialValue,
+          type: this.inferFieldType(field.initialValue),
+        });
+        
+        // Track that this field exists
+        if (!widget.fieldReferences[fieldName]) {
+          widget.fieldReferences[fieldName] = [];
+        }
+      });
+    }
 
     // Extract constructor
     if (classNode.body?.methods) {
@@ -125,31 +147,104 @@ class WidgetAnalyzer {
         };
       }
 
-      // Extract other methods
+      // Extract other methods and track field usage
       classNode.body.methods.forEach((method) => {
         if (method.key?.name !== 'constructor') {
-          widget.methods.push({
-            name: method.key?.name,
+          const methodName = method.key?.name;
+          const methodData = {
+            name: methodName,
             params: method.params || [],
             location: method.location,
             hasBody: method.body !== null,
-          });
+            usesFields: [], // Which fields this method references
+          };
+          
+          // Track field references in this method
+          if (method.body) {
+            const fieldRefs = this.findFieldReferencesInBody(method.body);
+            methodData.usesFields = fieldRefs;
+            
+            // Update the field reference map
+            fieldRefs.forEach((fieldName) => {
+              if (widget.fieldReferences[fieldName]) {
+                widget.fieldReferences[fieldName].push(methodName);
+              }
+            });
+          }
+          
+          widget.methods.push(methodData);
         }
-      });
-    }
-
-    // Extract fields
-    if (classNode.body?.fields) {
-      classNode.body.fields.forEach((field) => {
-        widget.properties.push({
-          name: field.key?.name,
-          initialValue: field.initialValue ? this.expressionToString(field.initialValue) : null,
-        });
       });
     }
 
     this.widgets.set(name, widget);
     console.log(`[WidgetAnalyzer]     Extracted class: ${name} extends ${superClass}`);
+    if (widget.properties.length > 0) {
+      console.log(`[WidgetAnalyzer]       Fields: ${widget.properties.map(p => `${p.name}=${p.initialValue}`).join(', ')}`);
+    }
+  }
+
+  /**
+   * Find all field references (this._fieldName) in a method body
+   */
+  findFieldReferencesInBody(body) {
+    const fields = [];
+    
+    // Simple traversal to find this.fieldName patterns
+    // This is a basic implementation - enhance as needed
+    const traverse = (node) => {
+      if (!node) return;
+      
+      // Look for MemberExpression: this._fieldName
+      if (node.type === 'MemberExpression') {
+        if (node.object?.name === 'this' && node.property?.name) {
+          fields.push(node.property.name);
+        }
+      }
+      
+      // Recursively traverse all node properties
+      for (const key in node) {
+        if (key !== 'location' && typeof node[key] === 'object') {
+          if (Array.isArray(node[key])) {
+            node[key].forEach(traverse);
+          } else {
+            traverse(node[key]);
+          }
+        }
+      }
+    };
+    
+    traverse(body);
+    return [...new Set(fields)]; // Remove duplicates
+  }
+
+  /**
+   * Infer the type of a field from its initializer
+   */
+  inferFieldType(initialValue) {
+    if (!initialValue) return 'any';
+    
+    if (initialValue.type === 'Literal') {
+      const val = initialValue.value;
+      if (typeof val === 'number') return 'int' | 'double';
+      if (typeof val === 'boolean') return 'bool';
+      if (typeof val === 'string') return 'String';
+      if (val === null) return 'null';
+    }
+    
+    if (initialValue.type === 'Identifier') {
+      return initialValue.name;
+    }
+    
+    if (initialValue.type === 'ArrayExpression') {
+      return 'List';
+    }
+    
+    if (initialValue.type === 'ObjectExpression') {
+      return 'Map';
+    }
+    
+    return 'dynamic';
   }
 
   /**
@@ -192,7 +287,7 @@ class WidgetAnalyzer {
       } else if (superClass === 'StatefulWidget') {
         widget.type = 'stateful';
         console.log(`[WidgetAnalyzer]     ${widget.name} is StatefulWidget`);
-      } else if (superClass.startsWith('State')) {
+      } else if (superClass?.startsWith('State')) {
         widget.type = 'state';
         console.log(`[WidgetAnalyzer]     ${widget.name} is State class`);
       } else {
@@ -231,7 +326,6 @@ class WidgetAnalyzer {
       const mainFunc = this.functions.get('main');
       mainFunc.isEntryPoint = true;
 
-      // Find what widget is passed to runApp
       const mainAstNode = this.ast.body.find(
         (n) => n.type === 'FunctionDeclaration' && n.id?.name === 'main'
       );
@@ -301,7 +395,7 @@ class WidgetAnalyzer {
   }
 
   /**
-   * Convert expression to string
+   * Convert expression to string representation
    */
   expressionToString(expr) {
     if (!expr) return null;
@@ -315,16 +409,16 @@ class WidgetAnalyzer {
       if (name === 'true' || name === 'false') return name === 'true';
       if (name === 'null') return null;
       if (name === 'undefined') return undefined;
+      return name;
     }
 
     return undefined;
   }
 
   /**
-   * Get results - FIXED to return array of widgets
+   * Get results
    */
   getResults() {
-    // Convert widgets Map to array, filtering only actual widgets
     const widgetArray = Array.from(this.widgets.values()).filter(
       (w) => w.type === 'stateless' || w.type === 'stateful' || w.type === 'state' || w.type === 'component'
     );
@@ -332,7 +426,7 @@ class WidgetAnalyzer {
     console.log(`[WidgetAnalyzer] getResults() returning ${widgetArray.length} widgets`);
 
     return {
-      widgets: widgetArray,  // IMPORTANT: Return as array, not Map
+      widgets: widgetArray,
       functions: Array.from(this.functions.values()),
       imports: this.imports,
       externalDependencies: Array.from(this.externalDependencies),
@@ -372,9 +466,5 @@ class WidgetAnalyzer {
     return this.errors;
   }
 }
-
-// ============================================================================
-// EXPORTS
-// ============================================================================
 
 export { WidgetAnalyzer };
