@@ -11,7 +11,7 @@
 import {  InheritedWidgetMetadata,
   ChangeNotifierAnalysis,
   ProviderAnalysis,
-  ContextUsagePattern, } from '../index.js';
+  ContextUsagePattern, } from  './context_analyzer_data.js';
 class ContextAnalyzer {
   constructor(ast, widgets = [], options = {}) {
     this.ast = ast;

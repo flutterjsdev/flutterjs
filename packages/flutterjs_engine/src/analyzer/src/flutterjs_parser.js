@@ -6,7 +6,7 @@
  */
 
 
-import { TokenType } from '../index.js';
+import { TokenType } from './lexer.js';
 
 // ============================================================================
 // AST NODE CLASSES

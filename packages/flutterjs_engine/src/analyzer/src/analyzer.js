@@ -11,9 +11,15 @@
  */
 
 import fs from 'fs';
-import { Lexer, Parser, WidgetAnalyzer, StateAnalyzer, ContextAnalyzer, SSRAnalyzer, ReportGenerator } from './index.js';
-import { ImportResolver } from './import_resolver.js';
-import { resolverConfig } from './import_resolver_config.js';
+import { Lexer } from './lexer.js';
+import { Parser } from './flutterjs_parser.js';
+import { WidgetAnalyzer } from './flutterjs_widget_analyzer.js';
+import { StateAnalyzer } from './state_analyzer_implementation.js';
+import { ContextAnalyzer } from './context_analyzer.js';
+import { SSRAnalyzer } from './ssr_analyzer.js';
+import { ReportGenerator } from './flutterjs_report_generator.js';
+import { ImportResolver } from './flutter_import_resolver.js';
+import { resolverConfig } from './flutter_resolver_config.js';
 
 // ============================================================================
 // MAIN ANALYZER CLASS
@@ -144,11 +150,6 @@ class Analyzer {
 
   /**
    * Step 5: Resolve all imports (NEW!)
-   * 
-   * Uses custom import resolver to handle:
-   * - @package: Flutter imports
-   * - ./relative imports
-   * - npm packages
    */
   analyzeImports() {
     const start = Date.now();
@@ -198,8 +199,8 @@ class Analyzer {
       console.log(this.importResolver.generateReport());
 
       // Check for errors (unless ignoreUnresolvedImports is set)
-      if (!this.options.ignoreUnresolvedImports && 
-          resolution.imports.errors.length > 0) {
+      if (!this.options.ignoreUnresolvedImports &&
+        resolution.imports.errors.length > 0) {
         throw new Error(
           `${resolution.imports.errors.length} imports could not be resolved`
         );
@@ -457,7 +458,6 @@ class Analyzer {
         stateful: this.results.widgets?.widgets?.filter((w) => w.type === 'stateful').length || 0,
         stateClasses: this.results.widgets?.widgets?.filter((w) => w.type === 'state').length || 0,
       },
-      // Import resolution results (NEW!)
       imports: this.options.includeImports ? {
         total: this.results.importResolution?.summary?.total || 0,
         resolved: this.results.importResolution?.summary?.resolved || 0,

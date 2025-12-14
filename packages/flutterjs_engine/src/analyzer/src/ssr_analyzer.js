@@ -8,7 +8,10 @@
  * Does NOT implement SSR rendering (that's Phase 4+)
  */
 
-import { HydrationRequirement, LazyLoadOpportunity } from '../index.js';
+import {
+  HydrationRequirement,
+  LazyLoadOpportunity,
+} from './context_analyzer_data.js';
 
 class SSRAnalyzer {
   constructor(contextAnalysisResults, stateAnalysisResults = null, options = {}) {
