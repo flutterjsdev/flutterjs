@@ -1,6 +1,6 @@
-import { Lexer } from '../src/ats/lexer.js';
-import { Parser } from '../src/ats/flutterjs_parser.js';
-import { WidgetAnalyzer } from '../src/ats/flutterjs_widget_analyzer.js';
+import { Lexer } from '../../src/ats/lexer.js';
+import { Parser } from '../../src/ats/flutterjs_parser.js';
+import { WidgetAnalyzer } from '../../src/ats/flutterjs_widget_analyzer.js';
 
 const source = `
 import { MaterialApp, Text, Container } from '@flutterjs/material';

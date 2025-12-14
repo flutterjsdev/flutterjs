@@ -191,6 +191,10 @@ class Parser {
     this.current = 0;
     this.errors = [];
     this.options = { strict: false, ...options };
+    // NEW: Call stack tracking
+    this.callStack = [];
+
+    this.debugMode = true;
   }
 
   parse() {
@@ -289,16 +293,22 @@ class Parser {
   }
 
   parseClassDeclaration() {
+    console.log('\n[parseClassDeclaration] STARTING');
+    console.log(`  Current token: ${this.peek().value} (${this.peek().type})`);
+
     const startLocation = this.getLocation();
     const nameToken = this.consume(TokenType.IDENTIFIER, 'Expected class name');
     const name = new Identifier(nameToken.value);
+    console.log(`  Class name: ${name.name}`);
 
     let superClass = null;
     if (this.isKeyword('extends')) {
       this.advance();
       const superName = this.consume(TokenType.IDENTIFIER, 'Expected superclass name').value;
       superClass = new Identifier(superName);
+      console.log(`  Extends: ${superClass.name}`);
 
+      // Skip generic type parameters like <MyCounter>
       if (this.isOperator('<')) {
         this.advance();
         this.consume(TokenType.IDENTIFIER, 'Expected type name');
@@ -306,36 +316,96 @@ class Parser {
       }
     }
 
+    console.log(`  Looking for opening brace...`);
+    console.log(`  Current token: ${this.peek().value} (${this.peek().type})`);
     this.consume(TokenType.PUNCTUATION, 'Expected {');
 
     const fields = [];
     const methods = [];
 
-    while (!this.isPunctuation('}') && !this.isAtEnd()) {
-      if (this.isKeyword('constructor')) {
-        methods.push(this.parseMethodDeclaration());
-      } else if (this.check(TokenType.IDENTIFIER)) {
-        const idToken = this.peek();
-        const nextToken = this.peekAhead(1);
+    console.log(`  Parsing class body...`);
+    let itemCount = 0;
 
-        if (nextToken && nextToken.type === TokenType.PUNCTUATION && nextToken.value === '(') {
-          methods.push(this.parseMethodDeclaration());
-        } else {
-          fields.push(this.parseFieldDeclaration());
-        }
-      } else {
+    while (!this.isPunctuation('}') && !this.isAtEnd()) {
+      console.log(`    [item ${itemCount}] Current token: ${this.peek().value} (${this.peek().type})`);
+
+      // Skip semicolons
+      if (this.isPunctuation(';')) {
+        console.log(`    Skipping semicolon`);
         this.advance();
+        continue;
       }
+
+      // Check for constructor (always a method)
+      if (this.isKeyword('constructor')) {
+        console.log(`    Found constructor`);
+        methods.push(this.parseMethodDeclaration());
+        itemCount++;
+        continue;
+      }
+
+      // Check for field or method
+      if (this.check(TokenType.IDENTIFIER)) {
+        const currentPos = this.current;
+        const idToken = this.peek();
+        const fieldName = idToken.value;
+        console.log(`    Found identifier: ${fieldName}`);
+        this.advance();
+
+        // CASE 1: Field initializer - IDENTIFIER = value
+        if (this.isOperator('=')) {
+          console.log(`      -> This is a FIELD (followed by =)`);
+          this.current = currentPos; // Rewind
+          try {
+            fields.push(this.parseFieldDeclaration());
+            console.log(`      Field parsed successfully`);
+            itemCount++;
+            continue;
+          } catch (e) {
+            console.error(`      ERROR parsing field: ${e.message}`);
+            throw e;
+          }
+        }
+
+        // CASE 2: Method - IDENTIFIER ( params )
+        if (this.isPunctuation('(')) {
+          console.log(`      -> This is a METHOD (followed by '(')`);
+          this.current = currentPos; // Rewind
+          try {
+            methods.push(this.parseMethodDeclaration());
+            console.log(`      Method parsed successfully`);
+            itemCount++;
+            continue;
+          } catch (e) {
+            console.error(`      ERROR parsing method: ${e.message}`);
+            throw e;
+          }
+        }
+
+        console.log(`      -> Unknown pattern, skipping`);
+        this.advance();
+        continue;
+      }
+
+      // Skip unknown tokens
+      console.log(`    Skipping unknown token: ${this.peek().value}`);
+      this.advance();
     }
+
+    console.log(`  Class body parsing complete. Found ${fields.length} fields, ${methods.length} methods`);
 
     this.consume(TokenType.PUNCTUATION, 'Expected }');
     const body = new ClassBody(fields, methods);
+    console.log(`[parseClassDeclaration] SUCCESS\n`);
     return new ClassDeclaration(name, superClass, body, startLocation);
   }
 
   parseMethodDeclaration() {
+    console.log(`      [parseMethodDeclaration] STARTING`);
+    console.log(`        Current: ${this.peek().value}`);
+
     const startLocation = this.getLocation();
-    
+
     let methodName;
     if (this.isKeyword('constructor')) {
       methodName = 'constructor';
@@ -343,37 +413,53 @@ class Parser {
     } else {
       methodName = this.consume(TokenType.IDENTIFIER, 'Expected method name').value;
     }
-    
+
+    console.log(`        Method name: ${methodName}`);
     const key = new Identifier(methodName);
 
     this.consume(TokenType.PUNCTUATION, 'Expected (');
     const params = this.parseParameterList();
+    console.log(`        Parameters: ${params.length}`);
     this.consume(TokenType.PUNCTUATION, 'Expected )');
 
     let body = null;
     if (this.isOperator('=>')) {
+      console.log(`        Arrow function body`);
       this.advance();
       body = this.parseExpression();
     } else if (this.isPunctuation('{')) {
+      console.log(`        Block body`);
       this.advance();
       body = this.parseBlock();
     }
 
+    console.log(`      [parseMethodDeclaration] SUCCESS`);
     return new MethodDeclaration(key, params, body, startLocation);
   }
-
   parseFieldDeclaration() {
+    console.log(`      [parseFieldDeclaration] STARTING`);
+    console.log(`        Current: ${this.peek().value}`);
+
     const startLocation = this.getLocation();
     const fieldName = this.consume(TokenType.IDENTIFIER, 'Expected field name').value;
     const key = new Identifier(fieldName);
+    console.log(`        Field name: ${fieldName}`);
 
     let initialValue = null;
     if (this.isOperator('=')) {
+      console.log(`        Found = operator, parsing initializer...`);
       this.advance();
-      initialValue = this.parseExpression();
+      try {
+        initialValue = this.parseExpression();
+        console.log(`        Initializer parsed: ${initialValue.type}`);
+      } catch (e) {
+        console.error(`        ERROR parsing initializer: ${e.message}`);
+        throw e;
+      }
     }
 
     this.consumeStatementEnd();
+    console.log(`      [parseFieldDeclaration] SUCCESS`);
     return new FieldDeclaration(key, initialValue, startLocation);
   }
 
@@ -412,7 +498,7 @@ class Parser {
             this.advance();
             // FIXED: Check token type, not just keywords
             const token = this.peek();
-            
+
             if (this.check(TokenType.IDENTIFIER)) {
               defaultValue = new Identifier(this.advance().value);
             } else if (this.check(TokenType.NUMBER)) {
@@ -463,7 +549,7 @@ class Parser {
         if (this.isOperator('=')) {
           this.advance();
           const token = this.peek();
-          
+
           if (this.check(TokenType.IDENTIFIER)) {
             defaultValue = new Identifier(this.advance().value);
           } else if (this.check(TokenType.NUMBER)) {
@@ -496,32 +582,50 @@ class Parser {
   }
 
   parseBlock() {
+    console.log(`\n[parseBlock] STARTING at token: ${this.peek().value}`);
+
     const startLocation = this.getLocation();
     const statements = [];
 
     while (!this.isPunctuation('}') && !this.isAtEnd()) {
+      console.log(`  [parseBlock] Current token: ${this.peek().value} (${this.peek().type})`);
+
       if (this.isKeyword('return')) {
+        console.log(`    Found RETURN statement`);
         this.advance();
         let argument = null;
+
         if (!this.isPunctuation(';') && !this.isPunctuation('}')) {
+          console.log(`    Parsing return argument...`);
           try {
             argument = this.parseExpression();
+            console.log(`    Return argument parsed successfully`);
           } catch (error) {
-            // If expression parsing fails, skip to semicolon
+            console.error(`    ❌ ERROR parsing return argument: ${error.message}`);
+            console.error(`       Token was: ${this.peek().value}`);
+
+            // Skip to semicolon
             while (!this.isPunctuation(';') && !this.isPunctuation('}') && !this.isAtEnd()) {
               this.advance();
             }
           }
         }
+
         this.consumeStatementEnd();
         statements.push(new ReturnStatement(argument, startLocation));
+
       } else {
+        console.log(`    Parsing expression statement...`);
         try {
           const expr = this.parseExpression();
+          console.log(`    Expression parsed successfully: ${expr.type}`);
           this.consumeStatementEnd();
           statements.push(new ExpressionStatement(expr, startLocation));
         } catch (error) {
-          // Skip to next statement - find semicolon or closing brace
+          console.error(`    ❌ ERROR parsing expression: ${error.message}`);
+          console.error(`       Token was: ${this.peek().value}`);
+
+          // Skip to next statement
           while (!this.isPunctuation(';') && !this.isPunctuation('}') && !this.isAtEnd()) {
             this.advance();
           }
@@ -535,11 +639,21 @@ class Parser {
     if (this.isPunctuation('}')) {
       this.advance();
     }
+
+    console.log(`[parseBlock] SUCCESS - ${statements.length} statements\n`);
     return new BlockStatement(statements, startLocation);
   }
 
   parseExpression() {
-    return this.parseAssignment();
+    console.log(`    [parseExpression] Current token: ${this.peek().value}`);
+    try {
+      const result = this.parseAssignment();
+      console.log(`    [parseExpression] ✓ Success, type: ${result.type}`);
+      return result;
+    } catch (e) {
+      console.error(`    [parseExpression] ✗ Failed: ${e.message}`);
+      throw e;
+    }
   }
 
   parseAssignment() {
@@ -641,37 +755,43 @@ class Parser {
   }
 
   parseUnary() {
+    console.log(`        [parseUnary] Current: ${this.peek().value}`);
+
     if (this.isOperator('!') || this.isOperator('-') || this.isOperator('+') || this.isOperator('~')) {
       const operator = this.advance().value;
       const expr = this.parseUnary();
       return { type: 'UnaryExpression', operator, argument: expr };
     }
 
-    if (this.isKeyword('this')) {
-      this.advance();
-      return new Identifier('this');
-    }
 
+    console.log(`        [parseUnary] Calling parsePostfix`);
     return this.parsePostfix();
   }
 
   parsePostfix() {
+    console.log(`        [parsePostfix] Starting, calling parseCall`);
     let expr = this.parseCall();
+    console.log(`        [parsePostfix] parseCall returned: ${expr.type || expr.name}`);
+    console.log(`        [parsePostfix] Next token: ${this.peek().value}`);
 
     while (true) {
       if (this.isOperator('++') || this.isOperator('--')) {
         const operator = this.advance().value;
         expr = { type: 'UpdateExpression', operator, argument: expr, prefix: false };
       } else if (this.isPunctuation('.')) {
+        console.log(`        [parsePostfix] Found . member access`);
         this.advance();
         const property = new Identifier(this.consume(TokenType.IDENTIFIER, 'Expected property').value);
         expr = new MemberExpression(expr, property, false);
+        console.log(`        [parsePostfix] Created MemberExpression: ${expr.object.name}.${expr.property.name}`);
       } else if (this.isPunctuation('[')) {
+        console.log(`        [parsePostfix] Found [ computed access`);
         this.advance();
         const property = this.parseExpression();
         this.consume(TokenType.PUNCTUATION, 'Expected ]');
         expr = new MemberExpression(expr, property, true);
       } else {
+        console.log(`        [parsePostfix] No more postfix ops, returning ${expr.type}`);
         break;
       }
     }
@@ -679,73 +799,90 @@ class Parser {
     return expr;
   }
 
+
   parseCall() {
+    console.log(`        [parseCall] Starting, calling parsePrimary`);
     let expr = this.parsePrimary();
+    console.log(`        [parseCall] parsePrimary returned: ${expr.type || expr.name}`);
+    console.log(`        [parseCall] Next token: ${this.peek().value} (${this.peek().type})`);
 
     while (this.isPunctuation('(')) {
+      console.log(`        [parseCall] Found (, parsing function call`);
       this.advance();
       const args = this.parseArguments();
+      console.log(`        [parseCall] Parsed ${args.length} arguments`);
       this.consume(TokenType.PUNCTUATION, 'Expected )');
       expr = new CallExpression(expr, args);
+      console.log(`        [parseCall] Created CallExpression`);
     }
 
+    console.log(`        [parseCall] Returning: ${expr.type}`);
     return expr;
   }
 
   parsePrimary() {
-    // Handle 'this' keyword FIRST - before other checks
+    console.log(`      [parsePrimary] Current: ${this.peek().value} (${this.peek().type})`);
+
+    // Handle 'this' keyword FIRST
     if (this.isKeyword('this')) {
       this.advance();
+      console.log(`      [parsePrimary] ✓ this keyword`);
       return new Identifier('this');
     }
 
     if (this.check(TokenType.STRING)) {
       const token = this.advance();
+      console.log(`      [parsePrimary] ✓ string literal: ${token.value}`);
       return new Literal(token.value, token.value, 'string');
     }
 
     if (this.check(TokenType.NUMBER)) {
       const token = this.advance();
+      console.log(`      [parsePrimary] ✓ number literal: ${token.value}`);
       return new Literal(parseFloat(token.value), token.value, 'number');
     }
 
     if (this.check(TokenType.BOOLEAN)) {
       const token = this.advance();
+      console.log(`      [parsePrimary] ✓ boolean: ${token.value}`);
       return new Literal(token.value === 'true', token.value, 'boolean');
     }
 
     if (this.check(TokenType.NULL)) {
       this.advance();
+      console.log(`      [parsePrimary] ✓ null`);
       return new Literal(null, 'null', 'null');
     }
 
     if (this.check(TokenType.UNDEFINED)) {
       this.advance();
+      console.log(`      [parsePrimary] ✓ undefined`);
       return new Literal(undefined, 'undefined', 'undefined');
     }
 
     if (this.isKeyword('null')) {
       this.advance();
+      console.log(`      [parsePrimary] ✓ null keyword`);
       return new Literal(null, 'null', 'null');
     }
 
     if (this.isKeyword('undefined')) {
       this.advance();
+      console.log(`      [parsePrimary] ✓ undefined keyword`);
       return new Literal(undefined, 'undefined', 'undefined');
     }
 
     if (this.isPunctuation('(')) {
+      console.log(`      [parsePrimary] Found ( - checking for arrow function or grouped expr`);
       const savedPos = this.current;
       this.advance();
 
-      // Check if empty params or identifier - might be arrow function
       if (this.isPunctuation(')')) {
         const nextPos = this.current + 1;
-        // Check if next token is =>
-        if (nextPos < this.tokens.length && 
-            this.tokens[nextPos].type === TokenType.OPERATOR && 
-            this.tokens[nextPos].value === '=>') {
-          // It's an arrow function with no params: () => ...
+        if (nextPos < this.tokens.length &&
+          this.tokens[nextPos].type === TokenType.OPERATOR &&
+          this.tokens[nextPos].value === '=>') {
+          console.log(`      [parsePrimary] ✓ arrow function with no params: () => ...`);
           this.consume(TokenType.PUNCTUATION, 'Expected )');
           this.consume(TokenType.OPERATOR, 'Expected =>');
           const body = this.parseExpression();
@@ -753,31 +890,32 @@ class Parser {
         }
       }
 
-      // Otherwise parse as grouped expression
       const expr = this.parseExpression();
       this.consume(TokenType.PUNCTUATION, 'Expected )');
-      
-      // Check if it's actually an arrow function: (x) => expr
+
       if (this.isOperator('=>')) {
+        console.log(`      [parsePrimary] ✓ arrow function: (x) => ...`);
         this.advance();
         const body = this.parseExpression();
-        // Convert expr back to parameter
         let params = [];
         if (expr.type === 'Identifier') {
           params = [new Parameter(expr, false, null)];
         }
         return new ArrowFunctionExpression(params, body);
       }
-      
+
+      console.log(`      [parsePrimary] ✓ grouped expression`);
       return expr;
     }
 
     if (this.isPunctuation('{')) {
+      console.log(`      [parsePrimary] ✓ object literal`);
       this.advance();
       return this.parseObjectLiteral();
     }
 
     if (this.isPunctuation('[')) {
+      console.log(`      [parsePrimary] ✓ array literal`);
       this.advance();
       const elements = [];
       while (!this.isPunctuation(']') && !this.isAtEnd()) {
@@ -790,6 +928,7 @@ class Parser {
     }
 
     if (this.isKeyword('new')) {
+      console.log(`      [parsePrimary] ✓ new expression`);
       this.advance();
       const callee = new Identifier(this.consume(TokenType.IDENTIFIER, 'Expected class name').value);
       this.consume(TokenType.PUNCTUATION, 'Expected (');
@@ -802,6 +941,7 @@ class Parser {
       const savedPos = this.current;
       this.advance();
       if (this.isKeyword('new')) {
+        console.log(`      [parsePrimary] ✓ const new expression`);
         this.advance();
         const callee = new Identifier(this.consume(TokenType.IDENTIFIER, 'Expected class name').value);
         this.consume(TokenType.PUNCTUATION, 'Expected (');
@@ -817,8 +957,10 @@ class Parser {
     if (this.check(TokenType.IDENTIFIER)) {
       const token = this.advance();
       const ident = new Identifier(token.value);
+      console.log(`      [parsePrimary] ✓ identifier: ${token.value}`);
 
       if (this.isOperator('=>')) {
+        console.log(`      [parsePrimary] ✓ arrow function: x => ...`);
         this.advance();
         const body = this.parseExpression();
         return new ArrowFunctionExpression([new Parameter(ident)], body);
@@ -827,79 +969,105 @@ class Parser {
       return ident;
     }
 
+    // If we get here, we couldn't parse anything
+    console.error(`      [parsePrimary] ❌ FAILED - Cannot parse token: ${this.peek().value} (${this.peek().type})`);
     throw this.error('Expected expression');
   }
 
+
+  enterMethod(methodName) {
+    if (!this.callStack) this.callStack = [];
+    this.callStack.push({
+      method: methodName,
+      line: this.peek().line,
+      column: this.peek().column,
+      token: this.peek().value,
+    });
+  }
+
   parseObjectLiteral() {
+    this.enterMethod('parseObjectLiteral');
     const properties = [];
 
-    while (!this.isPunctuation('}') && !this.isAtEnd()) {
-      let key = null;
-      let shorthand = false;
-
-      if (this.isPunctuation('[')) {
-        this.advance();
-        key = this.parseExpression();
-        this.consume(TokenType.PUNCTUATION, 'Expected ]');
-      } else if (this.check(TokenType.IDENTIFIER)) {
-        const token = this.advance();
-        key = new Identifier(token.value);
-
-        if (!this.isPunctuation(':')) {
-          shorthand = true;
-        }
-      } else if (this.check(TokenType.STRING)) {
-        const token = this.advance();
-        key = new Literal(token.value, token.value, 'string');
-      } else {
-        this.advance();
-        continue;
-      }
-
-      let value = key;
-      if (!shorthand && this.isPunctuation(':')) {
-        this.advance(); // consume :
-        try {
-          // Parse the full expression normally
-          value = this.parseAssignment();
-        } catch (error) {
-          value = key;
-        }
-      }
-
-      const prop = new Property(key, value);
-      prop.shorthand = shorthand;
-      properties.push(prop);
-
-      if (this.isPunctuation(',')) {
-        this.advance();
-      } else if (!this.isPunctuation('}')) {
-        // Skip until we find , or }
-        while (!this.isPunctuation(',') && !this.isPunctuation('}') && !this.isAtEnd()) {
+    try {
+      while (!this.isPunctuation('}') && !this.isAtEnd()) {
+        if (this.isPunctuation(',')) {
           this.advance();
+          continue;
         }
+
+        let key = null;
+        let shorthand = false;
+
+        if (this.isPunctuation('[')) {
+          this.advance();
+          key = this.parseExpression();
+          this.consume(TokenType.PUNCTUATION, 'Expected ]');
+        } else if (this.check(TokenType.IDENTIFIER)) {
+          const token = this.advance();
+          key = new Identifier(token.value);
+
+          if (this.isPunctuation(',') || this.isPunctuation('}')) {
+            shorthand = true;
+          }
+        } else if (this.check(TokenType.STRING)) {
+          const token = this.advance();
+          key = new Literal(token.value, token.value, 'string');
+        } else {
+          this.advance();
+          continue;
+        }
+
+        let value = key;
+        if (!shorthand && this.isPunctuation(':')) {
+          this.advance();
+
+          try {
+            value = this.parseTernary();
+          } catch (error) {
+            if (error.parserError) {
+              this.reportParserError(error.parserError);
+            }
+            value = key;
+
+            while (!this.isPunctuation(',') && !this.isPunctuation('}') && !this.isAtEnd()) {
+              this.advance();
+            }
+          }
+        }
+
+        const prop = new Property(key, value);
+        prop.shorthand = shorthand;
+        properties.push(prop);
+
         if (this.isPunctuation(',')) {
           this.advance();
         }
       }
-    }
 
-    if (this.isPunctuation('}')) {
-      this.advance();
+      if (this.isPunctuation('}')) {
+        this.advance();
+      }
+
+      this.exitMethod('parseObjectLiteral');
+      return new ObjectLiteral(properties);
+    } catch (e) {
+      this.exitMethod('parseObjectLiteral');
+      throw e;
     }
-    return new ObjectLiteral(properties);
   }
-
   parseArguments() {
     const args = [];
 
     while (!this.isPunctuation(')') && !this.isAtEnd()) {
       try {
-        args.push(this.parseExpression());
+        // ⭐ KEY FIX: Use parseTernary() instead of parseLogicalOr()
+        // This allows all operators except assignment
+        args.push(this.parseTernary());
       } catch (error) {
-        // Silently skip problematic arguments
         break;
       }
+
       if (!this.isPunctuation(',')) break;
       this.advance();
     }
@@ -956,10 +1124,68 @@ class Parser {
     const token = this.peek();
     return { line: token.line, column: token.column };
   }
-
+  /**
+  * Enhanced error reporting with full call stack
+  */
   error(message) {
     const token = this.peek();
-    return new Error(`Parse error at line ${token.line}, column ${token.column}: ${message}`);
+    const errorObj = new Error(
+      `Parse error at line ${token.line}, column ${token.column}: ${message}`
+    );
+    errorObj.parserError = {
+      message: `Parse error at line ${token.line}, column ${token.column}: ${message}`,
+      line: token.line,
+      column: token.column,
+      token: { type: token.type, value: token.value },
+      callStack: this.callStack ? [...this.callStack] : [],
+    };
+    return errorObj;
+  }
+  /**
+   * Get context around current token (5 tokens before and after)
+   */
+  getContext() {
+    const start = Math.max(0, this.current - 5);
+    const end = Math.min(this.tokens.length, this.current + 6);
+
+    return {
+      before: this.tokens.slice(start, this.current).map(t => `${t.value}(${t.type})`).join(' '),
+      current: `→ ${this.peek().value}(${this.peek().type}) ←`,
+      after: this.tokens.slice(this.current + 1, end).map(t => `${t.value}(${t.type})`).join(' '),
+    };
+  }
+  /**
+   * Track when exiting a parser method
+   */
+  exitMethod(methodName) {
+    if (!this.callStack) this.callStack = [];
+    if (this.callStack.length > 0) {
+      const last = this.callStack[this.callStack.length - 1];
+      if (last.method === methodName) {
+        this.callStack.pop();
+      }
+    }
+  }
+
+  getTokenContext() {
+    const start = Math.max(0, this.current - 5);
+    const end = Math.min(this.tokens.length, this.current + 6);
+
+    const before = this.tokens
+      .slice(start, this.current)
+      .map(t => `${t.value}`)
+      .join(' ');
+
+    const after = this.tokens
+      .slice(this.current + 1, end)
+      .map(t => `${t.value}`)
+      .join(' ');
+
+    return {
+      before: before,
+      current: `→ ${this.peek().value} ←`,
+      after: after,
+    };
   }
 
   synchronize() {
@@ -978,6 +1204,35 @@ class Parser {
 
   getErrors() {
     return this.errors;
+  }
+
+  /**
+   * Report error with full context
+   */
+  reportError(error) {
+    this.errors.push(error);
+
+    if (this.debugMode) {
+      console.error('\n❌ PARSER ERROR DETECTED:\n');
+      console.error(`Message: ${error.message}\n`);
+
+      console.error('📍 Token Context:');
+      console.error(`  Before:  ${error.context.before}`);
+      console.error(`  Current: ${error.context.current}`);
+      console.error(`  After:   ${error.context.after}\n`);
+
+      console.error('📚 Call Stack (where error came from):');
+      if (error.callStack.length === 0) {
+        console.error('  (top level)\n');
+      } else {
+        error.callStack.forEach((frame, idx) => {
+          const arrow = idx === error.callStack.length - 1 ? '→' : ' ';
+          console.error(`  ${arrow} ${idx + 1}. ${frame.method}()`);
+          console.error(`     at token: "${frame.token}" (line ${frame.line}, col ${frame.column})`);
+        });
+        console.error('');
+      }
+    }
   }
 }
 
