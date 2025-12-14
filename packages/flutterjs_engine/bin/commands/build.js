@@ -204,6 +204,7 @@ window.FlutterJS.mount = function(selector) {
             estimatedEffort: analysisReport.ssr?.estimatedEffort || 'unknown',
           },
         },
+        logger: analysisReport.logger,
       };
 
       console.log('✅ Analysis complete\n');

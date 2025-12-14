@@ -7,6 +7,7 @@
 
 
 import { TokenType } from './lexer.js';
+import { getLogger } from './flutterjs_logger.js';
 
 // ============================================================================
 // AST NODE CLASSES
@@ -294,20 +295,21 @@ class Parser {
   }
 
   parseClassDeclaration() {
-    console.log('\n[parseClassDeclaration] STARTING');
-    console.log(`  Current token: ${this.peek().value} (${this.peek().type})`);
+    const logger = getLogger().createComponentLogger('Parser.parseClassDeclaration');
+    logger.startSession('parseClassDeclaration');
+    logger.trace(`  Current token: ${this.peek().value} (${this.peek().type})`);
 
     const startLocation = this.getLocation();
     const nameToken = this.consume(TokenType.IDENTIFIER, 'Expected class name');
     const name = new Identifier(nameToken.value);
-    console.log(`  Class name: ${name.name}`);
+    logger.trace(`  Class name: ${name.name}`);
 
     let superClass = null;
     if (this.isKeyword('extends')) {
       this.advance();
       const superName = this.consume(TokenType.IDENTIFIER, 'Expected superclass name').value;
       superClass = new Identifier(superName);
-      console.log(`  Extends: ${superClass.name}`);
+      logger.trace(`  Extends: ${superClass.name}`);
 
       // Skip generic type parameters like <MyCounter>
       if (this.isOperator('<')) {
@@ -317,29 +319,29 @@ class Parser {
       }
     }
 
-    console.log(`  Looking for opening brace...`);
-    console.log(`  Current token: ${this.peek().value} (${this.peek().type})`);
+    logger.trace(`  Looking for opening brace...`);
+    logger.trace(`  Current token: ${this.peek().value} (${this.peek().type})`);
     this.consume(TokenType.PUNCTUATION, 'Expected {');
 
     const fields = [];
     const methods = [];
 
-    console.log(`  Parsing class body...`);
+    logger.trace(`  Parsing class body...`);
     let itemCount = 0;
 
     while (!this.isPunctuation('}') && !this.isAtEnd()) {
-      console.log(`    [item ${itemCount}] Current token: ${this.peek().value} (${this.peek().type})`);
+      logger.trace(`    [item ${itemCount}] Current token: ${this.peek().value} (${this.peek().type})`);
 
       // Skip semicolons
       if (this.isPunctuation(';')) {
-        console.log(`    Skipping semicolon`);
+        logger.trace(`    Skipping semicolon`);
         this.advance();
         continue;
       }
 
       // Check for constructor (always a method)
       if (this.isKeyword('constructor')) {
-        console.log(`    Found constructor`);
+        logger.trace(`    Found constructor`);
         methods.push(this.parseMethodDeclaration());
         itemCount++;
         continue;
@@ -350,16 +352,16 @@ class Parser {
         const currentPos = this.current;
         const idToken = this.peek();
         const fieldName = idToken.value;
-        console.log(`    Found identifier: ${fieldName}`);
+        logger.trace(`    Found identifier: ${fieldName}`);
         this.advance();
 
         // CASE 1: Field initializer - IDENTIFIER = value
         if (this.isOperator('=')) {
-          console.log(`      -> This is a FIELD (followed by =)`);
+          logger.trace(`      -> This is a FIELD (followed by =)`);
           this.current = currentPos; // Rewind
           try {
             fields.push(this.parseFieldDeclaration());
-            console.log(`      Field parsed successfully`);
+            logger.trace(`      Field parsed successfully`);
             itemCount++;
             continue;
           } catch (e) {
@@ -370,11 +372,11 @@ class Parser {
 
         // CASE 2: Method - IDENTIFIER ( params )
         if (this.isPunctuation('(')) {
-          console.log(`      -> This is a METHOD (followed by '(')`);
+          logger.trace(`      -> This is a METHOD (followed by '(')`);
           this.current = currentPos; // Rewind
           try {
             methods.push(this.parseMethodDeclaration());
-            console.log(`      Method parsed successfully`);
+            logger.trace(`      Method parsed successfully`);
             itemCount++;
             continue;
           } catch (e) {
@@ -383,27 +385,28 @@ class Parser {
           }
         }
 
-        console.log(`      -> Unknown pattern, skipping`);
+        logger.trace(`      -> Unknown pattern, skipping`);
         this.advance();
         continue;
       }
 
       // Skip unknown tokens
-      console.log(`    Skipping unknown token: ${this.peek().value}`);
+      logger.trace(`    Skipping unknown token: ${this.peek().value}`);
       this.advance();
     }
 
-    console.log(`  Class body parsing complete. Found ${fields.length} fields, ${methods.length} methods`);
+    logger.trace(`  Class body parsing complete. Found ${fields.length} fields, ${methods.length} methods`);
 
     this.consume(TokenType.PUNCTUATION, 'Expected }');
     const body = new ClassBody(fields, methods);
-    console.log(`[parseClassDeclaration] SUCCESS\n`);
+    logger.trace(`[parseClassDeclaration] SUCCESS\n`);
     return new ClassDeclaration(name, superClass, body, startLocation);
   }
 
   parseMethodDeclaration() {
-    console.log(`      [parseMethodDeclaration] STARTING`);
-    console.log(`        Current: ${this.peek().value}`);
+    const logger = getLogger().createComponentLogger('Parser.parseMethodDeclaration');
+    logger.startSession(`      [parseMethodDeclaration] STARTING`);
+    logger.trace(`        Current: ${this.peek().value}`);
 
     const startLocation = this.getLocation();
 
@@ -415,26 +418,26 @@ class Parser {
       methodName = this.consume(TokenType.IDENTIFIER, 'Expected method name').value;
     }
 
-    console.log(`        Method name: ${methodName}`);
+    logger.trace(`        Method name: ${methodName}`);
     const key = new Identifier(methodName);
 
     this.consume(TokenType.PUNCTUATION, 'Expected (');
     const params = this.parseParameterList();
-    console.log(`        Parameters: ${params.length}`);
+    logger.trace(`        Parameters: ${params.length}`);
     this.consume(TokenType.PUNCTUATION, 'Expected )');
 
     let body = null;
     if (this.isOperator('=>')) {
-      console.log(`        Arrow function body`);
+      logger.trace(`        Arrow function body`);
       this.advance();
       body = this.parseExpression();
     } else if (this.isPunctuation('{')) {
-      console.log(`        Block body`);
+      logger.trace(`        Block body`);
       this.advance();
       body = this.parseBlock();
     }
 
-    console.log(`      [parseMethodDeclaration] SUCCESS`);
+    logger.trace(`      [parseMethodDeclaration] SUCCESS`);
     return new MethodDeclaration(key, params, body, startLocation);
   }
   parseFieldDeclaration() {

@@ -1,10 +1,12 @@
 /**
- * FlutterJS Report Generator - Enhanced Phase 3
+ * FlutterJS Report Generator - Enhanced Phase 3 (FIXED)
  * Generates JSON, Markdown, and Console reports from analysis results
  * 
  * Integrates Phase 1 (Widget Analysis), Phase 2 (State Analysis),
  * and Phase 3 (Context + SSR Analysis)
  */
+
+import { getLogger } from './flutterjs_logger.js';
 
 // ============================================================================
 // REPORT GENERATOR CLASS
@@ -12,22 +14,25 @@
 
 class ReportGenerator {
   constructor(widgetResults, stateResults, contextResults = null, ssrResults = null, options = {}) {
-    this.widgetResults = widgetResults;      // From Phase 1 WidgetAnalyzer
-    this.stateResults = stateResults;        // From Phase 2 StateAnalyzer
-    this.contextResults = contextResults;    // Phase 3 NEW: ContextAnalyzer
-    this.ssrResults = ssrResults;            // Phase 3 NEW: SSRAnalyzer
+    this.widgetResults = widgetResults;
+    this.stateResults = stateResults;
+    this.contextResults = contextResults;
+    this.ssrResults = ssrResults;
 
     this.options = {
-      format: 'json',                         // 'json', 'markdown', 'console'
+      format: 'json',
       includeMetrics: true,
       includeTree: true,
       includeValidation: true,
       includeSuggestions: true,
-      includeContext: true,                   // Phase 3 NEW
-      includeSsr: true,                       // Phase 3 NEW
+      includeContext: true,
+      includeSsr: true,
       prettyPrint: true,
       ...options,
     };
+
+    // Initialize logger
+    this.logger = getLogger().createComponentLogger('ReportGenerator');
 
     this.metadata = {};
     this.report = {};
@@ -37,20 +42,35 @@ class ReportGenerator {
    * Main entry point - generate report
    */
   generate() {
-    console.log('[ReportGenerator] Generating report...');
+    this.logger.startSession('ReportGeneration');
+    this.logger.info('Generating report');
 
-    this.calculateMetrics();
-    this.buildReport();
+    try {
+      this.calculateMetrics();
+      this.buildReport();
 
-    switch (this.options.format) {
-      case 'json':
-        return this.toJSON();
-      case 'markdown':
-        return this.toMarkdown();
-      case 'console':
-        return this.toConsole();
-      default:
-        return this.toJSON();
+      let output;
+      switch (this.options.format) {
+        case 'json':
+          output = this.toJSON();
+          break;
+        case 'markdown':
+          output = this.toMarkdown();
+          break;
+        case 'console':
+          output = this.toConsole();
+          break;
+        default:
+          output = this.toJSON();
+      }
+
+      this.logger.success('Report generation complete');
+      this.logger.endSession('ReportGeneration');
+      return output;
+    } catch (error) {
+      this.logger.failure('Report generation failed', error.message);
+      this.logger.endSession('ReportGeneration');
+      throw error;
     }
   }
 
@@ -67,13 +87,13 @@ class ReportGenerator {
     const lifecycleMethods = this.stateResults.lifecycleMethods || [];
     const eventHandlers = this.stateResults.eventHandlers || [];
 
-    // Phase 3 NEW: Context metrics
+    // Phase 3: Context metrics
     const inheritedWidgets = this.contextResults?.inheritedWidgets || [];
     const changeNotifiers = this.contextResults?.changeNotifiers || [];
     const providers = this.contextResults?.providers || [];
     const contextAccessPoints = this.contextResults?.contextAccessPoints || [];
 
-    // Phase 3 NEW: SSR metrics
+    // Phase 3: SSR metrics
     const ssrScore = this.ssrResults?.ssrCompatibilityScore || 0;
     const ssrSafePatterns = this.ssrResults?.ssrSafePatterns || [];
     const ssrUnsafePatterns = this.ssrResults?.ssrUnsafePatterns || [];
@@ -93,13 +113,13 @@ class ReportGenerator {
       lifecycleMethodCount: lifecycleMethods.length,
       eventHandlerCount: eventHandlers.length,
 
-      // Context metrics (Phase 3 NEW)
+      // Context metrics (Phase 3)
       inheritedWidgets: inheritedWidgets.length,
       changeNotifiers: changeNotifiers.length,
       providers: providers.length,
       contextAccessPoints: contextAccessPoints.length,
 
-      // SSR metrics (Phase 3 NEW)
+      // SSR metrics (Phase 3)
       ssrCompatibilityScore: ssrScore,
       ssrCompatibility: this.ssrResults?.overallCompatibility || 'unknown',
       ssrSafePatterns: ssrSafePatterns.length,
@@ -154,28 +174,21 @@ class ReportGenerator {
   calculateHealthScore() {
     let score = 100;
 
-    // Deduct for errors
     score -= this.metadata.errorCount * 10;
-
-    // Deduct for warnings
     score -= this.metadata.warningCount * 2;
 
-    // Bonus for having entry point
     if (this.metadata.entryPoint) {
       score += 5;
     }
 
-    // Deduct if more stateful than stateless
     if (this.metadata.statefulWidgets > this.metadata.statelessWidgets) {
       score -= 10;
     }
 
-    // Deduct if tree too deep
     if (this.metadata.treeDepth > 5) {
       score -= 5;
     }
 
-    // Phase 3: Deduct for SSR incompatibility
     if (this.metadata.ssrCompatibilityScore < 50) {
       score -= 15;
     }
@@ -189,21 +202,14 @@ class ReportGenerator {
   calculateComplexityScore() {
     let score = 0;
 
-    // State fields add complexity
     score += Math.min(this.metadata.totalStateFields * 10, 40);
-
-    // setState calls add complexity
     score += Math.min(this.metadata.setStateCallCount * 5, 30);
-
-    // Event handlers add complexity
     score += Math.min(this.metadata.eventHandlerCount * 2, 20);
 
-    // Deep trees add complexity
     if (this.metadata.treeDepth > 5) {
       score += 10;
     }
 
-    // Phase 3: Context complexity
     score += Math.min(this.metadata.contextAccessPoints * 3, 15);
 
     return Math.min(100, score);
@@ -226,14 +232,12 @@ class ReportGenerator {
       },
 
       summary: {
-        // Phase 1 Summary
         widgets: {
           total: this.metadata.totalWidgets,
           stateless: this.metadata.statelessWidgets,
           stateful: this.metadata.statefulWidgets,
           components: this.metadata.componentWidgets,
         },
-        // Phase 2 Summary
         state: {
           stateClasses: this.metadata.stateClasses,
           stateFields: this.metadata.totalStateFields,
@@ -241,14 +245,12 @@ class ReportGenerator {
           lifecycleMethods: this.metadata.lifecycleMethodCount,
           eventHandlers: this.metadata.eventHandlerCount,
         },
-        // Phase 3 NEW: Context Summary
         context: this.options.includeContext ? {
           inheritedWidgets: this.metadata.inheritedWidgets,
           changeNotifiers: this.metadata.changeNotifiers,
           providers: this.metadata.providers,
           contextAccessPoints: this.metadata.contextAccessPoints,
         } : null,
-        // Phase 3 NEW: SSR Summary
         ssr: this.options.includeSsr ? {
           compatibility: this.metadata.ssrCompatibility,
           compatibilityScore: this.metadata.ssrCompatibilityScore,
@@ -257,7 +259,6 @@ class ReportGenerator {
           hydrationRequired: this.metadata.hydrationRequired,
           hydrationCount: this.metadata.hydrationCount,
         } : null,
-        // Other
         functions: this.metadata.totalFunctions,
         imports: this.metadata.totalImports,
         externalPackages: this.metadata.externalPackages,
@@ -268,19 +269,14 @@ class ReportGenerator {
         complexityScore: this.metadata.complexityScore,
       },
 
-      // Phase 1 & 2 Details
       widgets: this.formatWidgets(),
       stateClasses: this.formatStateClasses(),
       imports: this.formatImports(),
       functions: this.formatFunctions(),
 
-      // Phase 3 NEW: Context Details
       context: this.options.includeContext ? this.formatContext() : null,
-
-      // Phase 3 NEW: SSR Details
       ssr: this.options.includeSsr ? this.formatSsr() : null,
 
-      // Other Details
       widgetTree: this.options.includeTree ? this.formatWidgetTree() : null,
       dependencyGraph: this.formatDependencyGraph(),
       validation: this.options.includeValidation ? this.formatValidation() : null,
@@ -291,7 +287,7 @@ class ReportGenerator {
   }
 
   /**
-   * Phase 3 NEW: Format context analysis results
+   * Phase 3: Format context analysis results
    */
   formatContext() {
     if (!this.contextResults) {
@@ -348,7 +344,7 @@ class ReportGenerator {
   }
 
   /**
-   * Phase 3 NEW: Format SSR analysis results
+   * Phase 3: Format SSR analysis results
    */
   formatSsr() {
     if (!this.ssrResults) {
@@ -462,37 +458,53 @@ class ReportGenerator {
   }
 
   /**
-   * Format state classes for report
+   * FIXED: Format state classes for report
+   * Properly handle StateField objects which may or may not have isUsed method
    */
   formatStateClasses() {
     const stateClasses = {};
 
     (this.stateResults.stateClasses || []).forEach((sc) => {
-      const metadata = sc.metadata;
+      const metadata = sc.metadata || sc;  // Handle both wrapped and unwrapped formats
+      
       stateClasses[metadata.name] = {
         name: metadata.name,
         linkedStatefulWidget: metadata.linkedStatefulWidget,
         location: metadata.location,
 
-        stateFields: metadata.stateFields.map((field) => ({
-          name: field.name,
-          type: field.type,
-          initialValue: field.initialValueString,
-          isUsed: field.isUsed(),
-          usedInMethods: field.usedInMethods,
-          mutatedInMethods: field.mutatedInMethods,
-          mutationCount: field.mutations.length,
-        })),
+        stateFields: (metadata.stateFields || []).map((field) => {
+          // FIXED: Check if isUsed is a function before calling it
+          const isUsed = typeof field.isUsed === 'function' 
+            ? field.isUsed() 
+            : (field.usedInMethods && field.usedInMethods.length > 0);
 
-        lifecycleMethods: metadata.lifecycleMethods.map((lc) => ({
-          name: lc.name,
-          callsSuper: lc.callsSuper,
-          hasSideEffects: lc.hasSideEffects,
-          isValid: lc.isValid(),
-          issues: lc.validationIssues,
-        })),
+          return {
+            name: field.name,
+            type: field.type || 'any',
+            initialValue: field.initialValueString || field.initialValue?.toString() || 'undefined',
+            isUsed: isUsed,
+            usedInMethods: field.usedInMethods || [],
+            mutatedInMethods: field.mutatedInMethods || [],
+            mutationCount: (field.mutations && field.mutations.length) || 0,
+          };
+        }),
 
-        otherMethods: metadata.otherMethods.map((m) => ({
+        lifecycleMethods: (metadata.lifecycleMethods || []).map((lc) => {
+          // FIXED: Check if isValid is a function
+          const isValid = typeof lc.isValid === 'function' 
+            ? lc.isValid() 
+            : true;
+
+          return {
+            name: lc.name,
+            callsSuper: lc.callsSuper || false,
+            hasSideEffects: lc.hasSideEffects || false,
+            isValid: isValid,
+            issues: lc.validationIssues || [],
+          };
+        }),
+
+        otherMethods: (metadata.otherMethods || []).map((m) => ({
           name: m.name,
           params: m.params || [],
         })),
@@ -614,7 +626,7 @@ class ReportGenerator {
       });
     }
 
-    // Phase 3 NEW: SSR Suggestions
+    // Phase 3: SSR Suggestions
     if (this.options.includeSsr && this.ssrResults) {
       if (this.metadata.ssrCompatibilityScore < 50) {
         suggestions.push({
@@ -626,7 +638,7 @@ class ReportGenerator {
         });
       }
 
-      if (this.metadata.unsafePatterns > 5) {
+      if (this.metadata.ssrUnsafePatterns > 5) {
         suggestions.push({
           type: 'ssr-patterns',
           severity: 'warning',
@@ -657,7 +669,7 @@ class ReportGenerator {
       }
     }
 
-    // Phase 3 NEW: Context Suggestions
+    // Phase 3: Context Suggestions
     if (this.options.includeContext && this.contextResults) {
       if (this.metadata.inheritedWidgets > 3) {
         suggestions.push({
@@ -688,7 +700,6 @@ class ReportGenerator {
    */
   getDetailedMetrics() {
     return {
-      // Phase 1 & 2 Metrics
       widgetMetrics: {
         total: this.metadata.totalWidgets,
         byType: {
@@ -707,7 +718,6 @@ class ReportGenerator {
         eventHandlers: this.metadata.eventHandlerCount,
       },
 
-      // Phase 3 NEW: Context Metrics
       contextMetrics: this.options.includeContext ? {
         inheritedWidgets: this.metadata.inheritedWidgets,
         changeNotifiers: this.metadata.changeNotifiers,
@@ -715,7 +725,6 @@ class ReportGenerator {
         contextAccessPoints: this.metadata.contextAccessPoints,
       } : null,
 
-      // Phase 3 NEW: SSR Metrics
       ssrMetrics: this.options.includeSsr ? {
         compatibilityScore: this.metadata.ssrCompatibilityScore,
         compatibility: this.metadata.ssrCompatibility,
@@ -725,7 +734,6 @@ class ReportGenerator {
         hydrationCount: this.metadata.hydrationCount,
       } : null,
 
-      // Other Metrics
       functionMetrics: {
         total: this.metadata.totalFunctions,
         entryPoint: this.metadata.entryPoint || 'none',
@@ -767,7 +775,6 @@ class ReportGenerator {
   toMarkdown() {
     let md = '# FlutterJS Code Analysis Report (Phase 1 + 2 + 3)\n\n';
 
-    // Header
     md += `**Generated:** ${new Date().toISOString()}\n\n`;
 
     // Summary Table
@@ -782,7 +789,6 @@ class ReportGenerator {
     md += `| Health Score | ${this.metadata.healthScore}/100 |\n`;
     md += `| Complexity Score | ${this.metadata.complexityScore}/100 |\n`;
 
-    // Phase 3 Summary
     if (this.options.includeContext) {
       md += `| InheritedWidgets | ${this.metadata.inheritedWidgets} |\n`;
       md += `| ChangeNotifiers | ${this.metadata.changeNotifiers} |\n`;
@@ -797,7 +803,7 @@ class ReportGenerator {
 
     md += '\n';
 
-    // Phase 3 Context Section
+    // Context Section
     if (this.options.includeContext && this.contextResults) {
       md += '## Context Analysis (Phase 3)\n\n';
 
@@ -827,7 +833,7 @@ class ReportGenerator {
       }
     }
 
-    // Phase 3 SSR Section
+    // SSR Section
     if (this.options.includeSsr && this.ssrResults) {
       md += '## SSR Compatibility Analysis (Phase 3)\n\n';
       md += `**Overall Compatibility:** ${this.metadata.ssrCompatibility}\n`;
@@ -904,7 +910,6 @@ class ReportGenerator {
     lines.push(`  Health Score: ${this.metadata.healthScore}/100`);
     lines.push(`  Complexity: ${this.metadata.complexityScore}/100`);
 
-    // Phase 3 Summary
     if (this.options.includeContext) {
       lines.push(`  InheritedWidgets: ${this.metadata.inheritedWidgets}`);
       lines.push(`  ChangeNotifiers: ${this.metadata.changeNotifiers}`);
@@ -919,7 +924,7 @@ class ReportGenerator {
 
     lines.push('');
 
-    // Phase 3 Context Section
+    // Context Section
     if (this.options.includeContext && this.contextResults && this.metadata.inheritedWidgets > 0) {
       lines.push('CONTEXT ANALYSIS (Phase 3)');
       lines.push('-'.repeat(80));
@@ -947,7 +952,7 @@ class ReportGenerator {
       lines.push('');
     }
 
-    // Phase 3 SSR Section
+    // SSR Section
     if (this.options.includeSsr && this.ssrResults) {
       lines.push('SSR COMPATIBILITY ANALYSIS (Phase 3)');
       lines.push('-'.repeat(80));

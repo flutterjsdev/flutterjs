@@ -1,40 +1,41 @@
 /**
- * FlutterJS SSR Analyzer - Phase 3
+ * FlutterJS SSR Analyzer - Phase 3 (FIXED)
  * Analyzes Server-Side Rendering (SSR) compatibility
  * Detects SSR-safe and unsafe patterns
  * Generates migration path for SSR compliance
- * 
- * Phase 3 focuses on: SSR detection, hydration requirements, migration advice
- * Does NOT implement SSR rendering (that's Phase 4+)
  */
 
 import {
   HydrationRequirement,
   LazyLoadOpportunity,
 } from './context_analyzer_data.js';
+import { getLogger } from './flutterjs_logger.js';
 
 class SSRAnalyzer {
   constructor(contextAnalysisResults, stateAnalysisResults = null, options = {}) {
     // Input from Phase 2 & 3
-    this.contextResults = contextAnalysisResults;      // From ContextAnalyzer
-    this.stateResults = stateAnalysisResults;          // From StateAnalyzer (Phase 2)
+    this.contextResults = contextAnalysisResults;
+    this.stateResults = stateAnalysisResults;
 
     this.options = {
       strict: false,
-      targetPlatform: 'node',  // 'node', 'deno', 'cloudflare'
+      targetPlatform: 'node',
       ...options,
     };
 
+    // Initialize logger
+     this.logger = getLogger().createComponentLogger('SSRAnalyzer');
+
     // Results storage
-    this.ssrSafePatterns = [];                   // Patterns that work in SSR
-    this.ssrUnsafePatterns = [];                 // Patterns that don't work in SSR
-    this.hydrationRequirements = [];             // What needs hydration
-    this.lazyLoadOpportunities = [];             // Code split candidates
-    this.ssrMigrationPath = [];                  // Steps to make SSR-compatible
-    this.validationIssues = [];                  // SSR-specific issues
+    this.ssrSafePatterns = [];
+    this.ssrUnsafePatterns = [];
+    this.hydrationRequirements = [];
+    this.lazyLoadOpportunities = [];
+    this.ssrMigrationPath = [];
+    this.validationIssues = [];
 
     // Metrics
-    this.ssrCompatibilityScore = 0;              // 0-100, higher is better
+    this.ssrCompatibilityScore = 0;
     this.hydrationCount = 0;
     this.errors = [];
   }
@@ -43,51 +44,49 @@ class SSRAnalyzer {
    * Main entry point - analyze SSR compatibility
    */
   analyze() {
-    console.log('[SSRAnalyzer] Starting SSR compatibility analysis...\n');
+    this.logger.startSession('SSRAnalysis');
+    this.logger.info('Starting SSR compatibility analysis');
 
     try {
       // Phase 1: Detect SSR-safe patterns
       this.detectSsrSafePatterns();
-      console.log(`[SSRAnalyzer] Found ${this.ssrSafePatterns.length} SSR-safe patterns\n`);
+      this.logger.count('SSR-safe patterns found', this.ssrSafePatterns.length);
 
       // Phase 2: Detect SSR-unsafe patterns
       this.detectSsrUnsafePatterns();
-      console.log(`[SSRAnalyzer] Found ${this.ssrUnsafePatterns.length} SSR-unsafe patterns\n`);
+      this.logger.count('SSR-unsafe patterns found', this.ssrUnsafePatterns.length);
 
       // Phase 3: Identify hydration needs
       this.identifyHydrationNeeds();
-      console.log(`[SSRAnalyzer] Identified ${this.hydrationRequirements.length} hydration dependencies\n`);
+      this.logger.count('Hydration dependencies', this.hydrationRequirements.length);
 
       // Phase 4: Detect lazy load opportunities
       this.detectLazyLoadOpportunities();
-      console.log(`[SSRAnalyzer] Found ${this.lazyLoadOpportunities.length} lazy load opportunities\n`);
+      this.logger.count('Lazy load opportunities', this.lazyLoadOpportunities.length);
 
       // Phase 5: Generate migration path
       this.generateMigrationPath();
-      console.log(`[SSRAnalyzer] Generated ${this.ssrMigrationPath.length} migration steps\n`);
+      this.logger.count('Migration steps', this.ssrMigrationPath.length);
 
       // Phase 6: Validate and score
       this.validateSsrRequirements();
       this.calculateCompatibilityScore();
-      console.log(`[SSRAnalyzer] SSR Compatibility Score: ${this.ssrCompatibilityScore}/100\n`);
+      this.logger.count('SSR Compatibility Score', this.ssrCompatibilityScore);
+
+      this.logger.success('SSR analysis complete');
+      this.logger.endSession('SSRAnalysis');
 
       return this.getResults();
     } catch (error) {
+      this.logger.failure('SSR analysis failed', error.message);
       this.errors.push(error);
-      console.error('[SSRAnalyzer] Error:', error.message);
+      this.logger.endSession('SSRAnalysis');
       return this.getResults();
     }
   }
 
   /**
    * Phase 1: Detect SSR-safe patterns
-   * 
-   * Safe for SSR:
-   * - Reading static values
-   * - InheritedWidget.of() lookups
-   * - context.read() single reads
-   * - Theme access
-   * - One-time data fetches
    */
   detectSsrSafePatterns() {
     const patterns = [];
@@ -151,13 +150,11 @@ class SSRAnalyzer {
     if (this.contextResults && this.contextResults.contextAccessPoints) {
       this.contextResults.contextAccessPoints.forEach((usage) => {
         if (usage.ssrSafe) {
-          // Find matching pattern and increment frequency
           const pattern = patterns.find((p) => p.example.includes(usage.pattern.split('(')[0]));
           if (pattern) {
             pattern.frequency++;
           }
 
-          // Add to safe patterns list
           this.ssrSafePatterns.push({
             pattern: usage.pattern,
             type: usage.type,
@@ -176,14 +173,6 @@ class SSRAnalyzer {
 
   /**
    * Phase 2: Detect SSR-unsafe patterns
-   * 
-   * Unsafe for SSR:
-   * - context.watch() subscriptions
-   * - State mutations in event handlers
-   * - notifyListeners() calls
-   * - Browser-specific APIs (localStorage, window)
-   * - Timer/interval operations
-   * - User interaction handlers
    */
   detectSsrUnsafePatterns() {
     const basePatterns = [
@@ -308,17 +297,11 @@ class SSRAnalyzer {
 
   /**
    * Phase 3: Identify hydration needs
-   * 
-   * After server renders HTML, client must:
-   * 1. Re-create state objects
-   * 2. Re-attach event listeners
-   * 3. Re-subscribe to change notifications
-   * 4. Verify hydration matches server output
    */
   identifyHydrationNeeds() {
     const hydrationNeeds = [];
 
-    // Need 1: ChangeNotifier instances need recreation and listener re-attachment
+    // Need 1: ChangeNotifier instances
     if (this.contextResults && this.contextResults.changeNotifiers) {
       this.contextResults.changeNotifiers.forEach((notifier) => {
         if (notifier.consumers && notifier.consumers.length > 0) {
@@ -328,7 +311,6 @@ class SSRAnalyzer {
             0
           );
 
-          // Add consumer info
           notifier.consumers.forEach((consumer) => {
             requirement.requiredState.push(`${consumer}.state`);
           });
@@ -339,7 +321,7 @@ class SSRAnalyzer {
       });
     }
 
-    // Need 2: Provider subscriptions need re-attachment
+    // Need 2: Provider subscriptions
     if (this.contextResults && this.contextResults.providers) {
       this.contextResults.providers.forEach((provider) => {
         if (provider.accessPatterns && provider.accessPatterns.includes('watch')) {
@@ -356,10 +338,9 @@ class SSRAnalyzer {
       });
     }
 
-    // Need 3: Event handlers need attachment
+    // Need 3: Event handlers
     if (this.stateResults && this.stateResults.eventHandlers) {
       this.stateResults.eventHandlers.forEach((handler) => {
-        // Only if not already handled above
         if (!hydrationNeeds.some((h) => h.dependency === handler.handler)) {
           const requirement = new HydrationRequirement(
             handler.handler,
@@ -372,19 +353,12 @@ class SSRAnalyzer {
       });
     }
 
-    // Sort by order
     hydrationNeeds.sort((a, b) => a.order - b.order);
     this.hydrationRequirements = hydrationNeeds;
   }
 
   /**
    * Phase 4: Detect lazy load opportunities
-   * 
-   * Identify widgets/services that:
-   * - Are not needed immediately
-   * - Are used conditionally
-   * - Are large
-   * - Can be split into separate chunks
    */
   detectLazyLoadOpportunities() {
     const opportunities = [];
@@ -406,7 +380,7 @@ class SSRAnalyzer {
       });
     }
 
-    // Opportunity 2: Heavy ChangeNotifiers used conditionally
+    // Opportunity 2: Heavy ChangeNotifiers
     if (this.contextResults && this.contextResults.changeNotifiers) {
       this.contextResults.changeNotifiers.forEach((notifier) => {
         if (notifier.methods && notifier.methods.length > 10) {
@@ -423,22 +397,16 @@ class SSRAnalyzer {
       });
     }
 
-    // Opportunity 3: Large library imports
-    const largeLibraries = ['charts', 'maps', 'firebase', 'analytics'];
-    // In real implementation, scan actual imports
-
     this.lazyLoadOpportunities = opportunities;
   }
 
   /**
    * Phase 5: Generate migration path
-   * 
-   * Step-by-step guide to make app SSR-compatible
    */
   generateMigrationPath() {
     const steps = [];
 
-    // Step 1: Replace context.watch() with context.read() + didChangeDependencies
+    // Step 1: Replace context.watch()
     const watchUnsafe = this.ssrUnsafePatterns.filter((p) => p.pattern?.includes('watch'));
     if (watchUnsafe.length > 0) {
       steps.push({
@@ -459,7 +427,7 @@ final counter = context.read<CounterNotifier>();
       });
     }
 
-    // Step 2: Move state mutations to client-only code
+    // Step 2: Move state mutations
     const mutationUnsafe = this.ssrUnsafePatterns.filter((p) => p.pattern?.includes('mutation'));
     if (mutationUnsafe.length > 0) {
       steps.push({
@@ -611,18 +579,14 @@ assert(serverHtml === clientHtml, 'SSR/CSR mismatch');`,
 
   /**
    * Calculate SSR compatibility score (0-100)
-   * 
-   * 100 = Full SSR support
-   * 75-99 = Partial with minor fixes
-   * 50-74 = Partial with major refactoring
-   * 0-49 = Not suitable for SSR without major rewrite
+   * FIXED: criticalIssues is now defined properly
    */
   calculateCompatibilityScore() {
     let score = 100;
 
     // Deduct for unsafe patterns
     const unsafeCount = this.ssrUnsafePatterns.length;
-    score -= Math.min(unsafeCount * 5, 40);  // Max deduction 40 points
+    score -= Math.min(unsafeCount * 5, 40);
 
     // Deduct for critical issues
     const criticalIssues = this.validationIssues.filter((i) => i.severity === 'critical');
@@ -635,7 +599,7 @@ assert(serverHtml === clientHtml, 'SSR/CSR mismatch');`,
     // Add bonus for SSR-safe patterns
     const safeCount = this.ssrSafePatterns.length;
     if (safeCount > 0) {
-      score += Math.min(safeCount * 2, 15);  // Max bonus 15 points
+      score += Math.min(safeCount * 2, 15);
     }
 
     // Add bonus for successful hydration setup
@@ -683,13 +647,16 @@ assert(serverHtml === clientHtml, 'SSR/CSR mismatch');`,
   }
 
   /**
-   * Get results
+   * Get results - FIXED: criticalIssues defined locally
    */
   getResults() {
+    // FIXED: Define criticalIssues locally
+    const criticalIssues = this.validationIssues.filter((i) => i.severity === 'critical');
+
     return {
       overallCompatibility: this.getOverallCompatibility(),
       ssrCompatibilityScore: this.ssrCompatibilityScore,
-      ssrReadinessScore: this.ssrCompatibilityScore,  // Alias
+      ssrReadinessScore: this.ssrCompatibilityScore,
 
       // Patterns
       ssrSafePatterns: this.ssrSafePatterns,
@@ -706,7 +673,7 @@ assert(serverHtml === clientHtml, 'SSR/CSR mismatch');`,
 
       // Validation & Issues
       validationIssues: this.validationIssues,
-      criticalIssues: this.validationIssues.filter((i) => i.severity === 'critical'),
+      criticalIssues: criticalIssues,
       warningIssues: this.validationIssues.filter((i) => i.severity === 'warning'),
 
       // Summary

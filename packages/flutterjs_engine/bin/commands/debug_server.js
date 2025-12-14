@@ -1,5 +1,10 @@
-// debug-server.js - DevTools UI and Debug Server
+// debug-server.js - FIXED: Properly display logger data from analysis
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+let cachedAnalysisData = null;
+let lastUpdate = null;
 
 /**
  * Start debug server - DevTools UI connected to dev server
@@ -30,12 +35,29 @@ async function startDebugServer(options) {
         return;
       }
 
-      // API: Get analysis from dev server
+      // API: Get analysis from cached .analysis.json
       if (pathname === '/api/analysis') {
         try {
-          const analysisData = await fetchFromDevServer(`${devServerUrl}/api/build-analysis`);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(analysisData, null, 2));
+          // Try to load fresh .analysis.json from dist folder
+          const analysisPath = path.resolve(process.cwd(), 'dist', '.analysis.json');
+          if (fs.existsSync(analysisPath)) {
+            const analysisData = JSON.parse(fs.readFileSync(analysisPath, 'utf-8'));
+            cachedAnalysisData = analysisData;
+            lastUpdate = new Date().toISOString();
+          }
+
+          if (cachedAnalysisData) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              ...cachedAnalysisData,
+              lastUpdate: lastUpdate,
+            }, null, 2));
+          } else {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              error: 'No analysis data available. Run build first.',
+            }, null, 2));
+          }
         } catch (error) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: error.message }, null, 2));
@@ -43,12 +65,47 @@ async function startDebugServer(options) {
         return;
       }
 
-      // API: Get build errors from dev server
+      // API: Get debug logs
+      if (pathname === '/api/debug-logs') {
+        try {
+          const debugDir = path.resolve(process.cwd(), '.debug');
+          const logs = {};
+
+          if (fs.existsSync(debugDir)) {
+            const files = fs.readdirSync(debugDir).filter(f => f.endsWith('.log'));
+            files.forEach(file => {
+              const content = fs.readFileSync(path.join(debugDir, file), 'utf-8');
+              // Limit to last 500 lines per file to avoid huge payloads
+              const lines = content.split('\n');
+              logs[file] = lines.slice(Math.max(0, lines.length - 500)).join('\n');
+            });
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            logs,
+            timestamp: new Date().toISOString(),
+          }, null, 2));
+        } catch (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: error.message }, null, 2));
+        }
+        return;
+      }
+
+      // API: Get errors
       if (pathname === '/api/errors') {
         try {
-          const errorData = await fetchFromDevServer(`${devServerUrl}/api/build-errors`);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(errorData, null, 2));
+          if (cachedAnalysisData && cachedAnalysisData.analysisErrors) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              errors: cachedAnalysisData.analysisErrors,
+              count: cachedAnalysisData.analysisErrors.length,
+            }, null, 2));
+          } else {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ errors: [], count: 0 }, null, 2));
+          }
         } catch (error) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: error.message }, null, 2));
@@ -64,12 +121,7 @@ async function startDebugServer(options) {
       console.log('✅ Debug server ready!\n');
       console.log(`   DevTools:  🔗 http://localhost:${port}/`);
       console.log(`   Dev App:   🔗 ${devServerUrl}/`);
-      console.log(`   Analysis:  🔗 http://localhost:${port}/api/analysis\n`);
-      console.log('   Connected to dev server - showing live analysis\n');
-
-      if (open) {
-        openBrowser(`http://localhost:${port}`);
-      }
+      console.log(`   API:       🔗 http://localhost:${port}/api/analysis\n`);
     });
 
     // Graceful shutdown
@@ -81,7 +133,10 @@ async function startDebugServer(options) {
       });
     });
 
-    // Return promise that never resolves (keeps server running)
+    if (open) {
+      setTimeout(() => openBrowser(`http://localhost:${port}`), 500);
+    }
+
     return new Promise(() => {});
 
   } catch (error) {
@@ -93,51 +148,28 @@ async function startDebugServer(options) {
   }
 }
 
-/**
- * Fetch data from dev server API
- */
-function fetchFromDevServer(url) {
-  return new Promise((resolve, reject) => {
-    http.get(url, (response) => {
-      let data = '';
-
-      response.on('data', (chunk) => {
-        data += chunk;
-      });
-
-      response.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (error) {
-          reject(error);
-        }
-      });
-    }).on('error', reject);
-  });
-}
-
 function openBrowser(url) {
   const { exec } = require('child_process');
   const platform = process.platform;
 
   let command;
   if (platform === 'darwin') {
-    command = `open ${url}`;
+    command = `open "${url}"`;
   } else if (platform === 'win32') {
     command = `start ${url}`;
   } else {
-    command = `xdg-open ${url}`;
+    command = `xdg-open "${url}"`;
   }
 
   exec(command, (err) => {
-    if (err) {
+    if (err && err.code !== 'ENOENT') {
       console.log('ℹ️  Could not open browser automatically');
     }
   });
 }
 
 /**
- * Generate DevTools UI HTML
+ * Generate DevTools UI HTML - FIXED: Shows debug logs
  */
 function serveDevToolsUI(devServerUrl) {
   return `<!DOCTYPE html>
@@ -150,14 +182,14 @@ function serveDevToolsUI(devServerUrl) {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+      font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
       color: #e0e0e0;
       min-height: 100vh;
       padding: 20px;
     }
     
-    .container { max-width: 1400px; margin: 0 auto; }
+    .container { max-width: 1600px; margin: 0 auto; }
     
     header {
       display: flex;
@@ -185,12 +217,40 @@ function serveDevToolsUI(devServerUrl) {
       text-decoration: none;
       font-size: 12px;
       transition: all 0.3s;
+      margin-left: 10px;
     }
     
     .status-link:hover {
       background: rgba(0, 212, 255, 0.2);
       border-color: rgba(0, 212, 255, 0.6);
     }
+    
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #0f3460;
+      padding-bottom: 10px;
+    }
+    
+    .tab-btn {
+      padding: 10px 20px;
+      background: transparent;
+      border: none;
+      color: #999;
+      cursor: pointer;
+      font-size: 14px;
+      border-bottom: 2px solid transparent;
+      transition: all 0.3s;
+    }
+    
+    .tab-btn.active {
+      color: #00d4ff;
+      border-bottom-color: #00d4ff;
+    }
+    
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
     
     .grid {
       display: grid;
@@ -218,6 +278,7 @@ function serveDevToolsUI(devServerUrl) {
       justify-content: space-between;
       padding: 8px 0;
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 13px;
     }
     
     .stat:last-child { border: none; }
@@ -240,9 +301,34 @@ function serveDevToolsUI(devServerUrl) {
       padding: 15px;
       border-radius: 6px;
       margin: 10px 0;
+      font-size: 12px;
     }
     
     .error-box strong { color: #ff6b7a; }
+    
+    .log-viewer {
+      background: #0a0a0a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 15px;
+      max-height: 400px;
+      overflow-y: auto;
+      font-size: 11px;
+      line-height: 1.5;
+      font-family: 'Menlo', 'Monaco', monospace;
+    }
+    
+    .log-line {
+      padding: 2px 0;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    
+    .log-error { color: #ff6b7a; }
+    .log-warn { color: #ffb627; }
+    .log-info { color: #00d4ff; }
+    .log-debug { color: #888; }
+    .log-trace { color: #666; }
     
     .loading {
       text-align: center;
@@ -288,22 +374,69 @@ function serveDevToolsUI(devServerUrl) {
         <h1>🔧 Flutter.js DevTools</h1>
         <p style="color: #666; margin-top: 5px;">Analysis & Development Dashboard</p>
       </div>
-      <a href="${devServerUrl}" class="status-link" target="_blank">👁️ View App</a>
+      <div>
+        <a href="${devServerUrl}" class="status-link" target="_blank">👁️ View App</a>
+        <a href="#" class="status-link" onclick="location.reload(); return false;">🔄 Refresh</a>
+      </div>
     </header>
 
-    <div id="content" class="loading">
-      <span class="spinner"></span>Loading analysis...
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('analysis')">📊 Analysis</button>
+      <button class="tab-btn" onclick="switchTab('logs')">📋 Debug Logs</button>
+      <button class="tab-btn" onclick="switchTab('errors')">⚠️ Errors</button>
+    </div>
+
+    <!-- Analysis Tab -->
+    <div id="analysis" class="tab-content active">
+      <div id="analysis-content" class="loading">
+        <span class="spinner"></span>Loading analysis...
+      </div>
+    </div>
+
+    <!-- Logs Tab -->
+    <div id="logs" class="tab-content">
+      <div class="section">
+        <h3>📋 Debug Logs</h3>
+        <div id="logs-content" class="log-viewer">
+          <div class="log-line" style="color: #666;">Loading logs...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Errors Tab -->
+    <div id="errors" class="tab-content">
+      <div id="errors-content" class="loading">
+        <span class="spinner"></span>Loading errors...
+      </div>
     </div>
   </div>
 
   <script>
+    function switchTab(name) {
+      // Hide all tabs
+      document.querySelectorAll('.tab-content').forEach(el => {
+        el.classList.remove('active');
+      });
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('active');
+      });
+
+      // Show selected tab
+      document.getElementById(name).classList.add('active');
+      event.target.classList.add('active');
+
+      // Load content if needed
+      if (name === 'logs') loadLogs();
+      else if (name === 'errors') loadErrors();
+    }
+
     async function loadAnalysis() {
       try {
         const response = await fetch('/api/analysis');
         const data = await response.json();
         
         if (data.error) {
-          document.getElementById('content').innerHTML = 
+          document.getElementById('analysis-content').innerHTML = 
             '<div class="section"><h3>❌ Error</h3><p>' + data.error + '</p></div>';
           return;
         }
@@ -313,16 +446,19 @@ function serveDevToolsUI(devServerUrl) {
         
         let html = '';
 
-        // Show errors if any
+        // Errors
         if (errors.length > 0) {
-          html += '<div class="section"><h3>⚠️ Build Issues</h3>';
+          html += '<div class="section"><h3>⚠️ Build Issues (' + errors.length + ')</h3>';
           errors.forEach(err => {
             html += '<div class="error-box"><strong>' + err.type + ':</strong> ' + err.message + '</div>';
           });
           html += '</div>';
         }
 
-        // Widgets analysis
+        // Analysis Cards
+        html += '<div class="grid">';
+
+        // Widgets
         const widgets = analysisResults.widgets || {};
         const health = widgets.summary?.healthScore || 0;
         html += '<div class="card"><h2>📦 Widgets (Phase 1)</h2>';
@@ -332,15 +468,15 @@ function serveDevToolsUI(devServerUrl) {
           (widgets.summary?.stateless || 0) + '</span></div>';
         html += '<div class="stat"><span>Stateful</span><span class="stat-value">' + 
           (widgets.summary?.stateful || 0) + '</span></div>';
-        html += '<div class="stat"><span>Health Score</span><span class="stat-value">' + health + '/100</span></div>';
+        html += '<div class="stat"><span>Health</span><span class="stat-value">' + health + '/100</span></div>';
         html += '<div class="score-bar"><div class="score-fill" style="width: ' + health + '%"></div></div>';
         html += '</div>';
 
-        // State analysis
+        // State
         const state = analysisResults.state || {};
-        const stateClasses = state.summary?.stateClasses || 0;
         html += '<div class="card"><h2>⚙️ State (Phase 2)</h2>';
-        html += '<div class="stat"><span>State Classes</span><span class="stat-value">' + stateClasses + '</span></div>';
+        html += '<div class="stat"><span>State Classes</span><span class="stat-value">' + 
+          (state.summary?.stateClasses || 0) + '</span></div>';
         html += '<div class="stat"><span>State Fields</span><span class="stat-value">' + 
           (state.summary?.stateFields || 0) + '</span></div>';
         html += '<div class="stat"><span>setState Calls</span><span class="stat-value">' + 
@@ -349,36 +485,109 @@ function serveDevToolsUI(devServerUrl) {
           (state.summary?.eventHandlers || 0) + '</span></div>';
         html += '</div>';
 
-        // Context and SSR analysis
+        // Context & SSR
         const context = analysisResults.context || {};
         const ssr = analysisResults.ssr || {};
         const ssrScore = ssr.summary?.score || 0;
         html += '<div class="card"><h2>🌐 Context & SSR (Phase 3)</h2>';
         html += '<div class="stat"><span>InheritedWidgets</span><span class="stat-value">' + 
           (context.summary?.inheritedWidgets || 0) + '</span></div>';
-        html += '<div class="stat"><span>ChangeNotifiers</span><span class="stat-value">' + 
-          (context.summary?.changeNotifiers || 0) + '</span></div>';
         html += '<div class="stat"><span>Providers</span><span class="stat-value">' + 
           (context.summary?.providers || 0) + '</span></div>';
         html += '<div class="stat"><span>SSR Score</span><span class="stat-value">' + ssrScore + '/100</span></div>';
         html += '<div class="score-bar"><div class="score-fill" style="width: ' + ssrScore + '%"></div></div>';
         html += '</div>';
 
-        // Build info
-        html += '<div class="section"><h3>ℹ️ Build Info</h3>';
-        html += '<p style="font-size: 13px; color: #999;">Built: ' + data.buildTime + '</p>';
-        html += '<p style="font-size: 13px; color: #999;">Updated: ' + new Date().toLocaleTimeString() + '</p>';
         html += '</div>';
 
-        document.getElementById('content').innerHTML = html;
+        // Logger Report
+        if (data.logger) {
+          html += '<div class="section"><h3>📊 Logger Report</h3>';
+          html += '<div class="stat"><span>Total Entries</span><span class="stat-value">' + data.logger.totalEntries + '</span></div>';
+          html += '<div class="stat"><span>Errors</span><span class="stat-value" style="color: #ff6b7a;">' + data.logger.errors + '</span></div>';
+          html += '<div class="stat"><span>Warnings</span><span class="stat-value" style="color: #ffb627;">' + data.logger.warnings + '</span></div>';
+          html += '<div class="stat"><span>Info</span><span class="stat-value">' + data.logger.info + '</span></div>';
+          html += '<div class="stat"><span>Debug</span><span class="stat-value">' + data.logger.debug + '</span></div>';
+          html += '<p style="font-size: 11px; color: #666; margin-top: 10px;">Debug files: ' + data.logger.debugFiles.join(', ') + '</p>';
+          html += '</div>';
+        }
+
+        document.getElementById('analysis-content').innerHTML = html;
       } catch (error) {
-        document.getElementById('content').innerHTML = 
-          '<div class="section"><h3>❌ Connection Error</h3><p>' + error.message + '</p></div>';
+        document.getElementById('analysis-content').innerHTML = 
+          '<div class="section"><h3>❌ Error</h3><p>' + error.message + '</p></div>';
       }
     }
 
+    async function loadLogs() {
+      try {
+        const response = await fetch('/api/debug-logs');
+        const data = await response.json();
+        
+        let html = '';
+        if (data.logs && Object.keys(data.logs).length > 0) {
+          for (const [file, content] of Object.entries(data.logs)) {
+            html += '<div class="section"><h3>' + file + '</h3>';
+            html += '<div class="log-viewer">';
+            
+            content.split('\\n').forEach(line => {
+              const className = line.includes('[ERROR]') ? 'log-error' : 
+                               line.includes('[WARN]') ? 'log-warn' :
+                               line.includes('[INFO]') ? 'log-info' :
+                               line.includes('[DEBUG]') ? 'log-debug' : 'log-trace';
+              html += '<div class="log-line ' + className + '">' + escapeHtml(line) + '</div>';
+            });
+            
+            html += '</div></div>';
+          }
+        } else {
+          html += '<div class="section"><p style="color: #666;">No debug logs found. Run analyzer with --debug flag.</p></div>';
+        }
+        
+        document.getElementById('logs-content').innerHTML = html;
+      } catch (error) {
+        document.getElementById('logs-content').innerHTML = 
+          '<div class="error-box">Failed to load logs: ' + error.message + '</div>';
+      }
+    }
+
+    async function loadErrors() {
+      try {
+        const response = await fetch('/api/errors');
+        const data = await response.json();
+        
+        let html = '';
+        if (data.errors && data.errors.length > 0) {
+          html += '<div class="section"><h3>Found ' + data.count + ' error(s)</h3>';
+          data.errors.forEach(err => {
+            html += '<div class="error-box">';
+            html += '<strong>' + err.type + ':</strong> ' + err.message;
+            if (err.severity) {
+              html += '<br><small style="color: #999;">Severity: ' + err.severity + '</small>';
+            }
+            html += '</div>';
+          });
+          html += '</div>';
+        } else {
+          html += '<div class="section"><h3>✅ No errors found!</h3></div>';
+        }
+        
+        document.getElementById('errors-content').innerHTML = html;
+      } catch (error) {
+        document.getElementById('errors-content').innerHTML = 
+          '<div class="error-box">Failed to load errors: ' + error.message + '</div>';
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Initial load
     loadAnalysis();
-    setInterval(loadAnalysis, 2000); // Refresh every 2 seconds
+    setInterval(loadAnalysis, 3000);
   </script>
 </body>
 </html>`;
