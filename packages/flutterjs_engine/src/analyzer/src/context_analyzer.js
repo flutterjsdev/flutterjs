@@ -6,7 +6,7 @@
  * Phase 3 focuses on: Context detection, Provider patterns, SSR analysis
  * Does NOT implement actual context providers (that's Phase 4+)
  */
-
+import { getLogger } from './flutterjs_logger.js';
 
 import {  InheritedWidgetMetadata,
   ChangeNotifierAnalysis,
@@ -16,6 +16,7 @@ class ContextAnalyzer {
   constructor(ast, widgets = [], options = {}) {
     this.ast = ast;
     this.widgets = widgets;
+     this.logger = getLogger().createComponentLogger('ContextAnalyzer');
     this.options = {
       strict: false,
       ...options,
@@ -35,29 +36,32 @@ class ContextAnalyzer {
    * Main entry point - analyze context patterns
    */
   analyze() {
-    console.log('[ContextAnalyzer] Starting analysis...\n');
+      this.logger.startSession('ContextAnalysis');
+    this.logger.trace('[ContextAnalyzer] Starting analysis...\n');
+      this.logger.startSession('WidgetAnalyzer');
+     this.logger.trace('[ContextAnalyzer] Starting analysis...\n');
 
     try {
       // Phase 1: Detect InheritedWidget classes
       this.detectInheritedWidgets();
-      console.log(`[ContextAnalyzer] Found ${this.inheritedWidgets.size} InheritedWidgets\n`);
+       this.logger.trace(`[ContextAnalyzer] Found ${this.inheritedWidgets.size} InheritedWidgets\n`);
 
       // Phase 2: Detect ChangeNotifier classes
       this.detectChangeNotifiers();
-      console.log(`[ContextAnalyzer] Found ${this.changeNotifiers.size} ChangeNotifiers\n`);
+       this.logger.trace(`[ContextAnalyzer] Found ${this.changeNotifiers.size} ChangeNotifiers\n`);
 
       // Phase 3: Detect Provider patterns
       this.detectProviders();
-      console.log(`[ContextAnalyzer] Found ${this.providers.size} Providers\n`);
+       this.logger.trace(`[ContextAnalyzer] Found ${this.providers.size} Providers\n`);
 
       // Phase 4: Find context access points
       this.findContextAccessPoints();
-      console.log(`[ContextAnalyzer] Found ${this.contextAccessPoints.length} context usage points\n`);
+       this.logger.trace(`[ContextAnalyzer] Found ${this.contextAccessPoints.length} context usage points\n`);
 
       // Phase 5: Build graphs
       this.buildInheritedWidgetGraph();
       this.buildProviderGraph();
-      console.log('[ContextAnalyzer] Built dependency graphs\n');
+       this.logger.trace('[ContextAnalyzer] Built dependency graphs\n');
 
       return this.getResults();
     } catch (error) {
@@ -87,7 +91,7 @@ class ContextAnalyzer {
       // Check if extends InheritedWidget
       if (!superClass || !superClass.includes('InheritedWidget')) return;
 
-      console.log(`[ContextAnalyzer.detectInheritedWidgets] Found: ${className}`);
+       this.logger.trace(`[ContextAnalyzer.detectInheritedWidgets] Found: ${className}`);
 
       const metadata = new InheritedWidgetMetadata(
         className,
@@ -172,7 +176,7 @@ class ContextAnalyzer {
       // Check if extends ChangeNotifier
       if (!superClass || superClass !== 'ChangeNotifier') return;
 
-      console.log(`[ContextAnalyzer.detectChangeNotifiers] Found: ${className}`);
+       this.logger.trace(`[ContextAnalyzer.detectChangeNotifiers] Found: ${className}`);
 
       const analysis = new ChangeNotifierAnalysis(
         className,
@@ -334,7 +338,7 @@ class ContextAnalyzer {
         const genericType = this.extractGenericType(expr);
 
         if (genericType) {
-          console.log(`[ContextAnalyzer.detectProviders] Found Provider<${genericType}>`);
+           this.logger.trace(`[ContextAnalyzer.detectProviders] Found Provider<${genericType}>`);
 
           const analysis = new ProviderAnalysis(
             `Provider<${genericType}>`,

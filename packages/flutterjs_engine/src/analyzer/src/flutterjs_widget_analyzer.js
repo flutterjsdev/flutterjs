@@ -8,6 +8,8 @@
  * These are the same thing!
  */
 
+import { getLogger  } from './flutterjs_logger.js';
+
 class WidgetAnalyzer {
   constructor(ast, options = {}) {
     this.ast = ast;
@@ -15,7 +17,7 @@ class WidgetAnalyzer {
       strict: false,
       ...options,
     };
-
+  this.logger = getLogger().createComponentLogger('WidgetAnalyzer');
     this.widgets = new Map();        // key: className, value: Widget object
     this.functions = new Map();      // key: functionName, value: Function object
     this.imports = [];
@@ -30,39 +32,40 @@ class WidgetAnalyzer {
    * Main entry point - analyze entire AST
    */
   analyze() {
+    this.logger.startSession('WidgetAnalyzer');
     if (!this.ast || !this.ast.body) {
       throw new Error('Invalid AST provided');
     }
 
-    console.log('[WidgetAnalyzer] Starting analysis...');
+    this.logger.trace('[WidgetAnalyzer] Starting analysis...');
 
     try {
       // Phase 1: Extract all classes and functions
-      console.log('[WidgetAnalyzer] Phase 1: Extracting classes and functions...');
+      this.logger.trace('[WidgetAnalyzer] Phase 1: Extracting classes and functions...');
       this.extractClassesAndFunctions();
-      console.log(`[WidgetAnalyzer]   Found ${this.widgets.size} classes in total`);
+      this.logger.trace(`[WidgetAnalyzer]   Found ${this.widgets.size} classes in total`);
 
       // Phase 2: Detect which classes are widgets
-      console.log('[WidgetAnalyzer] Phase 2: Detecting widgets...');
+      this.logger.trace('[WidgetAnalyzer] Phase 2: Detecting widgets...');
       this.detectWidgets();
-      console.log(`[WidgetAnalyzer]   Detected widgets: ${Array.from(this.widgets.values()).filter(w => w.type !== 'class').length}`);
+      this.logger.trace(`[WidgetAnalyzer]   Detected widgets: ${Array.from(this.widgets.values()).filter(w => w.type !== 'class').length}`);
 
       // Phase 3: Extract imports and dependencies
-      console.log('[WidgetAnalyzer] Phase 3: Extracting imports...');
+      this.logger.trace('[WidgetAnalyzer] Phase 3: Extracting imports...');
       this.extractImports();
-      console.log(`[WidgetAnalyzer]   Found ${this.imports.length} imports`);
+      this.logger.trace(`[WidgetAnalyzer]   Found ${this.imports.length} imports`);
 
       // Phase 4: Find entry point
-      console.log('[WidgetAnalyzer] Phase 4: Finding entry point...');
+      this.logger.trace('[WidgetAnalyzer] Phase 4: Finding entry point...');
       this.findEntryPoint();
-      console.log(`[WidgetAnalyzer]   Entry point: ${this.entryPoint || 'NOT FOUND'}`);
+      this.logger.trace(`[WidgetAnalyzer]   Entry point: ${this.entryPoint || 'NOT FOUND'}`);
 
       // Phase 5: Build widget tree
-      console.log('[WidgetAnalyzer] Phase 5: Building widget tree...');
+      this.logger.trace('[WidgetAnalyzer] Phase 5: Building widget tree...');
       this.buildWidgetTree();
-      console.log(`[WidgetAnalyzer]   Tree root: ${this.rootWidget || 'NOT FOUND'}`);
+      this.logger.trace(`[WidgetAnalyzer]   Tree root: ${this.rootWidget || 'NOT FOUND'}`);
 
-      console.log('[WidgetAnalyzer] Analysis complete\n');
+      this.logger.trace('[WidgetAnalyzer] Analysis complete\n');
 
       return this.getResults();
     } catch (error) {
@@ -120,13 +123,13 @@ class WidgetAnalyzer {
       classNode.body.fields.forEach((field) => {
         const fieldName = field.key?.name;
         const initialValue = field.initialValue ? this.expressionToString(field.initialValue) : null;
-        
+
         widget.properties.push({
           name: fieldName,
           initialValue: initialValue,
           type: this.inferFieldType(field.initialValue),
         });
-        
+
         // Track that this field exists
         if (!widget.fieldReferences[fieldName]) {
           widget.fieldReferences[fieldName] = [];
@@ -158,12 +161,12 @@ class WidgetAnalyzer {
             hasBody: method.body !== null,
             usesFields: [], // Which fields this method references
           };
-          
+
           // Track field references in this method
           if (method.body) {
             const fieldRefs = this.findFieldReferencesInBody(method.body);
             methodData.usesFields = fieldRefs;
-            
+
             // Update the field reference map
             fieldRefs.forEach((fieldName) => {
               if (widget.fieldReferences[fieldName]) {
@@ -171,16 +174,16 @@ class WidgetAnalyzer {
               }
             });
           }
-          
+
           widget.methods.push(methodData);
         }
       });
     }
 
     this.widgets.set(name, widget);
-    console.log(`[WidgetAnalyzer]     Extracted class: ${name} extends ${superClass}`);
+    this.logger.trace(`[WidgetAnalyzer]     Extracted class: ${name} extends ${superClass}`);
     if (widget.properties.length > 0) {
-      console.log(`[WidgetAnalyzer]       Fields: ${widget.properties.map(p => `${p.name}=${p.initialValue}`).join(', ')}`);
+      this.logger.trace(`[WidgetAnalyzer]       Fields: ${widget.properties.map(p => `${p.name}=${p.initialValue}`).join(', ')}`);
     }
   }
 
@@ -189,19 +192,19 @@ class WidgetAnalyzer {
    */
   findFieldReferencesInBody(body) {
     const fields = [];
-    
+
     // Simple traversal to find this.fieldName patterns
     // This is a basic implementation - enhance as needed
     const traverse = (node) => {
       if (!node) return;
-      
+
       // Look for MemberExpression: this._fieldName
       if (node.type === 'MemberExpression') {
         if (node.object?.name === 'this' && node.property?.name) {
           fields.push(node.property.name);
         }
       }
-      
+
       // Recursively traverse all node properties
       for (const key in node) {
         if (key !== 'location' && typeof node[key] === 'object') {
@@ -213,7 +216,7 @@ class WidgetAnalyzer {
         }
       }
     };
-    
+
     traverse(body);
     return [...new Set(fields)]; // Remove duplicates
   }
@@ -223,7 +226,7 @@ class WidgetAnalyzer {
    */
   inferFieldType(initialValue) {
     if (!initialValue) return 'any';
-    
+
     if (initialValue.type === 'Literal') {
       const val = initialValue.value;
       if (typeof val === 'number') return 'int' | 'double';
@@ -231,19 +234,19 @@ class WidgetAnalyzer {
       if (typeof val === 'string') return 'String';
       if (val === null) return 'null';
     }
-    
+
     if (initialValue.type === 'Identifier') {
       return initialValue.name;
     }
-    
+
     if (initialValue.type === 'ArrayExpression') {
       return 'List';
     }
-    
+
     if (initialValue.type === 'ObjectExpression') {
       return 'Map';
     }
-    
+
     return 'dynamic';
   }
 
@@ -283,13 +286,13 @@ class WidgetAnalyzer {
 
       if (superClass === 'StatelessWidget') {
         widget.type = 'stateless';
-        console.log(`[WidgetAnalyzer]     ${widget.name} is StatelessWidget`);
+        this.logger.trace(`[WidgetAnalyzer]     ${widget.name} is StatelessWidget`);
       } else if (superClass === 'StatefulWidget') {
         widget.type = 'stateful';
-        console.log(`[WidgetAnalyzer]     ${widget.name} is StatefulWidget`);
+        this.logger.trace(`[WidgetAnalyzer]     ${widget.name} is StatefulWidget`);
       } else if (superClass?.startsWith('State')) {
         widget.type = 'state';
-        console.log(`[WidgetAnalyzer]     ${widget.name} is State class`);
+        this.logger.trace(`[WidgetAnalyzer]     ${widget.name} is State class`);
       } else {
         widget.type = 'component';
       }
@@ -423,7 +426,7 @@ class WidgetAnalyzer {
       (w) => w.type === 'stateless' || w.type === 'stateful' || w.type === 'state' || w.type === 'component'
     );
 
-    console.log(`[WidgetAnalyzer] getResults() returning ${widgetArray.length} widgets`);
+    this.logger.trace(`[WidgetAnalyzer] getResults() returning ${widgetArray.length} widgets`);
 
     return {
       widgets: widgetArray,

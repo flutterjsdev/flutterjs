@@ -1,13 +1,6 @@
 /**
- * FlutterJS Analyzer - Main Orchestrator (Enhanced with Phase 3 + Import Resolution)
- * Coordinates all analysis phases including import resolution
- * 
- * Pipeline: Source → Lexer → Parser → WidgetAnalyzer (Phase 1)
- *           → ImportResolver (NEW!)
- *           → StateAnalyzer (Phase 2)
- *           → ContextAnalyzer (Phase 3)
- *           → SSRAnalyzer (Phase 3)
- *           → ReportGenerator
+ * FlutterJS Analyzer - Main Orchestrator (FIXED Logger Integration)
+ * Properly integrates centralized logging system
  */
 
 import fs from 'fs';
@@ -20,6 +13,7 @@ import { SSRAnalyzer } from './ssr_analyzer.js';
 import { ReportGenerator } from './flutterjs_report_generator.js';
 import { ImportResolver } from './flutter_import_resolver.js';
 import { resolverConfig } from './flutter_resolver_config.js';
+import { initLogger, getLogger } from './flutterjs_logger.js';
 
 // ============================================================================
 // MAIN ANALYZER CLASS
@@ -30,22 +24,34 @@ class Analyzer {
     this.options = {
       sourceFile: null,
       sourceCode: null,
-      outputFormat: 'json',          // 'json', 'markdown', 'console'
-      outputFile: null,              // If specified, save to file
-      verbose: true,                 // Print debug info
-      strict: false,                 // Strict error mode
-      projectRoot: process.cwd(),    // Project root for import resolution
+      outputFormat: 'json',
+      outputFile: null,
+      verbose: true,
+      strict: false,
+      projectRoot: process.cwd(),
       includeMetrics: true,
       includeTree: true,
       includeValidation: true,
       includeSuggestions: true,
-      includeContext: true,          // Phase 3: Include context analysis
-      includeSsr: true,              // Phase 3: Include SSR analysis
-      includeImports: true,          // Include import analysis (NEW!)
-      ignoreUnresolvedImports: true, // Don't fail if imports unresolved
+      includeContext: true,
+      includeSsr: true,
+      includeImports: true,
+      ignoreUnresolvedImports: true,
       prettyPrint: true,
+      debugLevel: 'info',  // NEW: Add debug level option
       ...options,
     };
+
+    // FIXED: Properly initialize logger
+    this.logger = initLogger({
+      level: this.options.debugLevel,
+      writeToFile: true,
+      writeToConsole: false,
+      debugDir: '.debug',
+    });
+
+    const loggerInstance = this.logger.createComponentLogger('Analyzer');
+    this.log = loggerInstance;  // Store logger instance
 
     // Initialize import resolver
     this.importResolver = new ImportResolver({
@@ -59,10 +65,10 @@ class Analyzer {
       tokens: null,
       ast: null,
       widgets: null,
-      importResolution: null,  // NEW!
+      importResolution: null,
       state: null,
-      context: null,           // Phase 3
-      ssr: null,               // Phase 3
+      context: null,
+      ssr: null,
       report: null,
     };
 
@@ -74,96 +80,133 @@ class Analyzer {
    * Main entry point - run full analysis pipeline
    */
   async analyze() {
-    this.log('\n' + '='.repeat(80));
-    this.log('🚀 FlutterJS ANALYZER - FULL PIPELINE (Phase 1 + Import Resolution + Phase 2 + 3)');
-    this.log('='.repeat(80) + '\n');
+    const logger = this.log;
+
+    logger.startSession('FullAnalyzerPipeline');
 
     try {
+      logger.info('\n' + '='.repeat(80));
+      logger.info('🚀 FlutterJS ANALYZER - FULL PIPELINE');
+      logger.info('='.repeat(80));
+
       // Step 1: Load source code
-      this.log('STEP 1: Loading source code...');
+      logger.startSession('LoadSource');
+      logger.info('STEP 1: Loading source code...');
       await this.loadSource();
-      this.log('  ✓ Source loaded\n');
+      logger.success('Source loaded');
+      logger.endSession('LoadSource');
 
       // Step 2: Lexing
-      this.log('STEP 2: Tokenizing (Lexing)...');
+      logger.startSession('Lexing');
+      logger.info('STEP 2: Tokenizing (Lexing)...');
       this.lex();
-      this.log(`  ✓ ${this.results.tokens.length} tokens generated\n`);
+      logger.trace('Tokens generated', this.results.tokens.length);
+      logger.success('Lexing complete');
+      logger.endSession('Lexing');
 
       // Step 3: Parsing
-      this.log('STEP 3: Building AST (Parsing)...');
+      logger.startSession('Parsing');
+      logger.info('STEP 3: Building AST (Parsing)...');
       this.parse();
-      this.log(`  ✓ ${this.results.ast.body.length} top-level items\n`);
+      logger.trace('Top-level items', this.results.ast.body.length);
+      logger.success('Parsing complete');
+      logger.endSession('Parsing');
 
       // Step 4: Widget Analysis (Phase 1)
-      this.log('STEP 4: Widget Analysis (Phase 1)...');
+      logger.startSession('WidgetAnalysis');
+      logger.info('STEP 4: Widget Analysis (Phase 1)...');
       this.analyzeWidgets();
-      this.log(`  ✓ ${this.results.widgets.widgets.length} widgets detected\n`);
+      logger.trace('Widgets detected', this.results.widgets.widgets.length);
+      logger.success('Widget analysis complete');
+      logger.endSession('WidgetAnalysis');
 
-      // Step 5: Import Resolution (NEW!)
+      // Step 5: Import Resolution
       if (this.options.includeImports) {
-        this.log('STEP 5: Resolving Imports (NEW!)...');
+        logger.startSession('ImportResolution');
+        logger.info('STEP 5: Resolving Imports...');
         this.analyzeImports();
         const summary = this.results.importResolution?.summary;
-        this.log(`  ✓ ${summary?.resolved || 0} resolved, ${summary?.unresolved || 0} unresolved\n`);
+        logger.trace('Imports resolved', summary?.resolved || 0);
+        logger.trace('Imports unresolved', summary?.unresolved || 0);
+        logger.success('Import resolution complete');
+        logger.endSession('ImportResolution');
       }
 
       // Step 6: State Analysis (Phase 2)
-      this.log('STEP 6: State Analysis (Phase 2)...');
+      logger.startSession('StateAnalysis');
+      logger.info('STEP 6: State Analysis (Phase 2)...');
       this.analyzeState();
-      this.log(`  ✓ ${this.results.state.stateClasses.length} state classes analyzed\n`);
+      logger.trace('State classes analyzed', this.results.state.stateClasses.length);
+      logger.success('State analysis complete');
+      logger.endSession('StateAnalysis');
 
       // Step 7: Context Analysis (Phase 3)
       if (this.options.includeContext) {
-        this.log('STEP 7: Context Analysis (Phase 3)...');
+        logger.startSession('ContextAnalysis');
+        logger.info('STEP 7: Context Analysis (Phase 3)...');
         this.analyzeContext();
-        this.log(`  ✓ ${this.results.context.inheritedWidgets?.length || 0} inherited widgets detected\n`);
+        logger.trace('Inherited widgets detected', this.results.context.inheritedWidgets?.length || 0);
+        logger.success('Context analysis complete');
+        logger.endSession('ContextAnalysis');
       }
 
       // Step 8: SSR Analysis (Phase 3)
       if (this.options.includeSsr) {
-        this.log('STEP 8: SSR Compatibility Analysis (Phase 3)...');
+        logger.startSession('SSRAnalysis');
+        logger.info('STEP 8: SSR Compatibility Analysis (Phase 3)...');
         this.analyzeSsr();
-        this.log(`  ✓ SSR Score: ${this.results.ssr.ssrCompatibilityScore}/100\n`);
+        logger.trace('SSR Compatibility Score', this.results.ssr.ssrCompatibilityScore);
+        logger.success('SSR analysis complete');
+        logger.endSession('SSRAnalysis');
       }
 
       // Step 9: Report Generation
-      this.log('STEP 9: Generating Report...');
+      logger.startSession('ReportGeneration');
+      logger.info('STEP 9: Generating Report...');
       this.generateReport();
-      this.log('  ✓ Report generated\n');
+      logger.success('Report generated');
+      logger.endSession('ReportGeneration');
 
       // Step 10: Output
-      this.log('STEP 10: Output...');
+      logger.startSession('Output');
+      logger.info('STEP 10: Output...');
       this.output();
-      this.log('  ✓ Output complete\n');
+      logger.success('Output complete');
+      logger.endSession('Output');
 
-      this.log('='.repeat(80));
-      this.log('✅ ANALYSIS COMPLETE');
-      this.log('='.repeat(80) + '\n');
+      logger.info('='.repeat(80));
+      logger.success('✅ ANALYSIS COMPLETE');
+      logger.info('='.repeat(80) + '\n');
+
+      // Save logs to files
+      this.logger.saveLogs();
 
       return this.getResults();
     } catch (error) {
-      this.log('\n❌ ANALYSIS FAILED');
-      this.log(`Error: ${error.message}\n`);
+      logger.error('ANALYSIS FAILED');
+      logger.failure('Analysis pipeline', error.message);
+      logger.endSession('FullAnalyzerPipeline');
       throw error;
     }
   }
 
   /**
-   * Step 5: Resolve all imports (NEW!)
+   * Step 5: Resolve all imports
    */
   analyzeImports() {
     const start = Date.now();
+    const logger = this.log;
 
     try {
       if (!this.results.widgets) {
-        this.log('  ⚠ No widgets found, skipping import analysis');
+        logger.warn('No widgets found, skipping import analysis');
         return;
       }
 
       const imports = this.results.widgets.imports || [];
 
       if (imports.length === 0) {
-        this.log('  (No imports found)');
+        logger.info('No imports found in source');
         this.results.importResolution = {
           imports: {
             resolved: [],
@@ -182,7 +225,7 @@ class Analyzer {
         return;
       }
 
-      this.log(`  Found ${imports.length} imports to resolve...`);
+      logger.info(`Found ${imports.length} imports to resolve`);
 
       // Resolve imports
       const resolution = this.importResolver.resolveImports(
@@ -195,8 +238,10 @@ class Analyzer {
       // Store resolution results
       this.results.importResolution = resolution;
 
-      // Print resolution report
-      console.log(this.importResolver.generateReport());
+      // Log resolution statistics
+      logger.debug(`Resolved: ${resolution.imports.resolved.length}`);
+      logger.debug(`Unresolved: ${resolution.imports.unresolved.length}`);
+      logger.debug(`Errors: ${resolution.imports.errors.length}`);
 
       // Check for errors (unless ignoreUnresolvedImports is set)
       if (!this.options.ignoreUnresolvedImports &&
@@ -206,6 +251,7 @@ class Analyzer {
         );
       }
     } catch (error) {
+      logger.error(`Import resolution failed: ${error.message}`);
       throw new Error(`Import resolution failed: ${error.message}`);
     }
 
@@ -217,18 +263,22 @@ class Analyzer {
    */
   async loadSource() {
     const start = Date.now();
+    const logger = this.log;
 
     if (this.options.sourceCode) {
       this.results.source = this.options.sourceCode;
-      this.log('  (Using provided source code)');
+      logger.debug('Using provided source code');
     } else if (this.options.sourceFile) {
       try {
         this.results.source = fs.readFileSync(this.options.sourceFile, 'utf-8');
-        this.log(`  (From file: ${this.options.sourceFile})`);
+        logger.debug(`Loaded from file: ${this.options.sourceFile}`);
+        logger.trace('Source file size', this.results.source.length);
       } catch (error) {
+        logger.error(`Cannot read file "${this.options.sourceFile}"`);
         throw new Error(`Cannot read file "${this.options.sourceFile}": ${error.message}`);
       }
     } else {
+      logger.error('No source code or source file provided');
       throw new Error('No source code or source file provided');
     }
 
@@ -240,18 +290,20 @@ class Analyzer {
    */
   lex() {
     const start = Date.now();
+    const logger = this.log;
 
     try {
       const lexer = new Lexer(this.results.source);
       this.results.tokens = lexer.tokenize();
 
       if (lexer.getErrors().length > 0) {
-        this.log('  ⚠️ Lexer warnings:');
+        logger.warn(`Lexer produced ${lexer.getErrors().length} warnings`);
         lexer.getErrors().forEach((err) => {
-          this.log(`    - ${err.message}`);
+          logger.debug(`Lexer: ${err.message}`);
         });
       }
     } catch (error) {
+      logger.error(`Lexing failed: ${error.message}`);
       throw new Error(`Lexing failed: ${error.message}`);
     }
 
@@ -263,15 +315,16 @@ class Analyzer {
    */
   parse() {
     const start = Date.now();
+    const logger = this.log;
 
     try {
       const parser = new Parser(this.results.tokens);
       this.results.ast = parser.parse();
 
       if (parser.getErrors().length > 0) {
-        this.log('  ⚠️ Parser errors:');
+        logger.warn(`Parser produced ${parser.getErrors().length} errors`);
         parser.getErrors().forEach((err) => {
-          this.log(`    - ${err.message}`);
+          logger.debug(`Parser: ${err.message}`);
         });
 
         if (this.options.strict) {
@@ -279,6 +332,7 @@ class Analyzer {
         }
       }
     } catch (error) {
+      logger.error(`Parsing failed: ${error.message}`);
       throw new Error(`Parsing failed: ${error.message}`);
     }
 
@@ -290,18 +344,20 @@ class Analyzer {
    */
   analyzeWidgets() {
     const start = Date.now();
+    const logger = this.log;
 
     try {
       const analyzer = new WidgetAnalyzer(this.results.ast);
       this.results.widgets = analyzer.analyze();
 
       if (this.results.widgets.errors.length > 0) {
-        this.log('  ⚠️ Widget analysis errors:');
+        logger.warn(`Widget analysis produced ${this.results.widgets.errors.length} errors`);
         this.results.widgets.errors.forEach((err) => {
-          this.log(`    - ${err.message}`);
+          logger.debug(`Widget: ${err.message}`);
         });
       }
     } catch (error) {
+      logger.error(`Widget analysis failed: ${error.message}`);
       throw new Error(`Widget analysis failed: ${error.message}`);
     }
 
@@ -313,6 +369,7 @@ class Analyzer {
    */
   analyzeState() {
     const start = Date.now();
+    const logger = this.log;
 
     try {
       const analyzer = new StateAnalyzer(
@@ -323,12 +380,13 @@ class Analyzer {
       this.results.state = analyzer.analyze();
 
       if (this.results.state.errors.length > 0) {
-        this.log('  ⚠️ State analysis errors:');
+        logger.warn(`State analysis produced ${this.results.state.errors.length} errors`);
         this.results.state.errors.forEach((err) => {
-          this.log(`    - ${err.message}`);
+          logger.debug(`State: ${err.message}`);
         });
       }
     } catch (error) {
+      logger.error(`State analysis failed: ${error.message}`);
       throw new Error(`State analysis failed: ${error.message}`);
     }
 
@@ -340,6 +398,7 @@ class Analyzer {
    */
   analyzeContext() {
     const start = Date.now();
+    const logger = this.log;
 
     try {
       const analyzer = new ContextAnalyzer(
@@ -350,12 +409,13 @@ class Analyzer {
       this.results.context = analyzer.analyze();
 
       if (this.results.context.errors && this.results.context.errors.length > 0) {
-        this.log('  ⚠️ Context analysis errors:');
+        logger.warn(`Context analysis produced ${this.results.context.errors.length} errors`);
         this.results.context.errors.forEach((err) => {
-          this.log(`    - ${err.message}`);
+          logger.debug(`Context: ${err.message}`);
         });
       }
     } catch (error) {
+      logger.error(`Context analysis failed: ${error.message}`);
       throw new Error(`Context analysis failed: ${error.message}`);
     }
 
@@ -367,6 +427,7 @@ class Analyzer {
    */
   analyzeSsr() {
     const start = Date.now();
+    const logger = this.log;
 
     try {
       const analyzer = new SSRAnalyzer(
@@ -377,12 +438,13 @@ class Analyzer {
       this.results.ssr = analyzer.analyze();
 
       if (this.results.ssr.errors && this.results.ssr.errors.length > 0) {
-        this.log('  ⚠️ SSR analysis errors:');
+        logger.warn(`SSR analysis produced ${this.results.ssr.errors.length} errors`);
         this.results.ssr.errors.forEach((err) => {
-          this.log(`    - ${err.message}`);
+          logger.debug(`SSR: ${err.message}`);
         });
       }
     } catch (error) {
+      logger.error(`SSR analysis failed: ${error.message}`);
       throw new Error(`SSR analysis failed: ${error.message}`);
     }
 
@@ -394,6 +456,7 @@ class Analyzer {
    */
   generateReport() {
     const start = Date.now();
+    const logger = this.log;
 
     try {
       const generator = new ReportGenerator(
@@ -415,6 +478,7 @@ class Analyzer {
 
       this.results.report = generator.generate();
     } catch (error) {
+      logger.error(`Report generation failed: ${error.message}`);
       throw new Error(`Report generation failed: ${error.message}`);
     }
 
@@ -425,20 +489,26 @@ class Analyzer {
    * Step 10: Output report (console or file)
    */
   output() {
+    const logger = this.log;
+
     if (this.options.outputFile) {
       try {
         fs.writeFileSync(this.options.outputFile, this.results.report, 'utf-8');
-        this.log(`  Saved to: ${this.options.outputFile}`);
+        logger.success(`Report saved to: ${this.options.outputFile}`);
       } catch (error) {
+        logger.error(`Cannot write to file "${this.options.outputFile}"`);
         throw new Error(`Cannot write to file "${this.options.outputFile}": ${error.message}`);
       }
     } else {
-      console.log(this.results.report);
+      // Only print report to console if not verbose logging
+      if (this.options.outputFormat !== 'console') {
+        console.log(this.results.report);
+      }
     }
   }
 
   /**
-   * Get analysis results
+   * Get analysis results - FIXED: Include logger info
    */
   getResults() {
     return {
@@ -490,16 +560,10 @@ class Analyzer {
       } : null,
       timings: this.timings,
       report: this.results.report,
+      // FIXED: Include logger report and debug files
+      logger: this.logger.getReport(),
+      debugFiles: this.logger.readDebugFiles(),
     };
-  }
-
-  /**
-   * Print to console if verbose
-   */
-  log(message) {
-    if (this.options.verbose) {
-      console.log(message);
-    }
   }
 }
 
@@ -507,7 +571,7 @@ class Analyzer {
 // STATIC HELPER METHODS
 // ============================================================================
 
-function analyzeCode(sourceCode, options = {}) {
+async function analyzeCode(sourceCode, options = {}) {
   const analyzer = new Analyzer({
     sourceCode,
     ...options,
@@ -516,7 +580,7 @@ function analyzeCode(sourceCode, options = {}) {
   return analyzer.analyze();
 }
 
-function analyzeFile(sourceFile, options = {}) {
+async function analyzeFile(sourceFile, options = {}) {
   const analyzer = new Analyzer({
     sourceFile,
     ...options,
@@ -525,7 +589,7 @@ function analyzeFile(sourceFile, options = {}) {
   return analyzer.analyze();
 }
 
-function analyzeAndSave(sourceFile, outputFile, options = {}) {
+async function analyzeAndSave(sourceFile, outputFile, options = {}) {
   const analyzer = new Analyzer({
     sourceFile,
     outputFile,
@@ -554,6 +618,7 @@ async function runCLI() {
   let includeImports = true;
   let includeContext = true;
   let includeSsr = true;
+  let debugLevel = 'info';
 
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
@@ -564,6 +629,8 @@ async function runCLI() {
       outputFormat = args[++i];
     } else if (arg === '-q' || arg === '--quiet') {
       verbose = false;
+    } else if (arg === '--debug') {
+      debugLevel = args[++i] || 'debug';
     } else if (arg === '--no-imports') {
       includeImports = false;
     } else if (arg === '--no-context') {
@@ -594,9 +661,17 @@ async function runCLI() {
       includeImports,
       includeContext,
       includeSsr,
+      debugLevel,
     });
 
-    await analyzer.analyze();
+    const results = await analyzer.analyze();
+
+    // Show debug info location
+    if (debugLevel !== 'info') {
+      console.log('\n📊 Debug logs saved to: .debug/');
+      console.log('   View with: node debug_viewer.js\n');
+    }
+
     process.exit(0);
   } catch (error) {
     console.error(`\n❌ Error: ${error.message}\n`);
@@ -615,6 +690,7 @@ Options:
   -o, --output <file>      Output file (default: print to console)
   -f, --format <format>    Output format: json, markdown, console (default: json)
   -q, --quiet              Suppress verbose output
+  --debug <level>          Enable debug logging: trace, debug, info (default: info)
   --no-imports             Skip import resolution
   --no-context             Skip Phase 3 context analysis
   --no-ssr                 Skip Phase 3 SSR analysis
@@ -624,6 +700,7 @@ Options:
 Examples:
   node analyzer.js test.fjs
   node analyzer.js test.fjs -o report.json
+  node analyzer.js test.fjs --debug trace
   node analyzer.js test.fjs -f markdown
   node analyzer.js test.fjs --phase1
 `);
