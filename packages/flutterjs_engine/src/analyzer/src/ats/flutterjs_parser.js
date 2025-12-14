@@ -5,7 +5,8 @@
  * Final fix: parseParameterList handles UNDEFINED and NULL token types
  */
 
-import { TokenType } from './lexer.js';
+
+import { TokenType } from '../index.js';
 
 // ============================================================================
 // AST NODE CLASSES
