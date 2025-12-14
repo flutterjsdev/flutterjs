@@ -82,16 +82,16 @@ function formatBytes(bytes) {
  */
 function calculateHealthScore(analysisReport) {
   let score = 100;
-  
+
   // Deduct points for issues
   if (analysisReport.state?.validationIssues > 0) {
     score -= Math.min(analysisReport.state.validationIssues * 5, 30);
   }
-  
+
   if (analysisReport.ssr?.unsafePatterns > 0) {
     score -= Math.min(analysisReport.ssr.unsafePatterns * 3, 20);
   }
-  
+
   return Math.max(score, 0);
 }
 
@@ -132,7 +132,7 @@ window.FlutterJS.mount = function(selector) {
     const appCode = fs.readFileSync(paths.entryFile, 'utf8');
 
     // 4. RUN ANALYZER ON SOURCE CODE (Phase 1 + 2 + 3)
-    // FIXED: Import from correct path
+    // FIXED: Import analyzer.js directly, not index.js
     console.log('🔍 Analyzing source code...\n');
     let analysisResults = {
       widgets: { widgets: {}, summary: {} },
@@ -143,19 +143,18 @@ window.FlutterJS.mount = function(selector) {
     let analysisErrors = [];
 
     try {
-      // FIXED: Correct import path - use file:// URL for dynamic import
-   const analyzerIndexPath = path.resolve(
-      __dirname,           // bin/ directory
-      '../../src/analyzer/src/index.js'  // ✅ Go up, then into src/
-    );
-    const analyzerUrl = `file://${analyzerIndexPath}`;
-    console.log("NewPath"+analyzerUrl);
-      
+      // FIXED: Import analyzer.js directly instead of index.js
+      const analyzerFilePath = path.resolve(
+        __dirname,
+        '../../src/analyzer/src/analyzer.js'
+      );
+      const analyzerUrl = `file://${analyzerFilePath}`;
+      console.log("Analyzer path: " + analyzerUrl);
+
       const { Analyzer } = await import(analyzerUrl);
-      
+
       const analyzer = new Analyzer({
         sourceCode: appCode,
-        
         outputFormat: 'json',
         verbose: false, // Don't spam console during build
         includeContext: true,  // Phase 3: Context analysis
@@ -163,7 +162,7 @@ window.FlutterJS.mount = function(selector) {
       });
 
       const analysisReport = await analyzer.analyze();
-      
+
       // Extract structured data from analysis
       analysisResults = {
         widgets: {
@@ -209,13 +208,13 @@ window.FlutterJS.mount = function(selector) {
 
       console.log('✅ Analysis complete\n');
     } catch (error) {
-      console.error('⚠️  Analysis error:', error.message);
+      console.error('⚠️ Analysis error:', error.message);
       analysisErrors.push({
         type: 'analysis_error',
         message: error.message,
         severity: 'warning',
       });
-      
+
       if (options.verbose) {
         console.error(error.stack);
       }
@@ -262,7 +261,7 @@ if (typeof window !== 'undefined') {
 
     // 8. Obfuscate if enabled
     if (shouldObfuscate) {
-      console.log('🔐 Obfuscating...');
+      console.log('🔒 Obfuscating...');
       finalCode = obfuscateJS(finalCode);
     }
 
@@ -275,7 +274,7 @@ if (typeof window !== 'undefined') {
     const jsFileName = shouldMinify ? 'app.min.js' : 'app.js';
     const jsPath = path.join(outputPath, jsFileName);
     fs.writeFileSync(jsPath, finalCode);
-    console.log(`   ✔ ${jsFileName}`);
+    console.log(`   ✓ ${jsFileName}`);
 
     // 11. SAVE ANALYSIS DATA FOR DEV/DEBUG SERVERS
     const analysisPath = path.join(outputPath, '.analysis.json');
@@ -284,7 +283,7 @@ if (typeof window !== 'undefined') {
       analysisErrors,
       timestamp: new Date().toISOString(),
     }, null, 2));
-    console.log('   ✔ .analysis.json (cached for servers)');
+    console.log('   ✓ .analysis.json (cached for servers)');
 
     // 12. Generate HTML
     console.log('📄 Generating HTML...');
@@ -333,7 +332,7 @@ if (typeof window !== 'undefined') {
     }
 
     if (analysisErrors.length > 0) {
-      console.log(`⚠️  Analysis Issues:`);
+      console.log(`⚠️ Analysis Issues:`);
       analysisErrors.forEach(err => {
         console.log(`   • ${err.message}`);
       });
