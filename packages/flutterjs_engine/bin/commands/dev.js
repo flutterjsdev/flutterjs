@@ -1,36 +1,15 @@
+// dev.js - Development Server (serves app + exposes analysis API)
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { build } = require('./build');
 
-async function dev(options, projectContext) {
-  console.log('🚀 Starting Flutter.js development server...\n');
-
-  const { config, paths, projectRoot } = projectContext;
-
-  const port = parseInt(options.port || config.dev?.server?.port || '3000', 10);
-  const shouldOpen = options.open !== false && (config.dev?.behavior?.open !== false);
-  const hmrEnabled = config.dev?.hmr?.enabled !== false;
+/**
+ * Start development server - serves app and exposes analysis API
+ */
+async function startDevServer(options) {
+  const { port, projectRoot, open, verbose } = options;
 
   try {
-    // Check if entry file exists
-    if (!fs.existsSync(paths.entryFile)) {
-      throw new Error(`Entry file not found: ${paths.entryFile}`);
-    }
-
-    // Build dev version first
-    console.log('📦 Building development bundle...\n');
-    await build({
-      mode: 'dev',
-      output: '.dev',
-      minify: false,
-      obfuscate: false,
-      verbose: options.verbose,
-    }, projectContext);
-
-    console.log('\n🌐 Starting HTTP server...\n');
-
-    // MIME types mapping
     const contentTypes = {
       '.html': 'text/html',
       '.js': 'text/javascript',
@@ -49,8 +28,53 @@ async function dev(options, projectContext) {
       '.webp': 'image/webp',
     };
 
-    // Create HTTP server
+    // Load analysis data from build
+    let buildAnalysisData = {
+      analysisResults: null,
+      analysisErrors: [],
+      buildTime: null,
+    };
+
+    const analysisPath = path.join(projectRoot, '.dev', '.analysis.json');
+    if (fs.existsSync(analysisPath)) {
+      try {
+        buildAnalysisData = JSON.parse(fs.readFileSync(analysisPath, 'utf8'));
+      } catch (error) {
+        console.error('⚠️  Could not load analysis data:', error.message);
+      }
+    }
+
     const server = http.createServer((req, res) => {
+      // CORS headers
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+      if (req.method === 'OPTIONS') {
+        res.writeHead(200);
+        res.end();
+        return;
+      }
+
+      // API ENDPOINT: Get build analysis data
+      if (req.url === '/api/build-analysis') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(buildAnalysisData, null, 2));
+        logRequest(req.method, req.url, 200);
+        return;
+      }
+
+      // API ENDPOINT: Get build errors
+      if (req.url === '/api/build-errors') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          errors: buildAnalysisData.analysisErrors,
+          count: buildAnalysisData.analysisErrors.length,
+        }, null, 2));
+        logRequest(req.method, req.url, 200);
+        return;
+      }
+
       // Parse URL and remove query string
       let urlPath = req.url.split('?')[0];
 
@@ -117,7 +141,7 @@ async function dev(options, projectContext) {
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         console.error(`\n❌ Port ${port} is already in use.`);
-        console.log(`💡 Try a different port: flutter_js dev --port ${port + 1}\n`);
+        console.log(`💡 Try a different port: flutter_js run --port ${port + 1}\n`);
       } else {
         console.error(`\n❌ Server error:`, err.message);
       }
@@ -128,20 +152,15 @@ async function dev(options, projectContext) {
     server.listen(port, () => {
       console.log('✅ Development server ready!\n');
       console.log(`   Local:   \x1b[36mhttp://localhost:${port}/\x1b[0m`);
-      console.log(`   Network: \x1b[36mhttp://127.0.0.1:${port}/\x1b[0m\n`);
+      console.log(`   Network: \x1b[36mhttp://127.0.0.1:${port}/\x1b[0m`);
+      console.log(`   API:     \x1b[36mhttp://localhost:${port}/api/build-analysis\x1b[0m\n`);
       console.log('   Press Ctrl+C to stop\n');
 
       // Open browser if requested
-      if (shouldOpen) {
+      if (open) {
         openBrowser(`http://localhost:${port}`);
       }
     });
-
-    // Watch for file changes
-    if (hmrEnabled) {
-      console.log('🔥 Hot reload enabled (watching for changes)...\n');
-      watchFiles(projectRoot, projectContext);
-    }
 
     // Graceful shutdown
     process.on('SIGINT', () => {
@@ -152,9 +171,12 @@ async function dev(options, projectContext) {
       });
     });
 
+    // Return promise that never resolves (keeps server running)
+    return new Promise(() => { });
+
   } catch (error) {
     console.error('\n❌ Dev server failed:', error.message);
-    if (options.verbose) {
+    if (verbose) {
       console.error(error.stack);
     }
     process.exit(1);
@@ -181,29 +203,4 @@ function openBrowser(url) {
   });
 }
 
-function watchFiles(projectRoot, projectContext) {
-  const srcPath = path.join(projectRoot, 'src');
-
-  if (!fs.existsSync(srcPath)) {
-    return;
-  }
-
-  fs.watch(srcPath, { recursive: true }, (eventType, filename) => {
-    if (filename && (filename.endsWith('.fjs') || filename.endsWith('.js'))) {
-      console.log(`\n📝 Change detected: ${filename}`);
-      console.log('   Rebuilding...\n');
-
-      // Rebuild
-      build({
-        mode: 'dev',
-        output: '.dev',
-        minify: false,
-        obfuscate: false,
-      }, projectContext).catch(err => {
-        console.error('❌ Rebuild failed:', err.message);
-      });
-    }
-  });
-}
-
-module.exports = { dev };
+module.exports = { startDevServer };

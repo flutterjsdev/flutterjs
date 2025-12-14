@@ -7,14 +7,11 @@
  * Does NOT implement actual context providers (that's Phase 4+)
  */
 
-import {
-  InheritedWidgetMetadata,
+
+import {  InheritedWidgetMetadata,
   ChangeNotifierAnalysis,
   ProviderAnalysis,
-  ContextDependency,
-  ContextUsagePattern,
-} from './context_analyzer_data.js';
-
+  ContextUsagePattern, } from '../index.js';
 class ContextAnalyzer {
   constructor(ast, widgets = [], options = {}) {
     this.ast = ast;
