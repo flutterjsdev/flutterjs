@@ -1,155 +1,405 @@
-export class VNode {
+/**
+ * VNode - Virtual DOM Node Implementation
+ * 
+ * Represents a virtual DOM node that can:
+ * 1. Handle any Flutter widget type
+ * 2. Serialize to HTML string (SSR)
+ * 3. Convert to actual DOM element (CSR)
+ * 4. Support hydration (SSR -> CSR transition)
+ * 5. Track state bindings
+ * 6. Manage event handlers
+ */
+
+class VNode {
+  /**
+   * @param {Object} config - VNode configuration
+   * @param {string} config.tag - HTML tag name (div, span, button, etc.)
+   * @param {Object} config.props - HTML attributes {className, id, data-*, etc.}
+   * @param {Object} config.style - CSS styles {color, padding, display, etc.}
+   * @param {Array} config.children - Child VNodes or text strings
+   * @param {string|number} config.key - Unique key for list reconciliation
+   * @param {Function} config.ref - Callback when DOM element is created
+   * @param {Object} config.events - Event handlers {click, change, input, etc.}
+   * @param {string} config.statefulWidgetId - ID of owning StatefulWidget
+   * @param {string} config.stateProperty - State property this node displays
+   * @param {boolean} config.isStateBinding - Whether this depends on state
+   * @param {Function} config.updateFn - Callback on state change
+   * @param {Object} config.metadata - Additional widget metadata
+   */
   constructor({
-    tag,
+    tag = 'div',
     props = {},
+    style = {},
     children = [],
     key = null,
     ref = null,
-    events = {}
-  }) {
-    this.tag = tag;           // 'div', 'button', 'span', etc.
-    this.props = props;       // HTML attributes
-    this.children = children; // VNode[] or string[]
-    this.key = key;           // For list reconciliation
-    this.ref = ref;           // Reference to DOM element
-    this.events = events;     // { onClick: fn, onHover: fn, ... }
-    this._element = null;     // Cached DOM element
+    events = {},
+    statefulWidgetId = null,
+    stateProperty = null,
+    isStateBinding = false,
+    updateFn = null,
+    metadata = {}
+  } = {}) {
+    this.tag = tag;
+    this.props = props || {};
+    this.style = style || {};
+    this.children = Array.isArray(children) ? children : [];
+    this.key = key;
+    this.ref = ref;
+    this.events = events || {};
+    
+    // State binding
+    this.statefulWidgetId = statefulWidgetId;
+    this.stateProperty = stateProperty;
+    this.isStateBinding = isStateBinding;
+    this.updateFn = updateFn;
+    
+    // Metadata (widget type, original props, etc.)
+    this.metadata = metadata || {};
+    
+    // Runtime references
+    this._element = null;  // DOM element (set during rendering)
+    this._parent = null;   // Parent VNode
+    this._index = null;    // Index in parent's children
   }
 
   /**
-   * Converts VNode to HTML string (for SSR)
+   * Convert VNode to HTML string (Server-Side Rendering)
+   * @param {Object} options - Rendering options
+   * @returns {string} HTML string
    */
-  toHTML() {
-    const attrs = this._serializeAttrs();
+  toHTML(options = {}) {
+    // Handle text nodes
+    if (typeof this === 'string') {
+      return VNode.escapeHTML(this);
+    }
+
+    // Handle null/undefined
+    if (!this || !this.tag) {
+      return '';
+    }
+
+    // Build opening tag with attributes
+    const attrs = this._serializeAttributes();
     const openTag = `<${this.tag}${attrs ? ' ' + attrs : ''}>`;
 
     // Self-closing tags
-    if (this._isVoidTag()) {
+    if (VNode.VOID_TAGS.includes(this.tag)) {
       return openTag;
     }
 
-    // Children
+    // Render children
     const childrenHTML = this.children
       .map(child => {
         if (child instanceof VNode) {
-          return child.toHTML();
+          return child.toHTML(options);
         }
-        if (child === null || child === undefined) {
-          return '';
+        if (typeof child === 'string') {
+          return VNode.escapeHTML(child);
         }
-        return this._escapeHTML(String(child));
+        return '';
       })
       .join('');
 
-    return `${openTag}${childrenHTML}</${this.tag}>`;
+    const closeTag = `</${this.tag}>`;
+    return `${openTag}${childrenHTML}${closeTag}`;
   }
 
   /**
-   * Converts VNode to DOM element (for CSR)
+   * Convert VNode to actual DOM element (Client-Side Rendering)
+   * @param {Object} options - Rendering options
+   * @returns {HTMLElement} DOM element
    */
-  toDOM() {
+  toDOM(options = {}) {
+    // Handle text nodes
+    if (typeof this === 'string') {
+      return document.createTextNode(this);
+    }
+
+    // Handle null/undefined
+    if (!this || !this.tag) {
+      return document.createTextNode('');
+    }
+
+    // Create DOM element
     const element = document.createElement(this.tag);
-    this._element = element;
 
-    // Apply props (attributes)
-    Object.entries(this.props).forEach(([key, value]) => {
-      if (value === null || value === undefined) return;
+    // Apply props (HTML attributes)
+    this._applyProps(element);
 
-      if (key === 'className') {
-        element.className = value;
-      } else if (key === 'style' && typeof value === 'object') {
-        Object.assign(element.style, value);
-      } else if (key.startsWith('data-')) {
-        element.setAttribute(key, value);
-      } else {
-        try {
-          element[key] = value;
-        } catch {
-          element.setAttribute(key, value);
-        }
-      }
-    });
+    // Apply styles (CSS)
+    this._applyStyles(element);
 
-    // Attach events
-    Object.entries(this.events).forEach(([eventName, handler]) => {
-      if (handler) {
-        element.addEventListener(eventName, handler);
-      }
-    });
+    // Attach event listeners
+    this._applyEvents(element);
 
-    // Add children
-    this.children.forEach(child => {
+    // Add children recursively
+    this.children.forEach((child, index) => {
+      let childNode;
+      
       if (child instanceof VNode) {
-        element.appendChild(child.toDOM());
-      } else if (child !== null && child !== undefined) {
-        element.appendChild(document.createTextNode(String(child)));
+        childNode = child.toDOM(options);
+        child._parent = this;
+        child._index = index;
+      } else if (typeof child === 'string') {
+        childNode = document.createTextNode(child);
+      } else {
+        childNode = document.createTextNode(String(child || ''));
+      }
+
+      if (childNode) {
+        element.appendChild(childNode);
       }
     });
+
+    // Store reference
+    this._element = element;
+    element._vnode = this;
+
+    // Call ref callback
+    if (typeof this.ref === 'function') {
+      this.ref(element);
+    }
 
     return element;
   }
 
   /**
-   * Hydrates existing DOM element with events
-   * (Used when rendering on server, then hydrating on client)
+   * Hydrate existing SSR-rendered DOM with interactivity
+   * @param {HTMLElement} domElement - Existing DOM element from SSR
+   * @returns {HTMLElement} Hydrated element
    */
-  hydrate(existingElement) {
-    this._element = existingElement;
+  hydrate(domElement) {
+    if (!domElement || !this.tag) {
+      return null;
+    }
 
-    // Attach events to existing DOM
-    Object.entries(this.events).forEach(([eventName, handler]) => {
-      if (handler) {
-        existingElement.addEventListener(eventName, handler);
-      }
-    });
+    // Store reference
+    this._element = domElement;
+    domElement._vnode = this;
 
-    // Recursively hydrate children
-    let childIndex = 0;
-    Array.from(existingElement.childNodes).forEach(childNode => {
-      const vnodeChild = this.children[childIndex];
-      if (vnodeChild instanceof VNode && childNode.nodeType === 1) {
-        vnodeChild.hydrate(childNode);
-        childIndex++;
-      } else if (childNode.nodeType === 3) {
-        childIndex++;
-      }
-    });
+    // Attach event listeners (SSR doesn't include events)
+    this._applyEvents(domElement);
 
-    return existingElement;
-  }
+    // Hydrate children recursively
+    const domChildren = Array.from(domElement.childNodes);
+    let vnodeChildIndex = 0;
 
-  /**
-   * Serialize HTML attributes
-   */
-  _serializeAttrs() {
-    return Object.entries(this.props)
-      .map(([key, value]) => {
-        if (value === null || value === undefined || value === false) return '';
-        if (value === true) return key;
-        if (key === 'className') return `class="${this._escape(value)}"`;
-        if (key === 'style' && typeof value === 'object') {
-          const styleStr = Object.entries(value)
-            .map(([prop, val]) => `${this._camelToKebab(prop)}: ${val}`)
-            .join('; ');
-          return `style="${this._escape(styleStr)}"`;
+    domChildren.forEach((domChild, domIndex) => {
+      const vnodeChild = this.children[vnodeChildIndex];
+
+      if (!vnodeChild) return;
+
+      if (vnodeChild instanceof VNode) {
+        vnodeChild.hydrate(domChild);
+        vnodeChild._parent = this;
+        vnodeChild._index = vnodeChildIndex;
+        vnodeChildIndex++;
+      } else if (domChild.nodeType === Node.TEXT_NODE) {
+        // Text node - just verify content matches
+        if (String(vnodeChild) === domChild.textContent) {
+          vnodeChildIndex++;
         }
-        return `${key}="${this._escape(String(value))}"`;
-      })
-      .filter(Boolean)
-      .join(' ');
+      }
+    });
+
+    // Call ref callback
+    if (typeof this.ref === 'function') {
+      this.ref(domElement);
+    }
+
+    return domElement;
   }
 
   /**
-   * Check if tag is self-closing
+   * Serialize attributes to HTML string
+   * @private
+   * @returns {string} Attributes string
    */
-  _isVoidTag() {
-    return ['img', 'br', 'hr', 'input', 'meta', 'link'].includes(this.tag);
+  _serializeAttributes() {
+    const attrs = [];
+
+    // Props (HTML attributes)
+    if (this.props) {
+      Object.entries(this.props).forEach(([key, value]) => {
+        if (value === null || value === undefined || value === false) {
+          return;
+        }
+
+        if (value === true) {
+          // Boolean attribute (checked, disabled, etc.)
+          attrs.push(key);
+        } else {
+          // Regular attribute
+          const escaped = VNode.escapeAttribute(String(value));
+          attrs.push(`${key}="${escaped}"`);
+        }
+      });
+    }
+
+    // Inline styles
+    if (this.style && typeof this.style === 'object') {
+      const styleStr = Object.entries(this.style)
+        .filter(([_, value]) => value !== null && value !== undefined)
+        .map(([key, value]) => {
+          // Convert camelCase to kebab-case
+          const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+          return `${cssKey}: ${value}`;
+        })
+        .join('; ');
+
+      if (styleStr) {
+        attrs.push(`style="${VNode.escapeAttribute(styleStr)}"`);
+      }
+    }
+
+    // Data attributes from metadata
+    if (this.metadata.widgetType) {
+      attrs.push(`data-widget-type="${VNode.escapeAttribute(this.metadata.widgetType)}"`);
+    }
+
+    if (this.key !== null && this.key !== undefined) {
+      attrs.push(`data-key="${VNode.escapeAttribute(String(this.key))}"`);
+    }
+
+    return attrs.join(' ');
   }
+
+  /**
+   * Apply props to DOM element
+   * @private
+   * @param {HTMLElement} element - Target element
+   */
+  _applyProps(element) {
+    if (!this.props) return;
+
+    Object.entries(this.props).forEach(([key, value]) => {
+      if (value === null || value === undefined) return;
+
+      try {
+        if (key === 'className') {
+          element.className = value;
+        } else if (key === 'value' && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA')) {
+          element.value = value;
+        } else if (key === 'checked' && element.tagName === 'INPUT') {
+          element.checked = !!value;
+        } else if (key.startsWith('data-') || key.startsWith('aria-')) {
+          element.setAttribute(key, String(value));
+        } else if (typeof value === 'boolean') {
+          if (value) {
+            element.setAttribute(key, '');
+          }
+        } else {
+          // Try property first, fall back to attribute
+          if (key in element) {
+            element[key] = value;
+          } else {
+            element.setAttribute(key, String(value));
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to set property ${key}:`, error);
+      }
+    });
+  }
+
+  /**
+   * Apply styles to DOM element
+   * @private
+   * @param {HTMLElement} element - Target element
+   */
+  _applyStyles(element) {
+    if (!this.style || typeof this.style !== 'object') return;
+
+    Object.entries(this.style).forEach(([key, value]) => {
+      if (value !== null && value !== undefined) {
+        try {
+          element.style[key] = value;
+        } catch (error) {
+          console.warn(`Failed to set style ${key}:`, error);
+        }
+      }
+    });
+  }
+
+  /**
+   * Attach event listeners to DOM element
+   * @private
+   * @param {HTMLElement} element - Target element
+   */
+  _applyEvents(element) {
+    if (!this.events) return;
+
+    Object.entries(this.events).forEach(([eventName, handler]) => {
+      if (typeof handler !== 'function') return;
+
+      // Normalize event name (onClick -> click, onInput -> input)
+      const normalizedName = eventName
+        .replace(/^on/, '')
+        .toLowerCase();
+
+      // Store reference for cleanup
+      if (!element._eventListeners) {
+        element._eventListeners = {};
+      }
+
+      // Remove old listener if exists
+      if (element._eventListeners[normalizedName]) {
+        element.removeEventListener(
+          normalizedName,
+          element._eventListeners[normalizedName]
+        );
+      }
+
+      // Add new listener
+      element.addEventListener(normalizedName, handler);
+      element._eventListeners[normalizedName] = handler;
+    });
+  }
+
+  /**
+   * Create a clone of this VNode
+   * @returns {VNode} Cloned VNode
+   */
+  clone() {
+    return new VNode({
+      tag: this.tag,
+      props: { ...this.props },
+      style: { ...this.style },
+      children: this.children.map(child => 
+        child instanceof VNode ? child.clone() : child
+      ),
+      key: this.key,
+      ref: this.ref,
+      events: { ...this.events },
+      statefulWidgetId: this.statefulWidgetId,
+      stateProperty: this.stateProperty,
+      isStateBinding: this.isStateBinding,
+      updateFn: this.updateFn,
+      metadata: { ...this.metadata }
+    });
+  }
+
+  /**
+   * Get debug representation
+   * @returns {string} Debug string
+   */
+  toString() {
+    const childrenStr = this.children.length > 0 
+      ? ` [${this.children.length} children]` 
+      : '';
+    const keyStr = this.key !== null ? ` key="${this.key}"` : '';
+    return `<${this.tag}${keyStr}${childrenStr}>`;
+  }
+
+  // Static utility methods
 
   /**
    * Escape HTML special characters
+   * @param {string} str - String to escape
+   * @returns {string} Escaped string
    */
-  _escape(str) {
+  static escapeHTML(str) {
     const map = {
       '&': '&amp;',
       '<': '&lt;',
@@ -157,20 +407,56 @@ export class VNode {
       '"': '&quot;',
       "'": '&#39;'
     };
-    return str.replace(/[&<>"']/g, c => map[c]);
+    return String(str).replace(/[&<>"']/g, c => map[c]);
   }
 
   /**
-   * Escape HTML for text content
+   * Escape HTML attribute value
+   * @param {string} str - String to escape
+   * @returns {string} Escaped string
    */
-  _escapeHTML(str) {
-    return this._escape(str);
+  static escapeAttribute(str) {
+    return VNode.escapeHTML(str);
   }
 
   /**
-   * Convert camelCase to kebab-case
+   * Check if tag is self-closing
+   * @param {string} tag - Tag name
+   * @returns {boolean} True if void tag
    */
-  _camelToKebab(str) {
-    return str.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
+  static isVoidTag(tag) {
+    return VNode.VOID_TAGS.includes(tag);
   }
+
+  /**
+   * Create text VNode
+   * @param {string} text - Text content
+   * @returns {string} Text node (represented as string)
+   */
+  static text(text) {
+    return String(text || '');
+  }
+
+  /**
+   * Create fragment (multiple children without wrapper)
+   * @param {Array} children - Child nodes
+   * @returns {Array} Children array
+   */
+  static fragment(children) {
+    return Array.isArray(children) ? children : [children];
+  }
+}
+
+// Static constants
+VNode.VOID_TAGS = [
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 
+  'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'
+];
+
+// Export
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = VNode;
+}
+if (typeof window !== 'undefined') {
+  window.VNode = VNode;
 }
