@@ -2,7 +2,6 @@
  * VNodeBuilder Tests - Comprehensive Widget to VNode Conversion Testing
  * Tests all Flutter widget types and their conversion to VNode trees
  */
-
 import { VNodeBuilder } from '../src/vnode/vnode_builder.js';
 import { VNode } from '../src/vnode/vnode.js';
 import { JSDOM } from 'jsdom';

@@ -5,7 +5,7 @@
 
 import { Hydrator } from '../src/vnode/hydrator.js';
 import { VNode } from '../src/vnode/vnode.js';
-import { SSRRenderer } from '../src/vnode/ssr-renderer.js';
+import { SSRRenderer } from '../src/vnode/ssr_renderer.js';
 import { JSDOM } from 'jsdom';
 
 // Setup DOM environment

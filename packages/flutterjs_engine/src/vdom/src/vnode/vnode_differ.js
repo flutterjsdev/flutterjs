@@ -396,4 +396,5 @@ class VNodeDiffer {
   }
 }
 
+
 export { VNodeDiffer, Patch, PatchType };

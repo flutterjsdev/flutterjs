@@ -47,16 +47,16 @@ class VNode {
     this.key = key;
     this.ref = ref;
     this.events = events || {};
-    
+
     // State binding
     this.statefulWidgetId = statefulWidgetId;
     this.stateProperty = stateProperty;
     this.isStateBinding = isStateBinding;
     this.updateFn = updateFn;
-    
+
     // Metadata (widget type, original props, etc.)
     this.metadata = metadata || {};
-    
+
     // Runtime references
     this._element = null;  // DOM element (set during rendering)
     this._parent = null;   // Parent VNode
@@ -111,6 +111,9 @@ class VNode {
    * @returns {HTMLElement} DOM element
    */
   toDOM(options = {}) {
+     console.log(`\n=== toDOM called for tag: ${this.tag}`);
+  console.log(`    style object:`, this.style);
+  console.log(`    style keys:`, Object.keys(this.style));
     // Handle text nodes
     if (typeof this === 'string') {
       return document.createTextNode(this);
@@ -136,7 +139,7 @@ class VNode {
     // Add children recursively
     this.children.forEach((child, index) => {
       let childNode;
-      
+
       if (child instanceof VNode) {
         childNode = child.toDOM(options);
         child._parent = this;
@@ -227,12 +230,12 @@ class VNode {
         }
 
         if (value === true) {
-          // Boolean attribute (checked, disabled, etc.)
           attrs.push(key);
         } else {
-          // Regular attribute
+          // Convert className to class for HTML
+          const attrName = key === 'className' ? 'class' : key;
           const escaped = VNode.escapeAttribute(String(value));
-          attrs.push(`${key}="${escaped}"`);
+          attrs.push(`${attrName}="${escaped}"`);
         }
       });
     }
@@ -242,8 +245,10 @@ class VNode {
       const styleStr = Object.entries(this.style)
         .filter(([_, value]) => value !== null && value !== undefined)
         .map(([key, value]) => {
-          // Convert camelCase to kebab-case
-          const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+          // Convert camelCase to kebab-case properly
+          const cssKey = key
+            .replace(/([A-Z])/g, '-$1')
+            .toLowerCase();
           return `${cssKey}: ${value}`;
         })
         .join('; ');
@@ -252,7 +257,6 @@ class VNode {
         attrs.push(`style="${VNode.escapeAttribute(styleStr)}"`);
       }
     }
-
     // Data attributes from metadata
     if (this.metadata.widgetType) {
       attrs.push(`data-widget-type="${VNode.escapeAttribute(this.metadata.widgetType)}"`);
@@ -315,6 +319,7 @@ class VNode {
       if (value !== null && value !== undefined) {
         try {
           element.style[key] = value;
+          console.log(`Set style ${key} = ${value} -> element.style.${key} = ${element.style[key]}`);
         } catch (error) {
           console.warn(`Failed to set style ${key}:`, error);
         }
@@ -366,7 +371,7 @@ class VNode {
       tag: this.tag,
       props: { ...this.props },
       style: { ...this.style },
-      children: this.children.map(child => 
+      children: this.children.map(child =>
         child instanceof VNode ? child.clone() : child
       ),
       key: this.key,
@@ -385,8 +390,8 @@ class VNode {
    * @returns {string} Debug string
    */
   toString() {
-    const childrenStr = this.children.length > 0 
-      ? ` [${this.children.length} children]` 
+    const childrenStr = this.children.length > 0
+      ? ` [${this.children.length} children]`
       : '';
     const keyStr = this.key !== null ? ` key="${this.key}"` : '';
     return `<${this.tag}${keyStr}${childrenStr}>`;
@@ -449,7 +454,7 @@ class VNode {
 
 // Static constants
 VNode.VOID_TAGS = [
-  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img',
   'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'
 ];
 
@@ -461,4 +466,4 @@ if (typeof window !== 'undefined') {
   window.VNode = VNode;
 }
 
-export {VNode}
+export { VNode }

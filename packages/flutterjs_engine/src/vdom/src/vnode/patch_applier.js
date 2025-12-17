@@ -12,9 +12,18 @@
  */
 
 import { VNode } from './vnode.js';
-import { VNodeRenderer } from './vnode-renderer.js';
-import { PatchType } from './vnode-differ.js';
+import { VNodeRenderer } from './vnode_renderer.js';
+import { PatchType } from './vnode_differ.js';
 
+class Patch {
+  constructor(type, index, oldNode, newNode) {
+    this.type = type;
+    this.index = index;
+    this.oldNode = oldNode;
+    this.newNode = newNode;
+    this.value = null;  // For UPDATE_* patches
+  }
+}
 /**
  * PatchApplier - Applies patches to DOM with performance optimizations
  */
@@ -53,7 +62,7 @@ class PatchApplier {
       // 2. Creates (add new elements)
       // 3. Replaces (full replacement)
       // 4. Updates (minimal changes)
-      
+
       const orderedPatches = this.orderPatches(patches);
 
       orderedPatches.forEach((patch, index) => {
@@ -155,7 +164,7 @@ class PatchApplier {
     ordered.push(...patches.filter(p => p.type === PatchType.CREATE));
 
     // 4. Updates (props, styles, text, events)
-    ordered.push(...patches.filter(p => 
+    ordered.push(...patches.filter(p =>
       p.type === PatchType.UPDATE_PROPS ||
       p.type === PatchType.UPDATE_STYLE ||
       p.type === PatchType.UPDATE_TEXT ||
@@ -196,10 +205,16 @@ class PatchApplier {
       return root;
     }
 
-    const indices = String(index).split('.').map(Number).slice(1);
+    const indexParts = String(index).split('.').map(Number);
+
+    // Remove leading 0 if present (for path normalization)
+    if (indexParts[0] === 0) {
+      indexParts.shift();
+    }
+
     let current = root;
 
-    for (const i of indices) {
+    for (const i of indexParts) {
       if (!current || i >= current.childNodes.length) {
         return null;
       }
@@ -225,27 +240,41 @@ class PatchApplier {
    * @private
    */
   static applyCreate(rootElement, patch) {
-    const parentIndex = String(patch.index).split('.').slice(0, -1).join('.');
-    const parentElement = this.findElementByIndex(rootElement, parentIndex);
+    const indexParts = String(patch.index).split('.').map(Number);
+    
+    if (indexParts.length === 0) {
+      console.warn('Invalid CREATE index');
+      return null;
+    }
+
+    // Get the child index (last part)
+    const childIndexInParent = indexParts.pop();
+    
+    // Find the parent element
+    let parentElement = rootElement;
+    if (indexParts.length > 0) {
+      parentElement = this.findElementByIndex(rootElement, indexParts.join('.'));
+    }
 
     if (!parentElement) {
       console.warn(`Parent not found for CREATE at ${patch.index}`);
       return null;
     }
 
-    // Create new DOM from VNode
+    // Create the new DOM element
     const newElement = VNodeRenderer.createDOMNode(patch.newNode);
-    if (!newElement) return null;
+    if (!newElement) {
+      console.warn('Failed to create DOM node from VNode');
+      return null;
+    }
 
-    // Determine insertion position
-    const childIndex = parseInt(String(patch.index).split('.').pop());
-
-    if (childIndex >= parentElement.childNodes.length) {
+    // Insert at the correct position
+    if (childIndexInParent >= parentElement.childNodes.length) {
       parentElement.appendChild(newElement);
     } else {
       parentElement.insertBefore(
         newElement,
-        parentElement.childNodes[childIndex]
+        parentElement.childNodes[childIndexInParent]
       );
     }
 
@@ -344,10 +373,10 @@ class PatchApplier {
     }
 
     // Special handling for value (inputs)
-    if (key === 'value' && 
-        (element.tagName === 'INPUT' || 
-         element.tagName === 'TEXTAREA' || 
-         element.tagName === 'SELECT')) {
+    if (key === 'value' &&
+      (element.tagName === 'INPUT' ||
+        element.tagName === 'TEXTAREA' ||
+        element.tagName === 'SELECT')) {
       element.value = value;
       return;
     }
@@ -415,9 +444,9 @@ class PatchApplier {
     }
 
     // Special handling for value
-    if (key === 'value' && 
-        (element.tagName === 'INPUT' || 
-         element.tagName === 'TEXTAREA')) {
+    if (key === 'value' &&
+      (element.tagName === 'INPUT' ||
+        element.tagName === 'TEXTAREA')) {
       element.value = '';
       return;
     }
@@ -513,7 +542,9 @@ class PatchApplier {
       return null;
     }
 
-    element.textContent = String(patch.newNode || '');
+    // Use patch.value if available, fallback to patch.newNode
+    const newText = patch.value !== undefined ? patch.value : patch.newNode;
+    element.textContent = String(newText || '');
     return element;
   }
 
@@ -725,12 +756,19 @@ class PatchApplier {
         errors.push(`Patch ${i}: Invalid type "${patch.type}"`);
       }
 
+      // Only require newNode for CREATE
       if (patch.type === PatchType.CREATE && !patch.newNode) {
         errors.push(`Patch ${i}: CREATE missing newNode`);
       }
 
+      // Only require oldNode for REMOVE
       if (patch.type === PatchType.REMOVE && !patch.oldNode) {
         errors.push(`Patch ${i}: REMOVE missing oldNode`);
+      }
+
+      // Only require both for REPLACE
+      if (patch.type === PatchType.REPLACE && (!patch.oldNode || !patch.newNode)) {
+        errors.push(`Patch ${i}: REPLACE missing oldNode or newNode`);
       }
     });
 
@@ -765,3 +803,5 @@ if (typeof module !== 'undefined' && module.exports) {
 if (typeof window !== 'undefined') {
   window.PatchApplier = PatchApplier;
 }
+
+export { PatchApplier }

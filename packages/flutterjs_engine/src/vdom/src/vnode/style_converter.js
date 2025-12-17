@@ -41,7 +41,7 @@ class StyleConverter {
     // Color object with r, g, b, a properties
     if (color.r !== undefined && color.g !== undefined && color.b !== undefined) {
       const a = color.a !== undefined ? color.a : 1;
-      return a < 1 
+      return a < 1
         ? `rgba(${color.r}, ${color.g}, ${color.b}, ${a})`
         : `rgb(${color.r}, ${color.g}, ${color.b})`;
     }
@@ -86,8 +86,8 @@ class StyleConverter {
 
     // Font size
     if (style.fontSize !== undefined) {
-      css.fontSize = typeof style.fontSize === 'number' 
-        ? `${style.fontSize}px` 
+      css.fontSize = typeof style.fontSize === 'number'
+        ? `${style.fontSize}px`
         : style.fontSize;
     }
 
@@ -163,9 +163,6 @@ class StyleConverter {
    * @private
    */
   static fontWeightToCss(weight) {
-    if (typeof weight === 'number') return String(weight);
-    if (typeof weight === 'string') return weight;
-
     // Flutter FontWeight enum
     const weightMap = {
       w100: '100',
@@ -178,10 +175,18 @@ class StyleConverter {
       w800: '800',
       w900: '900',
       normal: '400',
-      bold: '700',
+      bold: '700'
     };
+    // If it's a number, return as string
+    if (typeof weight === 'number') return String(weight);
 
-    return weightMap[weight] || '400';
+    // If it's a string, look it up in the map
+    console.log("weight"+weight);
+    if (typeof weight === 'string') {
+      return weightMap[weight] || '400';
+    }
+
+    return '400';
   }
 
   /**
@@ -208,7 +213,7 @@ class StyleConverter {
    */
   static textShadowsToCss(shadows) {
     if (!Array.isArray(shadows)) shadows = [shadows];
-    
+
     return shadows
       .map(shadow => {
         const x = shadow.offset?.dx || 0;
@@ -688,3 +693,5 @@ if (typeof module !== 'undefined' && module.exports) {
 if (typeof window !== 'undefined') {
   window.StyleConverter = StyleConverter;
 }
+
+export { StyleConverter }
