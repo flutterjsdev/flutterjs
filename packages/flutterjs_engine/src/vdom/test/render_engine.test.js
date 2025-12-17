@@ -3,8 +3,8 @@
  * Comprehensive testing for universal rendering and SSR
  */
 
-import { RenderEngine } from '../src/vnode/render-engine.js';
-import { SSRRenderer } from '../src/vnode/ssr-renderer.js';
+import { RenderEngine } from '../src/vnode/render_engine.js';
+import { SSRRenderer } from '../src/vnode/ssr_renderer.js';
 import { VNode } from '../src/vnode/vnode.js';
 import { JSDOM } from 'jsdom';
 

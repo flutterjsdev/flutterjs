@@ -3,10 +3,10 @@
  * Tests all patch types, edge cases, performance, and integration
  */
 
-import { PatchApplier } from '../src/vnode/patch-applier.js';
-import { Patch, PatchType } from '../src/vnode/vnode-differ.js';
+import { PatchApplier } from '../src/vnode/patch_applier.js';
+import { Patch, PatchType } from '../src/vnode/vnode_differ.js';
 import { VNode } from '../src/vnode/vnode.js';
-import { VNodeRenderer } from '../src/vnode/vnode-renderer.js';
+import { VNodeRenderer } from '../src/vnode/vnode_renderer.js';
 import { JSDOM } from 'jsdom';
 
 // Setup DOM environment
