@@ -168,6 +168,24 @@ class StateBinding {
 
     const tagName = this.domElement.tagName;
     const type = this.domElement.type || '';
+    // Class binding (CHECK FIRST)
+  if (this.stateProperty === 'className' || this.stateProperty === 'class') {
+    this.domElement.className = String(value ?? '');
+    return;
+  }
+   // Style binding (CHECK FIRST)
+  if (this.stateProperty.startsWith('style-')) {
+    const styleProp = this.stateProperty.replace(/^style-/, '');
+    this.domElement.style[styleProp] = String(value ?? '');
+    return;
+  }
+
+  // Generic attribute binding (CHECK FIRST)
+  if (this.stateProperty.startsWith('attr-')) {
+    const attrName = this.stateProperty.replace(/^attr-/, '');
+    this.domElement.setAttribute(attrName, String(value ?? ''));
+    return;
+  }
 
     // Text content binding
     if (tagName === 'SPAN' || tagName === 'DIV' || tagName === 'P' || tagName === 'H1' || 
@@ -768,3 +786,5 @@ if (typeof window !== 'undefined') {
   window.StateBindingRegistry = StateBindingRegistry;
   window.BindingMode = BindingMode;
 }
+
+export {BindingMode, StateBinding,StateBindingRegistry,createBinding,createTwoWayBinding,createOneWayBinding}

@@ -29,15 +29,18 @@ const UpdatePriority = {
  * Update request object
  */
 class UpdateRequest {
-  constructor(callback, priority = UpdatePriority.NORMAL, id = null) {
+  constructor(callback, priority = UpdatePriority.NORMAL, id = null, batchId = null) {
     this.callback = callback;
     this.priority = priority;
     this.id = id || `update-${Date.now()}-${Math.random()}`;
+    this.batchId = batchId; // Track which batch this belongs to
     this.timestamp = Date.now();
     this.attempts = 0;
     this.lastError = null;
+    this.sequence = UpdateScheduler.globalSequence++;
   }
 }
+
 
 /**
  * Update batch - groups related updates
@@ -70,6 +73,8 @@ class UpdateBatch {
  * UpdateScheduler - Manages batching and scheduling of updates
  */
 class UpdateScheduler {
+  // Class variable to track global insertion order
+  static globalSequence = 0;
   constructor(options = {}) {
     // Configuration
     this.maxBatchSize = options.maxBatchSize || 50;
@@ -151,25 +156,35 @@ class UpdateScheduler {
    * @param {string} priority - Priority for all updates
    * @returns {string} Batch ID
    */
-  scheduleBatch(callbacks, priority = UpdatePriority.NORMAL) {
-    if (!Array.isArray(callbacks)) {
-      throw new Error('Batch callbacks must be an array');
-    }
-
-    const batch = new UpdateBatch();
-    callbacks.forEach((callback, index) => {
-      const update = new UpdateRequest(callback, priority, `batch-${index}`);
-      batch.add(update);
-    });
-
-    this.pendingBatches.push(batch);
-
-    if (this.enableAutoFlushing && !this.frameScheduled) {
-      this.scheduleFrame();
-    }
-
-    return batch.id;
+ scheduleBatch(callbacks, priority = UpdatePriority.NORMAL) {
+  if (!Array.isArray(callbacks)) {
+    throw new Error('Batch callbacks must be an array');
   }
+
+  const batch = new UpdateBatch();
+  const queue = this.queues.get(priority);
+
+  if (!queue) {
+    throw new Error(`Invalid priority: ${priority}`);
+  }
+
+  // Create updates with the specified priority and add them to the priority queue
+  callbacks.forEach((callback, index) => {
+    const update = new UpdateRequest(callback, priority, `batch-${batch.id}-${index}`, batch.id);
+    batch.add(update);
+    // IMPORTANT: Add to the priority queue, not just to batch
+    queue.push(update);
+  });
+
+  // Store batch reference for tracking
+  this.pendingBatches.push(batch);
+
+  if (this.enableAutoFlushing && !this.frameScheduled) {
+    this.scheduleFrame();
+  }
+
+  return batch.id;
+}
 
   /**
    * Flush (execute) all scheduled updates
@@ -288,55 +303,51 @@ class UpdateScheduler {
    * @private
    */
   getNextUpdates() {
-    const updates = [];
+  const updates = [];
 
-    // Process queues in priority order
-    if (this.enablePrioritization) {
-      // Process in order: IMMEDIATE, HIGH, NORMAL, LOW
-      for (const priority of [
-        UpdatePriority.IMMEDIATE,
-        UpdatePriority.HIGH,
-        UpdatePriority.NORMAL,
-        UpdatePriority.LOW
-      ]) {
-        const queue = this.queues.get(priority);
-        while (queue.length > 0 && updates.length < this.maxBatchSize) {
-          updates.push(queue.shift());
-        }
+  if (this.enablePrioritization) {
+    // Process queues in priority order: IMMEDIATE, HIGH, NORMAL, LOW
+    for (const priority of [
+      UpdatePriority.IMMEDIATE,
+      UpdatePriority.HIGH,
+      UpdatePriority.NORMAL,
+      UpdatePriority.LOW
+    ]) {
+      const queue = this.queues.get(priority);
+      while (queue.length > 0 && updates.length < this.maxBatchSize) {
+        updates.push(queue.shift());
       }
-    } else {
-      // Process FIFO across all queues
-      while (updates.length < this.maxBatchSize) {
-        let found = false;
+    }
+  } else {
+    // FIFO mode: Collect all updates and sort by sequence number
+    const allUpdates = [];
 
-        for (const queue of this.queues.values()) {
-          if (queue.length > 0) {
-            updates.push(queue.shift());
-            found = true;
-            break;
-          }
-        }
-
-        if (!found) break;
+    // Collect from all priority queues
+    for (const queue of this.queues.values()) {
+      while (queue.length > 0) {
+        allUpdates.push(queue.shift());
       }
     }
 
-    // Process pending batches
-    while (this.pendingBatches.length > 0 && updates.length < this.maxBatchSize) {
-      const batch = this.pendingBatches.shift();
-      batch.status = 'processing';
+    // Sort by sequence (insertion order)
+    allUpdates.sort((a, b) => a.sequence - b.sequence);
 
-      while (batch.updates.length > 0 && updates.length < this.maxBatchSize) {
-        updates.push(batch.updates.shift());
-      }
-
-      if (batch.updates.length === 0) {
-        batch.status = 'completed';
-      }
+    // Take up to maxBatchSize
+    while (allUpdates.length > 0 && updates.length < this.maxBatchSize) {
+      updates.push(allUpdates.shift());
     }
 
-    return updates;
+    // Re-queue remaining updates back to their queues
+    for (const update of allUpdates) {
+      const queue = this.queues.get(update.priority);
+      queue.push(update);
+    }
   }
+
+  return updates;
+}
+
+
 
   /**
    * Cancel a scheduled update
@@ -371,29 +382,30 @@ class UpdateScheduler {
    * @param {string} batchId - Batch ID to cancel
    * @returns {number} Number of updates cancelled
    */
-  cancelBatch(batchId) {
-    let cancelled = 0;
+ cancelBatch(batchId) {
+  let cancelled = 0;
 
-    for (const queue of this.queues.values()) {
-      for (let i = queue.length - 1; i >= 0; i--) {
-        if (queue[i].id.startsWith(batchId)) {
-          queue.splice(i, 1);
-          cancelled++;
-        }
+  // Cancel updates that belong to this batch by batchId field
+  for (const queue of this.queues.values()) {
+    for (let i = queue.length - 1; i >= 0; i--) {
+      if (queue[i].batchId === batchId) {
+        queue.splice(i, 1);
+        cancelled++;
+        this.metrics.skipped++;
       }
     }
-
-    for (const batch of this.pendingBatches) {
-      for (let i = batch.updates.length - 1; i >= 0; i--) {
-        if (batch.updates[i].id.startsWith(batchId)) {
-          batch.updates.splice(i, 1);
-          cancelled++;
-        }
-      }
-    }
-
-    return cancelled;
   }
+
+  // Remove the batch reference
+  for (let i = this.pendingBatches.length - 1; i >= 0; i--) {
+    if (this.pendingBatches[i].id === batchId) {
+      this.pendingBatches.splice(i, 1);
+      break;
+    }
+  }
+
+  return cancelled;
+}
 
   /**
    * Flush all pending updates synchronously
@@ -612,3 +624,5 @@ if (typeof window !== 'undefined') {
   window.UpdateScheduler = UpdateScheduler;
   window.UpdatePriority = UpdatePriority;
 }
+
+export { UpdatePriority, UpdateRequest, UpdateBatch, UpdateScheduler }

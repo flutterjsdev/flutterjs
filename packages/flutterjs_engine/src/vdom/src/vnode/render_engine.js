@@ -12,8 +12,8 @@
  * - Performance monitoring
  */
 
-import { VNodeRenderer } from './vnode-renderer.js';
-import { SSRRenderer } from './ssr-renderer.js';
+import { VNodeRenderer } from './vnode_renderer.js';
+import { SSRRenderer } from './ssr_renderer.js';
 
 class RenderEngine {
   /**
@@ -623,3 +623,4 @@ if (typeof module !== 'undefined' && module.exports) {
 if (typeof window !== 'undefined') {
   window.RenderEngine = RenderEngine;
 }
+export {RenderEngine}

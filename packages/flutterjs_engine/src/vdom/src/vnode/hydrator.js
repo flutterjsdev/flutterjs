@@ -10,7 +10,7 @@
  * 6. Makes the app interactive
  */
 
-import { VNodeRenderer } from './vnode-renderer.js';
+import { VNodeRenderer } from './vnode_renderer.js';
 
 class Hydrator {
   /**
@@ -584,3 +584,5 @@ if (typeof module !== 'undefined' && module.exports) {
 if (typeof window !== 'undefined') {
   window.Hydrator = Hydrator;
 }
+
+export {Hydrator}

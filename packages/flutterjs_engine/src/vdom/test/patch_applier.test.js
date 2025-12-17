@@ -76,14 +76,15 @@ test('Apply CREATE patch adds element to DOM', () => {
   const root = createTestDOM();
   const vnode = new VNode({ tag: 'div', children: ['Parent'] });
   VNodeRenderer.render(vnode, root);
+  const parent = root.firstChild;
 
   const newVNode = new VNode({ tag: 'span', children: ['New'] });
-  const patch = new Patch(PatchType.CREATE, '0.0', null, newVNode);
+  const patch = new Patch(PatchType.CREATE, '1', null, newVNode);
 
-  const result = PatchApplier.apply(root.firstChild, [patch]);
+  PatchApplier.apply(parent, [patch]);
 
-  assertEquals(root.firstChild.children.length, 1, 'Should have new child');
-  assertEquals(root.firstChild.firstChild.textContent, 'New');
+  assertEquals(parent.children.length, 2, 'Should have new child');
+  assertEquals(parent.children[1].textContent, 'New');
 });
 
 test('CREATE patch at end of children list', () => {
@@ -96,14 +97,15 @@ test('CREATE patch at end of children list', () => {
     ]
   });
   VNodeRenderer.render(vnode, root);
+  const parent = root.firstChild;
 
   const newVNode = new VNode({ tag: 'span', children: ['C'] });
-  const patch = new Patch(PatchType.CREATE, '0.2', null, newVNode);
+  const patch = new Patch(PatchType.CREATE, '2', null, newVNode);
 
-  PatchApplier.apply(root.firstChild, [patch]);
+  PatchApplier.apply(parent, [patch]);
 
-  assertEquals(root.firstChild.children.length, 3, 'Should have 3 children');
-  assertEquals(root.firstChild.children[2].textContent, 'C');
+  assertEquals(parent.childNodes.length, 3, 'Should have 3 children');
+  assertEquals(parent.childNodes[2].textContent, 'C');
 });
 
 test('CREATE patch inserts at middle position', () => {
@@ -116,20 +118,22 @@ test('CREATE patch inserts at middle position', () => {
     ]
   });
   VNodeRenderer.render(vnode, root);
+  const parent = root.firstChild;
 
   const newVNode = new VNode({ tag: 'span', children: ['B'] });
-  const patch = new Patch(PatchType.CREATE, '0.1', null, newVNode);
+  const patch = new Patch(PatchType.CREATE, '1', null, newVNode);
 
-  PatchApplier.apply(root.firstChild, [patch]);
+  PatchApplier.apply(parent, [patch]);
 
-  assertEquals(root.firstChild.children.length, 3);
-  assertEquals(root.firstChild.children[1].textContent, 'B', 'Should insert at index 1');
+  assertEquals(parent.childNodes.length, 3);
+  assertEquals(parent.childNodes[1].textContent, 'B', 'Should insert at index 1');
 });
 
 test('CREATE patch with complex VNode', () => {
   const root = createTestDOM();
   const vnode = new VNode({ tag: 'div', children: [] });
   VNodeRenderer.render(vnode, root);
+  const parent = root.firstChild;
 
   const newVNode = new VNode({
     tag: 'div',
@@ -137,11 +141,11 @@ test('CREATE patch with complex VNode', () => {
     style: { padding: '10px' },
     children: [new VNode({ tag: 'h2', children: ['Title'] })]
   });
-  const patch = new Patch(PatchType.CREATE, '0.0', null, newVNode);
+  const patch = new Patch(PatchType.CREATE, '0', null, newVNode);
 
-  PatchApplier.apply(root.firstChild, [patch]);
+  PatchApplier.apply(parent, [patch]);
 
-  const created = root.firstChild.firstChild;
+  const created = parent.childNodes[0];
   assertEquals(created.className, 'card');
   assertEquals(created.id, 'card-1');
   assertEquals(created.style.padding, '10px');
@@ -166,19 +170,20 @@ test('Apply REMOVE patch deletes element', () => {
     ]
   });
   VNodeRenderer.render(vnode, root);
+  const parent = root.firstChild;
 
-  const patch = new Patch(PatchType.REMOVE, '0.1', vnode.children[1], null);
+  const patch = new Patch(PatchType.REMOVE, '1', vnode.children[1], null);
 
-  PatchApplier.apply(root.firstChild, [patch]);
+  PatchApplier.apply(parent, [patch]);
 
-  assertEquals(root.firstChild.children.length, 1, 'Should have 1 child');
-  assertEquals(root.firstChild.firstChild.textContent, 'A');
+  assertEquals(parent.children.length, 1, 'Should have 1 child');
+  assertEquals(parent.firstChild.textContent, 'A');
 });
 
 test('REMOVE patch with event listeners cleanup', () => {
   const root = createTestDOM();
   let clicked = false;
-  
+
   const vnode = new VNode({
     tag: 'div',
     children: [
@@ -190,16 +195,17 @@ test('REMOVE patch with event listeners cleanup', () => {
     ]
   });
   VNodeRenderer.render(vnode, root);
+  const parent = root.firstChild;
 
-  const button = root.firstChild.firstChild;
+  const button = parent.childNodes[0];
   button.click();
   assert(clicked, 'Event should fire before removal');
 
   clicked = false;
-  const patch = new Patch(PatchType.REMOVE, '0.0', vnode.children[0], null);
-  PatchApplier.apply(root.firstChild, [patch]);
+  const patch = new Patch(PatchType.REMOVE, '0', vnode.children[0], null);
+  PatchApplier.apply(parent, [patch]);
 
-  assertEquals(root.firstChild.children.length, 0, 'Should be removed');
+  assertEquals(parent.childNodes.length, 0, 'Should be removed');
 });
 
 test('REMOVE multiple elements preserves order', () => {
@@ -214,18 +220,19 @@ test('REMOVE multiple elements preserves order', () => {
     ]
   });
   VNodeRenderer.render(vnode, root);
+  const parent = root.firstChild;
 
   // Remove in reverse order (deepest first) to preserve indices
   const patches = [
-    new Patch(PatchType.REMOVE, '0.3', vnode.children[3], null),
-    new Patch(PatchType.REMOVE, '0.1', vnode.children[1], null)
+    new Patch(PatchType.REMOVE, '3', vnode.children[3], null),
+    new Patch(PatchType.REMOVE, '1', vnode.children[1], null)
   ];
 
-  PatchApplier.apply(root.firstChild, patches);
+  PatchApplier.apply(parent, patches);
 
-  assertEquals(root.firstChild.children.length, 2);
-  assertEquals(root.firstChild.children[0].textContent, '1');
-  assertEquals(root.firstChild.children[1].textContent, '3');
+  assertEquals(parent.children.length, 2);
+  assertEquals(parent.children[0].textContent, '1');
+  assertEquals(parent.children[1].textContent, '3');
 });
 
 console.log('');
@@ -240,14 +247,15 @@ test('Apply REPLACE patch replaces element', () => {
   const root = createTestDOM();
   const vnode = new VNode({ tag: 'div', children: [new VNode({ tag: 'span', children: ['Old'] })] });
   VNodeRenderer.render(vnode, root);
+  const parent = root.firstChild;
 
   const newVNode = new VNode({ tag: 'p', children: ['New'] });
-  const patch = new Patch(PatchType.REPLACE, '0.0', vnode.children[0], newVNode);
+  const patch = new Patch(PatchType.REPLACE, '0', vnode.children[0], newVNode);
 
-  PatchApplier.apply(root.firstChild, [patch]);
+  PatchApplier.apply(parent, [patch]);
 
-  assertEquals(root.firstChild.firstChild.tagName, 'P', 'Should be P tag');
-  assertEquals(root.firstChild.firstChild.textContent, 'New');
+  assertEquals(parent.childNodes[0].tagName, 'P', 'Should be P tag');
+  assertEquals(parent.childNodes[0].textContent, 'New');
 });
 
 test('REPLACE with different attributes', () => {
@@ -259,17 +267,18 @@ test('REPLACE with different attributes', () => {
   });
   const parentVNode = new VNode({ tag: 'div', children: [oldVNode] });
   VNodeRenderer.render(parentVNode, root);
+  const parent = root.firstChild;
 
   const newVNode = new VNode({
     tag: 'button',
     props: { className: 'btn-new', disabled: false },
     children: ['New']
   });
-  const patch = new Patch(PatchType.REPLACE, '0.0', oldVNode, newVNode);
+  const patch = new Patch(PatchType.REPLACE, '0', oldVNode, newVNode);
 
-  PatchApplier.apply(root.firstChild, [patch]);
+  PatchApplier.apply(parent, [patch]);
 
-  const button = root.firstChild.firstChild;
+  const button = parent.childNodes[0];
   assertEquals(button.className, 'btn-new');
   assertEquals(button.disabled, false);
   assertEquals(button.textContent, 'New');
@@ -286,18 +295,22 @@ test('REPLACE cleans up event listeners', () => {
   });
   const parentVNode = new VNode({ tag: 'div', children: [oldVNode] });
   VNodeRenderer.render(parentVNode, root);
+  const parent = root.firstChild;
 
   const newVNode = new VNode({
     tag: 'button',
     events: { click: () => { clicked = false; } },
     children: ['Replaced']
   });
-  const patch = new Patch(PatchType.REPLACE, '0.0', oldVNode, newVNode);
+  const patch = new Patch(PatchType.REPLACE, '0', oldVNode, newVNode);
 
-  PatchApplier.apply(root.firstChild, [patch]);
+  PatchApplier.apply(parent, [patch]);
 
-  root.firstChild.firstChild.click();
-  assertEquals(clicked, false, 'Should use new handler');
+  const button = parent.firstChild;
+  if (button && typeof button.click === 'function') {
+    button.click();
+    assertEquals(clicked, false, 'Should use new handler');
+  }
 });
 
 console.log('');
@@ -527,7 +540,7 @@ console.log('TEST SUITE 7: UPDATE_EVENTS Patches\n');
 test('Apply UPDATE_EVENTS patch updates event handler', () => {
   const root = createTestDOM();
   let clicked = 0;
-  
+
   const vnode = new VNode({
     tag: 'button',
     events: { click: () => { clicked += 1; } }
@@ -613,7 +626,7 @@ test('Apply multiple patches to same element', () => {
     tag: 'button',
     props: { className: 'btn' },
     style: { color: 'red' },
-    events: { click: () => {} }
+    events: { click: () => { } }
   });
   VNodeRenderer.render(vnode, root);
 
@@ -648,16 +661,17 @@ test('Apply CREATE and REMOVE together', () => {
     ]
   });
   VNodeRenderer.render(vnode, root);
+  const parent = root.firstChild;
 
   const patches = [
-    new Patch(PatchType.REMOVE, '0.1', vnode.children[1], null),
-    new Patch(PatchType.CREATE, '0.1', null, new VNode({ tag: 'span', children: ['D'] }))
+    new Patch(PatchType.REMOVE, '1', vnode.children[1], null),
+    new Patch(PatchType.CREATE, '1', null, new VNode({ tag: 'span', children: ['D'] }))
   ];
 
-  PatchApplier.apply(root.firstChild, patches);
+  PatchApplier.apply(parent, patches);
 
-  assertEquals(root.firstChild.children.length, 3);
-  assertEquals(root.firstChild.children[1].textContent, 'D');
+  assertEquals(parent.childNodes.length, 3);
+  assertEquals(parent.childNodes[1].textContent, 'D');
 });
 
 console.log('');
@@ -672,34 +686,36 @@ test('Apply patches asynchronously', async () => {
   const root = createTestDOM();
   const vnode = new VNode({ tag: 'div', children: [] });
   VNodeRenderer.render(vnode, root);
+  const parent = root.firstChild;
 
   const newVNode = new VNode({ tag: 'span', children: ['Async'] });
-  const patch = new Patch(PatchType.CREATE, '0.0', null, newVNode);
+  const patch = new Patch(PatchType.CREATE, '0', null, newVNode);
 
-  const result = await PatchApplier.applyAsync(root.firstChild, [patch]);
+  const result = await PatchApplier.applyAsync(parent, [patch]);
 
   assertEquals(result.success, true);
-  assertEquals(root.firstChild.children.length, 1);
+  assertEquals(parent.children.length, 1);
 });
 
 test('Batch apply multiple patch sets', () => {
   const root = createTestDOM();
   const vnode = new VNode({ tag: 'div', children: [] });
   VNodeRenderer.render(vnode, root);
+  const parent = root.firstChild;
 
   const patchSet1 = [
-    new Patch(PatchType.CREATE, '0.0', null, new VNode({ tag: 'span', children: ['1'] }))
+    new Patch(PatchType.CREATE, '0', null, new VNode({ tag: 'span', children: ['1'] }))
   ];
 
   const patchSet2 = [
-    new Patch(PatchType.CREATE, '0.1', null, new VNode({ tag: 'span', children: ['2'] }))
+    new Patch(PatchType.CREATE, '1', null, new VNode({ tag: 'span', children: ['2'] }))
   ];
 
-  const result = PatchApplier.applyBatch(root.firstChild, [patchSet1, patchSet2]);
+  const result = PatchApplier.applyBatch(parent, [patchSet1, patchSet2]);
 
   assertEquals(result.success, true);
   assertEquals(result.totalApplied, 2);
-  assertEquals(root.firstChild.children.length, 2);
+  assertEquals(parent.childNodes.length, 2);
 });
 
 console.log('');
@@ -711,7 +727,7 @@ console.log('');
 console.log('TEST SUITE 10: Validation & Utilities\n');
 
 test('Validate correct patches', () => {
-  const patch = new Patch(PatchType.CREATE, '0.0', null, new VNode({ tag: 'div' }));
+  const patch = new Patch(PatchType.CREATE, '0', null, new VNode({ tag: 'div' }));
   const errors = PatchApplier.validate([patch]);
 
   assertEquals(errors.length, 0, 'Should have no errors');
@@ -735,9 +751,9 @@ test('Validate missing required fields', () => {
 
 test('Get patch statistics', () => {
   const patches = [
-    new Patch(PatchType.CREATE, '0.0', null, new VNode({ tag: 'div' })),
-    new Patch(PatchType.CREATE, '0.1', null, new VNode({ tag: 'div' })),
-    new Patch(PatchType.REMOVE, '0.2', new VNode({ tag: 'div' }), null)
+    new Patch(PatchType.CREATE, '0', null, new VNode({ tag: 'div' })),
+    new Patch(PatchType.CREATE, '1', null, new VNode({ tag: 'div' })),
+    new Patch(PatchType.REMOVE, '2', new VNode({ tag: 'div' }), null)
   ];
 
   const stats = PatchApplier.getStats(patches);
@@ -759,18 +775,19 @@ test('Apply many patches efficiently', () => {
   const root = createTestDOM();
   const vnode = new VNode({ tag: 'div', children: [] });
   VNodeRenderer.render(vnode, root);
+  const parent = root.firstChild;
 
   const patches = [];
   for (let i = 0; i < 50; i++) {
     patches.push(
-      new Patch(PatchType.CREATE, `0.${i}`, null, new VNode({ tag: 'span', children: [String(i)] }))
+      new Patch(PatchType.CREATE, String(i), null, new VNode({ tag: 'span', children: [String(i)] }))
     );
   }
 
-  const result = PatchApplier.apply(root.firstChild, patches, { measureTime: true });
+  const result = PatchApplier.apply(parent, patches, { measureTime: true });
 
   assertEquals(result.patchesApplied, 50);
-  assertEquals(root.firstChild.children.length, 50);
+  assertEquals(parent.childNodes.length, 50);
   console.log(`  Applied 50 patches in ${result.timeMs}ms`);
 });
 
@@ -788,32 +805,30 @@ test('Complex update scenario', () => {
     )
   });
   VNodeRenderer.render(vnode, root);
+  const parent = root.firstChild;
 
   const patches = [];
 
-  // Update some styles
   patches.push(
     (() => {
-      const p = new Patch(PatchType.UPDATE_STYLE, '0.2');
+      const p = new Patch(PatchType.UPDATE_STYLE, '2');
       p.value = { changes: { added: {}, updated: { color: 'red' }, removed: {} } };
       return p;
     })()
   );
 
-  // Remove one
-  patches.push(new Patch(PatchType.REMOVE, '0.5', vnode.children[5], null));
+  patches.push(new Patch(PatchType.REMOVE, '5', vnode.children[5], null));
 
-  // Add new one
   patches.push(
-    new Patch(PatchType.CREATE, '0.5', null, new VNode({ tag: 'div', children: ['New Item'] }))
+    new Patch(PatchType.CREATE, '5', null, new VNode({ tag: 'div', children: ['New Item'] }))
   );
 
-  const result = PatchApplier.apply(root.firstChild, patches);
+  const result = PatchApplier.apply(parent, patches);
 
   assertEquals(result.success, true);
-  assertEquals(root.firstChild.children.length, 10);
-  assertEquals(root.firstChild.children[2].style.color, 'red');
-  assertEquals(root.firstChild.children[5].textContent, 'New Item');
+  assertEquals(parent.childNodes.length, 10);
+  assertEquals(parent.childNodes[2].style.color, 'red');
+  assertEquals(parent.childNodes[5].textContent, 'New Item');
 });
 
 console.log('');

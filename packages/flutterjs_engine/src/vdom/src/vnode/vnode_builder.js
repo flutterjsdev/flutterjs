@@ -8,7 +8,7 @@
  */
 
 import { VNode } from './vnode.js';
-import { StyleConverter } from './style-converter.js';
+import { StyleConverter } from './style_converter.js';
 
 class VNodeBuilder {
   /**
@@ -1198,3 +1198,5 @@ if (typeof module !== 'undefined' && module.exports) {
 if (typeof window !== 'undefined') {
   window.VNodeBuilder = VNodeBuilder;
 }
+
+export {VNodeBuilder}

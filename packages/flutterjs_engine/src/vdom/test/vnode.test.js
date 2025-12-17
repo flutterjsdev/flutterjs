@@ -494,7 +494,8 @@ test('Represent Flutter Container widget', () => {
   
   const element = containerVNode.toDOM();
   assertEquals(element.style.padding, '16px', 'Should apply padding');
-  assertEquals(element.style.backgroundColor, '#ffffff', 'Should apply background');
+ // Check that background color was applied (browser may convert format)
+assert(element.style.backgroundColor === '#ffffff' || element.style.backgroundColor === 'rgb(255, 255, 255)', 'Should apply background');
 });
 
 test('Represent Flutter Column widget', () => {

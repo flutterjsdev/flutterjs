@@ -6,7 +6,7 @@
 import { UpdateScheduler, UpdatePriority } from '../src/vnode/update_scheduler.js';
 
 console.log('\n' + '='.repeat(80));
-console.log('ðŸ§ª UPDATE SCHEDULER TESTS');
+console.log('🧪 UPDATE SCHEDULER TESTS');
 console.log('='.repeat(80) + '\n');
 
 let testsPassed = 0;
@@ -15,10 +15,10 @@ let testsFailed = 0;
 function test(name, fn) {
   try {
     fn();
-    console.log(`âœ" ${name}`);
+    console.log(`✓ ${name}`);
     testsPassed++;
   } catch (error) {
-    console.log(`âœ— ${name}`);
+    console.log(`✗ ${name}`);
     console.log(`  Error: ${error.message}`);
     if (error.stack) {
       console.log(`  ${error.stack.split('\n')[1]}`);
@@ -941,10 +941,10 @@ console.log('');
 // ============================================================================
 
 console.log('='.repeat(80));
-console.log('ðŸ"Š TEST SUMMARY');
+console.log('📊 TEST SUMMARY');
 console.log('='.repeat(80));
-console.log(`âœ" Passed: ${testsPassed}`);
-console.log(`âœ— Failed: ${testsFailed}`);
+console.log(`✓ Passed: ${testsPassed}`);
+console.log(`✗ Failed: ${testsFailed}`);
 console.log(`Total: ${testsPassed + testsFailed}`);
 console.log('='.repeat(80) + '\n');
 
