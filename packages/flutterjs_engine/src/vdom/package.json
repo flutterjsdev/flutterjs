@@ -11,5 +11,10 @@
   ],
   "scripts": {
     "build": "node build.js"
+  },
+
+  "dependencies": {
+    "jsdom": "^27.3.0",
+     "jest": "^29.7.0"
   }
 }

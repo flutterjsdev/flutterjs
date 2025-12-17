@@ -3,7 +3,7 @@
  * Tests DOM rendering, event handling, updates, and memory management
  */
 
-import { VNodeRenderer } from '../src/vnode/vnode-renderer.js';
+import { VNodeRenderer } from '../src/vnode/vnode_renderer.js';
 import { VNode } from '../src/vnode/vnode.js';
 import { JSDOM } from 'jsdom';
 
