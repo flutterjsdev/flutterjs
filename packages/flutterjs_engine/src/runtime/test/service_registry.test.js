@@ -5,7 +5,7 @@
  * Tests registration, retrieval, caching, scoping, and events
  */
 
-const { ServiceRegistry } = require('../../src/runtime/service-registry');
+const { ServiceRegistry } = require('../src/service_registry');
 
 // Mock services
 class MockService {

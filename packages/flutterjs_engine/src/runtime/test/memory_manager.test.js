@@ -7,7 +7,7 @@
 const {
   MemoryManager,
   MemoryProfiler
-} = require('./memory-manager');
+} = require('../src/memory_manager');
 
 // Mock Element
 class MockElement {

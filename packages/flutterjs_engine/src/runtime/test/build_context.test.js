@@ -5,7 +5,9 @@
  * Tests ancestor finding, inherited widgets, services, and element access
  */
 
-const { BuildContext } = require('../../src/runtime/build-context');
+const { BuildContext } = require('../src/build_context.js');
+
+
 
 // Mock classes
 class MockWidget {

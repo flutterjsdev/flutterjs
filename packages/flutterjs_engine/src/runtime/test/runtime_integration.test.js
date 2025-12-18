@@ -8,7 +8,7 @@ const {
   RuntimeEngine,
   StatelessElement,
   StatefulElement
-} = require('./runtime-engine');
+} = require('../src/runtime_engine');
 
 // Mock DOM
 if (typeof document === 'undefined') {

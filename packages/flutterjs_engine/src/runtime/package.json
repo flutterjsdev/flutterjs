@@ -7,7 +7,25 @@
   },
   "scripts": {
     "build": "node build.js",
-    "test": "node ./test/runtime_tests.js"
+    "test:buildContext":"node ./test/build_context.test.js",
+    "test:element": "node ./test/element.test.js",
+    "test:elementSystemImp": "node ./test/event_system_integration.test.js",
+
+    "test:elementSystem": "node ./test/event_system.test.js",
+    "test:runtime": "node ./test/flutterjs_runtime.test.js",
+    "test:focus": "node ./test/focus_manager.test.js",
+    "test:gesture": "node ./test/gesture.test.js",
+    "test:inheritentInte": "node ./test/inherited_element_integration.test.js",
+    "test:inheritedElement": "node ./test/inherited_element.test.js",
+    "test:memory": "node ./test/memory_integration.test.js",
+    "test:runtimeEng": "node ./test/runtime_engine.test.js",
+    "test:runtimeInte": "node ./test/runtime_integration.test",
+    "test:service": "node ./test/service_registry.test.js",
+    "test:stateInte": "node ./test/state_integration.test.js",
+    "test:stateTrack": "node ./test/state_tracker.test.js",
+    "test:state": "node ./test/state.test.js",
+    "test:update": "node ./test/update_batcher.test.js"
+
   },
   "dependencies": {
     "jest": "^29.7.0",

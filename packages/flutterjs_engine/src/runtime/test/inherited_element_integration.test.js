@@ -11,10 +11,10 @@ import {
   ValueNotifier,
   Provider,
   ChangeNotifier
-} from '../../src/runtime/inherited-element.js';
-import { StatefulElement, StatelessElement } from '../../src/runtime/element.js';
-import { BuildContext } from '../../src/runtime/build-context.js';
-import { State } from '../../src/runtime/state.js';
+} from '../src/inherited_element.js';
+import { StatefulElement, StatelessElement } from '../src/element.js';
+import { BuildContext } from '../src/build_context.js';
+import { State } from '../src/state.js';
 
 // Mock classes
 class MockWidget {

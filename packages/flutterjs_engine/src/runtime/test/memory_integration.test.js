@@ -7,7 +7,7 @@
 const {
   MemoryManager,
   MemoryProfiler
-} = require('./memory-manager');
+} = require('../src/memory_manager');
 
 // More realistic element simulation
 class TestElement {

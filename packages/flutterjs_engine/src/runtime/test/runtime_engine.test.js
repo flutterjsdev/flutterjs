@@ -10,7 +10,7 @@ const {
   StatelessElement,
   StatefulElement,
   InheritedElement
-} = require('./runtime-engine');
+} = require('../src/runtime_engine');
 
 // Test utilities
 class TestWidget {

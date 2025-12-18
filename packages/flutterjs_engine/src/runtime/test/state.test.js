@@ -11,7 +11,7 @@ const {
   StateTracker,
   ReactiveState,
   StateObserver
-} = require('./state');
+} = require('../src/state');
 
 // Mock Element
 class MockElement {

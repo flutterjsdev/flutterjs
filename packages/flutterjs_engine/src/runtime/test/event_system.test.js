@@ -13,7 +13,7 @@
 import {
   EventSystem,
   SyntheticEvent
-} from '../../src/runtime/event-system.js';
+} from '../src/event_system.js';
 
 // Mock classes
 class MockRuntime {
