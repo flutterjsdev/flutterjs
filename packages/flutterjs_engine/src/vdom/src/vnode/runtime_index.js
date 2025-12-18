@@ -16,13 +16,13 @@
  * - Performance monitoring
  */
 
-import { VNode } from '../../vdom/src/vnode/vnode.js';
-import { VNodeBuilder } from '../../vdom/src/vnode/vnode_builder.js';
-import { StyleConverter } from '../../vdom/src/vnode/style_converter.js';
-import { VNodeRenderer } from '../../vdom/src/vnode/vnode_renderer.js';
-import { SSRRenderer } from '../../vdom/src/vnode/ssr_renderer.js';
-import { RenderEngine } from '../../vdom/src/vnode/render_engine.js';
-import { Hydrator } from '../../vdom/src/vnode/hydrator.js';
+import { VNode } from './vnode.js';
+import { VNodeBuilder } from './vnode_builder.js';
+import { StyleConverter } from './style_converter.js';
+import { VNodeRenderer } from './vnode_renderer.js';
+import { SSRRenderer } from './ssr_renderer.js';
+import { RenderEngine } from './render_engine.js';
+import { Hydrator } from './hydrator.js';
 
 class FlutterJSRuntime {
   constructor() {
