@@ -18,7 +18,7 @@
     "test:engine": "node ./test/render_engine.test.js",
     "test:style": "node ./test/style_converter.test.js",
     "test:updater": "node ./test/update_scheduler.test.js",
-    
+    "test:runtime": "node ./test/runtime.test.js",
     "test:state": "node ./test/state_binding.test.js",
     "test:patch": "node ./test/patch_applier.test.js"
   },

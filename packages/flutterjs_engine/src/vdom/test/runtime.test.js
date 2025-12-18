@@ -13,7 +13,8 @@ import {
   hydrate,
   FlutterJSRuntime,
   VNode
-} from '../src/runtime_index.js';
+} from '../src/vnode/runtime_index.js';
+
 
 import { JSDOM } from 'jsdom';
 
