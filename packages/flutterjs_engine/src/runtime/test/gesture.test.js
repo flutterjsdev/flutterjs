@@ -13,7 +13,7 @@ const {
   ScaleRecognizer,
   GestureArena,
   GestureManager
-} = require('./gesture-recognizer');
+} = require('../src/gesture_recognizer');
 
 // Test utilities
 class TestUtils {

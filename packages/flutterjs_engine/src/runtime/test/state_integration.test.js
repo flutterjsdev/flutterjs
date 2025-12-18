@@ -9,7 +9,7 @@ const {
   StateManager,
   ReactiveState,
   StateObserver
-} = require('./state');
+} = require('../src/state');
 
 // Test Runtime
 class TestRuntime {

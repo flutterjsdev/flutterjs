@@ -15,6 +15,7 @@
  * 5. Merge all patches before DOM update
  */
 
+
 class UpdateBatcher {
   constructor(runtime) {
     if (!runtime) {

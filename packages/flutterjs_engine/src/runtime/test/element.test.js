@@ -10,7 +10,7 @@ const {
   StatefulElement,
   InheritedElement,
   ComponentElement
-} = require('./element');
+} = require('../src/element.js');
 
 // Mock runtime
 class MockRuntime {
