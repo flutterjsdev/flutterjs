@@ -1,6 +1,7 @@
 /**
  * PatchApplier Tests - Comprehensive DOM Patch Application Testing
  * Tests all patch types, edge cases, performance, and integration
+ * 
  */
 
 import { PatchApplier } from '../src/vnode/patch_applier.js';
