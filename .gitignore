@@ -8,6 +8,7 @@
 pubspec.lock
 node_modules/
 package-lock.json
+*.log
 
 # Directory created by dartdoc
 # If you don't generate documentation locally you can remove this line.
