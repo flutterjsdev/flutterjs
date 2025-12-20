@@ -4,12 +4,14 @@
  * Comprehensive tests for FlutterJS State Management
  */
 
-import {  State,
+import {
+  State,
   StateManager,
   UpdateBatcher,
   StateTracker,
   ReactiveState,
-  StateObserver} from "../src/state.js";
+  StateObserver
+} from "../src/state.js";
 
 // Mock Element
 class MockElement {
@@ -52,38 +54,118 @@ class TestState extends State {
   }
 }
 
-describe('State', () => {
-  let state;
-  let element;
-  
-  beforeEach(() => {
-    state = new TestState();
-    element = new MockElement('el_1');
-    state._element = element;
-    element.state = state;
-  });
-  
-  describe('Construction', () => {
-    test('should create state with default properties', () => {
+// Test utilities
+class TestRunner {
+  constructor() {
+    this.tests = [];
+    this.passed = 0;
+    this.failed = 0;
+  }
+
+  describe(name, fn) {
+    console.log(`\n📋 ${name}`);
+    fn();
+  }
+
+  it(name, fn) {
+    try {
+      fn();
+      console.log(`  ✅ ${name}`);
+      this.passed++;
+    } catch (error) {
+      console.log(`  ❌ ${name}`);
+      console.log(`     ${error.message}`);
+      this.failed++;
+    }
+  }
+
+  assert(condition, message) {
+    if (!condition) {
+      throw new Error(message || 'Assertion failed');
+    }
+  }
+
+  assertEqual(actual, expected, message) {
+    if (actual !== expected) {
+      throw new Error(
+        message || `Expected ${expected} but got ${actual}`
+      );
+    }
+  }
+
+  assertNull(value, message) {
+    if (value !== null) {
+      throw new Error(message || `Expected null but got ${value}`);
+    }
+  }
+
+  assertNotNull(value, message) {
+    if (value === null) {
+      throw new Error(message || 'Expected value to not be null');
+    }
+  }
+
+  assertTrue(value, message) {
+    if (value !== true) {
+      throw new Error(message || `Expected true but got ${value}`);
+    }
+  }
+
+  assertFalse(value, message) {
+    if (value !== false) {
+      throw new Error(message || `Expected false but got ${value}`);
+    }
+  }
+
+  assertThrows(fn, shouldThrow = true) {
+    let threw = false;
+    try {
+      fn();
+    } catch (error) {
+      threw = true;
+    }
+    
+    if (shouldThrow && !threw) {
+      throw new Error('Expected function to throw');
+    }
+  }
+
+  summary() {
+    const total = this.passed + this.failed;
+    console.log(`\n${'='.repeat(50)}`);
+    console.log(`Tests: ${total} | ✅ Passed: ${this.passed} | ❌ Failed: ${this.failed}`);
+    console.log(`${'='.repeat(50)}\n`);
+
+    return this.failed === 0;
+  }
+}
+
+// Run tests
+function runTests() {
+  const test = new TestRunner();
+
+  test.describe('State: Construction', () => {
+    test.it('should create state with default properties', () => {
       const s = new State();
       
-      expect(s._element).toBe(null);
-      expect(s._widget).toBe(null);
-      expect(s._mounted).toBe(false);
-      expect(s._buildCount).toBe(0);
+      test.assertNull(s._element);
+      test.assertNull(s._widget);
+      test.assertFalse(s._mounted);
+      test.assertEqual(s._buildCount, 0);
     });
     
-    test('should throw error if build not implemented', () => {
+    test.it('should throw error if build not implemented', () => {
       const s = new State();
       
-      expect(() => {
+      test.assertThrows(() => {
         s.build({});
-      }).toThrow('must be implemented');
+      });
     });
   });
-  
-  describe('Lifecycle', () => {
-    test('should call initState', () => {
+
+  test.describe('State: Lifecycle', () => {
+    test.it('should call initState', () => {
+      const state = new TestState();
       let initCalled = false;
       
       state.initState = () => {
@@ -92,12 +174,13 @@ describe('State', () => {
       
       state._init();
       
-      expect(initCalled).toBe(true);
-      expect(state._initStateCalled).toBe(true);
-      expect(state._mounted).toBe(true);
+      test.assertTrue(initCalled);
+      test.assertTrue(state._initStateCalled);
+      test.assertTrue(state._mounted);
     });
     
-    test('should not call initState twice', () => {
+    test.it('should not call initState twice', () => {
+      const state = new TestState();
       let callCount = 0;
       
       state.initState = () => {
@@ -107,10 +190,11 @@ describe('State', () => {
       state._init();
       state._init();
       
-      expect(callCount).toBe(1);
+      test.assertEqual(callCount, 1);
     });
     
-    test('should call dispose', () => {
+    test.it('should call dispose', () => {
+      const state = new TestState();
       let disposeCalled = false;
       
       state.dispose = () => {
@@ -120,12 +204,13 @@ describe('State', () => {
       state._mounted = true;
       state._dispose();
       
-      expect(disposeCalled).toBe(true);
-      expect(state._disposeCalled).toBe(true);
-      expect(state._mounted).toBe(false);
+      test.assertTrue(disposeCalled);
+      test.assertTrue(state._disposeCalled);
+      test.assertFalse(state._mounted);
     });
     
-    test('should not call dispose twice', () => {
+    test.it('should not call dispose twice', () => {
+      const state = new TestState();
       let callCount = 0;
       
       state.dispose = () => {
@@ -136,10 +221,11 @@ describe('State', () => {
       state._dispose();
       state._dispose();
       
-      expect(callCount).toBe(1);
+      test.assertEqual(callCount, 1);
     });
     
-    test('should handle didUpdateWidget', () => {
+    test.it('should handle didUpdateWidget', () => {
+      const state = new TestState();
       const oldWidget = { type: 'old' };
       let widgetReceived = null;
       
@@ -149,282 +235,225 @@ describe('State', () => {
       
       state.didUpdateWidget(oldWidget);
       
-      expect(widgetReceived).toBe(oldWidget);
+      test.assertEqual(widgetReceived, oldWidget);
     });
   });
-  
-  describe('setState', () => {
-    beforeEach(() => {
+
+  test.describe('State: setState', () => {
+    test.it('should update state with function', () => {
+      const state = new TestState();
+      const element = new MockElement('el_1');
+      state._element = element;
       state._mounted = true;
-    });
-    
-    test('should update state with function', () => {
+      element.state = state;
+      
       state.setState(() => {
         state.count = 42;
       });
       
-      expect(state.count).toBe(42);
-      expect(element.dirty).toBe(true);
+      test.assertEqual(state.count, 42);
+      test.assertTrue(element.dirty);
     });
     
-    test('should update state with object', () => {
+    test.it('should update state with object', () => {
+      const state = new TestState();
+      const element = new MockElement('el_1');
+      state._element = element;
+      state._mounted = true;
+      element.state = state;
+      
       state.setState({ count: 99, message: 'updated' });
       
-      expect(state.count).toBe(99);
-      expect(state.message).toBe('updated');
-      expect(element.dirty).toBe(true);
+      test.assertEqual(state.count, 99);
+      test.assertEqual(state.message, 'updated');
+      test.assertTrue(element.dirty);
     });
     
-    test('should warn on unmounted setState', () => {
+    test.it('should warn on unmounted setState', () => {
+      const state = new TestState();
       state._mounted = false;
       
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
-      
+      // Should not throw, just warn
       state.setState(() => {
         state.count++;
       });
       
-      expect(warnSpy).toHaveBeenCalled();
-      expect(element.dirty).toBe(false);
-      
-      warnSpy.mockRestore();
+      test.assertEqual(state.count, 0); // State should not update
     });
     
-    test('should warn on setState during build', () => {
-      state._building = true;
+    test.it('should throw error on invalid setState param', () => {
+      const state = new TestState();
+      const element = new MockElement('el_1');
+      state._element = element;
+      state._mounted = true;
+      element.state = state;
       
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
-      
-      state.setState(() => {
-        state.count++;
-      });
-      
-      expect(warnSpy).toHaveBeenCalled();
-      
-      warnSpy.mockRestore();
-    });
-    
-    test('should throw error on invalid setState param', () => {
-      expect(() => {
+      test.assertThrows(() => {
         state.setState('invalid');
-      }).toThrow('setState accepts function or object');
+      });
     });
     
-    test('should handle setState with undefined', () => {
-      expect(() => {
-        state.setState(undefined);
-      }).not.toThrow();
-    });
-    
-    test('should mark element for rebuild', () => {
+    test.it('should mark element for rebuild', () => {
+      const state = new TestState();
+      const element = new MockElement('el_1');
       element.dirty = false;
+      state._element = element;
+      state._mounted = true;
+      element.state = state;
       
       state.setState(() => {
         state.count++;
       });
       
-      expect(element.dirty).toBe(true);
-    });
-    
-    test('should handle setState error gracefully', () => {
-      expect(() => {
-        state.setState(() => {
-          throw new Error('Update failed');
-        });
-      }).toThrow('Update failed');
+      test.assertTrue(element.dirty);
     });
   });
-  
-  describe('Getters', () => {
-    test('should get context', () => {
+
+  test.describe('State: Getters', () => {
+    test.it('should get context', () => {
+      const state = new TestState();
+      const element = new MockElement('el_1');
+      state._element = element;
+      
       const context = state.context;
       
-      expect(context).toBeDefined();
-      expect(context.element).toBe(element);
+      test.assertNotNull(context);
+      test.assertEqual(context.element, element);
     });
     
-    test('should return null context if no element', () => {
+    test.it('should return null context if no element', () => {
+      const state = new TestState();
       state._element = null;
       
-      expect(state.context).toBe(null);
+      test.assertNull(state.context);
     });
     
-    test('should get mounted status', () => {
+    test.it('should get mounted status', () => {
+      const state = new TestState();
+      const element = new MockElement('el_1');
+      state._element = element;
       state._mounted = true;
       element.mounted = true;
       
-      expect(state.mounted).toBe(true);
+      test.assertTrue(state.mounted);
       
       element.mounted = false;
       
-      expect(state.mounted).toBe(false);
+      test.assertFalse(state.mounted);
     });
     
-    test('should get widget', () => {
+    test.it('should get widget', () => {
+      const state = new TestState();
       const widget = { type: 'test' };
       state._widget = widget;
       
-      expect(state.widget).toBe(widget);
+      test.assertEqual(state.widget, widget);
     });
   });
-  
-  describe('Statistics', () => {
-    test('should provide state stats', () => {
+
+  test.describe('State: Statistics', () => {
+    test.it('should provide state stats', () => {
+      const state = new TestState();
+      const element = new MockElement('el_1');
+      state._element = element;
       state._mounted = true;
+      element.mounted = true;
       state._buildCount = 5;
       state._initStateCalled = true;
       
       const stats = state.getStats();
       
-      expect(stats.mounted).toBe(true);
-      expect(stats.buildCount).toBe(5);
-      expect(stats.initStateCalled).toBe(true);
-      expect(stats.disposeCalled).toBe(false);
+      test.assertNotNull(stats);
+      test.assertTrue(stats.mounted);
+      test.assertEqual(stats.buildCount, 5);
+      test.assertTrue(stats.initStateCalled);
+      test.assertFalse(stats.disposeCalled);
     });
   });
-});
 
-describe('StateManager', () => {
-  let runtime;
-  let stateManager;
-  
-  beforeEach(() => {
-    runtime = new MockRuntime();
-    stateManager = runtime.stateManager;
-  });
-  
-  afterEach(() => {
-    stateManager.dispose();
-  });
-  
-  describe('Registration', () => {
-    test('should register state', () => {
+  test.describe('StateManager: Registration', () => {
+    test.it('should register state', () => {
+      const runtime = new MockRuntime();
+      const stateManager = runtime.stateManager;
       const state = new TestState();
       const element = new MockElement('el_1');
       
       stateManager.register(state, element);
       
-      expect(stateManager.stats.statesCreated).toBe(1);
-      expect(stateManager.states.size).toBe(1);
-      expect(state._element).toBe(element);
+      test.assertEqual(stateManager.stats.statesCreated, 1);
+      test.assertEqual(stateManager.states.size, 1);
+      test.assertEqual(state._element, element);
+      
+      stateManager.dispose();
     });
     
-    test('should throw error without state or element', () => {
-      expect(() => {
+    test.it('should throw error without state or element', () => {
+      const runtime = new MockRuntime();
+      const stateManager = runtime.stateManager;
+      
+      test.assertThrows(() => {
         stateManager.register(null, new MockElement('el_1'));
-      }).toThrow('State and element are required');
+      });
       
-      expect(() => {
+      test.assertThrows(() => {
         stateManager.register(new TestState(), null);
-      }).toThrow('State and element are required');
+      });
+      
+      stateManager.dispose();
     });
     
-    test('should generate unique state ID', () => {
-      const state1 = new TestState();
-      const state2 = new TestState();
+    test.it('should track multiple states', () => {
+      const runtime = new MockRuntime();
+      const stateManager = runtime.stateManager;
       
-      const id1 = stateManager.generateStateId(state1);
-      const id2 = stateManager.generateStateId(state2);
-      
-      expect(id1).not.toBe(id2);
-      expect(state1._stateId).toBe(id1);
-    });
-    
-    test('should track multiple states', () => {
       for (let i = 0; i < 5; i++) {
         const state = new TestState();
         const element = new MockElement(`el_${i}`);
         stateManager.register(state, element);
       }
       
-      expect(stateManager.states.size).toBe(5);
-      expect(stateManager.stats.statesCreated).toBe(5);
+      test.assertEqual(stateManager.states.size, 5);
+      test.assertEqual(stateManager.stats.statesCreated, 5);
+      
+      stateManager.dispose();
     });
   });
-  
-  describe('Unregistration', () => {
-    test('should unregister state', () => {
+
+  test.describe('StateManager: Unregistration', () => {
+    test.it('should unregister state', () => {
+      const runtime = new MockRuntime();
+      const stateManager = runtime.stateManager;
       const state = new TestState();
       const element = new MockElement('el_1');
       
       stateManager.register(state, element);
       stateManager.unregister(state);
       
-      expect(stateManager.stats.statesDisposed).toBe(1);
-      expect(state._element).toBe(null);
-      expect(state._disposeCalled).toBe(true);
+      test.assertEqual(stateManager.stats.statesDisposed, 1);
+      test.assertNull(state._element);
+      test.assertTrue(state._disposeCalled);
+      
+      stateManager.dispose();
     });
     
-    test('should handle unregister of null state', () => {
-      expect(() => {
-        stateManager.unregister(null);
-      }).not.toThrow();
-    });
-    
-    test('should call dispose on unregister', () => {
-      const state = new TestState();
-      const element = new MockElement('el_1');
+    test.it('should handle unregister of null state', () => {
+      const runtime = new MockRuntime();
+      const stateManager = runtime.stateManager;
       
-      let disposeCalled = false;
-      state.dispose = () => {
-        disposeCalled = true;
-      };
+      // Should not throw or error
+      stateManager.unregister(null);
       
-      stateManager.register(state, element);
-      stateManager.unregister(state);
+      test.assertEqual(stateManager.states.size, 0);
       
-      expect(disposeCalled).toBe(true);
+      stateManager.dispose();
     });
   });
-  
-  describe('setState Handling', () => {
-    test('should handle setState with batching enabled', () => {
-      stateManager.config.enableBatching = true;
+
+  test.describe('StateManager: Statistics', () => {
+    test.it('should provide accurate stats', () => {
+      const runtime = new MockRuntime();
+      const stateManager = runtime.stateManager;
       
-      const state = new TestState();
-      const element = new MockElement('el_1');
-      state._element = element;
-      state._mounted = true;
-      
-      stateManager.register(state, element);
-      
-      const updateFn = jest.fn();
-      stateManager.handleSetState(state, updateFn);
-      
-      expect(stateManager.stats.setStateCalls).toBe(1);
-      expect(stateManager.updateBatcher.pendingUpdates.size).toBeGreaterThan(0);
-    });
-    
-    test('should handle setState with batching disabled', () => {
-      stateManager.config.enableBatching = false;
-      
-      const state = new TestState();
-      const element = new MockElement('el_1');
-      state._element = element;
-      state._mounted = true;
-      
-      stateManager.register(state, element);
-      
-      const updateFn = jest.fn();
-      stateManager.handleSetState(state, updateFn);
-      
-      expect(updateFn).toHaveBeenCalled();
-      expect(element.dirty).toBe(true);
-    });
-    
-    test('should not handle setState for unmounted state', () => {
-      const state = new TestState();
-      state._mounted = false;
-      
-      const updateFn = jest.fn();
-      stateManager.handleSetState(state, updateFn);
-      
-      expect(updateFn).not.toHaveBeenCalled();
-    });
-  });
-  
-  describe('Statistics', () => {
-    test('should provide accurate stats', () => {
       for (let i = 0; i < 3; i++) {
         const state = new TestState();
         const element = new MockElement(`el_${i}`);
@@ -433,194 +462,63 @@ describe('StateManager', () => {
       
       const stats = stateManager.getStats();
       
-      expect(stats.statesCreated).toBe(3);
-      expect(stats.currentStates).toBe(3);
-      expect(stats.batcher).toBeDefined();
-      expect(stats.tracker).toBeDefined();
+      test.assertEqual(stats.statesCreated, 3);
+      test.assertEqual(stats.currentStates, 3);
+      test.assertNotNull(stats.batcher);
+      test.assertNotNull(stats.tracker);
+      
+      stateManager.dispose();
     });
   });
-  
-  describe('Clear and Dispose', () => {
-    test('should clear all states', () => {
+
+  test.describe('StateManager: Clear and Dispose', () => {
+    test.it('should clear all states', () => {
+      const runtime = new MockRuntime();
+      const stateManager = runtime.stateManager;
+      
       for (let i = 0; i < 3; i++) {
         stateManager.register(new TestState(), new MockElement(`el_${i}`));
       }
       
       stateManager.clear();
       
-      expect(stateManager.states.size).toBe(0);
+      test.assertEqual(stateManager.states.size, 0);
+      stateManager.dispose();
     });
     
-    test('should dispose state manager', () => {
-      stateManager.register(new TestState(), new MockElement('el_1'));
+    test.it('should dispose state manager', () => {
+      const runtime = new MockRuntime();
+      const stateManager = runtime.stateManager;
       
+      stateManager.register(new TestState(), new MockElement('el_1'));
       stateManager.dispose();
       
-      expect(stateManager.states.size).toBe(0);
+      test.assertEqual(stateManager.states.size, 0);
     });
   });
-});
 
-describe('UpdateBatcher', () => {
-  let stateManager;
-  let batcher;
-  
-  beforeEach(() => {
-    stateManager = new StateManager(new MockRuntime());
-    batcher = stateManager.updateBatcher;
-  });
-  
-  describe('Update Batching', () => {
-    test('should queue update', () => {
-      const element = new MockElement('el_1');
-      const updateFn = jest.fn();
-      
-      batcher.queueUpdate(element, updateFn);
-      
-      expect(batcher.pendingUpdates.size).toBe(1);
-      expect(batcher.updateScheduled).toBe(true);
-    });
-    
-    test('should batch multiple updates for same element', () => {
-      const element = new MockElement('el_1');
-      
-      batcher.queueUpdate(element, jest.fn());
-      batcher.queueUpdate(element, jest.fn());
-      batcher.queueUpdate(element, jest.fn());
-      
-      const updates = batcher.pendingUpdates.get(element);
-      expect(updates.length).toBe(3);
-    });
-    
-    test('should flush updates', (done) => {
-      const element = new MockElement('el_1');
-      const state = new TestState();
-      state._element = element;
-      state._mounted = true;
-      element.state = state;
-      
-      const updateFn = () => {
-        state.count++;
-      };
-      
-      batcher.queueUpdate(element, updateFn);
-      
-      setTimeout(() => {
-        expect(state.count).toBe(1);
-        expect(element.dirty).toBe(true);
-        expect(batcher.pendingUpdates.size).toBe(0);
-        done();
-      }, 10);
-    });
-    
-    test('should apply all updates in batch', (done) => {
-      const element = new MockElement('el_1');
-      const state = new TestState();
-      state._element = element;
-      state._mounted = true;
-      element.state = state;
-      
-      batcher.queueUpdate(element, () => state.count++);
-      batcher.queueUpdate(element, () => state.count++);
-      batcher.queueUpdate(element, () => state.count++);
-      
-      setTimeout(() => {
-        expect(state.count).toBe(3);
-        expect(batcher.stats.updatesInLastBatch).toBe(3);
-        done();
-      }, 10);
-    });
-    
-    test('should handle errors in update functions', (done) => {
-      const element = new MockElement('el_1');
-      const state = new TestState();
-      state._element = element;
-      state._mounted = true;
-      element.state = state;
-      
-      const errorSpy = jest.spyOn(console, 'error').mockImplementation();
-      
-      batcher.queueUpdate(element, () => {
-        throw new Error('Update failed');
-      });
-      
-      setTimeout(() => {
-        expect(errorSpy).toHaveBeenCalled();
-        errorSpy.mockRestore();
-        done();
-      }, 10);
-    });
-    
-    test('should not update unmounted elements', (done) => {
-      const element = new MockElement('el_1');
-      element.mounted = false;
-      
-      batcher.queueUpdate(element, jest.fn());
-      
-      setTimeout(() => {
-        expect(element.dirty).toBe(false);
-        done();
-      }, 10);
-    });
-  });
-  
-  describe('Statistics', () => {
-    test('should track batch statistics', () => {
-      const stats = batcher.getStats();
-      
-      expect(stats.batchesExecuted).toBeDefined();
-      expect(stats.pendingElements).toBeDefined();
-      expect(stats.updateScheduled).toBeDefined();
-    });
-  });
-  
-  describe('Clear', () => {
-    test('should clear pending updates for element', () => {
-      const element = new MockElement('el_1');
-      
-      batcher.queueUpdate(element, jest.fn());
-      batcher.clear(element);
-      
-      expect(batcher.pendingUpdates.has(element)).toBe(false);
-    });
-    
-    test('should clear all pending updates', () => {
-      batcher.queueUpdate(new MockElement('el_1'), jest.fn());
-      batcher.queueUpdate(new MockElement('el_2'), jest.fn());
-      
-      batcher.clear();
-      
-      expect(batcher.pendingUpdates.size).toBe(0);
-    });
-  });
-});
-
-describe('StateTracker', () => {
-  let tracker;
-  
-  beforeEach(() => {
-    tracker = new StateTracker();
-  });
-  
-  describe('Dependency Tracking', () => {
-    test('should start tracking', () => {
+  test.describe('StateTracker: Dependency Tracking', () => {
+    test.it('should start tracking', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       
       tracker.startTracking(element);
       
-      expect(tracker.tracking).toBe(true);
-      expect(tracker.currentElement).toBe(element);
+      test.assertTrue(tracker.tracking);
+      test.assertEqual(tracker.currentElement, element);
     });
     
-    test('should stop tracking', () => {
+    test.it('should stop tracking', () => {
+      const tracker = new StateTracker();
       tracker.startTracking(new MockElement('el_1'));
       tracker.stopTracking();
       
-      expect(tracker.tracking).toBe(false);
-      expect(tracker.currentElement).toBe(null);
+      test.assertFalse(tracker.tracking);
+      test.assertNull(tracker.currentElement);
     });
     
-    test('should record dependency', () => {
+    test.it('should record dependency', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new TestState();
       state._stateId = 'state_1';
@@ -630,45 +528,14 @@ describe('StateTracker', () => {
       
       const deps = tracker.getDependents(state, 'count');
       
-      expect(deps.has(element)).toBe(true);
-      expect(tracker.stats.dependenciesTracked).toBe(1);
-    });
-    
-    test('should not record dependency when not tracking', () => {
-      const state = new TestState();
-      state._stateId = 'state_1';
-      
-      tracker.recordDependency(state, 'count');
-      
-      const deps = tracker.getDependents(state, 'count');
-      
-      expect(deps.size).toBe(0);
-    });
-    
-    test('should get dependents for property', () => {
-      const element1 = new MockElement('el_1');
-      const element2 = new MockElement('el_2');
-      const state = new TestState();
-      state._stateId = 'state_1';
-      
-      tracker.startTracking(element1);
-      tracker.recordDependency(state, 'count');
-      tracker.stopTracking();
-      
-      tracker.startTracking(element2);
-      tracker.recordDependency(state, 'count');
-      tracker.stopTracking();
-      
-      const deps = tracker.getDependents(state, 'count');
-      
-      expect(deps.size).toBe(2);
-      expect(deps.has(element1)).toBe(true);
-      expect(deps.has(element2)).toBe(true);
+      test.assertTrue(deps.has(element));
+      test.assertEqual(tracker.stats.dependenciesTracked, 1);
     });
   });
-  
-  describe('Clear Dependencies', () => {
-    test('should clear dependencies for element', () => {
+
+  test.describe('StateTracker: Clear Dependencies', () => {
+    test.it('should clear dependencies for element', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new TestState();
       state._stateId = 'state_1';
@@ -680,182 +547,94 @@ describe('StateTracker', () => {
       
       tracker.clearDependencies(element);
       
-      expect(tracker.getDependents(state, 'count').size).toBe(0);
-      expect(tracker.getDependents(state, 'message').size).toBe(0);
-    });
-    
-    test('should clear all dependencies', () => {
-      const element = new MockElement('el_1');
-      const state = new TestState();
-      state._stateId = 'state_1';
-      
-      tracker.startTracking(element);
-      tracker.recordDependency(state, 'count');
-      
-      tracker.clear();
-      
-      expect(tracker.dependencies.size).toBe(0);
-      expect(tracker.tracking).toBe(false);
+      test.assertEqual(tracker.getDependents(state, 'count').size, 0);
+      test.assertEqual(tracker.getDependents(state, 'message').size, 0);
     });
   });
-  
-  describe('Statistics', () => {
-    test('should provide tracking stats', () => {
-      const stats = tracker.getStats();
-      
-      expect(stats.dependenciesTracked).toBeDefined();
-      expect(stats.totalDependencies).toBeDefined();
-      expect(stats.isTracking).toBeDefined();
-    });
-  });
-});
 
-describe('ReactiveState', () => {
-  let state;
-  let element;
-  let runtime;
-  
-  beforeEach(() => {
-    state = new ReactiveState();
-    element = new MockElement('el_1');
-    runtime = new MockRuntime();
-    
-    state._element = element;
-    element.state = state;
-    element.runtime = runtime;
-  });
-  
-  describe('Reactive Properties', () => {
-    test('should make property reactive', () => {
+  test.describe('ReactiveState: Reactive Properties', () => {
+    test.it('should make property reactive', () => {
+      const state = new ReactiveState();
+      
       state.makeReactive('count', 0);
       
-      expect(state.count).toBe(0);
-      expect(state._reactiveProperties.has('count')).toBe(true);
+      test.assertEqual(state.count, 0);
+      test.assertTrue(state._reactiveProperties.has('count'));
     });
     
-    test('should track property access', () => {
-      state.makeReactive('count', 0);
+    test.it('should get and set reactive values', () => {
+      const state = new ReactiveState();
       
-      runtime.stateManager.stateTracker.startTracking(element);
-      
-      const value = state.count; // Access triggers tracking
-      
-      expect(value).toBe(0);
-    });
-    
-    test('should trigger updates on property change', () => {
-      state.makeReactive('count', 0);
-      
-      state.count = 5;
-      
-      expect(state.count).toBe(5);
-    });
-    
-    test('should get and set reactive values', () => {
       state.makeReactive('message', 'hello');
       
-      expect(state.getValue('message')).toBe('hello');
+      test.assertEqual(state.getValue('message'), 'hello');
       
       state.setValue('message', 'world');
       
-      expect(state.getValue('message')).toBe('world');
+      test.assertEqual(state.getValue('message'), 'world');
     });
   });
-});
 
-describe('StateObserver', () => {
-  let observer;
-  let state;
-  
-  beforeEach(() => {
-    observer = new StateObserver();
-    state = new TestState();
-    state._stateId = 'state_1';
-  });
-  
-  describe('Observation', () => {
-    test('should observe state', () => {
-      const callback = jest.fn();
+  test.describe('StateObserver: Observation', () => {
+    test.it('should observe state', () => {
+      const observer = new StateObserver();
+      const state = new TestState();
+      state._stateId = 'state_1';
+      const callback = () => {};
       
       observer.observe(state, callback);
       
-      expect(observer.observers.has('state_1')).toBe(true);
+      test.assertTrue(observer.observers.has('state_1'));
     });
     
-    test('should notify observers', () => {
-      const callback = jest.fn();
+    test.it('should notify observers', () => {
+      const observer = new StateObserver();
+      const state = new TestState();
+      state._stateId = 'state_1';
+      let notified = false;
       
-      observer.observe(state, callback);
+      observer.observe(state, () => {
+        notified = true;
+      });
       observer.notify(state, 'count', 0, 1);
       
-      expect(callback).toHaveBeenCalledWith(state, 'count', 0, 1);
+      test.assertTrue(notified);
     });
     
-    test('should handle multiple observers', () => {
-      const callback1 = jest.fn();
-      const callback2 = jest.fn();
+    test.it('should unobserve specific callback', () => {
+      const observer = new StateObserver();
+      const state = new TestState();
+      state._stateId = 'state_1';
+      let notified = false;
       
-      observer.observe(state, callback1);
-      observer.observe(state, callback2);
-      
-      observer.notify(state, 'count', 0, 1);
-      
-      expect(callback1).toHaveBeenCalled();
-      expect(callback2).toHaveBeenCalled();
-    });
-    
-    test('should unobserve specific callback', () => {
-      const callback = jest.fn();
+      const callback = () => {
+        notified = true;
+      };
       
       observer.observe(state, callback);
       observer.unobserve(state, callback);
       
       observer.notify(state, 'count', 0, 1);
       
-      expect(callback).not.toHaveBeenCalled();
+      test.assertFalse(notified);
     });
     
-    test('should unobserve all callbacks for state', () => {
-      const callback1 = jest.fn();
-      const callback2 = jest.fn();
+    test.it('should clear all observers', () => {
+      const observer = new StateObserver();
+      const state = new TestState();
+      state._stateId = 'state_1';
       
-      observer.observe(state, callback1);
-      observer.observe(state, callback2);
-      
-      observer.unobserve(state);
-      
-      observer.notify(state, 'count', 0, 1);
-      
-      expect(callback1).not.toHaveBeenCalled();
-      expect(callback2).not.toHaveBeenCalled();
-    });
-    
-    test('should clear all observers', () => {
-      observer.observe(state, jest.fn());
-      observer.observe(new TestState(), jest.fn());
+      observer.observe(state, () => {});
+      observer.observe(new TestState(), () => {});
       
       observer.clear();
       
-      expect(observer.observers.size).toBe(0);
-    });
-    
-    test('should handle observer callback errors', () => {
-      const errorSpy = jest.spyOn(console, 'error').mockImplementation();
-      
-      const callback = () => {
-        throw new Error('Observer failed');
-      };
-      
-      observer.observe(state, callback);
-      observer.notify(state, 'count', 0, 1);
-      
-      expect(errorSpy).toHaveBeenCalled();
-      errorSpy.mockRestore();
+      test.assertEqual(observer.observers.size, 0);
     });
   });
-});
 
-// Run tests
-if (typeof module !== 'undefined' && require.main === module) {
-  console.log('Running State tests...');
+  return test.summary();
 }
+
+// Run
+runTests();

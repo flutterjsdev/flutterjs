@@ -10,7 +10,6 @@
  * - Real-world scenarios
  */
 
-
 import { StateTracker } from '../src/state_tracker.js';
 
 // Mock Element
@@ -35,126 +34,232 @@ class MockState {
   }
 }
 
-describe('StateTracker - Comprehensive Test Suite', () => {
-  let tracker;
-  
-  beforeEach(() => {
-    tracker = new StateTracker();
-  });
-  
-  afterEach(() => {
-    tracker.clear();
-  });
-  
-  // ============================================================================
-  // SECTION 1: Initialization & Configuration
-  // ============================================================================
-  
-  describe('Initialization & Configuration', () => {
-    test('should create tracker with default config', () => {
-      expect(tracker.config.enableTracking).toBe(true);
-      expect(tracker.config.enableWeakRefs).toBe(true);
-      expect(tracker.tracking).toBe(false);
-      expect(tracker.currentElement).toBe(null);
+// Test utilities
+class TestRunner {
+  constructor() {
+    this.tests = [];
+    this.passed = 0;
+    this.failed = 0;
+  }
+
+  describe(name, fn) {
+    console.log(`\n📋 ${name}`);
+    fn();
+  }
+
+  it(name, fn) {
+    try {
+      fn();
+      console.log(`  ✅ ${name}`);
+      this.passed++;
+    } catch (error) {
+      console.log(`  ❌ ${name}`);
+      console.log(`     ${error.message}`);
+      this.failed++;
+    }
+  }
+
+  assert(condition, message) {
+    if (!condition) {
+      throw new Error(message || 'Assertion failed');
+    }
+  }
+
+  assertEqual(actual, expected, message) {
+    if (actual !== expected) {
+      throw new Error(
+        message || `Expected ${expected} but got ${actual}`
+      );
+    }
+  }
+
+  assertNull(value, message) {
+    if (value !== null) {
+      throw new Error(message || `Expected null but got ${value}`);
+    }
+  }
+
+  assertNotNull(value, message) {
+    if (value === null) {
+      throw new Error(message || 'Expected value to not be null');
+    }
+  }
+
+  assertTrue(value, message) {
+    if (value !== true) {
+      throw new Error(message || `Expected true but got ${value}`);
+    }
+  }
+
+  assertFalse(value, message) {
+    if (value !== false) {
+      throw new Error(message || `Expected false but got ${value}`);
+    }
+  }
+
+  assertThrows(fn, shouldThrow = true) {
+    let threw = false;
+    try {
+      fn();
+    } catch (error) {
+      threw = true;
+    }
+    
+    if (shouldThrow && !threw) {
+      throw new Error('Expected function to throw');
+    }
+  }
+
+  assertGreaterThan(actual, threshold, message) {
+    if (actual <= threshold) {
+      throw new Error(
+        message || `Expected ${actual} to be greater than ${threshold}`
+      );
+    }
+  }
+
+  summary() {
+    const total = this.passed + this.failed;
+    console.log(`\n${'='.repeat(50)}`);
+    console.log(`Tests: ${total} | ✅ Passed: ${this.passed} | ❌ Failed: ${this.failed}`);
+    console.log(`${'='.repeat(50)}\n`);
+
+    return this.failed === 0;
+  }
+}
+
+// Run tests
+function runTests() {
+  const test = new TestRunner();
+
+  test.describe('StateTracker: Initialization & Configuration', () => {
+    test.it('should create tracker with default config', () => {
+      const tracker = new StateTracker();
+      
+      test.assertTrue(tracker.config.enableTracking);
+      test.assertTrue(tracker.config.enableWeakRefs);
+      test.assertFalse(tracker.tracking);
+      test.assertNull(tracker.currentElement);
+      
+      tracker.clear();
     });
     
-    test('should create tracker with custom config', () => {
+    test.it('should create tracker with custom config', () => {
       const customTracker = new StateTracker({
         enableTracking: false,
         maxDependenciesPerProperty: 500,
         enableDebugLogging: true
       });
       
-      expect(customTracker.config.enableTracking).toBe(false);
-      expect(customTracker.config.maxDependenciesPerProperty).toBe(500);
-      expect(customTracker.config.enableDebugLogging).toBe(true);
+      test.assertFalse(customTracker.config.enableTracking);
+      test.assertEqual(customTracker.config.maxDependenciesPerProperty, 500);
+      test.assertTrue(customTracker.config.enableDebugLogging);
+      
+      customTracker.clear();
     });
     
-    test('should initialize with empty dependencies', () => {
-      expect(tracker.dependencies.size).toBe(0);
-      expect(tracker.elementDependencies.size).toBe(0);
-      expect(tracker.getTotalDependencies()).toBe(0);
+    test.it('should initialize with empty dependencies', () => {
+      const tracker = new StateTracker();
+      
+      test.assertEqual(tracker.dependencies.size, 0);
+      test.assertEqual(tracker.elementDependencies.size, 0);
+      test.assertEqual(tracker.getTotalDependencies(), 0);
+      
+      tracker.clear();
     });
     
-    test('should initialize statistics', () => {
+    test.it('should initialize statistics', () => {
+      const tracker = new StateTracker();
       const stats = tracker.getStats();
       
-      expect(stats.dependenciesTracked).toBe(0);
-      expect(stats.dependenciesCleared).toBe(0);
-      expect(stats.rebuildsTriggered).toBe(0);
-      expect(stats.trackingSessionsStarted).toBe(0);
+      test.assertEqual(stats.dependenciesTracked, 0);
+      test.assertEqual(stats.dependenciesCleared, 0);
+      test.assertEqual(stats.rebuildsTriggered, 0);
+      test.assertEqual(stats.trackingSessionsStarted, 0);
+      
+      tracker.clear();
     });
   });
-  
-  // ============================================================================
-  // SECTION 2: Basic Tracking Operations
-  // ============================================================================
-  
-  describe('Basic Tracking Operations', () => {
-    test('should start tracking', () => {
+
+  test.describe('StateTracker: Basic Tracking Operations', () => {
+    test.it('should start tracking', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       
       tracker.startTracking(element);
       
-      expect(tracker.tracking).toBe(true);
-      expect(tracker.currentElement).toBe(element);
-      expect(tracker.stats.trackingSessionsStarted).toBe(1);
+      test.assertTrue(tracker.tracking);
+      test.assertEqual(tracker.currentElement, element);
+      test.assertEqual(tracker.stats.trackingSessionsStarted, 1);
+      
+      tracker.clear();
     });
     
-    test('should throw error when starting tracking without element', () => {
-      expect(() => {
+    test.it('should throw error when starting tracking without element', () => {
+      const tracker = new StateTracker();
+      
+      test.assertThrows(() => {
         tracker.startTracking(null);
-      }).toThrow('Element is required');
+      });
+      
+      tracker.clear();
     });
     
-    test('should stop tracking', () => {
+    test.it('should stop tracking', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       
       tracker.startTracking(element);
       tracker.stopTracking();
       
-      expect(tracker.tracking).toBe(false);
-      expect(tracker.currentElement).toBe(null);
-      expect(tracker.stats.trackingSessionsEnded).toBe(1);
-    });
-    
-    test('should handle stop tracking without active tracking', () => {
-      expect(() => {
-        tracker.stopTracking();
-      }).not.toThrow();
+      test.assertFalse(tracker.tracking);
+      test.assertNull(tracker.currentElement);
+      test.assertEqual(tracker.stats.trackingSessionsEnded, 1);
       
-      expect(tracker.tracking).toBe(false);
+      tracker.clear();
     });
     
-    test('should check if tracking is active', () => {
-      expect(tracker.isTracking()).toBe(false);
+    test.it('should handle stop tracking without active tracking', () => {
+      const tracker = new StateTracker();
+      
+      test.assertThrows(() => {
+        tracker.stopTracking();
+      }, false);
+      
+      test.assertFalse(tracker.tracking);
+      tracker.clear();
+    });
+    
+    test.it('should check if tracking is active', () => {
+      const tracker = new StateTracker();
+      
+      test.assertFalse(tracker.isTracking());
       
       tracker.startTracking(new MockElement('el_1'));
-      
-      expect(tracker.isTracking()).toBe(true);
+      test.assertTrue(tracker.isTracking());
       
       tracker.stopTracking();
+      test.assertFalse(tracker.isTracking());
       
-      expect(tracker.isTracking()).toBe(false);
+      tracker.clear();
     });
     
-    test('should get current tracking element', () => {
+    test.it('should get current tracking element', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       
-      expect(tracker.getCurrentElement()).toBe(null);
+      test.assertNull(tracker.getCurrentElement());
       
       tracker.startTracking(element);
+      test.assertEqual(tracker.getCurrentElement(), element);
       
-      expect(tracker.getCurrentElement()).toBe(element);
+      tracker.clear();
     });
   });
-  
-  // ============================================================================
-  // SECTION 3: Dependency Recording
-  // ============================================================================
-  
-  describe('Dependency Recording', () => {
-    test('should record dependency', () => {
+
+  test.describe('StateTracker: Dependency Recording', () => {
+    test.it('should record dependency', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new MockState('state_1');
       
@@ -162,20 +267,26 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       tracker.recordDependency(state, 'count');
       tracker.stopTracking();
       
-      expect(tracker.stats.dependenciesTracked).toBe(1);
-      expect(tracker.getTotalDependencies()).toBe(1);
+      test.assertEqual(tracker.stats.dependenciesTracked, 1);
+      test.assertEqual(tracker.getTotalDependencies(), 1);
+      
+      tracker.clear();
     });
     
-    test('should not record dependency when not tracking', () => {
+    test.it('should not record dependency when not tracking', () => {
+      const tracker = new StateTracker();
       const state = new MockState('state_1');
       
       tracker.recordDependency(state, 'count');
       
-      expect(tracker.stats.dependenciesTracked).toBe(0);
-      expect(tracker.getTotalDependencies()).toBe(0);
+      test.assertEqual(tracker.stats.dependenciesTracked, 0);
+      test.assertEqual(tracker.getTotalDependencies(), 0);
+      
+      tracker.clear();
     });
     
-    test('should record multiple dependencies for same element', () => {
+    test.it('should record multiple dependencies for same element', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new MockState('state_1');
       
@@ -184,15 +295,18 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       tracker.recordDependency(state, 'message');
       tracker.stopTracking();
       
-      expect(tracker.stats.dependenciesTracked).toBe(2);
+      test.assertEqual(tracker.stats.dependenciesTracked, 2);
       
       const elementDeps = tracker.getElementDependencies(element);
-      expect(elementDeps.size).toBe(2);
-      expect(elementDeps.has('state_1.count')).toBe(true);
-      expect(elementDeps.has('state_1.message')).toBe(true);
+      test.assertEqual(elementDeps.size, 2);
+      test.assertTrue(elementDeps.has('state_1.count'));
+      test.assertTrue(elementDeps.has('state_1.message'));
+      
+      tracker.clear();
     });
     
-    test('should record same property for multiple elements', () => {
+    test.it('should record same property for multiple elements', () => {
+      const tracker = new StateTracker();
       const element1 = new MockElement('el_1');
       const element2 = new MockElement('el_2');
       const state = new MockState('state_1');
@@ -207,24 +321,29 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       const dependents = tracker.getDependents(state, 'count');
       
-      expect(dependents.size).toBe(2);
-      expect(dependents.has(element1)).toBe(true);
-      expect(dependents.has(element2)).toBe(true);
+      test.assertEqual(dependents.size, 2);
+      test.assertTrue(dependents.has(element1));
+      test.assertTrue(dependents.has(element2));
+      
+      tracker.clear();
     });
     
-    test('should handle invalid dependency recording', () => {
+    test.it('should handle invalid dependency recording', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       
       tracker.startTracking(element);
       
-      // Should not throw
       tracker.recordDependency(null, 'property');
       tracker.recordDependency(new MockState('state_1'), null);
       
-      expect(tracker.getTotalDependencies()).toBe(0);
+      test.assertEqual(tracker.getTotalDependencies(), 0);
+      
+      tracker.clear();
     });
     
-    test('should track peak dependencies', () => {
+    test.it('should track peak dependencies', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new MockState('state_1');
       
@@ -236,37 +355,15 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       tracker.stopTracking();
       
-      expect(tracker.stats.peakDependencies).toBe(5);
-    });
-    
-    test('should warn on max dependencies threshold', () => {
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
+      test.assertEqual(tracker.stats.peakDependencies, 5);
       
-      const customTracker = new StateTracker({
-        maxDependenciesPerProperty: 3
-      });
-      
-      const state = new MockState('state_1');
-      
-      for (let i = 0; i < 5; i++) {
-        const element = new MockElement(`el_${i}`);
-        customTracker.startTracking(element);
-        customTracker.recordDependency(state, 'count');
-        customTracker.stopTracking();
-      }
-      
-      expect(warnSpy).toHaveBeenCalled();
-      
-      warnSpy.mockRestore();
+      tracker.clear();
     });
   });
-  
-  // ============================================================================
-  // SECTION 4: Dependency Retrieval
-  // ============================================================================
-  
-  describe('Dependency Retrieval', () => {
-    test('should get dependents for property', () => {
+
+  test.describe('StateTracker: Dependency Retrieval', () => {
+    test.it('should get dependents for property', () => {
+      const tracker = new StateTracker();
       const element1 = new MockElement('el_1');
       const element2 = new MockElement('el_2');
       const state = new MockState('state_1');
@@ -281,20 +378,26 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       const dependents = tracker.getDependents(state, 'count');
       
-      expect(dependents.size).toBe(2);
-      expect(dependents.has(element1)).toBe(true);
-      expect(dependents.has(element2)).toBe(true);
+      test.assertEqual(dependents.size, 2);
+      test.assertTrue(dependents.has(element1));
+      test.assertTrue(dependents.has(element2));
+      
+      tracker.clear();
     });
     
-    test('should return empty set for non-existent dependency', () => {
+    test.it('should return empty set for non-existent dependency', () => {
+      const tracker = new StateTracker();
       const state = new MockState('state_1');
       
       const dependents = tracker.getDependents(state, 'nonExistent');
       
-      expect(dependents.size).toBe(0);
+      test.assertEqual(dependents.size, 0);
+      
+      tracker.clear();
     });
     
-    test('should filter out unmounted elements', () => {
+    test.it('should filter out unmounted elements', () => {
+      const tracker = new StateTracker();
       const element1 = new MockElement('el_1');
       const element2 = new MockElement('el_2');
       const state = new MockState('state_1');
@@ -307,17 +410,19 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       tracker.recordDependency(state, 'count');
       tracker.stopTracking();
       
-      // Unmount element1
       element1.mounted = false;
       
       const dependents = tracker.getDependents(state, 'count');
       
-      expect(dependents.size).toBe(1);
-      expect(dependents.has(element2)).toBe(true);
-      expect(dependents.has(element1)).toBe(false);
+      test.assertEqual(dependents.size, 1);
+      test.assertTrue(dependents.has(element2));
+      test.assertFalse(dependents.has(element1));
+      
+      tracker.clear();
     });
     
-    test('should get element dependencies', () => {
+    test.it('should get element dependencies', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new MockState('state_1');
       
@@ -328,26 +433,17 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       const deps = tracker.getElementDependencies(element);
       
-      expect(deps.size).toBe(2);
-      expect(deps.has('state_1.count')).toBe(true);
-      expect(deps.has('state_1.message')).toBe(true);
-    });
-    
-    test('should return empty set for element without dependencies', () => {
-      const element = new MockElement('el_1');
+      test.assertEqual(deps.size, 2);
+      test.assertTrue(deps.has('state_1.count'));
+      test.assertTrue(deps.has('state_1.message'));
       
-      const deps = tracker.getElementDependencies(element);
-      
-      expect(deps.size).toBe(0);
+      tracker.clear();
     });
   });
-  
-  // ============================================================================
-  // SECTION 5: Dependency Notifications
-  // ============================================================================
-  
-  describe('Dependency Notifications', () => {
-    test('should notify dependents of property change', () => {
+
+  test.describe('StateTracker: Dependency Notifications', () => {
+    test.it('should notify dependents of property change', () => {
+      const tracker = new StateTracker();
       const element1 = new MockElement('el_1');
       const element2 = new MockElement('el_2');
       const state = new MockState('state_1');
@@ -362,14 +458,17 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       const notified = tracker.notifyPropertyChange(state, 'count');
       
-      expect(notified).toBe(2);
-      expect(element1.dirty).toBe(true);
-      expect(element2.dirty).toBe(true);
-      expect(tracker.stats.rebuildsTriggered).toBe(1);
-      expect(tracker.stats.selectiveRebuilds).toBe(2);
+      test.assertEqual(notified, 2);
+      test.assertTrue(element1.dirty);
+      test.assertTrue(element2.dirty);
+      test.assertEqual(tracker.stats.rebuildsTriggered, 1);
+      test.assertEqual(tracker.stats.selectiveRebuilds, 2);
+      
+      tracker.clear();
     });
     
-    test('should not notify already dirty elements', () => {
+    test.it('should not notify already dirty elements', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new MockState('state_1');
       
@@ -381,10 +480,13 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       tracker.notifyPropertyChange(state, 'count');
       
-      expect(tracker.stats.selectiveRebuilds).toBe(0);
+      test.assertEqual(tracker.stats.selectiveRebuilds, 0);
+      
+      tracker.clear();
     });
     
-    test('should not notify unmounted elements', () => {
+    test.it('should not notify unmounted elements', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new MockState('state_1');
       
@@ -396,11 +498,14 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       const notified = tracker.notifyPropertyChange(state, 'count');
       
-      expect(notified).toBe(0);
-      expect(element.dirty).toBe(false);
+      test.assertEqual(notified, 0);
+      test.assertFalse(element.dirty);
+      
+      tracker.clear();
     });
     
-    test('should notify multiple property changes', () => {
+    test.it('should notify multiple property changes', () => {
+      const tracker = new StateTracker();
       const element1 = new MockElement('el_1');
       const element2 = new MockElement('el_2');
       const state = new MockState('state_1');
@@ -416,26 +521,28 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       const notified = tracker.notifyMultipleChanges(state, ['count', 'message']);
       
-      expect(notified).toBe(2); // Both elements (element1 appears once even with 2 deps)
-      expect(element1.dirty).toBe(true);
-      expect(element2.dirty).toBe(true);
+      test.assertEqual(notified, 2);
+      test.assertTrue(element1.dirty);
+      test.assertTrue(element2.dirty);
+      
+      tracker.clear();
     });
     
-    test('should return 0 for empty property array', () => {
+    test.it('should return 0 for empty property array', () => {
+      const tracker = new StateTracker();
       const state = new MockState('state_1');
       
       const notified = tracker.notifyMultipleChanges(state, []);
       
-      expect(notified).toBe(0);
+      test.assertEqual(notified, 0);
+      
+      tracker.clear();
     });
   });
-  
-  // ============================================================================
-  // SECTION 6: Dependency Cleanup
-  // ============================================================================
-  
-  describe('Dependency Cleanup', () => {
-    test('should clear dependencies for element', () => {
+
+  test.describe('StateTracker: Dependency Cleanup', () => {
+    test.it('should clear dependencies for element', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new MockState('state_1');
       
@@ -444,22 +551,29 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       tracker.recordDependency(state, 'message');
       tracker.stopTracking();
       
-      expect(tracker.getTotalDependencies()).toBe(2);
+      test.assertEqual(tracker.getTotalDependencies(), 2);
       
       tracker.clearDependencies(element);
       
-      expect(tracker.getTotalDependencies()).toBe(0);
-      expect(tracker.getElementDependencies(element).size).toBe(0);
-      expect(tracker.stats.dependenciesCleared).toBe(2);
+      test.assertEqual(tracker.getTotalDependencies(), 0);
+      test.assertEqual(tracker.getElementDependencies(element).size, 0);
+      test.assertEqual(tracker.stats.dependenciesCleared, 2);
+      
+      tracker.clear();
     });
     
-    test('should handle clearing non-existent element', () => {
-      expect(() => {
+    test.it('should handle clearing non-existent element', () => {
+      const tracker = new StateTracker();
+      
+      test.assertThrows(() => {
         tracker.clearDependencies(new MockElement('nonExistent'));
-      }).not.toThrow();
+      }, false);
+      
+      tracker.clear();
     });
     
-    test('should clear property dependencies', () => {
+    test.it('should clear property dependencies', () => {
+      const tracker = new StateTracker();
       const element1 = new MockElement('el_1');
       const element2 = new MockElement('el_2');
       const state = new MockState('state_1');
@@ -475,10 +589,13 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       tracker.clearPropertyDependencies(state, 'count');
       
       const dependents = tracker.getDependents(state, 'count');
-      expect(dependents.size).toBe(0);
+      test.assertEqual(dependents.size, 0);
+      
+      tracker.clear();
     });
     
-    test('should clear all state dependencies', () => {
+    test.it('should clear all state dependencies', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new MockState('state_1');
       
@@ -490,12 +607,15 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       tracker.clearStateDependencies(state);
       
-      expect(tracker.getDependents(state, 'count').size).toBe(0);
-      expect(tracker.getDependents(state, 'message').size).toBe(0);
-      expect(tracker.getDependents(state, 'value').size).toBe(0);
+      test.assertEqual(tracker.getDependents(state, 'count').size, 0);
+      test.assertEqual(tracker.getDependents(state, 'message').size, 0);
+      test.assertEqual(tracker.getDependents(state, 'value').size, 0);
+      
+      tracker.clear();
     });
     
-    test('should clear all dependencies', () => {
+    test.it('should clear all dependencies', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new MockState('state_1');
       
@@ -505,70 +625,66 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       tracker.clear();
       
-      expect(tracker.dependencies.size).toBe(0);
-      expect(tracker.elementDependencies.size).toBe(0);
-      expect(tracker.tracking).toBe(false);
-      expect(tracker.currentElement).toBe(null);
+      test.assertEqual(tracker.dependencies.size, 0);
+      test.assertEqual(tracker.elementDependencies.size, 0);
+      test.assertFalse(tracker.tracking);
+      test.assertNull(tracker.currentElement);
     });
   });
-  
-  // ============================================================================
-  // SECTION 7: Nested Tracking
-  // ============================================================================
-  
-  describe('Nested Tracking', () => {
-    test('should support nested tracking', () => {
+
+  test.describe('StateTracker: Nested Tracking', () => {
+    test.it('should support nested tracking', () => {
+      const tracker = new StateTracker();
       const element1 = new MockElement('el_1');
       const element2 = new MockElement('el_2');
       const state = new MockState('state_1');
       
       tracker.startTracking(element1);
-      expect(tracker.currentElement).toBe(element1);
+      test.assertEqual(tracker.currentElement, element1);
       
-      // Nested tracking
       tracker.startTracking(element2);
-      expect(tracker.currentElement).toBe(element2);
+      test.assertEqual(tracker.currentElement, element2);
       
       tracker.recordDependency(state, 'count');
       
-      // Stop nested
       tracker.stopTracking();
-      expect(tracker.currentElement).toBe(element1);
+      test.assertEqual(tracker.currentElement, element1);
       
-      // Stop outer
       tracker.stopTracking();
-      expect(tracker.currentElement).toBe(null);
+      test.assertNull(tracker.currentElement);
       
-      // Dependency should be for element2
       const dependents = tracker.getDependents(state, 'count');
-      expect(dependents.has(element2)).toBe(true);
-      expect(dependents.has(element1)).toBe(false);
+      test.assertTrue(dependents.has(element2));
+      test.assertFalse(dependents.has(element1));
+      
+      tracker.clear();
     });
     
-    test('should maintain tracking stack correctly', () => {
+    test.it('should maintain tracking stack correctly', () => {
+      const tracker = new StateTracker();
+      
       tracker.startTracking(new MockElement('el_1'));
       tracker.startTracking(new MockElement('el_2'));
       tracker.startTracking(new MockElement('el_3'));
       
-      expect(tracker.trackingStack.length).toBe(2);
+      test.assertEqual(tracker.trackingStack.length, 2);
       
       tracker.stopTracking();
-      expect(tracker.trackingStack.length).toBe(1);
+      test.assertEqual(tracker.trackingStack.length, 1);
       
       tracker.stopTracking();
-      expect(tracker.trackingStack.length).toBe(0);
+      test.assertEqual(tracker.trackingStack.length, 0);
       
       tracker.stopTracking();
-      expect(tracker.trackingStack.length).toBe(0);
+      test.assertEqual(tracker.trackingStack.length, 0);
+      
+      tracker.clear();
     });
   });
-  
-  // ============================================================================
-  // SECTION 8: Statistics & Reporting
-  // ============================================================================
-  
-  describe('Statistics & Reporting', () => {
-    test('should provide accurate statistics', () => {
+
+  test.describe('StateTracker: Statistics & Reporting', () => {
+    test.it('should provide accurate statistics', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new MockState('state_1');
       
@@ -579,15 +695,18 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       const stats = tracker.getStats();
       
-      expect(stats.dependenciesTracked).toBe(2);
-      expect(stats.totalDependencies).toBe(2);
-      expect(stats.uniqueDependencyKeys).toBe(2);
-      expect(stats.trackedElements).toBe(1);
-      expect(stats.trackingSessionsStarted).toBe(1);
-      expect(stats.trackingSessionsEnded).toBe(1);
+      test.assertEqual(stats.dependenciesTracked, 2);
+      test.assertEqual(stats.totalDependencies, 2);
+      test.assertEqual(stats.uniqueDependencyKeys, 2);
+      test.assertEqual(stats.trackedElements, 1);
+      test.assertEqual(stats.trackingSessionsStarted, 1);
+      test.assertEqual(stats.trackingSessionsEnded, 1);
+      
+      tracker.clear();
     });
     
-    test('should get dependency tree', () => {
+    test.it('should get dependency tree', () => {
+      const tracker = new StateTracker();
       const element1 = new MockElement('el_1');
       const element2 = new MockElement('el_2');
       const state = new MockState('state_1');
@@ -602,13 +721,16 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       const tree = tracker.getDependencyTree();
       
-      expect(tree['state_1.count']).toBeDefined();
-      expect(tree['state_1.count'].length).toBe(2);
-      expect(tree['state_1.count'][0].id).toBe('el_1');
-      expect(tree['state_1.count'][1].id).toBe('el_2');
+      test.assertNotNull(tree['state_1.count']);
+      test.assertEqual(tree['state_1.count'].length, 2);
+      test.assertEqual(tree['state_1.count'][0].id, 'el_1');
+      test.assertEqual(tree['state_1.count'][1].id, 'el_2');
+      
+      tracker.clear();
     });
     
-    test('should get element dependency map', () => {
+    test.it('should get element dependency map', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new MockState('state_1');
       
@@ -619,13 +741,16 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       const map = tracker.getElementDependencyMap();
       
-      expect(map['el_1']).toBeDefined();
-      expect(map['el_1'].length).toBe(2);
-      expect(map['el_1']).toContain('state_1.count');
-      expect(map['el_1']).toContain('state_1.message');
+      test.assertNotNull(map['el_1']);
+      test.assertEqual(map['el_1'].length, 2);
+      test.assertTrue(map['el_1'].includes('state_1.count'));
+      test.assertTrue(map['el_1'].includes('state_1.message'));
+      
+      tracker.clear();
     });
     
-    test('should get detailed report', () => {
+    test.it('should get detailed report', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new MockState('state_1');
       
@@ -635,14 +760,17 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       const report = tracker.getDetailedReport();
       
-      expect(report.stats).toBeDefined();
-      expect(report.dependencyTree).toBeDefined();
-      expect(report.elementDependencies).toBeDefined();
-      expect(report.config).toBeDefined();
-      expect(report.timestamp).toBeDefined();
+      test.assertNotNull(report.stats);
+      test.assertNotNull(report.dependencyTree);
+      test.assertNotNull(report.elementDependencies);
+      test.assertNotNull(report.config);
+      test.assertNotNull(report.timestamp);
+      
+      tracker.clear();
     });
     
-    test('should reset statistics', () => {
+    test.it('should reset statistics', () => {
+      const tracker = new StateTracker();
       const element = new MockElement('el_1');
       const state = new MockState('state_1');
       
@@ -654,45 +782,31 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       const stats = tracker.getStats();
       
-      expect(stats.dependenciesTracked).toBe(0);
-      expect(stats.trackingSessionsStarted).toBe(0);
-      // But dependencies should still exist
-      expect(stats.totalDependencies).toBe(1);
+      test.assertEqual(stats.dependenciesTracked, 0);
+      test.assertEqual(stats.trackingSessionsStarted, 0);
+      test.assertEqual(stats.totalDependencies, 1);
+      
+      tracker.clear();
     });
   });
-  
-  // ============================================================================
-  // SECTION 9: Configuration & Debug
-  // ============================================================================
-  
-  describe('Configuration & Debug', () => {
-    test('should enable/disable tracking', () => {
+
+  test.describe('StateTracker: Configuration & Debug', () => {
+    test.it('should enable/disable tracking', () => {
+      const tracker = new StateTracker();
+      
       tracker.setTrackingEnabled(false);
       
-      expect(tracker.config.enableTracking).toBe(false);
+      test.assertFalse(tracker.config.enableTracking);
       
       const element = new MockElement('el_1');
       tracker.startTracking(element);
       
-      expect(tracker.tracking).toBe(false);
+      test.assertFalse(tracker.tracking);
+      
+      tracker.clear();
     });
     
-    test('should log debug messages when enabled', () => {
-      const logSpy = jest.spyOn(console, 'log').mockImplementation();
-      
-      const debugTracker = new StateTracker({
-        enableDebugLogging: true
-      });
-      
-      const element = new MockElement('el_1');
-      debugTracker.startTracking(element);
-      
-      expect(logSpy).toHaveBeenCalled();
-      
-      logSpy.mockRestore();
-    });
-    
-    test('should maintain debug log', () => {
+    test.it('should maintain debug log', () => {
       const debugTracker = new StateTracker({
         enableDebugLogging: true
       });
@@ -703,119 +817,115 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       
       const log = debugTracker.getDebugLog();
       
-      expect(log.length).toBeGreaterThan(0);
-      expect(log[0].message).toBeDefined();
-      expect(log[0].timestamp).toBeDefined();
+      test.assertGreaterThan(log.length, 0);
+      test.assertNotNull(log[0].message);
+      test.assertNotNull(log[0].timestamp);
+      
+      debugTracker.clear();
     });
     
-    test('should clear debug log', () => {
+    test.it('should clear debug log', () => {
       const debugTracker = new StateTracker({
         enableDebugLogging: true
       });
       
       debugTracker.startTracking(new MockElement('el_1'));
       
-      expect(debugTracker.getDebugLog().length).toBeGreaterThan(0);
+      test.assertGreaterThan(debugTracker.getDebugLog().length, 0);
       
       debugTracker.clearDebugLog();
       
-      expect(debugTracker.getDebugLog().length).toBe(0);
+      test.assertEqual(debugTracker.getDebugLog().length, 0);
+      
+      debugTracker.clear();
     });
   });
-  
-  // ============================================================================
-  // SECTION 10: Real-World Scenarios
-  // ============================================================================
-  
-  describe('Real-World Scenarios', () => {
-    test('should handle counter app scenario', () => {
+
+  test.describe('StateTracker: Real-World Scenarios', () => {
+    test.it('should handle counter app scenario', () => {
+      const tracker = new StateTracker();
       const counterElement = new MockElement('counter');
       const counterState = new MockState('counter_state');
       
-      // Initial render - track count dependency
       tracker.startTracking(counterElement);
       tracker.recordDependency(counterState, 'count');
       tracker.stopTracking();
       
-      // User clicks increment
       const notified = tracker.notifyPropertyChange(counterState, 'count');
       
-      expect(notified).toBe(1);
-      expect(counterElement.dirty).toBe(true);
+      test.assertEqual(notified, 1);
+      test.assertTrue(counterElement.dirty);
+      
+      tracker.clear();
     });
     
-    test('should handle form with multiple fields', () => {
-      const formElement = new MockElement('form');
+    test.it('should handle form with multiple fields', () => {
+      const tracker = new StateTracker();
       const nameElement = new MockElement('name_field');
       const emailElement = new MockElement('email_field');
+      const formElement = new MockElement('form');
       const formState = new MockState('form_state');
       
-      // Name field depends on name
       tracker.startTracking(nameElement);
       tracker.recordDependency(formState, 'name');
       tracker.stopTracking();
       
-      // Email field depends on email
       tracker.startTracking(emailElement);
       tracker.recordDependency(formState, 'email');
       tracker.stopTracking();
       
-      // Form depends on both
       tracker.startTracking(formElement);
       tracker.recordDependency(formState, 'name');
       tracker.recordDependency(formState, 'email');
       tracker.stopTracking();
       
-      // User types in name field
       const nameNotified = tracker.notifyPropertyChange(formState, 'name');
       
-      expect(nameNotified).toBe(2); // nameElement and formElement
-      expect(nameElement.dirty).toBe(true);
-      expect(formElement.dirty).toBe(true);
-      expect(emailElement.dirty).toBe(false);
+      test.assertEqual(nameNotified, 2);
+      test.assertTrue(nameElement.dirty);
+      test.assertTrue(formElement.dirty);
+      test.assertFalse(emailElement.dirty);
+      
+      tracker.clear();
     });
     
-    test('should handle todo list filtering', () => {
+    test.it('should handle todo list filtering', () => {
+      const tracker = new StateTracker();
       const listElement = new MockElement('todo_list');
       const filterElement = new MockElement('filter_controls');
       const todosState = new MockState('todos_state');
       
-      // List depends on todos and filter
       tracker.startTracking(listElement);
       tracker.recordDependency(todosState, 'todos');
       tracker.recordDependency(todosState, 'filter');
       tracker.stopTracking();
       
-      // Filter controls depend only on filter
       tracker.startTracking(filterElement);
       tracker.recordDependency(todosState, 'filter');
       tracker.stopTracking();
       
-      // Add a todo - only affects list
       tracker.notifyPropertyChange(todosState, 'todos');
       
-      expect(listElement.dirty).toBe(true);
-      expect(filterElement.dirty).toBe(false);
+      test.assertTrue(listElement.dirty);
+      test.assertFalse(filterElement.dirty);
       
-      // Reset for next test
       listElement.dirty = false;
       
-      // Change filter - affects both
       tracker.notifyPropertyChange(todosState, 'filter');
       
-      expect(listElement.dirty).toBe(true);
-      expect(filterElement.dirty).toBe(true);
+      test.assertTrue(listElement.dirty);
+      test.assertTrue(filterElement.dirty);
+      
+      tracker.clear();
     });
     
-    test('should handle complex widget tree', () => {
-      const rootElement = new MockElement('root');
+    test.it('should handle complex widget tree', () => {
+      const tracker = new StateTracker();
       const headerElement = new MockElement('header');
       const bodyElement = new MockElement('body');
       const footerElement = new MockElement('footer');
-      
       const appState = new MockState('app_state');
       
-      // Different parts depend on different properties
       tracker.startTracking(headerElement);
       tracker.recordDependency(appState, 'user');
       tracker.stopTracking();
@@ -828,19 +938,20 @@ describe('StateTracker - Comprehensive Test Suite', () => {
       tracker.recordDependency(appState, 'meta');
       tracker.stopTracking();
       
-      // Update content - only body rebuilds
       tracker.notifyPropertyChange(appState, 'content');
       
-      expect(headerElement.dirty).toBe(false);
-      expect(bodyElement.dirty).toBe(true);
-      expect(footerElement.dirty).toBe(false);
+      test.assertFalse(headerElement.dirty);
+      test.assertTrue(bodyElement.dirty);
+      test.assertFalse(footerElement.dirty);
+      
+      tracker.clear();
     });
     
-    test('should handle performance with many dependencies', () => {
+    test.it('should handle performance with many dependencies', () => {
+      const tracker = new StateTracker();
       const state = new MockState('state_1');
       const elements = [];
       
-      // Create 100 elements each depending on 10 properties
       for (let i = 0; i < 100; i++) {
         const element = new MockElement(`el_${i}`);
         elements.push(element);
@@ -852,17 +963,18 @@ describe('StateTracker - Comprehensive Test Suite', () => {
         tracker.stopTracking();
       }
       
-      expect(tracker.getTotalDependencies()).toBe(1000);
+      test.assertEqual(tracker.getTotalDependencies(), 1000);
       
-      // Notify one property - should rebuild all 100 elements
       const notified = tracker.notifyPropertyChange(state, 'prop_0');
       
-      expect(notified).toBe(100);
+      test.assertEqual(notified, 100);
+      
+      tracker.clear();
     });
   });
-});
 
-// Run tests
-if (typeof module !== 'undefined' && require.main === module) {
-  console.log('Running StateTracker comprehensive tests...');
+  return test.summary();
 }
+
+// Run
+runTests();

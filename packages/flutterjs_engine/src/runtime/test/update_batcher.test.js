@@ -1,422 +1,555 @@
 /**
- * FlutterJS Update Batcher
+ * Update Batcher Tests
  * 
- * Batches multiple setState calls into single update cycle.
- * Improves performance by:
- * - Preventing redundant rebuilds
- * - Batching DOM updates
- * - Reducing layout thrashing
- * 
- * Strategy:
- * 1. Collect setState calls into queue
- * 2. Flush on microtask (Promise.resolve)
- * 3. Apply all updates to state
- * 4. Trigger single rebuild per element
- * 5. Merge all patches before DOM update
+ * Test suite for UpdateBatcher class
+ * Tests batching behavior, scheduling, and performance
  */
 
 
-class UpdateBatcher {
-  constructor(runtime) {
-    if (!runtime) {
-      throw new Error('Runtime instance is required for UpdateBatcher');
-    }
-    
-    this.runtime = runtime;
-    
-    // Pending updates queue
-    this.pendingUpdates = new Map();    // element → updateFn[]
-    this.updateScheduled = false;       // Is flush scheduled?
-    
-    // Configuration
-    this.config = {
-      enableBatching: true,
-      flushOnMicrotask: true,
-      maxBatchSize: 100,
-      debugMode: false
-    };
-    
-    // Statistics
-    this.stats = {
-      totalBatches: 0,
-      totalUpdates: 0,
-      updatesInLastBatch: 0,
-      averageUpdatesPerBatch: 0,
-      batchesSinceStart: 0,
-      largestBatchSize: 0,
-      flushScheduledCount: 0
-    };
-    
-    // Timing
-    this.lastFlushTime = 0;
-    this.lastFlushDuration = 0;
+import {UpdateBatcher} from "../src/update_batcher.js";
+
+// Mock runtime
+class MockRuntime {
+  constructor() {
+    this.config = { debugMode: false };
+  }
+}
+
+// Mock element
+class MockElement {
+  constructor(id = 'el_1') {
+    this.id = id;
+    this.mounted = true;
+    this.dirty = false;
+    this.depth = 0;
+    this.state = new MockState();
   }
   
-  /**
-   * Queue a state update
-   * @param {Element} element - Element being updated
-   * @param {Function} updateFn - State update function
-   * @throws {Error} If element or updateFn invalid
-   */
-  queueUpdate(element, updateFn) {
-    // Validation
-    if (!element) {
-      throw new Error('Element is required for queueUpdate');
+  markNeedsBuild() {
+    this.dirty = true;
+  }
+}
+
+// Mock state
+class MockState {
+  constructor() {
+    this.count = 0;
+    this.updates = [];
+  }
+}
+
+// Test utilities
+class TestRunner {
+  constructor() {
+    this.tests = [];
+    this.passed = 0;
+    this.failed = 0;
+  }
+  
+  describe(name, fn) {
+    console.log(`\n📋 ${name}`);
+    fn();
+  }
+  
+  it(name, fn) {
+    this.tests.push({ name, fn });
+    
+    try {
+      fn();
+      console.log(`  ✅ ${name}`);
+      this.passed++;
+    } catch (error) {
+      console.log(`  ❌ ${name}`);
+      console.log(`     ${error.message}`);
+      this.failed++;
     }
-    
-    if (typeof updateFn !== 'function') {
-      throw new Error('Update function must be a function');
+  }
+  
+  assert(condition, message) {
+    if (!condition) {
+      throw new Error(message || 'Assertion failed');
     }
-    
-    // Check if batching disabled
-    if (!this.config.enableBatching) {
-      // Execute immediately
-      try {
-        updateFn.call(element.state);
-      } catch (error) {
-        console.error('[UpdateBatcher] Immediate update failed:', error);
-      }
-      element.markNeedsBuild();
-      return;
-    }
-    
-    // Initialize update list for element if needed
-    if (!this.pendingUpdates.has(element)) {
-      this.pendingUpdates.set(element, []);
-    }
-    
-    const updates = this.pendingUpdates.get(element);
-    
-    // Check batch size limit
-    if (updates.length >= this.config.maxBatchSize) {
-      if (this.config.debugMode) {
-        console.warn(
-          `[UpdateBatcher] Max batch size (${this.config.maxBatchSize}) ` +
-          `reached for element ${element.id}`
-        );
-      }
-    }
-    
-    // Add update to queue
-    updates.push(updateFn);
-    
-    // Schedule flush if not already scheduled
-    if (!this.updateScheduled) {
-      this.scheduleFlush();
-    }
-    
-    if (this.config.debugMode) {
-      console.log(
-        `[UpdateBatcher] Queued update for ${element.id} ` +
-        `(${updates.length} pending)`
+  }
+  
+  assertEqual(actual, expected, message) {
+    if (actual !== expected) {
+      throw new Error(
+        message || `Expected ${expected} but got ${actual}`
       );
     }
   }
   
-  /**
-   * Schedule flush on next microtask
-   * Uses Promise for fast microtask execution
-   */
-  scheduleFlush() {
-    if (this.updateScheduled) {
-      return;
-    }
+  summary() {
+    const total = this.passed + this.failed;
+    console.log(`\n${'='.repeat(50)}`);
+    console.log(`Tests: ${total} | ✅ Passed: ${this.passed} | ❌ Failed: ${this.failed}`);
+    console.log(`${'='.repeat(50)}\n`);
     
-    this.updateScheduled = true;
-    this.stats.flushScheduledCount++;
-    
-    // Use microtask queue (faster than requestAnimationFrame)
-    Promise.resolve().then(() => {
-      this.flush();
-    });
-    
-    if (this.config.debugMode) {
-      console.log('[UpdateBatcher] Flush scheduled');
-    }
-  }
-  
-  /**
-   * Flush all pending updates
-   * Process all queued setState calls
-   */
-  flush() {
-    if (!this.updateScheduled) {
-      return; // Already flushed
-    }
-    
-    this.updateScheduled = false;
-    
-    const startTime = performance.now();
-    
-    try {
-      // Get all pending updates
-      const entries = Array.from(this.pendingUpdates.entries());
-      
-      if (entries.length === 0) {
-        if (this.config.debugMode) {
-          console.log('[UpdateBatcher] Flush called but no pending updates');
-        }
-        return;
-      }
-      
-      let totalUpdates = 0;
-      
-      // Process each element's updates
-      for (const [element, updateFns] of entries) {
-        // Skip unmounted elements
-        if (!element.mounted) {
-          if (this.config.debugMode) {
-            console.warn(
-              `[UpdateBatcher] Skipping unmounted element ${element.id}`
-            );
-          }
-          this.pendingUpdates.delete(element);
-          continue;
-        }
-        
-        // Skip elements without state
-        if (!element.state) {
-          if (this.config.debugMode) {
-            console.warn(
-              `[UpdateBatcher] Skipping element without state: ${element.id}`
-            );
-          }
-          this.pendingUpdates.delete(element);
-          continue;
-        }
-        
-        // Apply all updates to state
-        for (const updateFn of updateFns) {
-          try {
-            updateFn.call(element.state);
-            totalUpdates++;
-          } catch (error) {
-            console.error(
-              `[UpdateBatcher] Update function failed for ${element.id}:`,
-              error
-            );
-            // Continue with next update
-          }
-        }
-        
-        // Mark element for rebuild (only once per element)
-        if (!element.dirty) {
-          element.markNeedsBuild();
-        }
-      }
-      
-      // Clear pending updates
-      this.pendingUpdates.clear();
-      
-      // Update statistics
-      this.recordFlush(totalUpdates, entries.length);
-      
-      const flushDuration = performance.now() - startTime;
-      this.lastFlushDuration = flushDuration;
-      this.lastFlushTime = Date.now();
-      
-      if (this.config.debugMode) {
-        console.log(
-          `[UpdateBatcher] Flushed ${totalUpdates} updates ` +
-          `(${entries.length} elements) in ${flushDuration.toFixed(2)}ms`
-        );
-      }
-      
-      // Warn if flush took too long
-      if (flushDuration > 16.67) { // 60 FPS target
-        console.warn(
-          `[UpdateBatcher] Slow flush: ${flushDuration.toFixed(2)}ms ` +
-          `(${totalUpdates} updates, ${entries.length} elements)`
-        );
-      }
-    } catch (error) {
-      console.error('[UpdateBatcher] Flush failed:', error);
-    }
-  }
-  
-  /**
-   * Record flush statistics
-   * @param {number} updateCount - Number of updates applied
-   * @param {number} elementCount - Number of elements updated
-   */
-  recordFlush(updateCount, elementCount) {
-    this.stats.totalBatches++;
-    this.stats.batchesSinceStart++;
-    this.stats.totalUpdates += updateCount;
-    this.stats.updatesInLastBatch = updateCount;
-    
-    if (updateCount > this.stats.largestBatchSize) {
-      this.stats.largestBatchSize = updateCount;
-    }
-    
-    // Calculate average
-    if (this.stats.totalBatches > 0) {
-      this.stats.averageUpdatesPerBatch =
-        this.stats.totalUpdates / this.stats.totalBatches;
-    }
-  }
-  
-  /**
-   * Clear pending updates for specific element
-   * @param {Element} element - Element to clear (optional)
-   */
-  clear(element) {
-    if (element) {
-      // Clear specific element
-      this.pendingUpdates.delete(element);
-      
-      if (this.config.debugMode) {
-        console.log(`[UpdateBatcher] Cleared updates for ${element.id}`);
-      }
-    } else {
-      // Clear all
-      const count = this.pendingUpdates.size;
-      this.pendingUpdates.clear();
-      
-      if (this.config.debugMode) {
-        console.log(`[UpdateBatcher] Cleared all pending updates (${count})`);
-      }
-    }
-  }
-  
-  /**
-   * Get pending update count
-   * @param {Element} element - Optional, get count for specific element
-   * @returns {number}
-   */
-  getPendingCount(element) {
-    if (element) {
-      const updates = this.pendingUpdates.get(element);
-      return updates ? updates.length : 0;
-    }
-    
-    let total = 0;
-    this.pendingUpdates.forEach(updates => {
-      total += updates.length;
-    });
-    return total;
-  }
-  
-  /**
-   * Check if update scheduled
-   * @returns {boolean}
-   */
-  isScheduled() {
-    return this.updateScheduled;
-  }
-  
-  /**
-   * Get batched elements
-   * @returns {Element[]}
-   */
-  getBatchedElements() {
-    return Array.from(this.pendingUpdates.keys());
-  }
-  
-  /**
-   * Force immediate flush
-   * Used for testing or critical updates
-   */
-  forceFlush() {
-    if (this.config.debugMode) {
-      console.log('[UpdateBatcher] Force flush triggered');
-    }
-    
-    this.flush();
-  }
-  
-  /**
-   * Enable/disable batching
-   * @param {boolean} enabled
-   */
-  setBatchingEnabled(enabled) {
-    this.config.enableBatching = enabled;
-    
-    if (!enabled && this.updateScheduled) {
-      // Flush immediately if batching disabled
-      this.forceFlush();
-    }
-  }
-  
-  /**
-   * Set debug mode
-   * @param {boolean} enabled
-   */
-  setDebugMode(enabled) {
-    this.config.debugMode = enabled;
-  }
-  
-  /**
-   * Get statistics
-   * @returns {Object}
-   */
-  getStats() {
-    return {
-      ...this.stats,
-      pendingElements: this.pendingUpdates.size,
-      totalPendingUpdates: this.getPendingCount(),
-      updateScheduled: this.updateScheduled,
-      lastFlushTime: this.lastFlushTime,
-      lastFlushDuration: this.lastFlushDuration
-    };
-  }
-  
-  /**
-   * Get detailed report
-   * @returns {Object}
-   */
-  getDetailedReport() {
-    const elements = this.getBatchedElements();
-    const elementDetails = elements.map(el => ({
-      id: el.id,
-      type: el.constructor.name,
-      pendingUpdates: this.getPendingCount(el),
-      mounted: el.mounted,
-      depth: el.depth
-    }));
-    
-    return {
-      stats: this.getStats(),
-      batchedElements: elementDetails,
-      config: this.config,
-      timestamp: Date.now()
-    };
-  }
-  
-  /**
-   * Reset statistics
-   */
-  resetStats() {
-    this.stats = {
-      totalBatches: 0,
-      totalUpdates: 0,
-      updatesInLastBatch: 0,
-      averageUpdatesPerBatch: 0,
-      batchesSinceStart: 0,
-      largestBatchSize: 0,
-      flushScheduledCount: 0
-    };
-  }
-  
-  /**
-   * Dispose batcher
-   */
-  dispose() {
-    // Force final flush
-    if (this.updateScheduled) {
-      this.forceFlush();
-    }
-    
-    this.clear();
-    this.runtime = null;
-    
-    if (this.config.debugMode) {
-      console.log('[UpdateBatcher] Disposed');
-    }
+    return this.failed === 0;
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { UpdateBatcher };
+// Run tests
+async function runTests() {
+  const test = new TestRunner();
+  
+  // Test 1: Basic initialization
+  test.describe('UpdateBatcher: Initialization', () => {
+    test.it('should create with runtime', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      
+      test.assert(batcher !== null, 'Batcher should be created');
+      test.assertEqual(batcher.stats.totalBatches, 0, 'Should start with 0 batches');
+    });
+    
+    test.it('should throw without runtime', () => {
+      try {
+        new UpdateBatcher(null);
+        throw new Error('Should have thrown');
+      } catch (error) {
+        test.assert(
+          error.message.includes('Runtime'),
+          'Should throw error mentioning runtime'
+        );
+      }
+    });
+    
+    test.it('should have default config', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      
+      test.assert(batcher.config.enableBatching === true, 'Batching should be enabled');
+      test.assert(batcher.config.flushOnMicrotask === true, 'Microtask flush should be enabled');
+    });
+  });
+  
+  // Test 2: Queueing updates
+  test.describe('UpdateBatcher: Queueing Updates', () => {
+    test.it('should queue single update', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const element = new MockElement();
+      
+      const updateFn = function() { this.count++; };
+      batcher.queueUpdate(element, updateFn);
+      
+      test.assertEqual(
+        batcher.getPendingCount(element),
+        1,
+        'Should have 1 pending update'
+      );
+    });
+    
+    test.it('should queue multiple updates for same element', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const element = new MockElement();
+      
+      batcher.queueUpdate(element, function() { this.count++; });
+      batcher.queueUpdate(element, function() { this.count++; });
+      batcher.queueUpdate(element, function() { this.count++; });
+      
+      test.assertEqual(
+        batcher.getPendingCount(element),
+        3,
+        'Should have 3 pending updates'
+      );
+    });
+    
+    test.it('should queue updates for multiple elements', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const el1 = new MockElement('el_1');
+      const el2 = new MockElement('el_2');
+      const el3 = new MockElement('el_3');
+      
+      batcher.queueUpdate(el1, function() { this.count++; });
+      batcher.queueUpdate(el2, function() { this.count++; });
+      batcher.queueUpdate(el3, function() { this.count++; });
+      
+      test.assertEqual(
+        batcher.getBatchedElements().length,
+        3,
+        'Should have 3 batched elements'
+      );
+    });
+    
+    test.it('should throw on invalid element', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      
+      try {
+        batcher.queueUpdate(null, () => {});
+        throw new Error('Should have thrown');
+      } catch (error) {
+        test.assert(
+          error.message.includes('Element'),
+          'Should throw about element'
+        );
+      }
+    });
+    
+    test.it('should throw on invalid update function', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const element = new MockElement();
+      
+      try {
+        batcher.queueUpdate(element, 'not a function');
+        throw new Error('Should have thrown');
+      } catch (error) {
+        test.assert(
+          error.message.includes('function'),
+          'Should throw about function'
+        );
+      }
+    });
+  });
+  
+  // Test 3: Scheduling flushes
+  test.describe('UpdateBatcher: Scheduling', () => {
+    test.it('should schedule flush once', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const element = new MockElement();
+      
+      batcher.queueUpdate(element, function() { this.count++; });
+      
+      test.assert(
+        batcher.isScheduled(),
+        'Should have scheduled flush'
+      );
+    });
+    
+    test.it('should not schedule multiple times', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const element = new MockElement();
+      
+      batcher.queueUpdate(element, function() { this.count++; });
+      batcher.queueUpdate(element, function() { this.count++; });
+      batcher.queueUpdate(element, function() { this.count++; });
+      
+      test.assertEqual(
+        batcher.stats.flushScheduledCount,
+        1,
+        'Should only schedule once'
+      );
+    });
+    
+    test.it('should record scheduled count', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const el1 = new MockElement('el_1');
+      const el2 = new MockElement('el_2');
+      
+      batcher.queueUpdate(el1, function() { this.count++; });
+      batcher.forceFlush();
+      
+      batcher.queueUpdate(el2, function() { this.count++; });
+      batcher.forceFlush();
+      
+      test.assertEqual(
+        batcher.stats.flushScheduledCount,
+        2,
+        'Should record 2 schedule calls'
+      );
+    });
+  });
+  
+  // Test 4: Flushing updates
+  test.describe('UpdateBatcher: Flushing', () => {
+    test.it('should apply updates during flush', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const element = new MockElement();
+      
+      batcher.queueUpdate(element, function() { this.count++; });
+      batcher.queueUpdate(element, function() { this.count++; });
+      
+      batcher.forceFlush();
+      
+      test.assertEqual(
+        element.state.count,
+        2,
+        'State should be updated to 2'
+      );
+    });
+    
+    test.it('should mark element dirty', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const element = new MockElement();
+      
+      element.dirty = false;
+      batcher.queueUpdate(element, function() { this.count++; });
+      batcher.forceFlush();
+      
+      test.assert(
+        element.dirty === true,
+        'Element should be marked dirty'
+      );
+    });
+    
+    test.it('should clear pending updates', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const element = new MockElement();
+      
+      batcher.queueUpdate(element, function() { this.count++; });
+      test.assertEqual(batcher.getPendingCount(), 1, 'Should have 1 pending');
+      
+      batcher.forceFlush();
+      test.assertEqual(batcher.getPendingCount(), 0, 'Should have 0 pending after flush');
+    });
+    
+    test.it('should update statistics', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const el1 = new MockElement('el_1');
+      const el2 = new MockElement('el_2');
+      
+      batcher.queueUpdate(el1, function() { this.count++; });
+      batcher.queueUpdate(el1, function() { this.count++; });
+      batcher.queueUpdate(el2, function() { this.count++; });
+      
+      batcher.forceFlush();
+      
+      test.assertEqual(batcher.stats.totalBatches, 1, 'Should have 1 batch');
+      test.assertEqual(batcher.stats.totalUpdates, 3, 'Should have 3 total updates');
+      test.assertEqual(batcher.stats.updatesInLastBatch, 3, 'Last batch had 3 updates');
+    });
+    
+    test.it('should track largest batch', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const el1 = new MockElement('el_1');
+      const el2 = new MockElement('el_2');
+      
+      // First batch: 2 updates
+      batcher.queueUpdate(el1, function() { this.count++; });
+      batcher.queueUpdate(el1, function() { this.count++; });
+      batcher.forceFlush();
+      
+      // Second batch: 5 updates
+      for (let i = 0; i < 5; i++) {
+        batcher.queueUpdate(el2, function() { this.count++; });
+      }
+      batcher.forceFlush();
+      
+      test.assertEqual(
+        batcher.stats.largestBatchSize,
+        5,
+        'Largest batch should be 5'
+      );
+    });
+    
+    test.it('should skip unmounted elements', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const element = new MockElement();
+      element.mounted = false;
+      
+      batcher.queueUpdate(element, function() { this.count++; });
+      batcher.forceFlush();
+      
+      test.assertEqual(
+        element.state.count,
+        0,
+        'Unmounted element should not be updated'
+      );
+    });
+    
+    test.it('should skip elements without state', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const element = new MockElement();
+      element.state = null;
+      
+      batcher.queueUpdate(element, function() { this.count++; });
+      batcher.forceFlush();
+      
+      // Should not throw, just skip
+      test.assert(true, 'Should skip without error');
+    });
+  });
+  
+  // Test 5: Batching behavior
+  test.describe('UpdateBatcher: Batching', () => {
+    test.it('should handle disabled batching', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      batcher.setBatchingEnabled(false);
+      
+      const element = new MockElement();
+      batcher.queueUpdate(element, function() { this.count++; });
+      
+      test.assertEqual(
+        element.state.count,
+        1,
+        'Should update immediately'
+      );
+      test.assert(
+        !batcher.isScheduled(),
+        'Should not schedule'
+      );
+    });
+    
+    test.it('should enable/disable batching', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      
+      test.assert(batcher.config.enableBatching === true, 'Initially enabled');
+      
+      batcher.setBatchingEnabled(false);
+      test.assert(batcher.config.enableBatching === false, 'Should be disabled');
+      
+      batcher.setBatchingEnabled(true);
+      test.assert(batcher.config.enableBatching === true, 'Should be enabled');
+    });
+  });
+  
+  // Test 6: Clearing updates
+  test.describe('UpdateBatcher: Clearing', () => {
+    test.it('should clear all pending updates', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const el1 = new MockElement('el_1');
+      const el2 = new MockElement('el_2');
+      
+      batcher.queueUpdate(el1, function() { this.count++; });
+      batcher.queueUpdate(el2, function() { this.count++; });
+      
+      test.assertEqual(batcher.getPendingCount(), 2, 'Should have 2 pending');
+      
+      batcher.clear();
+      
+      test.assertEqual(batcher.getPendingCount(), 0, 'Should have 0 after clear');
+    });
+    
+    test.it('should clear specific element', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const el1 = new MockElement('el_1');
+      const el2 = new MockElement('el_2');
+      
+      batcher.queueUpdate(el1, function() { this.count++; });
+      batcher.queueUpdate(el2, function() { this.count++; });
+      
+      batcher.clear(el1);
+      
+      test.assertEqual(batcher.getPendingCount(el1), 0, 'el1 should be cleared');
+      test.assertEqual(batcher.getPendingCount(el2), 1, 'el2 should still have 1');
+    });
+  });
+  
+  // Test 7: Statistics and reporting
+  test.describe('UpdateBatcher: Statistics', () => {
+    test.it('should track statistics', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const el1 = new MockElement('el_1');
+      const el2 = new MockElement('el_2');
+      
+      batcher.queueUpdate(el1, function() { this.count++; });
+      batcher.queueUpdate(el1, function() { this.count++; });
+      batcher.queueUpdate(el2, function() { this.count++; });
+      batcher.forceFlush();
+      
+      const stats = batcher.getStats();
+      
+      test.assertEqual(stats.totalBatches, 1, 'Should record batch');
+      test.assertEqual(stats.totalUpdates, 3, 'Should record updates');
+      test.assertEqual(stats.updatesInLastBatch, 3, 'Should record last batch size');
+    });
+    
+    test.it('should generate detailed report', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const element = new MockElement();
+      
+      batcher.queueUpdate(element, function() { this.count++; });
+      
+      const report = batcher.getDetailedReport();
+      
+      test.assert(report.stats !== undefined, 'Should have stats');
+      test.assert(report.batchedElements !== undefined, 'Should have batchedElements');
+      test.assert(report.config !== undefined, 'Should have config');
+      test.assert(report.timestamp !== undefined, 'Should have timestamp');
+    });
+    
+    test.it('should reset statistics', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const element = new MockElement();
+      
+      batcher.queueUpdate(element, function() { this.count++; });
+      batcher.forceFlush();
+      
+      test.assertEqual(batcher.stats.totalBatches, 1, 'Should have batch before reset');
+      
+      batcher.resetStats();
+      
+      test.assertEqual(batcher.stats.totalBatches, 0, 'Should be 0 after reset');
+      test.assertEqual(batcher.stats.totalUpdates, 0, 'Should be 0 after reset');
+    });
+  });
+  
+  // Test 8: Edge cases
+  test.describe('UpdateBatcher: Edge Cases', () => {
+    test.it('should handle empty flush', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      
+      batcher.forceFlush();
+      
+      test.assertEqual(batcher.stats.totalBatches, 0, 'Should not count empty flush');
+    });
+    
+    test.it('should handle error in update function', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      const element = new MockElement();
+      
+      // This should not throw
+      batcher.queueUpdate(element, function() {
+        throw new Error('Update error');
+      });
+      batcher.queueUpdate(element, function() { this.count++; });
+      
+      batcher.forceFlush();
+      
+      // Second update should still execute
+      test.assertEqual(element.state.count, 1, 'Should continue after error');
+    });
+    
+    test.it('should handle max batch size warning', () => {
+      const runtime = new MockRuntime();
+      const batcher = new UpdateBatcher(runtime);
+      batcher.config.maxBatchSize = 3;
+      const element = new MockElement();
+      
+      for (let i = 0; i < 5; i++) {
+        batcher.queueUpdate(element, function() { this.count++; });
+      }
+      
+      test.assertEqual(
+        batcher.getPendingCount(element),
+        5,
+        'Should queue all updates'
+      );
+    });
+  });
+  
+  // Print summary
+  return test.summary();
 }
+
+// Run async tests
+runTests().then(success => {
+  process.exit(success ? 0 : 1);
+}).catch(error => {
+  console.error('Test runner failed:', error);
+  process.exit(1);
+});
