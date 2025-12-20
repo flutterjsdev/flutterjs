@@ -14,13 +14,13 @@
  */
 
 // Import Element classes from element.js
-const {
+import {
   Element,
   StatelessElement,
   StatefulElement,
   InheritedElement,
   ComponentElement
-} = require('./element.js');
+} from "../src/element.js";
 
 class RuntimeEngine {
   constructor() {
@@ -448,18 +448,10 @@ class RuntimeEngine {
 // Export
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    RuntimeEngine,
-    Element,
-    StatelessElement,
-    StatefulElement,
-    InheritedElement,
-    ComponentElement
+    RuntimeEngine
+  
   };
 }
 
-export { RuntimeEngine,
-    Element,
-    StatelessElement,
-    StatefulElement,
-    InheritedElement,
-    ComponentElement};
+export { RuntimeEngine
+    };

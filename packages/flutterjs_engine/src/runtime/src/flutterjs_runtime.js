@@ -25,13 +25,16 @@
  */
 
 // Import core subsystems
-const { RuntimeEngine } = require('./runtime_engine.js');
-const { EventSystem, SyntheticEvent } = require('./event_system.js');
-const { GestureManager } = require('./gesture_recognizer.js');
-const FocusManager = require('./focus_manager.js');
-const { MemoryManager, MemoryProfiler } = require('./memory_manager.js');
-const { ServiceRegistry } = require('./service_registry.js');
-const { StateManager } = require('./state.js');
+
+
+import { RuntimeEngine } from './runtime_engine.js';
+import { EventSystem, SyntheticEvent } from './event_system.js';
+import { GestureManager } from './gesture_recognizer.js';
+import { FocusManager } from './focus_manager.js';
+import { MemoryManager, MemoryProfiler } from './memory_manager.js';
+import { ServiceRegistry } from './service_registry.js';
+import { StateManager } from './state.js';
+
 
 /**
  * FlutterJSRuntime Class

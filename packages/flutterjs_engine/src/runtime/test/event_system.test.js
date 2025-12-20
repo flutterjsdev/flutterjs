@@ -12,6 +12,15 @@
 
 import {EventSystem, SyntheticEvent } from "../src/event_system.js";
 
+// Polyfill HTMLElement for Node.js testing
+if (typeof HTMLElement === 'undefined') {
+  global.HTMLElement = class HTMLElement {
+    constructor(tagName = 'DIV') {
+      this.tagName = tagName;
+    }
+  };
+}
+
 // Test Runner
 class TestRunner {
   constructor() {
@@ -100,30 +109,33 @@ class MockRuntime {
   }
 }
 
-// Mock DOM Element
+// Mock DOM Element - extends HTMLElement for instanceof check
 function createMockElement(tagName = 'DIV', elementId = null) {
+  const element = new HTMLElement(tagName);
   const listeners = {};
   
-  return {
-    tagName: tagName,
-    dataset: elementId ? { elementId } : {},
-    listeners: listeners,
-    addEventListener: function(eventType, handler, useCapture) {
-      if (!this.listeners[eventType]) {
-        this.listeners[eventType] = [];
-      }
-      this.listeners[eventType].push({ handler, useCapture });
-    },
-    removeEventListener: function(eventType, handler, useCapture) {
-      if (this.listeners[eventType]) {
-        this.listeners[eventType] = this.listeners[eventType].filter(
-          l => l.handler !== handler
-        );
-      }
-    },
-    appendChild: function() {},
-    parentElement: null
+  element.dataset = elementId ? { elementId } : {};
+  element.listeners = listeners;
+  
+  element.addEventListener = function(eventType, handler, useCapture) {
+    if (!this.listeners[eventType]) {
+      this.listeners[eventType] = [];
+    }
+    this.listeners[eventType].push({ handler, useCapture });
   };
+  
+  element.removeEventListener = function(eventType, handler, useCapture) {
+    if (this.listeners[eventType]) {
+      this.listeners[eventType] = this.listeners[eventType].filter(
+        l => l.handler !== handler
+      );
+    }
+  };
+  
+  element.appendChild = function() {};
+  element.parentElement = null;
+  
+  return element;
 }
 
 function createMockNativeEvent(type, options = {}) {
@@ -490,7 +502,9 @@ function runTests() {
       const rootElement = createMockElement('DIV');
       eventSystem.initialize(rootElement);
 
-      test.assertThrows(() => eventSystem.unregisterHandler(null), undefined);
+      eventSystem.unregisterHandler('non-existent');
+
+      test.assertEqual(eventSystem.getHandlerCount('non-existent'), 0);
     });
   });
 

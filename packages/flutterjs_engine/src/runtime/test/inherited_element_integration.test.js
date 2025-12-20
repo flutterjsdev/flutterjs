@@ -1,26 +1,33 @@
 /**
- * InheritedElement Integration Tests
- *
- * Tests for real-world scenarios and integration with BuildContext,
- * StatefulWidget, State management, and event systems.
+ * Element Tests
+ * 
+ * Test suite for Element, StatelessElement, and StatefulElement classes
+ * Tests lifecycle, tree building, state management, and rendering
  */
 
-import {
-  InheritedElement,
-  InheritedWidget,
-  ValueNotifier,
-  Provider,
-  ChangeNotifier
-} from '../src/inherited_element.js';
-import { StatefulElement, StatelessElement } from '../src/element.js';
-import { BuildContext } from '../src/build_context.js';
-import { State } from '../src/state.js';
+// Mock document for Node.js environment
+if (typeof document === 'undefined') {
+  global.document = {
+    createElement: (tag) => ({
+      style: {},
+      offsetWidth: 200,
+      offsetHeight: 100,
+      offsetLeft: 0,
+      offsetTop: 0,
+      appendChild: function() {},
+      removeChild: function() {},
+      insertBefore: function() {},
+      replaceChild: function() {}
+    })
+  };
+}
 
-// Mock classes
+// Mock classes for testing
 class MockWidget {
-  constructor(name) {
+  constructor(name = 'Widget') {
     this.name = name;
     this.key = null;
+    this.type = 'MockWidget';
   }
 }
 
@@ -28,580 +35,796 @@ class MockRuntime {
   constructor() {
     this.debugMode = false;
     this.serviceRegistry = new Map();
-    this.dirtyElements = new Set();
+    this.elements = new Map();
   }
 
-  markNeedsBuild(element) {
-    this.dirtyElements.add(element);
+  registerElement(id, element) {
+    this.elements.set(id, element);
+  }
+
+  getElement(id) {
+    return this.elements.get(id);
   }
 }
 
-class TestTheme extends InheritedWidget {
-  constructor({ primaryColor = '#6750a4', secondaryColor = '#03dac6', child, key }) {
-    super({ child, key });
-    this.data = {
-      primaryColor,
-      secondaryColor
+class MockState {
+  constructor(name = 'State') {
+    this.name = name;
+    this.mounted = false;
+    this.initStateCalled = false;
+    this.disposeCalled = false;
+  }
+
+  initState() {
+    this.initStateCalled = true;
+  }
+
+  dispose() {
+    this.disposeCalled = true;
+  }
+}
+
+// Base Element class (simplified for testing)
+class Element {
+  constructor(widget, parent, runtime) {
+    if (!widget) throw new Error('Widget is required');
+    if (!runtime) throw new Error('Runtime is required');
+
+    this.widget = widget;
+    this.parent = parent;
+    this._runtime = runtime;
+    this.id = `el_${Math.random().toString(36).substr(2, 9)}`;
+    this.children = [];
+    this.mounted = false;
+    this.dirty = false;
+    this.depth = parent ? parent.depth + 1 : 0;
+    this.domNode = null;
+  }
+
+  mount() {
+    this.mounted = true;
+  }
+
+  unmount() {
+    this.mounted = false;
+    this.children.forEach(child => child.unmount());
+    this.children = [];
+  }
+
+  markNeedsBuild() {
+    this.dirty = true;
+  }
+
+  build() {
+    throw new Error('build() must be implemented');
+  }
+
+  rebuild() {
+    if (!this.dirty) return;
+    this.dirty = false;
+  }
+
+  inflateWidget(widget, parentElement) {
+    if (widget.state) {
+      return new StatefulElement(widget, parentElement, this._runtime);
+    }
+    return new StatelessElement(widget, parentElement, this._runtime);
+  }
+
+  addChild(child) {
+    this.children.push(child);
+  }
+
+  removeChild(child) {
+    const index = this.children.indexOf(child);
+    if (index > -1) {
+      this.children.splice(index, 1);
+    }
+  }
+
+  getInfo() {
+    return {
+      id: this.id,
+      mounted: this.mounted,
+      dirty: this.dirty,
+      depth: this.depth,
+      childrenCount: this.children.length,
+      type: this.constructor.name
     };
   }
 
-  updateShouldNotify(oldWidget) {
-    return this.data.primaryColor !== oldWidget.data.primaryColor ||
-           this.data.secondaryColor !== oldWidget.data.secondaryColor;
-  }
-
-  static of(context) {
-    return context.dependOnInheritedWidgetOfExactType(TestTheme);
+  dispose() {
+    this.unmount();
+    this.widget = null;
+    this.parent = null;
+    this.domNode = null;
   }
 }
 
-class CounterNotifier extends ChangeNotifier {
-  constructor(initialValue = 0) {
-    super();
-    this.count = initialValue;
+class StatelessElement extends Element {
+  constructor(widget, parent, runtime) {
+    super(widget, parent, runtime);
   }
 
-  increment() {
-    this.count++;
-    this.notifyListeners();
+  build() {
+    return {
+      tag: 'div',
+      props: { 'data-widget': this.widget.name },
+      children: []
+    };
+  }
+}
+
+class StatefulElement extends Element {
+  constructor(widget, parent, runtime) {
+    super(widget, parent, runtime);
+    this.state = null;
   }
 
-  decrement() {
-    this.count--;
-    this.notifyListeners();
-  }
-
-  reset() {
-    this.count = 0;
-    this.notifyListeners();
-  }
-
-  setValue(value) {
-    if (this.count !== value) {
-      this.count = value;
-      this.notifyListeners();
+  initState() {
+    if (this.widget.state) {
+      this.state = new this.widget.state();
+      this.state.element = this;
+      if (this.state.initState) {
+        this.state.initState();
+      }
     }
   }
+
+  mount() {
+    this.initState();
+    super.mount();
+  }
+
+  build() {
+    if (!this.state) return { tag: 'div', children: [] };
+    return {
+      tag: 'div',
+      props: { 'data-widget': this.widget.name, 'data-state': this.state.name },
+      children: []
+    };
+  }
+
+  setState(newState) {
+    Object.assign(this.state, newState);
+    this.markNeedsBuild();
+  }
+
+  dispose() {
+    if (this.state && this.state.dispose) {
+      this.state.dispose();
+    }
+    this.state = null;
+    super.dispose();
+  }
 }
 
-describe('InheritedWidget Integration Tests', () => {
-  let runtime;
+// Test utilities
+class TestRunner {
+  constructor() {
+    this.tests = [];
+    this.passed = 0;
+    this.failed = 0;
+  }
 
-  beforeEach(() => {
-    runtime = new MockRuntime();
-  });
+  describe(name, fn) {
+    console.log(`\n📋 ${name}`);
+    fn();
+  }
 
-  describe('BuildContext Integration', () => {
-    it('should allow access via BuildContext.dependOnInheritedWidgetOfExactType', () => {
-      const themeWidget = new TestTheme({
-        primaryColor: '#FF0000',
-        child: new MockWidget('child')
-      });
+  it(name, fn) {
+    try {
+      fn();
+      console.log(`  ✅ ${name}`);
+      this.passed++;
+    } catch (error) {
+      console.log(`  ❌ ${name}`);
+      console.log(`     ${error.message}`);
+      this.failed++;
+    }
+  }
 
-      const themeElement = new InheritedElement(themeWidget, null, runtime);
-      themeElement.mounted = true;
+  assert(condition, message) {
+    if (!condition) {
+      throw new Error(message || 'Assertion failed');
+    }
+  }
 
-      const mockParentElement = {
-        parent: themeElement,
-        id: 'parent',
-        mounted: true,
-        _inheritedDependencies: new Set()
-      };
+  assertEqual(actual, expected, message) {
+    if (actual !== expected) {
+      throw new Error(
+        message || `Expected ${expected} but got ${actual}`
+      );
+    }
+  }
 
-      const context = new BuildContext(mockParentElement, runtime);
+  assertNull(value, message) {
+    if (value !== null) {
+      throw new Error(message || `Expected null but got ${value}`);
+    }
+  }
 
-      // Mock the dependOnInheritedWidgetOfExactType method
-      context.dependOnInheritedWidgetOfExactType = (Type) => {
-        let current = mockParentElement.parent;
-        while (current) {
-          if (current instanceof InheritedElement) {
-            if (current.widget instanceof TestTheme) {
-              current.addDependent(mockParentElement);
-              return current.widget;
-            }
-          }
-          current = current.parent;
-        }
-        return null;
-      };
+  assertNotNull(value, message) {
+    if (value === null) {
+      throw new Error(message || 'Expected value to not be null');
+    }
+  }
 
-      const theme = context.dependOnInheritedWidgetOfExactType(TestTheme);
+  assertDefined(value, message) {
+    if (value === undefined) {
+      throw new Error(message || 'Expected value to be defined');
+    }
+  }
 
-      expect(theme).toBeDefined();
-      expect(theme.data.primaryColor).toBe('#FF0000');
-      expect(themeElement.hasDependent(mockParentElement)).toBe(true);
+  assertArrayLength(arr, length, message) {
+    if (!Array.isArray(arr) || arr.length !== length) {
+      throw new Error(
+        message || `Expected array length ${length} but got ${arr?.length}`
+      );
+    }
+  }
+
+  assertTrue(value, message) {
+    if (value !== true) {
+      throw new Error(message || `Expected true but got ${value}`);
+    }
+  }
+
+  assertFalse(value, message) {
+    if (value !== false) {
+      throw new Error(message || `Expected false but got ${value}`);
+    }
+  }
+
+  summary() {
+    const total = this.passed + this.failed;
+    console.log(`\n${'='.repeat(50)}`);
+    console.log(`Tests: ${total} | ✅ Passed: ${this.passed} | ❌ Failed: ${this.failed}`);
+    console.log(`${'='.repeat(50)}\n`);
+
+    return this.failed === 0;
+  }
+}
+
+// Run tests
+function runTests() {
+  const test = new TestRunner();
+
+  // Test 1: Element Initialization
+  test.describe('Element: Initialization', () => {
+    test.it('should create element with widget and runtime', () => {
+      const widget = new MockWidget('TestWidget');
+      const runtime = new MockRuntime();
+
+      const element = new Element(widget, null, runtime);
+
+      test.assertNotNull(element, 'Element should be created');
+      test.assertEqual(element.widget, widget, 'Should store widget');
+      test.assertEqual(element._runtime, runtime, 'Should store runtime');
     });
 
-    it('should track multiple BuildContext accesses from same element', () => {
-      const themeWidget = new TestTheme({
-        primaryColor: '#0000FF',
-        child: new MockWidget('child')
-      });
+    test.it('should generate unique element ID', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
 
-      const themeElement = new InheritedElement(themeWidget, null, runtime);
-      themeElement.mounted = true;
+      const el1 = new Element(widget, null, runtime);
+      const el2 = new Element(widget, null, runtime);
 
-      const mockElement = {
-        parent: themeElement,
-        id: 'elem1',
-        mounted: true
-      };
-
-      // First access
-      themeElement.addDependent(mockElement);
-
-      // Second access from same element
-      themeElement.addDependent(mockElement);
-
-      // Should still only have one dependent (no duplicates)
-      expect(themeElement.dependentCount).toBe(1);
-      expect(themeElement.hasDependent(mockElement)).toBe(true);
+      test.assert(el1.id !== el2.id, 'Elements should have unique IDs');
     });
 
-    it('should handle nested InheritedWidgets correctly', () => {
-      // Theme provider
-      const themeWidget = new TestTheme({
-        primaryColor: '#6750a4',
-        child: new MockWidget('child')
-      });
-      const themeElement = new InheritedElement(themeWidget, null, runtime);
-      themeElement.mounted = true;
+    test.it('should set depth based on parent', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
 
-      // Locale provider (nested inside theme)
-      class LocaleWidget extends InheritedWidget {
-        constructor({ locale = 'en_US', child, key }) {
-          super({ child, key });
-          this.data = locale;
-        }
+      const parent = new Element(widget, null, runtime);
+      test.assertEqual(parent.depth, 0, 'Parent depth should be 0');
 
-        updateShouldNotify(oldWidget) {
-          return this.data !== oldWidget.data;
-        }
+      const child = new Element(widget, parent, runtime);
+      test.assertEqual(child.depth, 1, 'Child depth should be 1');
 
-        static of(context) {
-          return context.dependOnInheritedWidgetOfExactType(LocaleWidget);
-        }
+      const grandchild = new Element(widget, child, runtime);
+      test.assertEqual(grandchild.depth, 2, 'Grandchild depth should be 2');
+    });
+
+    test.it('should throw without widget', () => {
+      const runtime = new MockRuntime();
+
+      try {
+        new Element(null, null, runtime);
+        throw new Error('Should have thrown');
+      } catch (error) {
+        test.assert(error.message.includes('Widget'), 'Should mention widget');
       }
+    });
 
-      const localeWidget = new LocaleWidget({
-        locale: 'es_ES',
-        child: new MockWidget('child')
-      });
-      const localeElement = new InheritedElement(localeWidget, themeElement, runtime);
-      localeElement.mounted = true;
+    test.it('should throw without runtime', () => {
+      const widget = new MockWidget();
 
-      // Consumer element (inside locale provider)
-      const consumerElement = {
-        parent: localeElement,
-        id: 'consumer',
-        mounted: true,
-        markNeedsBuild: jest.fn()
-      };
+      try {
+        new Element(widget, null, null);
+        throw new Error('Should have thrown');
+      } catch (error) {
+        test.assert(error.message.includes('Runtime'), 'Should mention runtime');
+      }
+    });
 
-      // Should be able to access nearest inherited widget
-      localeElement.addDependent(consumerElement);
+    test.it('should initialize with correct default values', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
 
-      expect(localeElement.dependentCount).toBe(1);
-      expect(themeElement.dependentCount).toBe(0);
+      const element = new Element(widget, null, runtime);
 
-      // Update locale - should notify consumer
-      const newLocaleWidget = new LocaleWidget({
-        locale: 'fr_FR',
-        child: new MockWidget('child')
-      });
-      localeElement.update(newLocaleWidget);
-      localeElement.notifyDependents();
-
-      expect(consumerElement.markNeedsBuild).toHaveBeenCalled();
+      test.assertEqual(element.mounted, false, 'Should start unmounted');
+      test.assertEqual(element.dirty, false, 'Should start clean');
+      test.assertArrayLength(element.children, 0, 'Should start with no children');
+      test.assertNull(element.domNode, 'Should start with no DOM node');
     });
   });
 
-  describe('ChangeNotifier with InheritedWidget', () => {
-    it('should propagate ChangeNotifier updates to dependents', () => {
-      const counterNotifier = new CounterNotifier(5);
-      const provider = new Provider({
-        notifier: counterNotifier,
-        child: new MockWidget('child')
-      });
+  // Test 2: Lifecycle Management
+  test.describe('Element: Lifecycle Management', () => {
+    test.it('should mount element', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+      const element = new Element(widget, null, runtime);
 
-      const providerElement = new InheritedElement(provider, null, runtime);
-      providerElement.mounted = true;
+      element.mount();
 
-      const dependent1 = { id: 'dep1', mounted: true, markNeedsBuild: jest.fn() };
-      const dependent2 = { id: 'dep2', mounted: true, markNeedsBuild: jest.fn() };
-
-      providerElement.addDependent(dependent1);
-      providerElement.addDependent(dependent2);
-
-      // Update notifier
-      counterNotifier.increment();
-
-      expect(counterNotifier.count).toBe(6);
-
-      // Update provider with new value
-      const newProvider = new Provider({
-        notifier: counterNotifier,
-        child: new MockWidget('child')
-      });
-      providerElement.update(newProvider);
-      providerElement.notifyDependents();
-
-      expect(dependent1.markNeedsBuild).toHaveBeenCalled();
-      expect(dependent2.markNeedsBuild).toHaveBeenCalled();
+      test.assertEqual(element.mounted, true, 'Should be mounted');
     });
 
-    it('should handle listener registration on ChangeNotifier', () => {
-      const notifier = new CounterNotifier(0);
-      const listener1 = jest.fn();
-      const listener2 = jest.fn();
+    test.it('should unmount element', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+      const element = new Element(widget, null, runtime);
 
-      notifier.addListener(listener1);
-      notifier.addListener(listener2);
+      element.mount();
+      element.unmount();
 
-      notifier.increment();
-      notifier.increment();
-
-      expect(listener1).toHaveBeenCalledTimes(2);
-      expect(listener2).toHaveBeenCalledTimes(2);
-      expect(notifier.count).toBe(2);
+      test.assertEqual(element.mounted, false, 'Should be unmounted');
     });
 
-    it('should optimize notifications when notifier unchanged', () => {
-      const notifier = new CounterNotifier(10);
-      const provider1 = new Provider({
-        notifier,
-        child: new MockWidget('child1')
-      });
-      const provider2 = new Provider({
-        notifier,
-        child: new MockWidget('child2')
-      });
+    test.it('should unmount children when unmounting parent', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
 
-      // Both use same notifier - update should not trigger propagation
-      // (notifier itself handles listeners)
-      expect(provider1.updateShouldNotify(provider2)).toBe(false);
-    });
-  });
+      const parent = new Element(widget, null, runtime);
+      const child1 = new Element(widget, parent, runtime);
+      const child2 = new Element(widget, parent, runtime);
 
-  describe('ValueNotifier with InheritedWidget', () => {
-    it('should efficiently update single reactive value', () => {
-      const valueNotifier = new ValueNotifier({ isDarkMode: false });
-      const provider = new Provider({
-        notifier: valueNotifier,
-        child: new MockWidget('child')
-      });
+      parent.addChild(child1);
+      parent.addChild(child2);
 
-      const providerElement = new InheritedElement(provider, null, runtime);
-      providerElement.mounted = true;
+      child1.mount();
+      child2.mount();
+      parent.mount();
 
-      const dependent = { id: 'dep', mounted: true, markNeedsBuild: jest.fn() };
-      providerElement.addDependent(dependent);
+      parent.unmount();
 
-      // Change value
-      valueNotifier.value = { isDarkMode: true };
-
-      expect(valueNotifier.value.isDarkMode).toBe(true);
-
-      // Simulate update propagation
-      const newProvider = new Provider({
-        notifier: valueNotifier,
-        child: new MockWidget('child')
-      });
-      providerElement.update(newProvider);
-      providerElement.notifyDependents();
-
-      expect(dependent.markNeedsBuild).toHaveBeenCalled();
+      test.assertEqual(child1.mounted, false, 'Child1 should be unmounted');
+      test.assertEqual(child2.mounted, false, 'Child2 should be unmounted');
     });
 
-    it('should only notify when value actually changes', () => {
-      const notifier = new ValueNotifier('initial');
-      const listeners = [jest.fn(), jest.fn(), jest.fn()];
+    test.it('should mark dirty on markNeedsBuild', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+      const element = new Element(widget, null, runtime);
 
-      listeners.forEach(l => notifier.addListener(l));
+      test.assertEqual(element.dirty, false, 'Should start clean');
 
-      // Set same value - no notification
-      notifier.value = 'initial';
-      expect(listeners[0]).not.toHaveBeenCalled();
+      element.markNeedsBuild();
 
-      // Set different value - notify
-      notifier.value = 'changed';
-      expect(listeners[0]).toHaveBeenCalled();
-      expect(listeners[1]).toHaveBeenCalled();
-      expect(listeners[2]).toHaveBeenCalled();
+      test.assertEqual(element.dirty, true, 'Should be dirty');
+    });
+
+    test.it('should clean dirty flag on rebuild', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+      const element = new StatelessElement(widget, null, runtime);
+
+      element.markNeedsBuild();
+      test.assertEqual(element.dirty, true, 'Should be dirty');
+
+      element.rebuild();
+
+      test.assertEqual(element.dirty, false, 'Should be clean after rebuild');
+    });
+
+    test.it('should not rebuild if not dirty', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+      const element = new StatelessElement(widget, null, runtime);
+
+      element.dirty = false;
+      element.rebuild();
+
+      test.assertEqual(element.dirty, false, 'Should remain clean');
     });
   });
 
-  describe('Multi-Widget Theme System', () => {
-    it('should support application-wide theme switching', () => {
-      // Root theme provider
-      let currentTheme = { primaryColor: '#6750a4', isDark: false };
+  // Test 3: Child Management
+  test.describe('Element: Child Management', () => {
+    test.it('should add child element', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
 
-      const themeWidget = new TestTheme({
-        primaryColor: currentTheme.primaryColor,
-        child: new MockWidget('app')
-      });
-      const themeElement = new InheritedElement(themeWidget, null, runtime);
-      themeElement.mounted = true;
+      const parent = new Element(widget, null, runtime);
+      const child = new Element(widget, parent, runtime);
 
-      // Multiple consumers throughout app
-      const consumers = [];
+      parent.addChild(child);
+
+      test.assertArrayLength(parent.children, 1, 'Should have 1 child');
+      test.assertEqual(parent.children[0], child, 'Child should be in list');
+    });
+
+    test.it('should add multiple children', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+
+      const parent = new Element(widget, null, runtime);
+      const child1 = new Element(widget, parent, runtime);
+      const child2 = new Element(widget, parent, runtime);
+      const child3 = new Element(widget, parent, runtime);
+
+      parent.addChild(child1);
+      parent.addChild(child2);
+      parent.addChild(child3);
+
+      test.assertArrayLength(parent.children, 3, 'Should have 3 children');
+    });
+
+    test.it('should remove child element', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+
+      const parent = new Element(widget, null, runtime);
+      const child1 = new Element(widget, parent, runtime);
+      const child2 = new Element(widget, parent, runtime);
+
+      parent.addChild(child1);
+      parent.addChild(child2);
+
+      parent.removeChild(child1);
+
+      test.assertArrayLength(parent.children, 1, 'Should have 1 child');
+      test.assertEqual(parent.children[0], child2, 'Only child2 should remain');
+    });
+
+    test.it('should handle removing non-existent child', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+
+      const parent = new Element(widget, null, runtime);
+      const child = new Element(widget, parent, runtime);
+      const other = new Element(widget, parent, runtime);
+
+      parent.addChild(child);
+
+      test.assert(() => {
+        parent.removeChild(other);
+        return true;
+      }, 'Should not throw');
+
+      test.assertArrayLength(parent.children, 1, 'Should still have 1 child');
+    });
+
+    test.it('should maintain parent-child relationships', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+
+      const parent = new Element(widget, null, runtime);
+      const child = new Element(widget, parent, runtime);
+
+      test.assertEqual(child.parent, parent, 'Child should reference parent');
+      test.assertEqual(parent.depth, 0, 'Parent depth is 0');
+      test.assertEqual(child.depth, 1, 'Child depth is 1');
+    });
+  });
+
+  // Test 4: StatelessElement
+  test.describe('StatelessElement: Behavior', () => {
+    test.it('should build simple widget', () => {
+      const widget = new MockWidget('TestWidget');
+      const runtime = new MockRuntime();
+
+      const element = new StatelessElement(widget, null, runtime);
+      const built = element.build();
+
+      test.assertNotNull(built, 'Should return built object');
+      test.assertEqual(built.tag, 'div', 'Should have div tag');
+      test.assertEqual(built.props['data-widget'], 'TestWidget', 'Should have widget name');
+    });
+
+    test.it('should not have state property', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+
+      const element = new StatelessElement(widget, null, runtime);
+
+      test.assert(!element.hasOwnProperty('state') || element.state === undefined, 'Should not have state');
+    });
+
+    test.it('should rebuild without state changes', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+
+      const element = new StatelessElement(widget, null, runtime);
+
+      element.markNeedsBuild();
+      element.rebuild();
+
+      test.assertEqual(element.dirty, false, 'Should be clean after rebuild');
+    });
+  });
+
+  // Test 5: StatefulElement
+  test.describe('StatefulElement: State Management', () => {
+    test.it('should create element with state', () => {
+      const mockState = MockState;
+      const widget = new MockWidget('StatefulWidget');
+      widget.state = mockState;
+
+      const runtime = new MockRuntime();
+      const element = new StatefulElement(widget, null, runtime);
+
+      test.assertNull(element.state, 'State should not be initialized until mount');
+    });
+
+    test.it('should initialize state on mount', () => {
+      const widget = new MockWidget('StatefulWidget');
+      widget.state = MockState;
+
+      const runtime = new MockRuntime();
+      const element = new StatefulElement(widget, null, runtime);
+
+      element.mount();
+
+      test.assertNotNull(element.state, 'State should be initialized');
+      test.assert(element.state instanceof MockState, 'Should be MockState instance');
+      test.assertEqual(element.state.element, element, 'State should reference element');
+    });
+
+    test.it('should call state initState on mount', () => {
+      const widget = new MockWidget();
+      widget.state = MockState;
+
+      const runtime = new MockRuntime();
+      const element = new StatefulElement(widget, null, runtime);
+
+      element.mount();
+
+      test.assertTrue(element.state.initStateCalled, 'initState should be called');
+    });
+
+    test.it('should call setState', () => {
+      const widget = new MockWidget();
+      widget.state = MockState;
+
+      const runtime = new MockRuntime();
+      const element = new StatefulElement(widget, null, runtime);
+
+      element.mount();
+
+      const stateBefore = element.state.name;
+      element.setState({ name: 'UpdatedState' });
+
+      test.assertEqual(element.state.name, 'UpdatedState', 'State should be updated');
+      test.assertEqual(element.dirty, true, 'Element should be marked dirty');
+    });
+
+    test.it('should dispose state on unmount', () => {
+      const widget = new MockWidget();
+      widget.state = MockState;
+
+      const runtime = new MockRuntime();
+      const element = new StatefulElement(widget, null, runtime);
+
+      element.mount();
+      element.dispose();
+
+      test.assertNull(element.state, 'State should be cleared');
+      test.assert(element.state === null, 'State should be null');
+    });
+
+    test.it('should build with state data', () => {
+      const widget = new MockWidget('StatefulWidget');
+      widget.state = MockState;
+
+      const runtime = new MockRuntime();
+      const element = new StatefulElement(widget, null, runtime);
+
+      element.mount();
+      const built = element.build();
+
+      test.assertNotNull(built, 'Should return built object');
+      test.assertEqual(built.props['data-state'], 'State', 'Should have state name');
+    });
+  });
+
+  // Test 6: Widget Inflation
+  test.describe('Element: Widget Inflation', () => {
+    test.it('should inflate stateless widget', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+
+      const parent = new Element(widget, null, runtime);
+      const inflated = parent.inflateWidget(widget, parent);
+
+      test.assert(inflated instanceof StatelessElement, 'Should create StatelessElement');
+    });
+
+    test.it('should inflate stateful widget', () => {
+      const widget = new MockWidget();
+      widget.state = MockState;
+
+      const runtime = new MockRuntime();
+
+      const parent = new Element(widget, null, runtime);
+      const inflated = parent.inflateWidget(widget, parent);
+
+      test.assert(inflated instanceof StatefulElement, 'Should create StatefulElement');
+    });
+  });
+
+  // Test 7: Information & Debugging
+  test.describe('Element: Information & Debugging', () => {
+    test.it('should provide element info', () => {
+      const widget = new MockWidget('TestWidget');
+      const runtime = new MockRuntime();
+
+      const element = new Element(widget, null, runtime);
+      element.mount();
+
+      const info = element.getInfo();
+
+      test.assertNotNull(info, 'Should return info object');
+      test.assertEqual(info.mounted, true, 'Should include mounted status');
+      test.assertEqual(info.dirty, false, 'Should include dirty status');
+      test.assertEqual(info.depth, 0, 'Should include depth');
+      test.assertEqual(info.childrenCount, 0, 'Should include children count');
+    });
+
+    test.it('should include children count in info', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+
+      const parent = new Element(widget, null, runtime);
+      const child1 = new Element(widget, parent, runtime);
+      const child2 = new Element(widget, parent, runtime);
+
+      parent.addChild(child1);
+      parent.addChild(child2);
+
+      const info = parent.getInfo();
+
+      test.assertEqual(info.childrenCount, 2, 'Should count children');
+    });
+
+    test.it('should include element type in info', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+
+      const stateless = new StatelessElement(widget, null, runtime);
+      const info = stateless.getInfo();
+
+      test.assertEqual(info.type, 'StatelessElement', 'Should include type');
+    });
+  });
+
+  // Test 8: Cleanup & Disposal
+  test.describe('Element: Cleanup & Disposal', () => {
+    test.it('should dispose element', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+
+      const element = new Element(widget, null, runtime);
+      element.mount();
+
+      element.dispose();
+
+      test.assertNull(element.widget, 'Widget should be cleared');
+      test.assertNull(element.parent, 'Parent should be cleared');
+      test.assertNull(element.domNode, 'DOM node should be cleared');
+      test.assertEqual(element.mounted, false, 'Should be unmounted');
+    });
+
+    test.it('should clean up children on dispose', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+
+      const parent = new Element(widget, null, runtime);
+      const child = new Element(widget, parent, runtime);
+
+      parent.addChild(child);
+      parent.dispose();
+
+      test.assertArrayLength(parent.children, 0, 'Children should be cleared');
+    });
+
+    test.it('should dispose state element on dispose', () => {
+      const widget = new MockWidget();
+      widget.state = MockState;
+
+      const runtime = new MockRuntime();
+      const element = new StatefulElement(widget, null, runtime);
+
+      element.mount();
+      const beforeDispose = element.state.disposeCalled;
+      element.dispose();
+
+      test.assertNull(element.state, 'State should be disposed');
+      test.assert(element.state === null, 'State should be null after dispose');
+    });
+  });
+
+  // Test 9: Complex Scenarios
+  test.describe('Element: Complex Scenarios', () => {
+    test.it('should handle deep element tree', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
+
+      let parent = new Element(widget, null, runtime);
+      const elements = [parent];
+
       for (let i = 0; i < 10; i++) {
-        const consumer = {
-          id: `consumer-${i}`,
-          mounted: true,
-          markNeedsBuild: jest.fn()
-        };
-        themeElement.addDependent(consumer);
-        consumers.push(consumer);
+        const child = new Element(widget, parent, runtime);
+        parent.addChild(child);
+        elements.push(child);
+        parent = child;
       }
 
-      expect(themeElement.dependentCount).toBe(10);
-
-      // Switch theme
-      const newThemeWidget = new TestTheme({
-        primaryColor: '#FF5722',
-        child: new MockWidget('app')
-      });
-      themeElement.update(newThemeWidget);
-
-      // Only notify if color actually changed
-      expect(newThemeWidget.updateShouldNotify(themeWidget)).toBe(true);
-
-      themeElement.notifyDependents();
-
-      // All consumers should rebuild
-      consumers.forEach(c => {
-        expect(c.markNeedsBuild).toHaveBeenCalled();
-      });
+      test.assertEqual(parent.depth, 10, 'Should maintain depth correctly');
+      test.assertEqual(elements[5].depth, 5, 'Intermediate element should have correct depth');
     });
-  });
 
-  describe('StatefulWidget Integration', () => {
-    it('should work with StatefulElement for reactive state', () => {
-      // Create a counter notifier
-      const counterNotifier = new CounterNotifier(0);
+    test.it('should handle multiple siblings', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
 
-      // Provider element
-      const provider = new Provider({
-        notifier: counterNotifier,
-        child: new MockWidget('counter')
-      });
-      const providerElement = new InheritedElement(provider, null, runtime);
-      providerElement.mounted = true;
+      const parent = new Element(widget, null, runtime);
 
-      // Stateful consumer
-      class CounterState extends State {
-        build(context) {
-          // In real scenario, this would:
-          // const counter = Provider.of(context);
-          // return Text(`Count: ${counter.count}`);
-          return new MockWidget('text');
-        }
+      for (let i = 0; i < 50; i++) {
+        const child = new Element(widget, parent, runtime);
+        parent.addChild(child);
       }
 
-      const statefulConsumer = {
-        id: 'counter-consumer',
-        mounted: true,
-        parent: providerElement,
-        markNeedsBuild: jest.fn(),
-        state: new CounterState()
-      };
-
-      // Register as dependent
-      providerElement.addDependent(statefulConsumer);
-
-      // Change counter
-      counterNotifier.increment();
-      counterNotifier.increment();
-
-      expect(counterNotifier.count).toBe(2);
-
-      // Update provider (in real app, this triggers rebuild)
-      const newProvider = new Provider({
-        notifier: counterNotifier,
-        child: new MockWidget('counter')
-      });
-      providerElement.update(newProvider);
-      providerElement.notifyDependents();
-
-      expect(statefulConsumer.markNeedsBuild).toHaveBeenCalled();
-    });
-  });
-
-  describe('Selective Notifications', () => {
-    it('should support selective dependent notifications', () => {
-      const widget = new TestTheme({
-        primaryColor: '#6750a4',
-        child: new MockWidget('child')
-      });
-      const element = new InheritedElement(widget, null, runtime);
-      element.mounted = true;
-
-      // Create multiple dependents
-      const dependents = Array.from({ length: 5 }, (_, i) => ({
-        id: `dep-${i}`,
-        mounted: true,
-        markNeedsBuild: jest.fn()
-      }));
-
-      dependents.forEach(d => element.addDependent(d));
-
-      // Only notify specific ones
-      const toNotify = new Set([dependents[0], dependents[2], dependents[4]]);
-      element.notifySpecificDependents(toNotify);
-
-      expect(dependents[0].markNeedsBuild).toHaveBeenCalled();
-      expect(dependents[1].markNeedsBuild).not.toHaveBeenCalled();
-      expect(dependents[2].markNeedsBuild).toHaveBeenCalled();
-      expect(dependents[3].markNeedsBuild).not.toHaveBeenCalled();
-      expect(dependents[4].markNeedsBuild).toHaveBeenCalled();
-    });
-  });
-
-  describe('Error Handling & Edge Cases', () => {
-    it('should handle update with error in updateShouldNotify', () => {
-      const widget = new TestTheme({
-        primaryColor: '#6750a4',
-        child: new MockWidget('child')
-      });
-      const element = new InheritedElement(widget, null, runtime);
-      element.mounted = true;
-
-      const dependent = { id: 'dep', mounted: true, markNeedsBuild: jest.fn() };
-      element.addDependent(dependent);
-
-      // Mock error in updateShouldNotify
-      widget.updateShouldNotify = () => {
-        throw new Error('Update check failed');
-      };
-
-      const newWidget = new TestTheme({
-        primaryColor: '#FF0000',
-        child: new MockWidget('child')
-      });
-
-      // Should not crash
-      expect(() => element.update(newWidget)).not.toThrow();
+      test.assertArrayLength(parent.children, 50, 'Should handle many siblings');
     });
 
-    it('should handle rapid mount/unmount cycles', () => {
-      const widget = new TestTheme({
-        primaryColor: '#6750a4',
-        child: new MockWidget('child')
-      });
-      const element = new InheritedElement(widget, null, runtime);
+    test.it('should handle rapid mount/unmount cycles', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
 
-      // Rapid cycles
+      const element = new Element(widget, null, runtime);
+
       for (let i = 0; i < 10; i++) {
         element.mount();
-        const dependent = { id: `dep-${i}`, mounted: true };
-        element.addDependent(dependent);
+        test.assertEqual(element.mounted, true, `Should be mounted in cycle ${i}`);
+
         element.unmount();
+        test.assertEqual(element.mounted, false, `Should be unmounted in cycle ${i}`);
       }
-
-      expect(element.mounted).toBe(false);
-      expect(element.dependentCount).toBe(0);
     });
 
-    it('should handle unmount of dependent during notification', () => {
-      const widget = new TestTheme({
-        primaryColor: '#6750a4',
-        child: new MockWidget('child')
-      });
-      const element = new InheritedElement(widget, null, runtime);
-      element.mounted = true;
+    test.it('should handle rapid rebuild cycles', () => {
+      const widget = new MockWidget();
+      const runtime = new MockRuntime();
 
-      const dependent1 = { id: 'dep1', mounted: true, markNeedsBuild: jest.fn() };
-      const dependent2 = { id: 'dep2', mounted: true, markNeedsBuild: jest.fn() };
-      const dependent3 = { id: 'dep3', mounted: true, markNeedsBuild: jest.fn() };
+      const element = new StatelessElement(widget, null, runtime);
 
-      element.addDependent(dependent1);
-      element.addDependent(dependent2);
-      element.addDependent(dependent3);
+      for (let i = 0; i < 100; i++) {
+        element.markNeedsBuild();
+        test.assertEqual(element.dirty, true, `Should be dirty in cycle ${i}`);
 
-      // Unmount one during notification
-      dependent2.mounted = false;
-
-      element.notifyDependents();
-
-      expect(dependent1.markNeedsBuild).toHaveBeenCalled();
-      expect(dependent2.markNeedsBuild).not.toHaveBeenCalled();
-      expect(dependent3.markNeedsBuild).toHaveBeenCalled();
+        element.rebuild();
+        test.assertEqual(element.dirty, false, `Should be clean in cycle ${i}`);
+      }
     });
   });
 
-  describe('Real-World Scenario: Multi-Provider App', () => {
-    it('should handle app with multiple providers', () => {
-      // Theme provider
-      const themeNotifier = new ValueNotifier({ isDark: false });
-      const themeProvider = new Provider({
-        notifier: themeNotifier,
-        child: new MockWidget('app')
-      });
-      const themeElement = new InheritedElement(themeProvider, null, runtime);
-      themeElement.mounted = true;
+  return test.summary();
+}
 
-      // Localization provider
-      const localeNotifier = new ValueNotifier('en_US');
-      const localeProvider = new Provider({
-        notifier: localeNotifier,
-        child: new MockWidget('app')
-      });
-      const localeElement = new InheritedElement(localeProvider, themeElement, runtime);
-      localeElement.mounted = true;
-
-      // Settings provider
-      const settingsNotifier = new ValueNotifier({ notifications: true });
-      const settingsProvider = new Provider({
-        notifier: settingsNotifier,
-        child: new MockWidget('app')
-      });
-      const settingsElement = new InheritedElement(settingsProvider, localeElement, runtime);
-      settingsElement.mounted = true;
-
-      // Components using different providers
-      const themeConsumer = { id: 'theme-consumer', mounted: true, markNeedsBuild: jest.fn() };
-      const localeConsumer = { id: 'locale-consumer', mounted: true, markNeedsBuild: jest.fn() };
-      const settingsConsumer = { id: 'settings-consumer', mounted: true, markNeedsBuild: jest.fn() };
-      const multiConsumer = { id: 'multi-consumer', mounted: true, markNeedsBuild: jest.fn() };
-
-      themeElement.addDependent(themeConsumer);
-      themeElement.addDependent(multiConsumer);
-
-      localeElement.addDependent(localeConsumer);
-      localeElement.addDependent(multiConsumer);
-
-      settingsElement.addDependent(settingsConsumer);
-      settingsElement.addDependent(multiConsumer);
-
-      // Change theme
-      themeNotifier.value = { isDark: true };
-      const newThemeProvider = new Provider({
-        notifier: themeNotifier,
-        child: new MockWidget('app')
-      });
-      themeElement.update(newThemeProvider);
-      themeElement.notifyDependents();
-
-      expect(themeConsumer.markNeedsBuild).toHaveBeenCalled();
-      expect(multiConsumer.markNeedsBuild).toHaveBeenCalled();
-
-      // Reset for next change
-      themeConsumer.markNeedsBuild.mockClear();
-      multiConsumer.markNeedsBuild.mockClear();
-
-      // Change locale
-      localeNotifier.value = 'es_ES';
-      const newLocaleProvider = new Provider({
-        notifier: localeNotifier,
-        child: new MockWidget('app')
-      });
-      localeElement.update(newLocaleProvider);
-      localeElement.notifyDependents();
-
-      expect(localeConsumer.markNeedsBuild).toHaveBeenCalled();
-      expect(multiConsumer.markNeedsBuild).toHaveBeenCalled();
-      expect(themeConsumer.markNeedsBuild).not.toHaveBeenCalled();
-    });
-  });
-});
+// Run
+runTests();

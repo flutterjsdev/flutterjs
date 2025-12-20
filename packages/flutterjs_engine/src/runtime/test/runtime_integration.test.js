@@ -5,7 +5,14 @@
  */
 
 
-import { RuntimeEngine,StatefulElement,StatefulElement } from '../src/runtime_engine.js';
+import { RuntimeEngine} from '../src/runtime_engine.js';
+import {
+  Element,
+  StatelessElement,
+  StatefulElement,
+  InheritedElement,
+  ComponentElement
+} from "../src/element.js";
 
 // Mock DOM
 if (typeof document === 'undefined') {

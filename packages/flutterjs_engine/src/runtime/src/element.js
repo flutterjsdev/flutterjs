@@ -18,7 +18,7 @@
  */
 
 // Import BuildContext
-const { BuildContext } = require('./build_context.js');
+import { BuildContext } from './build_context.js';
 
 /**
  * Base Element Class
