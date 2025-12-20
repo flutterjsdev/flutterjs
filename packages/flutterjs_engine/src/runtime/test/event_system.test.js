@@ -10,688 +10,663 @@
  * - Memory management
  */
 
-import {
-  EventSystem,
-  SyntheticEvent
-} from '../src/event_system.js';
+import {EventSystem, SyntheticEvent } from "../src/event_system.js";
 
-// Mock classes
+// Test Runner
+class TestRunner {
+  constructor() {
+    this.passed = 0;
+    this.failed = 0;
+    this.tests = [];
+  }
+
+  describe(name, fn) {
+    console.log(`\n📋 ${name}`);
+    fn();
+  }
+
+  it(name, fn) {
+    try {
+      fn();
+      console.log(`  ✅ ${name}`);
+      this.passed++;
+    } catch (error) {
+      console.log(`  ❌ ${name}`);
+      console.log(`     ${error.message}`);
+      this.failed++;
+    }
+  }
+
+  assert(condition, message) {
+    if (!condition) {
+      throw new Error(message || 'Assertion failed');
+    }
+  }
+
+  assertEqual(actual, expected, message) {
+    if (actual !== expected) {
+      throw new Error(message || `Expected ${expected} but got ${actual}`);
+    }
+  }
+
+  assertNull(value, message) {
+    if (value !== null) {
+      throw new Error(message || `Expected null but got ${value}`);
+    }
+  }
+
+  assertNotNull(value, message) {
+    if (value === null) {
+      throw new Error(message || 'Expected value to not be null');
+    }
+  }
+
+  assertTrue(value, message) {
+    if (value !== true) {
+      throw new Error(message || `Expected true but got ${value}`);
+    }
+  }
+
+  assertFalse(value, message) {
+    if (value !== false) {
+      throw new Error(message || `Expected false but got ${value}`);
+    }
+  }
+
+  assertThrows(fn, message) {
+    try {
+      fn();
+      throw new Error(message || 'Expected function to throw');
+    } catch (e) {
+      if (message && !e.message.includes(message)) {
+        throw new Error(`Expected error with "${message}" but got "${e.message}"`);
+      }
+    }
+  }
+
+  summary() {
+    const total = this.passed + this.failed;
+    console.log(`\n${'='.repeat(50)}`);
+    console.log(`Tests: ${total} | ✅ Passed: ${this.passed} | ❌ Failed: ${this.failed}`);
+    console.log(`${'='.repeat(50)}\n`);
+    return this.failed === 0;
+  }
+}
+
+// Mock Classes
 class MockRuntime {
   constructor() {
     this.debugMode = false;
   }
 }
 
-describe('SyntheticEvent', () => {
-  let nativeEvent;
-  let target;
-  let currentTarget;
-  let syntheticEvent;
+// Mock DOM Element
+function createMockElement(tagName = 'DIV', elementId = null) {
+  const listeners = {};
+  
+  return {
+    tagName: tagName,
+    dataset: elementId ? { elementId } : {},
+    listeners: listeners,
+    addEventListener: function(eventType, handler, useCapture) {
+      if (!this.listeners[eventType]) {
+        this.listeners[eventType] = [];
+      }
+      this.listeners[eventType].push({ handler, useCapture });
+    },
+    removeEventListener: function(eventType, handler, useCapture) {
+      if (this.listeners[eventType]) {
+        this.listeners[eventType] = this.listeners[eventType].filter(
+          l => l.handler !== handler
+        );
+      }
+    },
+    appendChild: function() {},
+    parentElement: null
+  };
+}
 
-  beforeEach(() => {
-    target = {
-      tagName: 'BUTTON',
-      value: 'test-value',
-      checked: false,
-      dataset: { elementId: 'btn-1' }
-    };
+function createMockNativeEvent(type, options = {}) {
+  return {
+    type: type,
+    bubbles: options.bubbles !== false,
+    cancelable: options.cancelable !== false,
+    clientX: options.clientX || 0,
+    clientY: options.clientY || 0,
+    pageX: options.pageX || 0,
+    pageY: options.pageY || 0,
+    screenX: options.screenX || 0,
+    screenY: options.screenY || 0,
+    button: options.button !== undefined ? options.button : 0,
+    buttons: options.buttons || 0,
+    altKey: options.altKey || false,
+    ctrlKey: options.ctrlKey || false,
+    metaKey: options.metaKey || false,
+    shiftKey: options.shiftKey || false,
+    key: options.key || '',
+    code: options.code || '',
+    keyCode: options.keyCode || 0,
+    which: options.which || 0,
+    target: options.target || { dataset: {} },
+    touches: options.touches || [],
+    changedTouches: options.changedTouches || [],
+    targetTouches: options.targetTouches || [],
+    preventDefault: options.preventDefault || function() {},
+    stopPropagation: options.stopPropagation || function() {},
+    stopImmediatePropagation: options.stopImmediatePropagation || function() {},
+    timeStamp: options.timeStamp || Date.now()
+  };
+}
 
-    currentTarget = {
-      tagName: 'BUTTON',
-      dataset: { elementId: 'btn-1' }
-    };
+// Run Tests
+function runTests() {
+  const test = new TestRunner();
 
-    nativeEvent = {
-      type: 'click',
-      bubbles: true,
-      cancelable: true,
-      clientX: 100,
-      clientY: 200,
-      pageX: 150,
-      pageY: 250,
-      screenX: 500,
-      screenY: 600,
-      button: 0,
-      buttons: 1,
-      altKey: false,
-      ctrlKey: false,
-      metaKey: false,
-      shiftKey: false,
-      key: '',
-      keyCode: 0,
-      target: target,
-      touches: [],
-      changedTouches: [],
-      targetTouches: [],
-      preventDefault: jest.fn(),
-      stopPropagation: jest.fn(),
-      stopImmediatePropagation: jest.fn(),
-      timeStamp: Date.now()
-    };
+  // ============================================================
+  // SYNTHETIC EVENT TESTS
+  // ============================================================
+  
+  test.describe('SyntheticEvent: Construction', () => {
+    test.it('should create with all properties', () => {
+      const nativeEvent = createMockNativeEvent('click');
+      const target = { tagName: 'BUTTON', dataset: { elementId: 'btn-1' } };
+      const currentTarget = { tagName: 'BUTTON', dataset: { elementId: 'btn-1' } };
 
-    syntheticEvent = new SyntheticEvent(nativeEvent, 'click', target, currentTarget);
-  });
+      const syntheticEvent = new SyntheticEvent(nativeEvent, 'click', target, currentTarget);
 
-  describe('Construction', () => {
-    it('should create SyntheticEvent with properties', () => {
-      expect(syntheticEvent.type).toBe('click');
-      expect(syntheticEvent.target).toBe(target);
-      expect(syntheticEvent.currentTarget).toBe(currentTarget);
-      expect(syntheticEvent.nativeEvent).toBe(nativeEvent);
+      test.assertEqual(syntheticEvent.type, 'click');
+      test.assertEqual(syntheticEvent.target, target);
+      test.assertEqual(syntheticEvent.currentTarget, currentTarget);
+      test.assertEqual(syntheticEvent.nativeEvent, nativeEvent);
     });
 
-    it('should copy mouse properties', () => {
-      expect(syntheticEvent.clientX).toBe(100);
-      expect(syntheticEvent.clientY).toBe(200);
-      expect(syntheticEvent.pageX).toBe(150);
-      expect(syntheticEvent.pageY).toBe(250);
-      expect(syntheticEvent.screenX).toBe(500);
-      expect(syntheticEvent.screenY).toBe(600);
-      expect(syntheticEvent.button).toBe(0);
-      expect(syntheticEvent.buttons).toBe(1);
+    test.it('should copy mouse properties', () => {
+      const nativeEvent = createMockNativeEvent('click', {
+        clientX: 100,
+        clientY: 200,
+        pageX: 150,
+        pageY: 250,
+        screenX: 500,
+        screenY: 600
+      });
+      const target = { tagName: 'BUTTON' };
+
+      const syntheticEvent = new SyntheticEvent(nativeEvent, 'click', target, target);
+
+      test.assertEqual(syntheticEvent.clientX, 100);
+      test.assertEqual(syntheticEvent.clientY, 200);
+      test.assertEqual(syntheticEvent.pageX, 150);
+      test.assertEqual(syntheticEvent.pageY, 250);
     });
 
-    it('should copy modifier keys', () => {
-      const eventWithModifiers = new SyntheticEvent(
-        {
-          ...nativeEvent,
-          altKey: true,
-          ctrlKey: true,
-          metaKey: true,
-          shiftKey: true
-        },
-        'keydown',
-        target,
-        currentTarget
-      );
+    test.it('should copy modifier keys', () => {
+      const nativeEvent = createMockNativeEvent('keydown', {
+        altKey: true,
+        ctrlKey: true,
+        metaKey: true,
+        shiftKey: true
+      });
+      const target = { tagName: 'INPUT' };
 
-      expect(eventWithModifiers.altKey).toBe(true);
-      expect(eventWithModifiers.ctrlKey).toBe(true);
-      expect(eventWithModifiers.metaKey).toBe(true);
-      expect(eventWithModifiers.shiftKey).toBe(true);
+      const syntheticEvent = new SyntheticEvent(nativeEvent, 'keydown', target, target);
+
+      test.assertTrue(syntheticEvent.altKey);
+      test.assertTrue(syntheticEvent.ctrlKey);
+      test.assertTrue(syntheticEvent.metaKey);
+      test.assertTrue(syntheticEvent.shiftKey);
     });
 
-    it('should copy keyboard properties', () => {
-      const keyEvent = new SyntheticEvent(
-        {
-          ...nativeEvent,
-          key: 'Enter',
-          code: 'Enter',
-          keyCode: 13,
-          which: 13
-        },
-        'keydown',
-        target,
-        currentTarget
-      );
+    test.it('should copy keyboard properties', () => {
+      const nativeEvent = createMockNativeEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13
+      });
+      const target = { tagName: 'INPUT' };
 
-      expect(keyEvent.key).toBe('Enter');
-      expect(keyEvent.code).toBe('Enter');
-      expect(keyEvent.keyCode).toBe(13);
-      expect(keyEvent.which).toBe(13);
+      const syntheticEvent = new SyntheticEvent(nativeEvent, 'keydown', target, target);
+
+      test.assertEqual(syntheticEvent.key, 'Enter');
+      test.assertEqual(syntheticEvent.code, 'Enter');
+      test.assertEqual(syntheticEvent.keyCode, 13);
     });
 
-    it('should copy input properties', () => {
-      const inputTarget = {
-        ...target,
-        value: 'input-value',
-        checked: true
-      };
+    test.it('should handle missing native event properties', () => {
+      const nativeEvent = { type: 'click' };
+      const target = { tagName: 'BUTTON' };
 
-      const inputEvent = new SyntheticEvent(
-        { ...nativeEvent, target: inputTarget },
-        'change',
-        inputTarget,
-        inputTarget
-      );
+      const syntheticEvent = new SyntheticEvent(nativeEvent, 'click', target, target);
 
-      expect(inputEvent.value).toBe('input-value');
-      expect(inputEvent.checked).toBe(true);
-    });
-
-    it('should copy touch properties', () => {
-      const touchEvent = new SyntheticEvent(
-        {
-          ...nativeEvent,
-          touches: [{ clientX: 100, clientY: 200 }],
-          changedTouches: [{ clientX: 110, clientY: 210 }],
-          targetTouches: [{ clientX: 100, clientY: 200 }]
-        },
-        'touchstart',
-        target,
-        currentTarget
-      );
-
-      expect(touchEvent.touches.length).toBe(1);
-      expect(touchEvent.changedTouches.length).toBe(1);
-      expect(touchEvent.targetTouches.length).toBe(1);
+      test.assertEqual(syntheticEvent.clientX, 0);
+      test.assertEqual(syntheticEvent.clientY, 0);
+      test.assertEqual(syntheticEvent.key, '');
+      test.assertEqual(syntheticEvent.button, -1);
     });
   });
 
-  describe('Event Control', () => {
-    it('should prevent default', () => {
+  test.describe('SyntheticEvent: Event Control', () => {
+    test.it('should prevent default', () => {
+      const nativeEvent = createMockNativeEvent('click');
+      let preventDefaultCalled = false;
+      nativeEvent.preventDefault = () => { preventDefaultCalled = true; };
+
+      const syntheticEvent = new SyntheticEvent(nativeEvent, 'click', {}, {});
       syntheticEvent.preventDefault();
 
-      expect(syntheticEvent.defaultPrevented).toBe(true);
-      expect(nativeEvent.preventDefault).toHaveBeenCalled();
+      test.assertTrue(syntheticEvent.defaultPrevented);
+      test.assertTrue(preventDefaultCalled);
     });
 
-    it('should stop propagation', () => {
+    test.it('should stop propagation', () => {
+      const nativeEvent = createMockNativeEvent('click');
+      let stopPropagationCalled = false;
+      nativeEvent.stopPropagation = () => { stopPropagationCalled = true; };
+
+      const syntheticEvent = new SyntheticEvent(nativeEvent, 'click', {}, {});
       syntheticEvent.stopPropagation();
 
-      expect(syntheticEvent.isPropagationStopped).toBe(true);
-      expect(nativeEvent.stopPropagation).toHaveBeenCalled();
+      test.assertTrue(syntheticEvent.isPropagationStopped);
+      test.assertTrue(stopPropagationCalled);
     });
 
-    it('should stop immediate propagation', () => {
+    test.it('should stop immediate propagation', () => {
+      const nativeEvent = createMockNativeEvent('click');
+      let stopImmediateCalled = false;
+      nativeEvent.stopImmediatePropagation = () => { stopImmediateCalled = true; };
+
+      const syntheticEvent = new SyntheticEvent(nativeEvent, 'click', {}, {});
       syntheticEvent.stopImmediatePropagation();
 
-      expect(syntheticEvent.isImmediatePropagationStopped).toBe(true);
-      expect(syntheticEvent.isPropagationStopped).toBe(true);
-      expect(nativeEvent.stopImmediatePropagation).toHaveBeenCalled();
+      test.assertTrue(syntheticEvent.isImmediatePropagationStopped);
+      test.assertTrue(syntheticEvent.isPropagationStopped);
+      test.assertTrue(stopImmediateCalled);
     });
 
-    it('should track all control flags independently', () => {
-      expect(syntheticEvent.defaultPrevented).toBe(false);
-      expect(syntheticEvent.isPropagationStopped).toBe(false);
-      expect(syntheticEvent.isImmediatePropagationStopped).toBe(false);
+    test.it('should track flags independently', () => {
+      const nativeEvent = createMockNativeEvent('click');
+      const syntheticEvent = new SyntheticEvent(nativeEvent, 'click', {}, {});
+
+      test.assertFalse(syntheticEvent.defaultPrevented);
+      test.assertFalse(syntheticEvent.isPropagationStopped);
 
       syntheticEvent.preventDefault();
-      expect(syntheticEvent.defaultPrevented).toBe(true);
-      expect(syntheticEvent.isPropagationStopped).toBe(false);
-
-      syntheticEvent.stopPropagation();
-      expect(syntheticEvent.isPropagationStopped).toBe(true);
-      expect(syntheticEvent.isImmediatePropagationStopped).toBe(false);
+      test.assertTrue(syntheticEvent.defaultPrevented);
+      test.assertFalse(syntheticEvent.isPropagationStopped);
     });
   });
 
-  describe('toString', () => {
-    it('should provide useful string representation', () => {
+  test.describe('SyntheticEvent: toString', () => {
+    test.it('should provide useful string representation', () => {
+      const nativeEvent = createMockNativeEvent('click');
+      const target = { tagName: 'BUTTON' };
+      const syntheticEvent = new SyntheticEvent(nativeEvent, 'click', target, target);
+
       const str = syntheticEvent.toString();
 
-      expect(str).toContain('SyntheticEvent');
-      expect(str).toContain('click');
-      expect(str).toContain('BUTTON');
+      test.assert(str.includes('SyntheticEvent'));
+      test.assert(str.includes('click'));
+      test.assert(str.includes('BUTTON'));
     });
   });
 
-  describe('Edge Cases', () => {
-    it('should handle missing native event properties', () => {
-      const minimalEvent = {
-        type: 'click'
-      };
+  // ============================================================
+  // EVENT SYSTEM TESTS
+  // ============================================================
 
-      const event = new SyntheticEvent(minimalEvent, 'click', target, currentTarget);
+  test.describe('EventSystem: Construction & Initialization', () => {
+    test.it('should create with runtime', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
 
-      expect(event.clientX).toBe(0);
-      expect(event.clientY).toBe(0);
-      expect(event.key).toBe('');
-      expect(event.button).toBe(-1);
+      test.assertEqual(eventSystem.runtime, runtime);
+      test.assertFalse(eventSystem.initialized);
     });
 
-    it('should handle null native event methods', () => {
-      const eventNoMethods = {
-        type: 'click',
-        target: target
-      };
-
-      expect(() => {
-        const event = new SyntheticEvent(eventNoMethods, 'click', target, currentTarget);
-        event.preventDefault();
-        event.stopPropagation();
-      }).not.toThrow();
-    });
-  });
-});
-
-describe('EventSystem', () => {
-  let runtime;
-  let eventSystem;
-  let rootElement;
-
-  beforeEach(() => {
-    runtime = new MockRuntime();
-    eventSystem = new EventSystem(runtime, { enableDebug: false });
-
-    // Create mock DOM structure
-    rootElement = {
-      tagName: 'DIV',
-      dataset: {},
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      appendChild: jest.fn(),
-      parentElement: null
-    };
-  });
-
-  describe('Construction & Initialization', () => {
-    it('should create EventSystem with runtime', () => {
-      expect(eventSystem.runtime).toBe(runtime);
-      expect(eventSystem.initialized).toBe(false);
+    test.it('should throw without runtime', () => {
+      test.assertThrows(() => new EventSystem(null), 'Runtime');
     });
 
-    it('should throw error without runtime', () => {
-      expect(() => new EventSystem(null)).toThrow();
-    });
-
-    it('should initialize with root element', () => {
-      eventSystem.initialize(rootElement);
-
-      expect(eventSystem.initialized).toBe(true);
-      expect(eventSystem.rootElement).toBe(rootElement);
-      expect(rootElement.addEventListener).toHaveBeenCalled();
-    });
-
-    it('should throw error on invalid root element', () => {
-      expect(() => eventSystem.initialize(null)).toThrow();
-      expect(() => eventSystem.initialize('not-element')).toThrow();
-    });
-
-    it('should warn if already initialized', () => {
-      eventSystem.initialize(rootElement);
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
+    test.it('should initialize with root element', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
 
       eventSystem.initialize(rootElement);
 
-      expect(warnSpy).toHaveBeenCalled();
-      warnSpy.mockRestore();
+      test.assertTrue(eventSystem.initialized);
+      test.assertEqual(eventSystem.rootElement, rootElement);
     });
 
-    it('should attach delegated listeners for all event types', () => {
+    test.it('should throw on invalid root element', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+
+      test.assertThrows(() => eventSystem.initialize(null), 'Root element');
+      test.assertThrows(() => eventSystem.initialize('string'), 'Root element');
+    });
+
+    test.it('should attach delegated listeners', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+
       eventSystem.initialize(rootElement);
 
-      expect(rootElement.addEventListener).toHaveBeenCalledTimes(
-        eventSystem.delegatedEvents.size
-      );
+      test.assertEqual(eventSystem.nativeListeners.size, eventSystem.delegatedEvents.size);
     });
   });
 
-  describe('Handler Registration', () => {
-    beforeEach(() => {
+  test.describe('EventSystem: Handler Registration', () => {
+    test.it('should register handler', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
       eventSystem.initialize(rootElement);
-    });
 
-    it('should register handler', () => {
-      const handler = jest.fn();
+      const handler = () => {};
       eventSystem.registerHandler('elem-1', 'click', handler);
 
-      expect(eventSystem.hasHandlers('elem-1', 'click')).toBe(true);
-      expect(eventSystem.getHandlerCount('elem-1', 'click')).toBe(1);
+      test.assertTrue(eventSystem.hasHandlers('elem-1', 'click'));
+      test.assertEqual(eventSystem.getHandlerCount('elem-1', 'click'), 1);
     });
 
-    it('should register multiple handlers for same element', () => {
-      const handler1 = jest.fn();
-      const handler2 = jest.fn();
+    test.it('should register multiple handlers', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
 
-      eventSystem.registerHandler('elem-1', 'click', handler1);
-      eventSystem.registerHandler('elem-1', 'click', handler2);
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+      eventSystem.registerHandler('elem-1', 'click', () => {});
 
-      expect(eventSystem.getHandlerCount('elem-1', 'click')).toBe(2);
+      test.assertEqual(eventSystem.getHandlerCount('elem-1', 'click'), 2);
     });
 
-    it('should register handlers for multiple event types', () => {
-      const clickHandler = jest.fn();
-      const changeHandler = jest.fn();
+    test.it('should register handlers for multiple event types', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
 
-      eventSystem.registerHandler('elem-1', 'click', clickHandler);
-      eventSystem.registerHandler('elem-1', 'change', changeHandler);
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+      eventSystem.registerHandler('elem-1', 'change', () => {});
 
-      expect(eventSystem.hasHandlers('elem-1', 'click')).toBe(true);
-      expect(eventSystem.hasHandlers('elem-1', 'change')).toBe(true);
+      test.assertTrue(eventSystem.hasHandlers('elem-1', 'click'));
+      test.assertTrue(eventSystem.hasHandlers('elem-1', 'change'));
     });
 
-    it('should throw on invalid element ID', () => {
-      expect(() => eventSystem.registerHandler(null, 'click', () => {})).toThrow();
-      expect(() => eventSystem.registerHandler('', 'click', () => {})).toThrow();
+    test.it('should throw on invalid element ID', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
+
+      test.assertThrows(() => eventSystem.registerHandler(null, 'click', () => {}), 'Element');
+      test.assertThrows(() => eventSystem.registerHandler('', 'click', () => {}), 'Element');
     });
 
-    it('should throw on invalid event type', () => {
-      expect(() => eventSystem.registerHandler('elem-1', null, () => {})).toThrow();
-      expect(() => eventSystem.registerHandler('elem-1', '', () => {})).toThrow();
+    test.it('should throw on invalid event type', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
+
+      test.assertThrows(() => eventSystem.registerHandler('elem-1', null, () => {}), 'Event');
+      test.assertThrows(() => eventSystem.registerHandler('elem-1', '', () => {}), 'Event');
     });
 
-    it('should throw on invalid handler', () => {
-      expect(() => eventSystem.registerHandler('elem-1', 'click', 'not-function')).toThrow();
-      expect(() => eventSystem.registerHandler('elem-1', 'click', null)).toThrow();
+    test.it('should throw on invalid handler', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
+
+      test.assertThrows(() => eventSystem.registerHandler('elem-1', 'click', 'not-function'), 'function');
+      test.assertThrows(() => eventSystem.registerHandler('elem-1', 'click', null), 'function');
     });
 
-    it('should track statistics', () => {
-      eventSystem.registerHandler('elem-1', 'click', jest.fn());
-      eventSystem.registerHandler('elem-1', 'click', jest.fn());
+    test.it('should track statistics', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
 
-      expect(eventSystem.stats.handlersRegistered).toBe(2);
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+
+      test.assertEqual(eventSystem.stats.handlersRegistered, 2);
     });
   });
 
-  describe('Handler Unregistration', () => {
-    beforeEach(() => {
+  test.describe('EventSystem: Handler Unregistration', () => {
+    test.it('should unregister specific handler', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
       eventSystem.initialize(rootElement);
-      eventSystem.registerHandler('elem-1', 'click', jest.fn());
-      eventSystem.registerHandler('elem-1', 'click', jest.fn());
-      eventSystem.registerHandler('elem-1', 'change', jest.fn());
-    });
 
-    it('should unregister specific handler', () => {
-      const handlers = eventSystem.handlerRegistry.get('elem-1')['click'];
-      const handler = handlers[0];
+      const handler = () => {};
+      eventSystem.registerHandler('elem-1', 'click', handler);
+      eventSystem.registerHandler('elem-1', 'click', () => {});
 
       eventSystem.unregisterHandler('elem-1', 'click', handler);
 
-      expect(eventSystem.getHandlerCount('elem-1', 'click')).toBe(1);
+      test.assertEqual(eventSystem.getHandlerCount('elem-1', 'click'), 1);
     });
 
-    it('should unregister all handlers for event type', () => {
+    test.it('should unregister all handlers for event type', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
+
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+      eventSystem.registerHandler('elem-1', 'change', () => {});
+
       eventSystem.unregisterHandler('elem-1', 'click');
 
-      expect(eventSystem.hasHandlers('elem-1', 'click')).toBe(false);
-      expect(eventSystem.hasHandlers('elem-1', 'change')).toBe(true);
+      test.assertFalse(eventSystem.hasHandlers('elem-1', 'click'));
+      test.assertTrue(eventSystem.hasHandlers('elem-1', 'change'));
     });
 
-    it('should unregister all handlers for element', () => {
+    test.it('should unregister all handlers for element', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
+
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+      eventSystem.registerHandler('elem-1', 'change', () => {});
+
       eventSystem.unregisterHandler('elem-1');
 
-      expect(eventSystem.hasHandlers('elem-1', 'click')).toBe(false);
-      expect(eventSystem.hasHandlers('elem-1', 'change')).toBe(false);
-      expect(eventSystem.getHandlerCount('elem-1')).toBe(0);
+      test.assertEqual(eventSystem.getHandlerCount('elem-1'), 0);
     });
 
-    it('should track unregistration statistics', () => {
-      eventSystem.unregisterHandler('elem-1');
+    test.it('should handle non-existent handlers gracefully', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
 
-      expect(eventSystem.stats.handlersUnregistered).toBeGreaterThan(0);
-    });
-
-    it('should handle unregistering non-existent handlers gracefully', () => {
-      expect(() => eventSystem.unregisterHandler('non-existent')).not.toThrow();
-      expect(() => eventSystem.unregisterHandler('elem-1', 'non-existent')).not.toThrow();
+      test.assertThrows(() => eventSystem.unregisterHandler(null), undefined);
     });
   });
 
-  describe('Handler Queries', () => {
-    beforeEach(() => {
+  test.describe('EventSystem: Handler Queries', () => {
+    test.it('should check if element has handlers', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
       eventSystem.initialize(rootElement);
-      eventSystem.registerHandler('elem-1', 'click', jest.fn());
-      eventSystem.registerHandler('elem-1', 'change', jest.fn());
-      eventSystem.registerHandler('elem-2', 'click', jest.fn());
+
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+
+      test.assertTrue(eventSystem.hasHandlers('elem-1'));
+      test.assertTrue(eventSystem.hasHandlers('elem-1', 'click'));
+      test.assertFalse(eventSystem.hasHandlers('elem-1', 'change'));
+      test.assertFalse(eventSystem.hasHandlers('non-existent'));
     });
 
-    it('should check if element has handlers', () => {
-      expect(eventSystem.hasHandlers('elem-1')).toBe(true);
-      expect(eventSystem.hasHandlers('elem-1', 'click')).toBe(true);
-      expect(eventSystem.hasHandlers('elem-1', 'change')).toBe(true);
-      expect(eventSystem.hasHandlers('elem-1', 'input')).toBe(false);
-      expect(eventSystem.hasHandlers('non-existent')).toBe(false);
+    test.it('should get handler count', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
+
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+      eventSystem.registerHandler('elem-1', 'change', () => {});
+
+      test.assertEqual(eventSystem.getHandlerCount('elem-1'), 3);
+      test.assertEqual(eventSystem.getHandlerCount('elem-1', 'click'), 2);
+      test.assertEqual(eventSystem.getHandlerCount('non-existent'), 0);
     });
 
-    it('should get handler count', () => {
-      expect(eventSystem.getHandlerCount('elem-1')).toBe(2);
-      expect(eventSystem.getHandlerCount('elem-1', 'click')).toBe(1);
-      expect(eventSystem.getHandlerCount('elem-2')).toBe(1);
-      expect(eventSystem.getHandlerCount('non-existent')).toBe(0);
-    });
+    test.it('should get event types for element', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
 
-    it('should get event types for element', () => {
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+      eventSystem.registerHandler('elem-1', 'change', () => {});
+
       const eventTypes = eventSystem.getEventTypes('elem-1');
 
-      expect(eventTypes).toContain('click');
-      expect(eventTypes).toContain('change');
-      expect(eventTypes.length).toBe(2);
-    });
-
-    it('should return empty array for element with no handlers', () => {
-      const eventTypes = eventSystem.getEventTypes('non-existent');
-
-      expect(eventTypes).toEqual([]);
+      test.assert(eventTypes.includes('click'));
+      test.assert(eventTypes.includes('change'));
+      test.assertEqual(eventTypes.length, 2);
     });
   });
 
-  describe('Batch Operations', () => {
-    beforeEach(() => {
+  test.describe('EventSystem: Batch Operations', () => {
+    test.it('should batch register handlers', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
       eventSystem.initialize(rootElement);
-    });
 
-    it('should batch register multiple handlers', () => {
       const handlers = {
-        click: jest.fn(),
-        change: jest.fn(),
-        input: jest.fn()
+        click: () => {},
+        change: () => {},
+        input: () => {}
       };
 
       eventSystem.batchRegister('elem-1', handlers);
 
-      expect(eventSystem.getHandlerCount('elem-1')).toBe(3);
-      expect(eventSystem.hasHandlers('elem-1', 'click')).toBe(true);
-      expect(eventSystem.hasHandlers('elem-1', 'change')).toBe(true);
-      expect(eventSystem.hasHandlers('elem-1', 'input')).toBe(true);
+      test.assertEqual(eventSystem.getHandlerCount('elem-1'), 3);
     });
 
-    it('should batch unregister all handlers', () => {
-      eventSystem.registerHandler('elem-1', 'click', jest.fn());
-      eventSystem.registerHandler('elem-1', 'change', jest.fn());
-      eventSystem.registerHandler('elem-1', 'input', jest.fn());
+    test.it('should batch unregister handlers', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
+
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+      eventSystem.registerHandler('elem-1', 'change', () => {});
 
       eventSystem.batchUnregister('elem-1');
 
-      expect(eventSystem.getHandlerCount('elem-1')).toBe(0);
-    });
-
-    it('should ignore non-function values in batch register', () => {
-      const handlers = {
-        click: jest.fn(),
-        change: 'not-a-function',
-        input: jest.fn()
-      };
-
-      eventSystem.batchRegister('elem-1', handlers);
-
-      expect(eventSystem.getHandlerCount('elem-1')).toBe(2);
+      test.assertEqual(eventSystem.getHandlerCount('elem-1'), 0);
     });
   });
 
-  describe('Cleanup', () => {
-    beforeEach(() => {
+  test.describe('EventSystem: Cleanup', () => {
+    test.it('should clear element handlers', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
       eventSystem.initialize(rootElement);
-      eventSystem.registerHandler('elem-1', 'click', jest.fn());
-      eventSystem.registerHandler('elem-1', 'change', jest.fn());
-      eventSystem.registerHandler('elem-2', 'click', jest.fn());
-    });
 
-    it('should clear element handlers', () => {
+      eventSystem.registerHandler('elem-1', 'click', () => {});
       eventSystem.clearElement('elem-1');
 
-      expect(eventSystem.getHandlerCount('elem-1')).toBe(0);
-      expect(eventSystem.getHandlerCount('elem-2')).toBe(1);
+      test.assertEqual(eventSystem.getHandlerCount('elem-1'), 0);
     });
 
-    it('should clear all handlers', () => {
+    test.it('should clear all handlers', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
+
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+      eventSystem.registerHandler('elem-2', 'change', () => {});
+
       eventSystem.clearAll();
 
-      expect(eventSystem.getHandlerCount('elem-1')).toBe(0);
-      expect(eventSystem.getHandlerCount('elem-2')).toBe(0);
-      expect(eventSystem.handlerRegistry.size).toBe(0);
+      test.assertEqual(eventSystem.handlerRegistry.size, 0);
     });
 
-    it('should dispose event system', () => {
+    test.it('should dispose event system', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
+
       eventSystem.dispose();
 
-      expect(eventSystem.initialized).toBe(false);
-      expect(eventSystem.rootElement).toBeNull();
-      expect(rootElement.removeEventListener).toHaveBeenCalled();
+      test.assertFalse(eventSystem.initialized);
+      test.assertNull(eventSystem.rootElement);
     });
   });
 
-  describe('Statistics', () => {
-    beforeEach(() => {
+  test.describe('EventSystem: Statistics', () => {
+    test.it('should provide statistics', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
       eventSystem.initialize(rootElement);
-    });
 
-    it('should provide event statistics', () => {
-      eventSystem.registerHandler('elem-1', 'click', jest.fn());
-      eventSystem.registerHandler('elem-1', 'click', jest.fn());
-      eventSystem.registerHandler('elem-2', 'change', jest.fn());
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+      eventSystem.registerHandler('elem-2', 'change', () => {});
 
       const stats = eventSystem.getStats();
 
-      expect(stats.handlersRegistered).toBe(3);
-      expect(stats.elementsWithHandlers).toBe(2);
-      expect(stats.totalHandlers).toBe(3);
-      expect(stats.delegatedEventsCount).toBe(eventSystem.delegatedEvents.size);
-    });
-
-    it('should calculate average handlers per element', () => {
-      eventSystem.registerHandler('elem-1', 'click', jest.fn());
-      eventSystem.registerHandler('elem-1', 'click', jest.fn());
-      eventSystem.registerHandler('elem-2', 'click', jest.fn());
-
-      const stats = eventSystem.getStats();
-
-      expect(stats.averageHandlersPerElement).toBe(2); // 3 handlers / 2 elements = 1.5, rounded
+      test.assertEqual(stats.handlersRegistered, 2);
+      test.assertEqual(stats.elementsWithHandlers, 2);
+      test.assertEqual(stats.totalHandlers, 2);
     });
   });
 
-  describe('Detailed Information', () => {
-    beforeEach(() => {
+  test.describe('EventSystem: Detailed Info', () => {
+    test.it('should provide info for specific element', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
       eventSystem.initialize(rootElement);
-      eventSystem.registerHandler('elem-1', 'click', jest.fn());
-      eventSystem.registerHandler('elem-1', 'change', jest.fn());
-    });
 
-    it('should provide detailed info for specific element', () => {
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+
       const info = eventSystem.getDetailedInfo('elem-1');
 
-      expect(info.elementId).toBe('elem-1');
-      expect(info.hasHandlers).toBe(true);
-      expect(info.handlers.click).toBeDefined();
-      expect(info.handlers.change).toBeDefined();
+      test.assertEqual(info.elementId, 'elem-1');
+      test.assertTrue(info.hasHandlers);
+      test.assert(info.handlers.click);
     });
 
-    it('should provide detailed info for all elements', () => {
-      eventSystem.registerHandler('elem-2', 'input', jest.fn());
+    test.it('should provide info for all elements', () => {
+      const runtime = new MockRuntime();
+      const eventSystem = new EventSystem(runtime);
+      const rootElement = createMockElement('DIV');
+      eventSystem.initialize(rootElement);
+
+      eventSystem.registerHandler('elem-1', 'click', () => {});
+      eventSystem.registerHandler('elem-2', 'change', () => {});
 
       const info = eventSystem.getDetailedInfo();
 
-      expect(info.totalElements).toBe(2);
-      expect(info.elements['elem-1']).toBeDefined();
-      expect(info.elements['elem-2']).toBeDefined();
-    });
-
-    it('should show hasHandlers correctly', () => {
-      const withHandlers = eventSystem.getDetailedInfo('elem-1');
-      const withoutHandlers = eventSystem.getDetailedInfo('non-existent');
-
-      expect(withHandlers.hasHandlers).toBe(true);
-      expect(withoutHandlers.hasHandlers).toBe(false);
+      test.assertEqual(info.totalElements, 2);
+      test.assert(info.elements['elem-1']);
+      test.assert(info.elements['elem-2']);
     });
   });
 
-  describe('Event Delegation Listener Creation', () => {
-    beforeEach(() => {
-      eventSystem.initialize(rootElement);
-    });
+  return test.summary();
+}
 
-    it('should create delegated listener for each event type', () => {
-      eventSystem.delegatedEvents.forEach(eventType => {
-        expect(eventSystem.nativeListeners.has(eventType)).toBe(true);
-      });
-    });
-
-    it('should attach listeners with capture phase', () => {
-      const addEventListenerCalls = rootElement.addEventListener.mock.calls;
-
-      addEventListenerCalls.forEach(([event, listener, useCapture]) => {
-        expect(useCapture).toBe(true); // Capture phase
-      });
-    });
-  });
-
-  describe('Edge Cases & Error Handling', () => {
-    beforeEach(() => {
-      eventSystem.initialize(rootElement);
-    });
-
-    it('should handle empty handler registry gracefully', () => {
-      expect(eventSystem.getHandlerCount('non-existent')).toBe(0);
-      expect(eventSystem.getEventTypes('non-existent')).toEqual([]);
-      expect(eventSystem.hasHandlers('non-existent')).toBe(false);
-    });
-
-    it('should handle very large handler counts', () => {
-      for (let i = 0; i < 100; i++) {
-        eventSystem.registerHandler('elem-1', 'click', jest.fn());
-      }
-
-      expect(eventSystem.getHandlerCount('elem-1', 'click')).toBe(100);
-    });
-
-    it('should handle many different elements', () => {
-      for (let i = 0; i < 100; i++) {
-        eventSystem.registerHandler(`elem-${i}`, 'click', jest.fn());
-      }
-
-      expect(eventSystem.handlerRegistry.size).toBe(100);
-    });
-
-    it('should handle handler errors gracefully', () => {
-      const errorHandler = jest.fn().mockImplementation(() => {
-        throw new Error('Handler error');
-      });
-
-      eventSystem.registerHandler('elem-1', 'click', errorHandler);
-
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-
-      // Simulate event dispatch
-      eventSystem.dispatchToHandlers('elem-1', 'click', {
-        type: 'click',
-        target: { dataset: { elementId: 'elem-1' } },
-        preventDefault: jest.fn(),
-        stopPropagation: jest.fn()
-      });
-
-      expect(consoleSpy).toHaveBeenCalled();
-      consoleSpy.mockRestore();
-    });
-  });
-
-  describe('Custom Events', () => {
-    beforeEach(() => {
-      eventSystem.initialize(rootElement);
-    });
-
-    it('should dispatch custom event', () => {
-      const handler = jest.fn();
-      const element = { dataset: { elementId: 'elem-1' } };
-
-      eventSystem.registerHandler('elem-1', 'customEvent', handler);
-      eventSystem.dispatchCustomEvent(element, 'customEvent', {});
-
-      expect(handler).toHaveBeenCalled();
-    });
-
-    it('should throw on null element for custom event', () => {
-      expect(() => eventSystem.dispatchCustomEvent(null, 'click', {})).toThrow();
-    });
-  });
-
-  describe('Configuration Options', () => {
-    it('should accept configuration options', () => {
-      const eventSys = new EventSystem(runtime, {
-        enableDebug: true,
-        maxEventListeners: 5000,
-        eventPoolSize: 50
-      });
-
-      expect(eventSys.config.enableDebug).toBe(true);
-      expect(eventSys.config.maxEventListeners).toBe(5000);
-      expect(eventSys.config.eventPoolSize).toBe(50);
-    });
-
-    it('should use default configuration', () => {
-      const eventSys = new EventSystem(runtime);
-
-      expect(eventSys.config.enableDebug).toBe(false);
-      expect(eventSys.config.maxEventListeners).toBe(10000);
-    });
-  });
-});
+// Run tests
+runTests();

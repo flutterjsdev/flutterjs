@@ -1483,7 +1483,7 @@ class IRGenerator {
     required IRGenerationResults results,
     required bool verbose,
   }) async {
-    // âœ… INTEGRATED: Use ExpressionVisitor + TypeInferenceVisitor
+    // ✓ INTEGRATED: Use ExpressionVisitor + TypeInferenceVisitor
     final pass = TypeInferencePass(
       dartFiles: results.dartFiles,
       globalSymbols: {},
@@ -1611,7 +1611,7 @@ class IRGenerator {
     required IRGenerationResults results,
     required bool verbose,
   }) async {
-    // âœ… INTEGRATED: Use StatementVisitor + ReachabilityAnalyzer
+    // ✓ INTEGRATED: Use StatementVisitor + ReachabilityAnalyzer
     final pass = FlowAnalysisPass(
       dartFiles: results.dartFiles,
       typeInferenceInfo: {},
@@ -1671,7 +1671,7 @@ class IRGenerator {
     required IRGenerationResults results,
     required bool verbose,
   }) async {
-    // âœ… INTEGRATED: Use ConstantFolder + VariableCollector
+    // ✓ INTEGRATED: Use ConstantFolder + VariableCollector
     final pass = ValidationPass(
       dartFiles: results.dartFiles,
       flowAnalysisInfo: {},

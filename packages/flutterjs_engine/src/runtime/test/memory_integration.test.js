@@ -4,10 +4,8 @@
  * Real-world scenarios testing memory management with complete workflows
  */
 
-const {
-  MemoryManager,
-  MemoryProfiler
-} = require('../src/memory_manager');
+import {  MemoryManager,
+  MemoryProfiler} from "../src/memory_manager.js";
 
 // More realistic element simulation
 class TestElement {

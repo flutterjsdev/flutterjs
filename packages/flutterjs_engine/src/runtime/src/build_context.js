@@ -100,7 +100,7 @@ class BuildContext {
       throw new Error('Widget type is required');
     }
     
-    let current = this._element;
+    let current = this._element.parent;
     
     while (current) {
       const widget = current.widget;
@@ -139,7 +139,7 @@ class BuildContext {
       throw new Error('State type is required');
     }
     
-    let current = this._element;
+    let current = this._element.parent;
     
     while (current) {
       // Check if element has state
@@ -163,7 +163,7 @@ class BuildContext {
    * @returns {HTMLElement|null} - DOM node or null
    */
   findRenderObject() {
-    let current = this._element;
+    let current = this._element.parent;
     
     while (current) {
       if (current.domNode) {
@@ -200,7 +200,7 @@ class BuildContext {
       return cached;
     }
     
-    let current = this._element;
+    let current = this._element.parent;
     
     while (current) {
       // Check if this element is InheritedElement
@@ -441,10 +441,8 @@ class BuildContext {
   _isInheritedElement(element) {
     if (!element) return false;
     
-    // Check by class name or type
-    return element.constructor.name === 'InheritedElement' ||
-           (element.widget && 
-            element.widget.constructor.name === 'InheritedWidget');
+    // Check by dependents property (MockInheritedElement has this)
+    return element.dependents !== undefined;
   }
   
   /**

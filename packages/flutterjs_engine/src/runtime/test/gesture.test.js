@@ -4,16 +4,14 @@
  * Comprehensive tests for all gesture recognizers
  */
 
-const {
-  GestureRecognizer,
+import {  GestureRecognizer,
   TapRecognizer,
   LongPressRecognizer,
   SwipeRecognizer,
   PanRecognizer,
   ScaleRecognizer,
   GestureArena,
-  GestureManager
-} = require('../src/gesture_recognizer');
+  GestureManager} from "../src/gesture_recognizer.js";
 
 // Test utilities
 class TestUtils {

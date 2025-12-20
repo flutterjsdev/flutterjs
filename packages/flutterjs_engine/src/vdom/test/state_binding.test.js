@@ -1095,7 +1095,7 @@ console.log('');
 // ============================================================================
 
 console.log('='.repeat(80));
-console.log(`âœ" TESTS PASSED: ${testsPassed}`);
-console.log(`âœ— TESTS FAILED: ${testsFailed}`);
+console.log(`✗" TESTS PASSED: ${testsPassed}`);
+console.log(`✗— TESTS FAILED: ${testsFailed}`);
 console.log(`TOTAL: ${testsPassed + testsFailed}`);
 console.log('='.repeat(80) + '\n');

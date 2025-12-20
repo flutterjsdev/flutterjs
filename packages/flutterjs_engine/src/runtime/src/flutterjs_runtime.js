@@ -24,8 +24,14 @@
  * ```
  */
 
-// Import core subsystems (these would be actual imports in production)
-// For demo, we'll include simplified versions inline
+// Import core subsystems
+const { RuntimeEngine } = require('./runtime_engine.js');
+const { EventSystem, SyntheticEvent } = require('./event_system.js');
+const { GestureManager } = require('./gesture_recognizer.js');
+const FocusManager = require('./focus_manager.js');
+const { MemoryManager, MemoryProfiler } = require('./memory_manager.js');
+const { ServiceRegistry } = require('./service_registry.js');
+const { StateManager } = require('./state.js');
 
 /**
  * FlutterJSRuntime Class
@@ -49,7 +55,7 @@ class FlutterJSRuntime {
       analytics: options.analytics || false,
       ...options
     };
-    
+
     // Core subsystems
     this.engine = null;
     this.eventSystem = null;
@@ -58,13 +64,13 @@ class FlutterJSRuntime {
     this.memoryManager = null;
     this.serviceRegistry = null;
     this.stateManager = null;
-    
+
     // Runtime state
     this.initialized = false;
     this.mounted = false;
     this.rootWidget = null;
     this.containerElement = null;
-    
+
     // Performance tracking
     this.stats = {
       initTime: 0,
@@ -73,7 +79,7 @@ class FlutterJSRuntime {
       averageFrameTime: 0,
       lastUpdateTime: 0
     };
-    
+
     // Lifecycle hooks
     this.hooks = {
       beforeInit: [],
@@ -83,16 +89,16 @@ class FlutterJSRuntime {
       beforeUnmount: [],
       afterUnmount: []
     };
-    
+
     // Error handling
     this.errorHandlers = [];
     this.setupErrorHandling();
-    
+
     if (this.config.debugMode) {
       console.log('[FlutterJS] Runtime instance created');
     }
   }
-  
+
   /**
    * Initialize runtime subsystems
    * @param {Object} options - Initialization options
@@ -103,153 +109,167 @@ class FlutterJSRuntime {
       console.warn('[FlutterJS] Runtime already initialized');
       return this;
     }
-    
+
     const startTime = performance.now();
-    
+
     try {
       this.runHooks('beforeInit');
-      
+
       if (this.config.debugMode) {
         console.log('[FlutterJS] Initializing runtime subsystems...');
       }
-      
+
       // 1. Initialize Memory Manager first (needed by others)
       this.memoryManager = new MemoryManager({
         enableLeakDetection: this.config.enableMemoryTracking,
         debugMode: this.config.debugMode
       });
-      
+
       if (this.config.debugMode) {
-        console.log('[FlutterJS] âœ" Memory Manager initialized');
+        console.log('[FlutterJS] ✓ Memory Manager initialized');
       }
-      
+
       // 2. Initialize Service Registry
       this.serviceRegistry = new ServiceRegistry({
         enableLogging: this.config.debugMode,
         debugMode: this.config.debugMode
       });
-      
+
       // Register built-in services
       this.registerBuiltInServices();
-      
+
       if (this.config.debugMode) {
-        console.log('[FlutterJS] âœ" Service Registry initialized');
+        console.log('[FlutterJS] ✓ Service Registry initialized');
       }
-      
+
       // 3. Initialize Runtime Engine
       this.engine = new RuntimeEngine();
       this.engine.config.debugMode = this.config.debugMode;
       this.engine.serviceRegistry = this.serviceRegistry;
       this.engine.memoryManager = this.memoryManager;
-      
+
       if (this.config.debugMode) {
-        console.log('[FlutterJS] âœ" Runtime Engine initialized');
+        console.log('[FlutterJS] ✓ Runtime Engine initialized');
       }
-      
+
       // 4. Initialize State Manager
       this.stateManager = new StateManager(this.engine);
       this.stateManager.config.debugMode = this.config.debugMode;
       this.engine.stateManager = this.stateManager;
-      
+
       if (this.config.debugMode) {
-        console.log('[FlutterJS] âœ" State Manager initialized');
+        console.log('[FlutterJS] ✓ State Manager initialized');
       }
-      
+
       // 5. Initialize Event System
       if (options.rootElement) {
         this.eventSystem = new EventSystem(this.engine);
         this.eventSystem.initialize(options.rootElement);
         this.engine.eventSystem = this.eventSystem;
-        
+
         if (this.config.debugMode) {
-          console.log('[FlutterJS] âœ" Event System initialized');
+          console.log('[FlutterJS] ✓ Event System initialized');
         }
       }
-      
+
       // 6. Initialize Gesture Recognizer
       this.gestureRecognizer = new GestureManager();
       this.engine.gestureRecognizer = this.gestureRecognizer;
-      
+
       if (this.config.debugMode) {
-        console.log('[FlutterJS] âœ" Gesture Recognizer initialized');
+        console.log('[FlutterJS] ✓ Gesture Recognizer initialized');
       }
-      
+
       // 7. Initialize Focus Manager
       this.focusManager = new FocusManager(this.engine);
       this.focusManager.setupKeyboardNavigation();
       this.engine.focusManager = this.focusManager;
-      
+
       if (this.config.debugMode) {
-        console.log('[FlutterJS] âœ" Focus Manager initialized');
+        console.log('[FlutterJS] ✓ Focus Manager initialized');
       }
-      
+
       // 8. Setup performance monitoring
       if (this.config.enablePerformanceMonitoring) {
         this.setupPerformanceMonitoring();
       }
-      
+
       this.initialized = true;
       this.stats.initTime = performance.now() - startTime;
-      
+
       this.runHooks('afterInit');
-      
+
       if (this.config.debugMode) {
         console.log(
-          `[FlutterJS] âœ… Runtime initialized in ${this.stats.initTime.toFixed(2)}ms`
+          `[FlutterJS] ✓ Runtime initialized in ${this.stats.initTime.toFixed(2)}ms`
         );
       }
-      
+
       return this;
     } catch (error) {
       this.handleError('initialization', error);
       throw error;
     }
   }
-  
+
   /**
    * Register built-in framework services
    */
   registerBuiltInServices() {
     // Theme service
     this.serviceRegistry.registerLazy('theme', () => {
-      return new ThemeService({
+      return {
         primaryColor: '#6750a4',
         backgroundColor: '#ffffff',
         textColor: '#1c1b1f'
-      });
+      };
     });
-    
+
     // MediaQuery service
     this.serviceRegistry.registerLazy('mediaQuery', () => {
-      return new MediaQueryService();
+      return {
+        width: typeof window !== 'undefined' ? window.innerWidth : 800,
+        height: typeof window !== 'undefined' ? window.innerHeight : 600,
+        devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : 1
+      };
     });
-    
+
     // Logger service
-    this.serviceRegistry.register('logger', new LoggerService({
-      level: this.config.debugMode ? 'debug' : 'warn'
-    }));
-    
+    this.serviceRegistry.register('logger', {
+      level: this.config.debugMode ? 'debug' : 'warn',
+      log: (msg) => console.log(msg),
+      warn: (msg) => console.warn(msg),
+      error: (msg) => console.error(msg)
+    });
+
     // Navigator service (if routing enabled)
     if (this.config.routing) {
       this.serviceRegistry.registerLazy('navigator', () => {
-        return new NavigatorService(this.engine);
+        return {
+          push: (route) => console.log(`Navigate to: ${route}`),
+          pop: () => console.log('Navigate back'),
+          replace: (route) => console.log(`Replace with: ${route}`)
+        };
       });
     }
-    
+
     // Analytics service (if enabled)
     if (this.config.analytics) {
       this.serviceRegistry.registerLazy('analytics', () => {
-        return new AnalyticsService(this.config.analytics);
+        return {
+          trackEvent: (event, data) => console.log(`Analytics: ${event}`, data),
+          trackError: (source, error) => console.error(`Error: ${source}`, error)
+        };
       });
     }
-    
+
     if (this.config.debugMode) {
       console.log(
         `[FlutterJS] Registered ${this.serviceRegistry.getNames().length} built-in services`
       );
     }
   }
-  
+
   /**
    * Run application
    * @param {Widget} rootWidget - Root widget (e.g., MyApp)
@@ -260,22 +280,23 @@ class FlutterJSRuntime {
     if (!rootWidget) {
       throw new Error('[FlutterJS] Root widget is required');
     }
-    
+
     const startTime = performance.now();
-    
+
     try {
       // Determine container
-      const container = containerElement || 
-                       document.getElementById('root') || 
-                       document.body;
-      
+      const container = containerElement ||
+        (typeof document !== 'undefined' && document.getElementById('root')) ||
+        (typeof document !== 'undefined' && document.body) ||
+        null;
+
       if (!container) {
         throw new Error('[FlutterJS] Could not find container element');
       }
-      
+
       this.containerElement = container;
       this.rootWidget = rootWidget;
-      
+
       // Initialize if not already done
       if (!this.initialized) {
         this.initialize({ rootElement: container });
@@ -285,28 +306,28 @@ class FlutterJSRuntime {
         this.eventSystem.initialize(container);
         this.engine.eventSystem = this.eventSystem;
       }
-      
+
       this.runHooks('beforeMount');
-      
+
       if (this.config.debugMode) {
         console.log('[FlutterJS] Mounting application...');
       }
-      
+
       // Mount application
       this.engine.mount(rootWidget, container);
-      
+
       this.mounted = true;
       this.stats.mountTime = performance.now() - startTime;
-      
+
       this.runHooks('afterMount');
-      
+
       if (this.config.debugMode) {
         console.log(
-          `[FlutterJS] âœ… Application mounted in ${this.stats.mountTime.toFixed(2)}ms`
+          `[FlutterJS] ✓ Application mounted in ${this.stats.mountTime.toFixed(2)}ms`
         );
         this.logStats();
       }
-      
+
       // Notify analytics
       if (this.config.analytics) {
         const analytics = this.serviceRegistry.get('analytics');
@@ -316,14 +337,14 @@ class FlutterJSRuntime {
           });
         }
       }
-      
+
       return this;
     } catch (error) {
       this.handleError('mount', error);
       throw error;
     }
   }
-  
+
   /**
    * Hot reload application (development mode)
    * @param {Widget} newRootWidget - Updated root widget
@@ -334,38 +355,38 @@ class FlutterJSRuntime {
       console.warn('[FlutterJS] Hot reload is disabled');
       return this;
     }
-    
+
     if (!this.mounted) {
       console.warn('[FlutterJS] Cannot hot reload: app not mounted');
       return this;
     }
-    
+
     const startTime = performance.now();
-    
+
     try {
       if (this.config.debugMode) {
         console.log('[FlutterJS] Hot reloading...');
       }
-      
+
       // Update root widget
       this.rootWidget = newRootWidget;
       this.engine.elementTree.update(newRootWidget);
       this.engine.elementTree.markNeedsBuild();
       this.engine.performUpdate();
-      
+
       const reloadTime = performance.now() - startTime;
-      
+
       if (this.config.debugMode) {
-        console.log(`[FlutterJS] âœ… Hot reload completed in ${reloadTime.toFixed(2)}ms`);
+        console.log(`[FlutterJS] ✓ Hot reload completed in ${reloadTime.toFixed(2)}ms`);
       }
-      
+
       return this;
     } catch (error) {
       this.handleError('hotReload', error);
       throw error;
     }
   }
-  
+
   /**
    * Unmount application
    * @returns {FlutterJSRuntime} this instance for chaining
@@ -375,55 +396,55 @@ class FlutterJSRuntime {
       console.warn('[FlutterJS] App not mounted');
       return this;
     }
-    
+
     try {
       this.runHooks('beforeUnmount');
-      
+
       if (this.config.debugMode) {
         console.log('[FlutterJS] Unmounting application...');
       }
-      
+
       // Unmount engine
       if (this.engine) {
         this.engine.unmount();
       }
-      
+
       // Cleanup subsystems
       if (this.eventSystem) {
         this.eventSystem.dispose();
       }
-      
+
       if (this.gestureRecognizer) {
         this.gestureRecognizer.dispose();
       }
-      
+
       if (this.focusManager) {
         this.focusManager.dispose();
       }
-      
+
       if (this.stateManager) {
         this.stateManager.dispose();
       }
-      
+
       if (this.memoryManager) {
         this.memoryManager.clear();
       }
-      
+
       this.mounted = false;
-      
+
       this.runHooks('afterUnmount');
-      
+
       if (this.config.debugMode) {
-        console.log('[FlutterJS] âœ… Application unmounted');
+        console.log('[FlutterJS] ✓ Application unmounted');
       }
-      
+
       return this;
     } catch (error) {
       this.handleError('unmount', error);
       throw error;
     }
   }
-  
+
   /**
    * Dispose runtime completely
    */
@@ -431,15 +452,15 @@ class FlutterJSRuntime {
     if (this.mounted) {
       this.unmount();
     }
-    
+
     if (this.serviceRegistry) {
       this.serviceRegistry.dispose();
     }
-    
+
     if (this.memoryManager) {
       this.memoryManager.dispose();
     }
-    
+
     // Clear references
     this.engine = null;
     this.eventSystem = null;
@@ -448,31 +469,33 @@ class FlutterJSRuntime {
     this.memoryManager = null;
     this.serviceRegistry = null;
     this.stateManager = null;
-    
+
     this.initialized = false;
     this.rootWidget = null;
     this.containerElement = null;
-    
+
     if (this.config.debugMode) {
       console.log('[FlutterJS] Runtime disposed');
     }
   }
-  
+
   /**
    * Setup error handling
    */
   setupErrorHandling() {
     // Global error handler
-    window.addEventListener('error', (event) => {
-      this.handleError('global', event.error);
-    });
-    
-    // Unhandled promise rejection
-    window.addEventListener('unhandledrejection', (event) => {
-      this.handleError('promise', event.reason);
-    });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('error', (event) => {
+        this.handleError('global', event.error);
+      });
+
+      // Unhandled promise rejection
+      window.addEventListener('unhandledrejection', (event) => {
+        this.handleError('promise', event.reason);
+      });
+    }
   }
-  
+
   /**
    * Handle error
    * @param {string} source - Error source
@@ -480,7 +503,7 @@ class FlutterJSRuntime {
    */
   handleError(source, error) {
     console.error(`[FlutterJS] Error in ${source}:`, error);
-    
+
     // Call registered error handlers
     this.errorHandlers.forEach(handler => {
       try {
@@ -489,7 +512,7 @@ class FlutterJSRuntime {
         console.error('[FlutterJS] Error in error handler:', handlerError);
       }
     });
-    
+
     // Track in analytics
     if (this.config.analytics) {
       const analytics = this.serviceRegistry?.get('analytics');
@@ -498,7 +521,7 @@ class FlutterJSRuntime {
       }
     }
   }
-  
+
   /**
    * Register error handler
    * @param {Function} handler - Error handler function
@@ -509,7 +532,7 @@ class FlutterJSRuntime {
     }
     return this;
   }
-  
+
   /**
    * Setup performance monitoring
    */
@@ -518,17 +541,17 @@ class FlutterJSRuntime {
     let lastFrameTime = performance.now();
     let frameCount = 0;
     let totalFrameTime = 0;
-    
+
     const measureFrame = () => {
       const now = performance.now();
       const frameTime = now - lastFrameTime;
-      
+
       frameCount++;
       totalFrameTime += frameTime;
-      
+
       this.stats.totalFrames = frameCount;
       this.stats.averageFrameTime = totalFrameTime / frameCount;
-      
+
       // Warn on slow frames (> 16.67ms = < 60 FPS)
       if (frameTime > 16.67 && this.config.debugMode) {
         console.warn(
@@ -536,18 +559,18 @@ class FlutterJSRuntime {
           `(target: 16.67ms for 60 FPS)`
         );
       }
-      
+
       lastFrameTime = now;
-      
+
       if (this.mounted) {
         requestAnimationFrame(measureFrame);
       }
     };
-    
+
     if (this.mounted) {
       requestAnimationFrame(measureFrame);
     }
-    
+
     // Log stats periodically
     if (this.config.debugMode) {
       setInterval(() => {
@@ -557,7 +580,7 @@ class FlutterJSRuntime {
       }, 10000); // Every 10 seconds
     }
   }
-  
+
   /**
    * Register lifecycle hook
    * @param {string} hookName - Hook name
@@ -569,7 +592,7 @@ class FlutterJSRuntime {
     }
     return this;
   }
-  
+
   /**
    * Run lifecycle hooks
    * @param {string} hookName - Hook name
@@ -581,10 +604,11 @@ class FlutterJSRuntime {
         hook(this);
       } catch (error) {
         console.error(`[FlutterJS] Error in ${hookName} hook:`, error);
+        // Error is caught and logged, but execution continues to next hook
       }
     });
   }
-  
+
   /**
    * Get runtime statistics
    * @returns {Object} Statistics object
@@ -595,70 +619,70 @@ class FlutterJSRuntime {
       initialized: this.initialized,
       mounted: this.mounted
     };
-    
+
     if (this.engine) {
       stats.engine = this.engine.getStats();
     }
-    
+
     if (this.eventSystem) {
       stats.events = this.eventSystem.getStats();
     }
-    
+
     if (this.gestureRecognizer) {
       stats.gestures = this.gestureRecognizer.getStats();
     }
-    
+
     if (this.focusManager) {
       stats.focus = this.focusManager.getStats();
     }
-    
+
     if (this.memoryManager) {
       stats.memory = this.memoryManager.getStats();
     }
-    
+
     if (this.stateManager) {
       stats.state = this.stateManager.getStats();
     }
-    
+
     if (this.serviceRegistry) {
       stats.services = this.serviceRegistry.getStats();
     }
-    
+
     return stats;
   }
-  
+
   /**
    * Log statistics to console
    */
   logStats() {
     if (!this.config.debugMode) return;
-    
+
     const stats = this.getStats();
-    
+
     console.group('[FlutterJS] Runtime Statistics');
     console.log('Initialization Time:', `${stats.initTime.toFixed(2)}ms`);
     console.log('Mount Time:', `${stats.mountTime.toFixed(2)}ms`);
     console.log('Total Frames:', stats.totalFrames);
     console.log('Average Frame Time:', `${stats.averageFrameTime.toFixed(2)}ms`);
-    
+
     if (stats.engine) {
       console.log('Engine Frames:', stats.engine.frameCount);
       console.log('Engine Build Time:', `${stats.engine.buildTime.toFixed(2)}ms`);
     }
-    
+
     if (stats.memory) {
       console.log('Elements Tracked:', stats.memory.currentElements);
       console.log('VNodes Tracked:', stats.memory.currentVNodes);
     }
-    
+
     if (stats.state) {
       console.log('Active States:', stats.state.currentStates);
       console.log('setState Calls:', stats.state.setStateCalls);
     }
-    
+
     console.groupEnd();
   }
-  
+
   /**
    * Get runtime configuration
    * @returns {Object} Configuration object
@@ -666,7 +690,7 @@ class FlutterJSRuntime {
   getConfig() {
     return { ...this.config };
   }
-  
+
   /**
    * Check if runtime is initialized
    * @returns {boolean}
@@ -674,7 +698,7 @@ class FlutterJSRuntime {
   isInitialized() {
     return this.initialized;
   }
-  
+
   /**
    * Check if app is mounted
    * @returns {boolean}
@@ -682,146 +706,6 @@ class FlutterJSRuntime {
   isMounted() {
     return this.mounted;
   }
-}
-
-// Simplified subsystem mocks for demo
-// In production, these would be imported from separate files
-
-class RuntimeEngine {
-  constructor() {
-    this.rootWidget = null;
-    this.elementTree = null;
-    this.dirtyElements = new Set();
-    this.updateScheduled = false;
-    this.frameCounter = 0;
-    this.buildTime = 0;
-    this.mounted = false;
-    this.config = { debugMode: false };
-  }
-  
-  mount(widget, container) {
-    this.rootWidget = widget;
-    this.mounted = true;
-    this.frameCounter++;
-  }
-  
-  unmount() {
-    this.mounted = false;
-  }
-  
-  getStats() {
-    return {
-      frameCount: this.frameCounter,
-      buildTime: this.buildTime,
-      mounted: this.mounted
-    };
-  }
-}
-
-class EventSystem {
-  initialize() {}
-  dispose() {}
-  getStats() { return { eventsDispatched: 0 }; }
-}
-
-class GestureManager {
-  dispose() {}
-  getStats() { return { totalRecognizers: 0 }; }
-}
-
-class FocusManager {
-  constructor() {}
-  setupKeyboardNavigation() {}
-  dispose() {}
-  getStats() { return { totalFocusable: 0 }; }
-}
-
-class MemoryManager {
-  constructor() {}
-  clear() {}
-  dispose() {}
-  getStats() {
-    return {
-      currentElements: 0,
-      currentVNodes: 0
-    };
-  }
-}
-
-class ServiceRegistry {
-  constructor() {
-    this.services = new Map();
-  }
-  registerLazy(name, provider) {
-    this.services.set(name, { type: 'lazy', provider });
-  }
-  register(name, service) {
-    this.services.set(name, { type: 'singleton', service });
-  }
-  get(name) {
-    const entry = this.services.get(name);
-    if (!entry) return null;
-    if (entry.type === 'lazy') {
-      entry.service = entry.provider();
-      entry.type = 'singleton';
-    }
-    return entry.service;
-  }
-  getNames() {
-    return Array.from(this.services.keys());
-  }
-  dispose() {
-    this.services.clear();
-  }
-  getStats() {
-    return {
-      totalRegistered: this.services.size
-    };
-  }
-}
-
-class StateManager {
-  constructor() {
-    this.config = { debugMode: false };
-  }
-  dispose() {}
-  getStats() {
-    return {
-      currentStates: 0,
-      setStateCalls: 0
-    };
-  }
-}
-
-class ThemeService {
-  constructor(theme) {
-    this.theme = theme;
-  }
-}
-
-class MediaQueryService {
-  constructor() {
-    this.data = {
-      width: window.innerWidth,
-      height: window.innerHeight
-    };
-  }
-}
-
-class LoggerService {
-  constructor(config) {
-    this.level = config.level;
-  }
-}
-
-class NavigatorService {
-  constructor() {}
-}
-
-class AnalyticsService {
-  constructor() {}
-  trackEvent() {}
-  trackError() {}
 }
 
 // ============================================================================
@@ -839,21 +723,21 @@ let _runtimeInstance = null;
  * @param {HTMLElement} container - Container element (optional)
  * @returns {FlutterJSRuntime} Runtime instance
  */
-export function runApp(rootWidget, container = null) {
+function runApp(rootWidget, container = null) {
   if (_runtimeInstance && _runtimeInstance.isMounted()) {
     console.warn('[FlutterJS] App already running. Call dispose() first.');
     return _runtimeInstance;
   }
-  
+
   _runtimeInstance = new FlutterJSRuntime({
     debugMode: true,
     enableHotReload: true,
     enablePerformanceMonitoring: true,
     enableMemoryTracking: true
   });
-  
+
   _runtimeInstance.runApp(rootWidget, container);
-  
+
   return _runtimeInstance;
 }
 
@@ -861,12 +745,12 @@ export function runApp(rootWidget, container = null) {
  * Hot reload application (development)
  * @param {Widget} newRootWidget - Updated root widget
  */
-export function hotReload(newRootWidget) {
+function hotReload(newRootWidget) {
   if (!_runtimeInstance) {
     console.warn('[FlutterJS] No runtime instance found');
     return;
   }
-  
+
   _runtimeInstance.hotReload(newRootWidget);
 }
 
@@ -874,67 +758,27 @@ export function hotReload(newRootWidget) {
  * Get runtime instance
  * @returns {FlutterJSRuntime|null} Runtime instance or null
  */
-export function getRuntime() {
+function getRuntime() {
   return _runtimeInstance;
 }
 
 /**
  * Unmount and dispose runtime
  */
-export function dispose() {
+function dispose() {
   if (_runtimeInstance) {
     _runtimeInstance.dispose();
     _runtimeInstance = null;
   }
 }
 
-// ============================================================================
-// DEMO
-// ============================================================================
-
-// Mock widget classes for demo
-class Widget {
-  constructor(options = {}) {
-    this.key = options.key;
-  }
+// Export
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    FlutterJSRuntime,
+    runApp,
+    hotReload,
+    getRuntime,
+    dispose
+  };
 }
-
-class StatelessWidget extends Widget {
-  build(context) {
-    return null;
-  }
-}
-
-class MyApp extends StatelessWidget {
-  build(context) {
-    console.log('Building MyApp');
-    return null;
-  }
-}
-
-// Demo execution
-console.log('='.repeat(60));
-console.log('FlutterJS Runtime Integration Demo');
-console.log('='.repeat(60));
-
-// Create and run app
-const runtime = runApp(new MyApp());
-
-// Log stats after mount
-setTimeout(() => {
-  console.log('\nRuntime Stats After Mount:');
-  console.log(runtime.getStats());
-}, 100);
-
-// Simulate hot reload
-setTimeout(() => {
-  console.log('\nSimulating Hot Reload...');
-  hotReload(new MyApp());
-}, 500);
-
-// Cleanup after demo
-setTimeout(() => {
-  console.log('\nDisposing runtime...');
-  dispose();
-  console.log('âœ… Demo complete');
-}, 1000);

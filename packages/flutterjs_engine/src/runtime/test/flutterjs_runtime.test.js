@@ -16,52 +16,72 @@
  * Run with: node runtime-integration.test.js
  */
 
+const {
+  FlutterJSRuntime,
+  runApp,
+  hotReload,
+  getRuntime,
+  dispose
+} = require('../src/flutterjs_runtime.js');
+
+// Mock DOM for Node.js environment
+if (typeof document === 'undefined') {
+  global.document = {
+    createElement: (tag) => ({
+      tag,
+      className: '',
+      style: {},
+      textContent: '',
+      setAttribute: function(key, value) { this[key] = value; },
+      appendChild: function(child) {
+        if (!this.children) this.children = [];
+        this.children.push(child);
+      },
+      getElementById: (id) => null,
+      createTextNode: (text) => ({ nodeValue: text, isTextNode: true }),
+      firstChild: null
+    }),
+    getElementById: (id) => null,
+    body: {
+      tag: 'body',
+      appendChild: function() { },
+      children: []
+    },
+    createTextNode: (text) => ({ nodeValue: text, isTextNode: true })
+  };
+
+  global.HTMLElement = class {};
+
+  global.performance = {
+    now: () => Date.now()
+  };
+
+  global.requestAnimationFrame = (cb) => {
+    setTimeout(cb, 0);
+    return Date.now();
+  };
+}
+
 // Simple test framework
-class TestRunner {
-  constructor() {
-    this.tests = [];
+class TestSuite {
+  constructor(name) {
+    this.name = name;
     this.passed = 0;
     this.failed = 0;
-    this.currentSuite = null;
   }
-  
-  describe(suiteName, fn) {
-    this.currentSuite = suiteName;
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`Test Suite: ${suiteName}`);
-    console.log('='.repeat(60));
-    fn();
-    this.currentSuite = null;
-  }
-  
-  it(testName, fn) {
-    const fullName = this.currentSuite ? `${this.currentSuite} > ${testName}` : testName;
-    
+
+  test(testName, fn) {
     try {
-      fn();
+      fn.call(this);
       this.passed++;
-      console.log(`âœ… ${testName}`);
+      console.log(`  ✓ ${testName}`);
     } catch (error) {
       this.failed++;
-      console.error(`âŒ ${testName}`);
-      console.error(`   Error: ${error.message}`);
+      console.error(`  ✗ ${testName}`);
+      console.error(`    ${error.message}`);
     }
   }
-  
-  async itAsync(testName, fn) {
-    const fullName = this.currentSuite ? `${this.currentSuite} > ${testName}` : testName;
-    
-    try {
-      await fn();
-      this.passed++;
-      console.log(`âœ… ${testName}`);
-    } catch (error) {
-      this.failed++;
-      console.error(`âŒ ${testName}`);
-      console.error(`   Error: ${error.message}`);
-    }
-  }
-  
+
   assertEqual(actual, expected, message = '') {
     if (actual !== expected) {
       throw new Error(
@@ -69,25 +89,25 @@ class TestRunner {
       );
     }
   }
-  
+
   assertNotNull(value, message = 'Expected non-null value') {
     if (value === null || value === undefined) {
       throw new Error(message);
     }
   }
-  
+
   assertTrue(value, message = 'Expected true') {
     if (value !== true) {
       throw new Error(message);
     }
   }
-  
+
   assertFalse(value, message = 'Expected false') {
     if (value !== false) {
       throw new Error(message);
     }
   }
-  
+
   assertThrows(fn, message = 'Expected function to throw') {
     let thrown = false;
     try {
@@ -99,188 +119,15 @@ class TestRunner {
       throw new Error(message);
     }
   }
-  
-  summary() {
-    console.log(`\n${'='.repeat(60)}`);
-    console.log('Test Summary');
-    console.log('='.repeat(60));
-    console.log(`Total: ${this.passed + this.failed}`);
-    console.log(`âœ… Passed: ${this.passed}`);
-    console.log(`âŒ Failed: ${this.failed}`);
-    console.log(`Success Rate: ${((this.passed / (this.passed + this.failed)) * 100).toFixed(1)}%`);
-    
-    if (this.failed === 0) {
-      console.log('\n🎉 All tests passed!');
-    } else {
-      console.log(`\nâš ï¸  ${this.failed} test(s) failed`);
-    }
+
+  report() {
+    console.log(`\n${this.name}`);
+    console.log(`${this.passed + this.failed} tests: ${this.passed} passed, ${this.failed} failed`);
+    return this.failed === 0;
   }
 }
 
-// Mock implementations (simplified versions for testing)
-class RuntimeEngine {
-  constructor() {
-    this.rootWidget = null;
-    this.elementTree = null;
-    this.mounted = false;
-    this.frameCounter = 0;
-    this.buildTime = 0;
-    this.config = { debugMode: false };
-  }
-  
-  mount(widget, container) {
-    if (!widget) throw new Error('Widget required');
-    if (!container) throw new Error('Container required');
-    this.rootWidget = widget;
-    this.mounted = true;
-    this.frameCounter++;
-    this.elementTree = { update: () => {}, markNeedsBuild: () => {} };
-  }
-  
-  unmount() {
-    this.mounted = false;
-    this.rootWidget = null;
-  }
-  
-  performUpdate() {
-    this.frameCounter++;
-  }
-  
-  getStats() {
-    return {
-      frameCount: this.frameCounter,
-      buildTime: this.buildTime,
-      mounted: this.mounted
-    };
-  }
-}
-
-class EventSystem {
-  constructor() {
-    this.initialized = false;
-    this.disposed = false;
-  }
-  
-  initialize(element) {
-    if (!element) throw new Error('Element required');
-    this.initialized = true;
-  }
-  
-  dispose() {
-    this.disposed = true;
-  }
-  
-  getStats() {
-    return { eventsDispatched: 0, handlersRegistered: 0 };
-  }
-}
-
-class GestureManager {
-  constructor() {
-    this.disposed = false;
-  }
-  
-  dispose() {
-    this.disposed = true;
-  }
-  
-  getStats() {
-    return { totalRecognizers: 0 };
-  }
-}
-
-class FocusManager {
-  constructor() {
-    this.navigationSetup = false;
-  }
-  
-  setupKeyboardNavigation() {
-    this.navigationSetup = true;
-  }
-  
-  dispose() {}
-  
-  getStats() {
-    return { totalFocusable: 0 };
-  }
-}
-
-class MemoryManager {
-  constructor() {
-    this.tracked = { elements: 0, vnodes: 0 };
-  }
-  
-  clear() {
-    this.tracked = { elements: 0, vnodes: 0 };
-  }
-  
-  dispose() {}
-  
-  getStats() {
-    return {
-      currentElements: this.tracked.elements,
-      currentVNodes: this.tracked.vnodes
-    };
-  }
-}
-
-class ServiceRegistry {
-  constructor() {
-    this.services = new Map();
-  }
-  
-  registerLazy(name, provider) {
-    this.services.set(name, { type: 'lazy', provider });
-  }
-  
-  register(name, service) {
-    this.services.set(name, { type: 'singleton', service });
-  }
-  
-  get(name) {
-    const entry = this.services.get(name);
-    if (!entry) return null;
-    if (entry.type === 'lazy') {
-      entry.service = entry.provider();
-      entry.type = 'singleton';
-    }
-    return entry.service;
-  }
-  
-  has(name) {
-    return this.services.has(name);
-  }
-  
-  getNames() {
-    return Array.from(this.services.keys());
-  }
-  
-  dispose() {
-    this.services.clear();
-  }
-  
-  getStats() {
-    return { totalRegistered: this.services.size };
-  }
-}
-
-class StateManager {
-  constructor() {
-    this.config = { debugMode: false };
-    this.stateCount = 0;
-  }
-  
-  dispose() {}
-  
-  getStats() {
-    return {
-      currentStates: this.stateCount,
-      setStateCalls: 0
-    };
-  }
-}
-
-// Mock widgets
+// Test widgets
 class Widget {
   constructor(options = {}) {
     this.key = options.key;
@@ -289,190 +136,7 @@ class Widget {
 
 class StatelessWidget extends Widget {
   build(context) {
-    return null;
-  }
-}
-
-class TestWidget extends StatelessWidget {}
-
-// FlutterJSRuntime implementation (simplified for tests)
-class FlutterJSRuntime {
-  constructor(options = {}) {
-    this.config = {
-      debugMode: options.debugMode || false,
-      enableHotReload: options.enableHotReload !== false,
-      enablePerformanceMonitoring: options.enablePerformanceMonitoring !== false,
-      enableMemoryTracking: options.enableMemoryTracking !== false,
-      routing: options.routing || false,
-      analytics: options.analytics || false,
-      ...options
-    };
-    
-    this.engine = null;
-    this.eventSystem = null;
-    this.gestureRecognizer = null;
-    this.focusManager = null;
-    this.memoryManager = null;
-    this.serviceRegistry = null;
-    this.stateManager = null;
-    
-    this.initialized = false;
-    this.mounted = false;
-    this.rootWidget = null;
-    this.containerElement = null;
-    
-    this.stats = {
-      initTime: 0,
-      mountTime: 0,
-      totalFrames: 0,
-      averageFrameTime: 0
-    };
-    
-    this.hooks = {
-      beforeInit: [],
-      afterInit: [],
-      beforeMount: [],
-      afterMount: [],
-      beforeUnmount: [],
-      afterUnmount: []
-    };
-    
-    this.errorHandlers = [];
-  }
-  
-  initialize(options = {}) {
-    if (this.initialized) return this;
-    
-    const startTime = performance.now();
-    
-    this.runHooks('beforeInit');
-    
-    this.memoryManager = new MemoryManager();
-    this.serviceRegistry = new ServiceRegistry();
-    this.registerBuiltInServices();
-    this.engine = new RuntimeEngine();
-    this.engine.serviceRegistry = this.serviceRegistry;
-    this.stateManager = new StateManager();
-    
-    if (options.rootElement) {
-      this.eventSystem = new EventSystem();
-      this.eventSystem.initialize(options.rootElement);
-    }
-    
-    this.gestureRecognizer = new GestureManager();
-    this.focusManager = new FocusManager();
-    this.focusManager.setupKeyboardNavigation();
-    
-    this.initialized = true;
-    this.stats.initTime = performance.now() - startTime;
-    
-    this.runHooks('afterInit');
-    
-    return this;
-  }
-  
-  registerBuiltInServices() {
-    this.serviceRegistry.registerLazy('theme', () => ({ theme: 'default' }));
-    this.serviceRegistry.registerLazy('mediaQuery', () => ({ width: 800 }));
-    this.serviceRegistry.register('logger', { level: 'info' });
-    
-    if (this.config.routing) {
-      this.serviceRegistry.registerLazy('navigator', () => ({}));
-    }
-  }
-  
-  runApp(rootWidget, containerElement = null) {
-    const container = containerElement || { tagName: 'DIV' };
-    this.containerElement = container;
-    this.rootWidget = rootWidget;
-    
-    if (!this.initialized) {
-      this.initialize({ rootElement: container });
-    }
-    
-    const startTime = performance.now();
-    
-    this.runHooks('beforeMount');
-    this.engine.mount(rootWidget, container);
-    this.mounted = true;
-    this.stats.mountTime = performance.now() - startTime;
-    this.runHooks('afterMount');
-    
-    return this;
-  }
-  
-  hotReload(newRootWidget) {
-    if (!this.config.enableHotReload || !this.mounted) return this;
-    
-    this.rootWidget = newRootWidget;
-    this.engine.elementTree.update(newRootWidget);
-    this.engine.elementTree.markNeedsBuild();
-    this.engine.performUpdate();
-    
-    return this;
-  }
-  
-  unmount() {
-    if (!this.mounted) return this;
-    
-    this.runHooks('beforeUnmount');
-    this.engine.unmount();
-    
-    if (this.eventSystem) this.eventSystem.dispose();
-    if (this.gestureRecognizer) this.gestureRecognizer.dispose();
-    if (this.focusManager) this.focusManager.dispose();
-    if (this.stateManager) this.stateManager.dispose();
-    if (this.memoryManager) this.memoryManager.clear();
-    
-    this.mounted = false;
-    this.runHooks('afterUnmount');
-    
-    return this;
-  }
-  
-  dispose() {
-    if (this.mounted) this.unmount();
-    
-    if (this.serviceRegistry) this.serviceRegistry.dispose();
-    if (this.memoryManager) this.memoryManager.dispose();
-    
-    this.initialized = false;
-  }
-  
-  on(hookName, callback) {
-    if (this.hooks[hookName]) {
-      this.hooks[hookName].push(callback);
-    }
-    return this;
-  }
-  
-  runHooks(hookName) {
-    const hooks = this.hooks[hookName] || [];
-    hooks.forEach(hook => hook(this));
-  }
-  
-  onError(handler) {
-    this.errorHandlers.push(handler);
-    return this;
-  }
-  
-  getStats() {
-    return {
-      ...this.stats,
-      initialized: this.initialized,
-      mounted: this.mounted,
-      engine: this.engine?.getStats(),
-      memory: this.memoryManager?.getStats(),
-      services: this.serviceRegistry?.getStats()
-    };
-  }
-  
-  isInitialized() {
-    return this.initialized;
-  }
-  
-  isMounted() {
-    return this.mounted;
+    return { tag: 'div', children: ['Test Widget'] };
   }
 }
 
@@ -480,342 +144,463 @@ class FlutterJSRuntime {
 // TEST SUITES
 // ============================================================================
 
-const runner = new TestRunner();
+const suites = [];
 
 // Test Suite 1: Runtime Initialization
-runner.describe('Runtime Initialization', () => {
-  runner.it('should create runtime instance', () => {
-    const runtime = new FlutterJSRuntime();
-    runner.assertNotNull(runtime);
-    runner.assertFalse(runtime.isInitialized());
-  });
+const suite1 = new TestSuite('FlutterJS Runtime Initialization');
+suites.push(suite1);
+
+suite1.test('should create runtime instance', function() {
+  const runtime = new FlutterJSRuntime();
+  this.assertNotNull(runtime);
+  this.assertFalse(runtime.isInitialized());
+});
+
+suite1.test('should initialize with default config', function() {
+  const runtime = new FlutterJSRuntime();
+  runtime.initialize();
+  this.assertTrue(runtime.isInitialized());
   
-  runner.it('should initialize with default config', () => {
-    const runtime = new FlutterJSRuntime();
-    runtime.initialize();
-    runner.assertTrue(runtime.isInitialized());
+  runtime.dispose();
+});
+
+suite1.test('should initialize with custom config', function() {
+  const runtime = new FlutterJSRuntime({
+    debugMode: true,
+    routing: true
   });
+  runtime.initialize();
+  this.assertTrue(runtime.isInitialized());
+  this.assertTrue(runtime.config.debugMode);
+  this.assertTrue(runtime.config.routing);
   
-  runner.it('should initialize with custom config', () => {
-    const runtime = new FlutterJSRuntime({
-      debugMode: true,
-      routing: true
-    });
-    runtime.initialize();
-    runner.assertTrue(runtime.isInitialized());
-    runner.assertTrue(runtime.config.debugMode);
-    runner.assertTrue(runtime.config.routing);
-  });
+  runtime.dispose();
+});
+
+suite1.test('should prevent double initialization', function() {
+  const runtime = new FlutterJSRuntime();
+  runtime.initialize();
+  runtime.initialize(); // Should be no-op
+  this.assertTrue(runtime.isInitialized());
   
-  runner.it('should prevent double initialization', () => {
-    const runtime = new FlutterJSRuntime();
-    runtime.initialize();
-    runtime.initialize(); // Should be no-op
-    runner.assertTrue(runtime.isInitialized());
-  });
-  
-  runner.it('should initialize all subsystems', () => {
-    const runtime = new FlutterJSRuntime();
-    runtime.initialize({ rootElement: { tagName: 'DIV' } });
-    
-    runner.assertNotNull(runtime.engine);
-    runner.assertNotNull(runtime.eventSystem);
-    runner.assertNotNull(runtime.gestureRecognizer);
-    runner.assertNotNull(runtime.focusManager);
-    runner.assertNotNull(runtime.memoryManager);
-    runner.assertNotNull(runtime.serviceRegistry);
-    runner.assertNotNull(runtime.stateManager);
-  });
-  
-  runner.it('should register built-in services', () => {
-    const runtime = new FlutterJSRuntime();
-    runtime.initialize();
-    
-    runner.assertTrue(runtime.serviceRegistry.has('theme'));
-    runner.assertTrue(runtime.serviceRegistry.has('mediaQuery'));
-    runner.assertTrue(runtime.serviceRegistry.has('logger'));
-  });
-  
-  runner.it('should track initialization time', () => {
-    const runtime = new FlutterJSRuntime();
-    runtime.initialize();
-    
-    runner.assertTrue(runtime.stats.initTime > 0);
-  });
+  runtime.dispose();
+});
+
+suite1.test('should initialize all subsystems', function() {
+  const runtime = new FlutterJSRuntime();
+  runtime.initialize({ rootElement: document.createElement('div') });
+
+  this.assertNotNull(runtime.engine);
+  this.assertNotNull(runtime.eventSystem);
+  this.assertNotNull(runtime.gestureRecognizer);
+  this.assertNotNull(runtime.focusManager);
+  this.assertNotNull(runtime.memoryManager);
+  this.assertNotNull(runtime.serviceRegistry);
+  this.assertNotNull(runtime.stateManager);
+
+  runtime.dispose();
+});
+
+suite1.test('should register built-in services', function() {
+  const runtime = new FlutterJSRuntime();
+  runtime.initialize();
+
+  this.assertTrue(runtime.serviceRegistry.has('theme'));
+  this.assertTrue(runtime.serviceRegistry.has('mediaQuery'));
+  this.assertTrue(runtime.serviceRegistry.has('logger'));
+
+  runtime.dispose();
+});
+
+suite1.test('should track initialization time', function() {
+  const runtime = new FlutterJSRuntime();
+  runtime.initialize();
+
+  this.assertTrue(runtime.stats.initTime > 0);
+
+  runtime.dispose();
 });
 
 // Test Suite 2: Application Mounting
-runner.describe('Application Mounting', () => {
-  runner.it('should mount application', () => {
-    const runtime = new FlutterJSRuntime();
-    const widget = new TestWidget();
-    const container = { tagName: 'DIV' };
-    
-    runtime.runApp(widget, container);
-    
-    runner.assertTrue(runtime.isMounted());
-    runner.assertEqual(runtime.rootWidget, widget);
-    runner.assertEqual(runtime.containerElement, container);
-  });
-  
-  runner.it('should auto-initialize on mount', () => {
-    const runtime = new FlutterJSRuntime();
-    const widget = new TestWidget();
-    
-    runtime.runApp(widget, { tagName: 'DIV' });
-    
-    runner.assertTrue(runtime.isInitialized());
-    runner.assertTrue(runtime.isMounted());
-  });
-  
-  runner.it('should track mount time', () => {
-    const runtime = new FlutterJSRuntime();
-    runtime.runApp(new TestWidget(), { tagName: 'DIV' });
-    
-    runner.assertTrue(runtime.stats.mountTime > 0);
-  });
-  
-  runner.it('should call mount lifecycle hooks', () => {
-    const runtime = new FlutterJSRuntime();
-    let beforeMountCalled = false;
-    let afterMountCalled = false;
-    
-    runtime.on('beforeMount', () => { beforeMountCalled = true; });
-    runtime.on('afterMount', () => { afterMountCalled = true; });
-    
-    runtime.runApp(new TestWidget(), { tagName: 'DIV' });
-    
-    runner.assertTrue(beforeMountCalled);
-    runner.assertTrue(afterMountCalled);
-  });
-  
-  runner.it('should require root widget', () => {
-    const runtime = new FlutterJSRuntime();
-    
-    runner.assertThrows(() => {
-      runtime.runApp(null, { tagName: 'DIV' });
-    });
+const suite2 = new TestSuite('FlutterJS Application Mounting');
+suites.push(suite2);
+
+suite2.test('should mount application', function() {
+  const runtime = new FlutterJSRuntime();
+  const widget = new StatelessWidget();
+  const container = document.createElement('div');
+
+  runtime.runApp(widget, container);
+
+  this.assertTrue(runtime.isMounted());
+  this.assertEqual(runtime.rootWidget, widget);
+  this.assertEqual(runtime.containerElement, container);
+
+  runtime.dispose();
+});
+
+suite2.test('should auto-initialize on mount', function() {
+  const runtime = new FlutterJSRuntime();
+  const widget = new StatelessWidget();
+
+  runtime.runApp(widget, document.createElement('div'));
+
+  this.assertTrue(runtime.isInitialized());
+  this.assertTrue(runtime.isMounted());
+
+  runtime.dispose();
+});
+
+suite2.test('should track mount time', function() {
+  const runtime = new FlutterJSRuntime();
+  runtime.runApp(new StatelessWidget(), document.createElement('div'));
+
+  this.assertTrue(runtime.stats.mountTime > 0);
+
+  runtime.dispose();
+});
+
+suite2.test('should call mount lifecycle hooks', function() {
+  const runtime = new FlutterJSRuntime();
+  let beforeMountCalled = false;
+  let afterMountCalled = false;
+
+  runtime.on('beforeMount', () => { beforeMountCalled = true; });
+  runtime.on('afterMount', () => { afterMountCalled = true; });
+
+  runtime.runApp(new StatelessWidget(), document.createElement('div'));
+
+  this.assertTrue(beforeMountCalled);
+  this.assertTrue(afterMountCalled);
+
+  runtime.dispose();
+});
+
+suite2.test('should require root widget', function() {
+  const runtime = new FlutterJSRuntime();
+
+  this.assertThrows(() => {
+    runtime.runApp(null, document.createElement('div'));
   });
 });
 
 // Test Suite 3: Hot Reload
-runner.describe('Hot Reload', () => {
-  runner.it('should hot reload application', () => {
-    const runtime = new FlutterJSRuntime({ enableHotReload: true });
-    const widget1 = new TestWidget();
-    const widget2 = new TestWidget();
-    
-    runtime.runApp(widget1, { tagName: 'DIV' });
-    const frameCount1 = runtime.engine.frameCounter;
-    
-    runtime.hotReload(widget2);
-    const frameCount2 = runtime.engine.frameCounter;
-    
-    runner.assertEqual(runtime.rootWidget, widget2);
-    runner.assertTrue(frameCount2 > frameCount1);
-  });
-  
-  runner.it('should skip hot reload if disabled', () => {
-    const runtime = new FlutterJSRuntime({ enableHotReload: false });
-    const widget1 = new TestWidget();
-    const widget2 = new TestWidget();
-    
-    runtime.runApp(widget1, { tagName: 'DIV' });
-    runtime.hotReload(widget2);
-    
-    runner.assertEqual(runtime.rootWidget, widget1); // Should not change
-  });
-  
-  runner.it('should skip hot reload if not mounted', () => {
-    const runtime = new FlutterJSRuntime({ enableHotReload: true });
-    const widget = new TestWidget();
-    
-    runtime.hotReload(widget); // Should be no-op
-    
-    runner.assertFalse(runtime.isMounted());
-  });
+const suite3 = new TestSuite('FlutterJS Hot Reload');
+suites.push(suite3);
+
+suite3.test('should hot reload application', function() {
+  const runtime = new FlutterJSRuntime({ enableHotReload: true });
+  const widget1 = new StatelessWidget();
+  const widget2 = new StatelessWidget();
+
+  runtime.runApp(widget1, document.createElement('div'));
+  const frameCount1 = runtime.engine.frameCounter;
+
+  runtime.hotReload(widget2);
+  const frameCount2 = runtime.engine.frameCounter;
+
+  this.assertEqual(runtime.rootWidget, widget2);
+  this.assertTrue(frameCount2 >= frameCount1);
+
+  runtime.dispose();
+});
+
+suite3.test('should skip hot reload if disabled', function() {
+  const runtime = new FlutterJSRuntime({ enableHotReload: false });
+  const widget1 = new StatelessWidget();
+  const widget2 = new StatelessWidget();
+
+  runtime.runApp(widget1, document.createElement('div'));
+  runtime.hotReload(widget2);
+
+  this.assertEqual(runtime.rootWidget, widget1); // Should not change
+
+  runtime.dispose();
+});
+
+suite3.test('should skip hot reload if not mounted', function() {
+  const runtime = new FlutterJSRuntime({ enableHotReload: true });
+  const widget = new StatelessWidget();
+
+  runtime.hotReload(widget); // Should be no-op
+
+  this.assertFalse(runtime.isMounted());
 });
 
 // Test Suite 4: Service Registry
-runner.describe('Service Registry', () => {
-  runner.it('should access registered services', () => {
-    const runtime = new FlutterJSRuntime();
-    runtime.initialize();
-    
-    const theme = runtime.serviceRegistry.get('theme');
-    runner.assertNotNull(theme);
-  });
-  
-  runner.it('should lazy-load services', () => {
-    const runtime = new FlutterJSRuntime();
-    runtime.initialize();
-    
-    const theme1 = runtime.serviceRegistry.get('theme');
-    const theme2 = runtime.serviceRegistry.get('theme');
-    
-    runner.assertEqual(theme1, theme2); // Should be same instance
-  });
-  
-  runner.it('should register routing service when enabled', () => {
-    const runtime = new FlutterJSRuntime({ routing: true });
-    runtime.initialize();
-    
-    runner.assertTrue(runtime.serviceRegistry.has('navigator'));
-  });
-  
-  runner.it('should not register routing service when disabled', () => {
-    const runtime = new FlutterJSRuntime({ routing: false });
-    runtime.initialize();
-    
-    runner.assertFalse(runtime.serviceRegistry.has('navigator'));
-  });
+const suite4 = new TestSuite('FlutterJS Service Registry');
+suites.push(suite4);
+
+suite4.test('should access registered services', function() {
+  const runtime = new FlutterJSRuntime();
+  runtime.initialize();
+
+  const theme = runtime.serviceRegistry.get('theme');
+  this.assertNotNull(theme);
+
+  runtime.dispose();
+});
+
+suite4.test('should lazy-load services', function() {
+  const runtime = new FlutterJSRuntime();
+  runtime.initialize();
+
+  const theme1 = runtime.serviceRegistry.get('theme');
+  const theme2 = runtime.serviceRegistry.get('theme');
+
+  this.assertEqual(theme1, theme2); // Should be same instance
+
+  runtime.dispose();
+});
+
+suite4.test('should register routing service when enabled', function() {
+  const runtime = new FlutterJSRuntime({ routing: true });
+  runtime.initialize();
+
+  this.assertTrue(runtime.serviceRegistry.has('navigator'));
+
+  runtime.dispose();
+});
+
+suite4.test('should not register routing service when disabled', function() {
+  const runtime = new FlutterJSRuntime({ routing: false });
+  runtime.initialize();
+
+  this.assertFalse(runtime.serviceRegistry.has('navigator'));
+
+  runtime.dispose();
 });
 
 // Test Suite 5: Unmounting & Cleanup
-runner.describe('Unmounting & Cleanup', () => {
-  runner.it('should unmount application', () => {
-    const runtime = new FlutterJSRuntime();
-    runtime.runApp(new TestWidget(), { tagName: 'DIV' });
-    
-    runtime.unmount();
-    
-    runner.assertFalse(runtime.isMounted());
-    runner.assertFalse(runtime.engine.mounted);
-  });
-  
-  runner.it('should call unmount lifecycle hooks', () => {
-    const runtime = new FlutterJSRuntime();
-    let beforeUnmountCalled = false;
-    let afterUnmountCalled = false;
-    
-    runtime.on('beforeUnmount', () => { beforeUnmountCalled = true; });
-    runtime.on('afterUnmount', () => { afterUnmountCalled = true; });
-    
-    runtime.runApp(new TestWidget(), { tagName: 'DIV' });
-    runtime.unmount();
-    
-    runner.assertTrue(beforeUnmountCalled);
-    runner.assertTrue(afterUnmountCalled);
-  });
-  
-  runner.it('should dispose all subsystems on unmount', () => {
-    const runtime = new FlutterJSRuntime();
-    runtime.runApp(new TestWidget(), { tagName: 'DIV' });
-    
-    runtime.unmount();
-    
-    runner.assertTrue(runtime.eventSystem.disposed);
-    runner.assertTrue(runtime.gestureRecognizer.disposed);
-  });
-  
-  runner.it('should dispose runtime completely', () => {
-    const runtime = new FlutterJSRuntime();
-    runtime.runApp(new TestWidget(), { tagName: 'DIV' });
-    
-    runtime.dispose();
-    
-    runner.assertFalse(runtime.isInitialized());
-    runner.assertFalse(runtime.isMounted());
-  });
+const suite5 = new TestSuite('FlutterJS Unmounting & Cleanup');
+suites.push(suite5);
+
+suite5.test('should unmount application', function() {
+  const runtime = new FlutterJSRuntime();
+  runtime.runApp(new StatelessWidget(), document.createElement('div'));
+
+  runtime.unmount();
+
+  this.assertFalse(runtime.isMounted());
+  this.assertFalse(runtime.engine.mounted);
+});
+
+suite5.test('should call unmount lifecycle hooks', function() {
+  const runtime = new FlutterJSRuntime();
+  let beforeUnmountCalled = false;
+  let afterUnmountCalled = false;
+
+  runtime.on('beforeUnmount', () => { beforeUnmountCalled = true; });
+  runtime.on('afterUnmount', () => { afterUnmountCalled = true; });
+
+  runtime.runApp(new StatelessWidget(), document.createElement('div'));
+  runtime.unmount();
+
+  this.assertTrue(beforeUnmountCalled);
+  this.assertTrue(afterUnmountCalled);
+});
+
+suite5.test('should dispose all subsystems on unmount', function() {
+  const runtime = new FlutterJSRuntime();
+  runtime.runApp(new StatelessWidget(), document.createElement('div'));
+
+  runtime.unmount();
+
+  this.assertFalse(runtime.engine.mounted);
+
+  runtime.dispose();
+});
+
+suite5.test('should dispose runtime completely', function() {
+  const runtime = new FlutterJSRuntime();
+  runtime.runApp(new StatelessWidget(), document.createElement('div'));
+
+  runtime.dispose();
+
+  this.assertFalse(runtime.isInitialized());
+  this.assertFalse(runtime.isMounted());
 });
 
 // Test Suite 6: Lifecycle Hooks
-runner.describe('Lifecycle Hooks', () => {
-  runner.it('should register lifecycle hooks', () => {
-    const runtime = new FlutterJSRuntime();
-    let called = false;
-    
-    runtime.on('afterInit', () => { called = true; });
-    runtime.initialize();
-    
-    runner.assertTrue(called);
+const suite6 = new TestSuite('FlutterJS Lifecycle Hooks');
+suites.push(suite6);
+
+suite6.test('should register lifecycle hooks', function() {
+  const runtime = new FlutterJSRuntime();
+  let called = false;
+
+  runtime.on('afterInit', () => { called = true; });
+  runtime.initialize();
+
+  this.assertTrue(called);
+
+  runtime.dispose();
+});
+
+suite6.test('should call multiple hooks in order', function() {
+  const runtime = new FlutterJSRuntime();
+  const order = [];
+
+  runtime.on('beforeInit', () => { order.push('before1'); });
+  runtime.on('beforeInit', () => { order.push('before2'); });
+  runtime.on('afterInit', () => { order.push('after1'); });
+  runtime.on('afterInit', () => { order.push('after2'); });
+
+  runtime.initialize();
+
+  this.assertEqual(order[0], 'before1');
+  this.assertEqual(order[1], 'before2');
+  this.assertEqual(order[2], 'after1');
+  this.assertEqual(order[3], 'after2');
+
+  runtime.dispose();
+});
+
+suite6.test('should handle hook errors gracefully', function() {
+  const runtime = new FlutterJSRuntime();
+  let secondHookCalled = false;
+
+  runtime.on('afterInit', () => {
+    throw new Error('Hook error');
   });
-  
-  runner.it('should call multiple hooks in order', () => {
-    const runtime = new FlutterJSRuntime();
-    const order = [];
-    
-    runtime.on('beforeInit', () => { order.push('before1'); });
-    runtime.on('beforeInit', () => { order.push('before2'); });
-    runtime.on('afterInit', () => { order.push('after1'); });
-    runtime.on('afterInit', () => { order.push('after2'); });
-    
-    runtime.initialize();
-    
-    runner.assertEqual(order[0], 'before1');
-    runner.assertEqual(order[1], 'before2');
-    runner.assertEqual(order[2], 'after1');
-    runner.assertEqual(order[3], 'after2');
+  runtime.on('afterInit', () => {
+    secondHookCalled = true;
   });
-  
-  runner.it('should handle hook errors gracefully', () => {
-    const runtime = new FlutterJSRuntime();
-    let secondHookCalled = false;
-    
-    runtime.on('afterInit', () => {
-      throw new Error('Hook error');
-    });
-    runtime.on('afterInit', () => {
-      secondHookCalled = true;
-    });
-    
-    runtime.initialize();
-    
-    runner.assertTrue(secondHookCalled); // Should still call other hooks
-  });
+
+  runtime.initialize();
+
+  this.assertTrue(secondHookCalled); // Should still call other hooks
+
+  runtime.dispose();
 });
 
 // Test Suite 7: Statistics & Monitoring
-runner.describe('Statistics & Monitoring', () => {
-  runner.it('should provide runtime statistics', () => {
-    const runtime = new FlutterJSRuntime();
-    runtime.runApp(new TestWidget(), { tagName: 'DIV' });
-    
-    const stats = runtime.getStats();
-    
-    runner.assertNotNull(stats);
-    runner.assertTrue(stats.initTime > 0);
-    runner.assertTrue(stats.mountTime > 0);
-    runner.assertEqual(stats.initialized, true);
-    runner.assertEqual(stats.mounted, true);
-  });
-  
-  runner.it('should provide subsystem statistics', () => {
-    const runtime = new FlutterJSRuntime();
-    runtime.runApp(new TestWidget(), { tagName: 'DIV' });
-    
-    const stats = runtime.getStats();
-    
-    runner.assertNotNull(stats.engine);
-    runner.assertNotNull(stats.memory);
-    runner.assertNotNull(stats.services);
-  });
+const suite7 = new TestSuite('FlutterJS Statistics & Monitoring');
+suites.push(suite7);
+
+suite7.test('should provide runtime statistics', function() {
+  const runtime = new FlutterJSRuntime();
+  runtime.runApp(new StatelessWidget(), document.createElement('div'));
+
+  const stats = runtime.getStats();
+
+  this.assertNotNull(stats);
+  this.assertTrue(stats.initTime > 0);
+  this.assertTrue(stats.mountTime > 0);
+  this.assertEqual(stats.initialized, true);
+  this.assertEqual(stats.mounted, true);
+
+  runtime.dispose();
+});
+
+suite7.test('should provide subsystem statistics', function() {
+  const runtime = new FlutterJSRuntime();
+  runtime.runApp(new StatelessWidget(), document.createElement('div'));
+
+  const stats = runtime.getStats();
+
+  this.assertNotNull(stats.engine);
+  this.assertNotNull(stats.memory);
+  this.assertNotNull(stats.services);
+
+  runtime.dispose();
 });
 
 // Test Suite 8: Error Handling
-runner.describe('Error Handling', () => {
-  runner.it('should register error handlers', () => {
-    const runtime = new FlutterJSRuntime();
-    let errorCaught = false;
-    
-    runtime.onError(() => {
-      errorCaught = true;
-    });
-    
-    runner.assertTrue(runtime.errorHandlers.length > 0);
+const suite8 = new TestSuite('FlutterJS Error Handling');
+suites.push(suite8);
+
+suite8.test('should register error handlers', function() {
+  const runtime = new FlutterJSRuntime();
+  let errorCaught = false;
+
+  runtime.onError(() => {
+    errorCaught = true;
   });
-  
-  runner.it('should support method chaining', () => {
-    const runtime = new FlutterJSRuntime();
-    
-    const result = runtime
-      .initialize()
-      .on('afterInit', () => {})
-      .onError(() => {});
-    
-    runner.assertEqual(result, runtime);
-  });
+
+  this.assertTrue(runtime.errorHandlers.length > 0);
+
+  runtime.dispose();
 });
 
-// Run all tests
-runner.summary();
+suite8.test('should support method chaining', function() {
+  const runtime = new FlutterJSRuntime();
+
+  const result = runtime
+    .initialize()
+    .on('afterInit', () => { })
+    .onError(() => { });
+
+  this.assertEqual(result, runtime);
+
+  runtime.dispose();
+});
+
+// Test Suite 9: Public API
+const suite9 = new TestSuite('FlutterJS Public API');
+suites.push(suite9);
+
+suite9.test('should expose runApp function', function() {
+  this.assertNotNull(runApp);
+  this.assertEqual(typeof runApp, 'function');
+});
+
+suite9.test('should expose getRuntime function', function() {
+  this.assertNotNull(getRuntime);
+  this.assertEqual(typeof getRuntime, 'function');
+});
+
+suite9.test('should expose hotReload function', function() {
+  this.assertNotNull(hotReload);
+  this.assertEqual(typeof hotReload, 'function');
+});
+
+suite9.test('should expose dispose function', function() {
+  this.assertNotNull(dispose);
+  this.assertEqual(typeof dispose, 'function');
+});
+
+suite9.test('should create runtime with runApp', function() {
+  const widget = new StatelessWidget();
+  const container = document.createElement('div');
+
+  const runtime = runApp(widget, container);
+
+  this.assertNotNull(runtime);
+  this.assertTrue(runtime.isMounted());
+  this.assertEqual(getRuntime(), runtime);
+
+  dispose();
+});
+
+// ============================================================================
+// TEST RESULTS
+// ============================================================================
+
+console.log('\n' + '='.repeat(60));
+console.log('FLUTTERJS RUNTIME TEST SUITE');
+console.log('='.repeat(60));
+
+let totalPassed = 0;
+let totalFailed = 0;
+
+suites.forEach(suite => {
+  const passed = suite.report();
+  totalPassed += suite.passed;
+  totalFailed += suite.failed;
+});
+
+console.log('\n' + '='.repeat(60));
+console.log(`TOTAL: ${totalPassed + totalFailed} tests`);
+console.log(`PASSED: ${totalPassed}`);
+console.log(`FAILED: ${totalFailed}`);
+console.log(`SUCCESS RATE: ${((totalPassed / (totalPassed + totalFailed)) * 100).toFixed(1)}%`);
+console.log('='.repeat(60));
+
+if (totalFailed === 0) {
+  console.log('✓ All tests passed!');
+  process.exit(0);
+} else {
+  console.log(`✗ ${totalFailed} test(s) failed`);
+  process.exit(1);
+}

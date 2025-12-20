@@ -952,6 +952,6 @@ if (testsFailed === 0) {
   console.log('ðŸŽ‰ All tests passed!\n');
   process.exit(0);
 } else {
-  console.log('âŒ Some tests failed.\n');
+  console.log('✗ Some tests failed.\n');
   process.exit(1);
 }

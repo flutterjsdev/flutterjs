@@ -999,3 +999,11 @@ if (typeof module !== 'undefined' && module.exports) {
     GestureManager
   };
 }
+export { GestureRecognizer,
+    TapRecognizer,
+    LongPressRecognizer,
+    SwipeRecognizer,
+    PanRecognizer,
+    ScaleRecognizer,
+    GestureArena,
+    GestureManager};

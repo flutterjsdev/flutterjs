@@ -352,7 +352,7 @@ class MethodCallExpressionIR extends ExpressionIR {
 
     final posArgs = arguments.map((a) => a.toShortString()).join(', ');
 
-    // âœ… INCLUDE NAMED ARGUMENTS WITH KEYS
+    // ✓ INCLUDE NAMED ARGUMENTS WITH KEYS
     final namedArgs = namedArguments.entries
         .map((e) => '${e.key}: ${e.value.toShortString()}')
         .join(', ');

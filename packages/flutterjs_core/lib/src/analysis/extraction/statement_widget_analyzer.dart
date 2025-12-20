@@ -374,7 +374,7 @@ class StatementWidgetAnalyzer {
   Map<String, String> _extractProperties(ConstructorCallExpressionIR expr) {
     final props = <String, String>{};
 
-    // âœ… USE DETAILED NAMED ARGUMENTS IF AVAILABLE
+    // ✓ USE DETAILED NAMED ARGUMENTS IF AVAILABLE
     if (expr.namedArgumentsDetailed.isNotEmpty) {
       for (final namedArg in expr.namedArgumentsDetailed) {
         props[namedArg.name] = namedArg.value.toShortString();

@@ -90,7 +90,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   final List<ClassDecl> _classes = [];
 
   // =========================================================================
-  // âœ… NEW: COMPONENT SYSTEM FIELDS
+  // ✓ NEW: COMPONENT SYSTEM FIELDS
   // =========================================================================
 
   late EnhancedComponentExtractor componentExtractor;
@@ -116,12 +116,12 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       fileContent: fileContent,
       builder: builder,
     );
-    // âœ… INITIALIZE COMPONENT SYSTEM
+    // ✓ INITIALIZE COMPONENT SYSTEM
     _initializeComponentSystem();
   }
 
   // =========================================================================
-  // âœ… NEW: Component System Initialization
+  // ✓ NEW: Component System Initialization
   // =========================================================================
 
   void _initializeComponentSystem() {
@@ -138,7 +138,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         filePath,
         fileContent,
       );
-      print('   âœ… AST adapter registered');
+      print('   ✓ AST adapter registered');
     }
 
     // Create extractor
@@ -156,7 +156,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       id: builder.generateId('pure_extractor'),
     );
 
-    print('   âœ… Component system ready');
+    print('   ✓ Component system ready');
   }
 
   // =========================================================================

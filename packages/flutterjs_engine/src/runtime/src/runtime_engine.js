@@ -13,6 +13,15 @@
  * - Memory management
  */
 
+// Import Element classes from element.js
+const {
+  Element,
+  StatelessElement,
+  StatefulElement,
+  InheritedElement,
+  ComponentElement
+} = require('./element.js');
+
 class RuntimeEngine {
   constructor() {
     // Root references
@@ -123,24 +132,35 @@ class RuntimeEngine {
       throw new Error('Widget is required');
     }
     
-    // Determine element type based on widget type
-    const widgetType = widget.constructor.name;
-    
     // Check if widget has custom element creation
     if (typeof widget.createElement === 'function') {
       return widget.createElement(parent, this);
     }
     
-    // Default element creation based on widget class
+    // Determine element type based on widget class name
+    const widgetType = widget.constructor.name;
+    
+    // Check for StatelessWidget
     if (this.isStatelessWidget(widget)) {
       return new StatelessElement(widget, parent, this);
-    } else if (this.isStatefulWidget(widget)) {
+    }
+    
+    // Check for StatefulWidget
+    if (this.isStatefulWidget(widget)) {
       return new StatefulElement(widget, parent, this);
-    } else if (this.isInheritedWidget(widget)) {
+    }
+    
+    // Check for InheritedWidget
+    if (this.isInheritedWidget(widget)) {
       return new InheritedElement(widget, parent, this);
     }
     
-    throw new Error(`Unknown widget type: ${widgetType}. Widget must extend StatelessWidget, StatefulWidget, or InheritedWidget.`);
+    // Check for custom component
+    if (this.isComponentWidget(widget)) {
+      return new ComponentElement(widget, parent, this);
+    }
+    
+    throw new Error(`Unknown widget type: ${widgetType}. Widget must extend StatelessWidget, StatefulWidget, InheritedWidget, or have render/build method.`);
   }
   
   /**
@@ -148,7 +168,9 @@ class RuntimeEngine {
    */
   isStatelessWidget(widget) {
     return widget.constructor.name === 'StatelessWidget' || 
-           (widget.__proto__ && widget.__proto__.constructor.name === 'StatelessWidget');
+           (widget.constructor.prototype && 
+            widget.constructor.prototype.constructor.name === 'StatelessWidget') ||
+           (typeof widget.build === 'function' && !widget.createState && !widget.child);
   }
   
   /**
@@ -156,7 +178,9 @@ class RuntimeEngine {
    */
   isStatefulWidget(widget) {
     return widget.constructor.name === 'StatefulWidget' ||
-           (widget.__proto__ && widget.__proto__.constructor.name === 'StatefulWidget');
+           (widget.constructor.prototype && 
+            widget.constructor.prototype.constructor.name === 'StatefulWidget') ||
+           (typeof widget.createState === 'function');
   }
   
   /**
@@ -164,11 +188,22 @@ class RuntimeEngine {
    */
   isInheritedWidget(widget) {
     return widget.constructor.name === 'InheritedWidget' ||
-           (widget.__proto__ && widget.__proto__.constructor.name === 'InheritedWidget');
+           (widget.constructor.prototype && 
+            widget.constructor.prototype.constructor.name === 'InheritedWidget') ||
+           (widget.child !== undefined && typeof widget.updateShouldNotify === 'function');
   }
   
   /**
-   * Render VNode to DOM (simple implementation for now)
+   * Check if widget is a custom component
+   */
+  isComponentWidget(widget) {
+    return typeof widget.render === 'function' || 
+           (typeof widget.build === 'function' && 
+            typeof widget.createState !== 'function');
+  }
+  
+  /**
+   * Render VNode to DOM (simple implementation)
    */
   renderVNode(vnode, container) {
     if (!vnode) return;
@@ -187,6 +222,8 @@ class RuntimeEngine {
           element.className = value;
         } else if (key === 'style' && typeof value === 'object') {
           Object.assign(element.style, value);
+        } else if (!key.startsWith('data-')) {
+          element.setAttribute(key, value);
         } else {
           element.setAttribute(key, value);
         }
@@ -203,7 +240,7 @@ class RuntimeEngine {
       vnode.children.forEach(child => {
         if (typeof child === 'string') {
           element.appendChild(document.createTextNode(child));
-        } else {
+        } else if (child) {
           const childContainer = document.createElement('div');
           this.renderVNode(child, childContainer);
           if (childContainer.firstChild) {
@@ -408,193 +445,14 @@ class RuntimeEngine {
   }
 }
 
-// Base Element class (simplified for testing)
-class Element {
-  constructor(widget, parent, runtime) {
-    this.widget = widget;
-    this.parent = parent;
-    this.runtime = runtime;
-    
-    this.children = [];
-    this.vnode = null;
-    this.domNode = null;
-    
-    this.mounted = false;
-    this.dirty = false;
-    this.depth = parent ? parent.depth + 1 : 0;
-    
-    this.key = widget.key;
-    this.id = Element.generateId();
-  }
-  
-  build() {
-    throw new Error('build() must be implemented by subclass');
-  }
-  
-  mount() {
-    this.mounted = true;
-    this.vnode = this.build();
-    this.children.forEach(child => child.mount());
-  }
-  
-  update(newWidget) {
-    const oldWidget = this.widget;
-    this.widget = newWidget;
-    
-    if (this.shouldRebuild(oldWidget, newWidget)) {
-      this.markNeedsBuild();
-    }
-  }
-  
-  rebuild() {
-    if (!this.mounted) return;
-    
-    this.vnode = this.build();
-    this.dirty = false;
-  }
-  
-  markNeedsBuild() {
-    if (this.dirty) return;
-    this.dirty = true;
-    this.runtime.markNeedsBuild(this);
-  }
-  
-  unmount() {
-    this.children.forEach(child => child.unmount());
-    this.children = [];
-    this.mounted = false;
-    this.domNode = null;
-  }
-  
-  shouldRebuild(oldWidget, newWidget) {
-    return oldWidget !== newWidget;
-  }
-  
-  static generateId() {
-    return `el_${++Element._counter}`;
-  }
-}
-
-Element._counter = 0;
-
-// StatelessElement
-class StatelessElement extends Element {
-  build() {
-    // Simple mock build
-    return {
-      tag: 'div',
-      props: { 'data-widget': this.widget.constructor.name },
-      children: ['StatelessWidget']
-    };
-  }
-}
-
-// StatefulElement
-class StatefulElement extends Element {
-  constructor(widget, parent, runtime) {
-    super(widget, parent, runtime);
-    
-    this.state = widget.createState ? widget.createState() : null;
-    if (this.state) {
-      this.state._element = this;
-      this.state._widget = widget;
-    }
-  }
-  
-  build() {
-    if (this.state && this.state.build) {
-      return this.state.build(this.buildContext());
-    }
-    
-    return {
-      tag: 'div',
-      props: { 'data-widget': this.widget.constructor.name },
-      children: ['StatefulWidget']
-    };
-  }
-  
-  mount() {
-    if (this.state && this.state.initState) {
-      this.state.initState();
-    }
-    
-    super.mount();
-    
-    if (this.state && this.state.didMount) {
-      this.state.didMount();
-    }
-  }
-  
-  update(newWidget) {
-    const oldWidget = this.widget;
-    super.update(newWidget);
-    
-    if (this.state) {
-      this.state._widget = newWidget;
-      
-      if (this.state.didUpdateWidget) {
-        this.state.didUpdateWidget(oldWidget);
-      }
-    }
-  }
-  
-  unmount() {
-    if (this.state && this.state.dispose) {
-      this.state.dispose();
-    }
-    
-    super.unmount();
-  }
-  
-  buildContext() {
-    return { element: this, runtime: this.runtime };
-  }
-}
-
-// InheritedElement
-class InheritedElement extends Element {
-  constructor(widget, parent, runtime) {
-    super(widget, parent, runtime);
-    this.dependents = new Set();
-  }
-  
-  build() {
-    return {
-      tag: 'div',
-      props: { 'data-widget': this.widget.constructor.name },
-      children: ['InheritedWidget']
-    };
-  }
-  
-  addDependent(element) {
-    this.dependents.add(element);
-  }
-  
-  removeDependent(element) {
-    this.dependents.delete(element);
-  }
-  
-  notifyDependents() {
-    this.dependents.forEach(element => {
-      if (element.mounted) {
-        element.markNeedsBuild();
-      }
-    });
-  }
-  
-  unmount() {
-    this.dependents.clear();
-    super.unmount();
-  }
-}
-
-// Export for testing
+// Export
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     RuntimeEngine,
     Element,
     StatelessElement,
     StatefulElement,
-    InheritedElement
+    InheritedElement,
+    ComponentElement
   };
 }

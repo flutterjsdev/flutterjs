@@ -14,7 +14,7 @@ This means `getStringRef()` is writing an invalid index to the binary file.
 void writeInstanceCreationExpression(InstanceCreationExpressionIR expr) {
   writeType(expr.type);
 
-  // âœ" TRACK: Capture widget class name
+  // ✗" TRACK: Capture widget class name
   final widgetClassName = expr.type.displayName();
   addString(widgetClassName);  // ← ADDED TO STRING TABLE
 
@@ -32,7 +32,7 @@ void writeInstanceCreationExpression(InstanceCreationExpressionIR expr) {
 
   writeUint32(expr.namedArguments.length);
   for (final entry in expr.namedArguments.entries) {
-    // âœ" TRACK: Named parameters like "child", "children", "body"
+    // ✗" TRACK: Named parameters like "child", "children", "body"
     addString(entry.key);  // ← PROBLEM! ADDING NEW STRINGS DURING WRITE PHASE
     writeUint32(getStringRef(entry.key));
     writeExpression(entry.value);
@@ -67,14 +67,14 @@ void writeInstanceCreationExpression(InstanceCreationExpressionIR expr) {
 Current code (INCOMPLETE):
 ```dart
 } else if (expr is InstanceCreationExpressionIR) {
-  // âœ" NEW: Add widget class name
+  // ✗" NEW: Add widget class name
   addString(expr.type.displayName());
 
   if (expr.constructorName != null) {
     addString(expr.constructorName!);
   }
 
-  // âœ" NEW: Add named parameter names (child, children, etc.)
+  // ✗" NEW: Add named parameter names (child, children, etc.)
   for (final argName in expr.namedArguments.keys) {
     addString(argName);  // ← THIS MUST HAPPEN IN COLLECTION PHASE!
   }
