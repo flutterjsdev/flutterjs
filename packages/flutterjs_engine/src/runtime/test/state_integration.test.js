@@ -4,12 +4,8 @@
  * Real-world scenarios testing complete state management workflows
  */
 
-const {
-  State,
-  StateManager,
-  ReactiveState,
-  StateObserver
-} = require('../src/state');
+
+import { State,StateManager,ReactiveState,StateObserver } from '../src/state.js';
 
 // Test Runtime
 class TestRuntime {

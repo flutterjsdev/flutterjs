@@ -5,7 +5,8 @@
  * Tests registration, retrieval, caching, scoping, and events
  */
 
-const { ServiceRegistry } = require('../src/service_registry');
+
+import { ServiceRegistry } from '../src/service_registry.js';
 
 // Mock services
 class MockService {

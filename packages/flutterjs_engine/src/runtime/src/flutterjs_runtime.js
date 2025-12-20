@@ -782,3 +782,8 @@ if (typeof module !== 'undefined' && module.exports) {
     dispose
   };
 }
+export { FlutterJSRuntime,
+    runApp,
+    hotReload,
+    getRuntime,
+    dispose};

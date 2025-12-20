@@ -4,13 +4,8 @@
  * Comprehensive tests for the FlutterJS Runtime Engine
  */
 
-const {
-  RuntimeEngine,
-  Element,
-  StatelessElement,
-  StatefulElement,
-  InheritedElement
-} = require('../src/runtime_engine.js');
+
+import { RuntimeEngine, Element, StatefulElement, StatelessElement,InheritedElement } from '../src/runtime_engine.js';
 
 // Mock DOM for Node.js environment
 if (typeof document === 'undefined') {

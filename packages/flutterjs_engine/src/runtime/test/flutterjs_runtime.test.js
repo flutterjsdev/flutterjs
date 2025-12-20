@@ -16,13 +16,8 @@
  * Run with: node runtime-integration.test.js
  */
 
-const {
-  FlutterJSRuntime,
-  runApp,
-  hotReload,
-  getRuntime,
-  dispose
-} = require('../src/flutterjs_runtime.js');
+
+import { FlutterJSRuntime,runApp,hotReload,getRuntime,dispose } from '../src/flutterjs_runtime.js';
 
 // Mock DOM for Node.js environment
 if (typeof document === 'undefined') {

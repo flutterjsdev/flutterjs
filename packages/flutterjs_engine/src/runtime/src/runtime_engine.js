@@ -456,3 +456,10 @@ if (typeof module !== 'undefined' && module.exports) {
     ComponentElement
   };
 }
+
+export { RuntimeEngine,
+    Element,
+    StatelessElement,
+    StatefulElement,
+    InheritedElement,
+    ComponentElement};

@@ -4,14 +4,12 @@
  * Comprehensive tests for FlutterJS State Management
  */
 
-const {
-  State,
+import {  State,
   StateManager,
   UpdateBatcher,
   StateTracker,
   ReactiveState,
-  StateObserver
-} = require('../src/state');
+  StateObserver} from "../src/state.js";
 
 // Mock Element
 class MockElement {

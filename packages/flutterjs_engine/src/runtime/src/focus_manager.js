@@ -536,3 +536,5 @@ class FocusManager {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = FocusManager;
 }
+
+export {FocusManager};

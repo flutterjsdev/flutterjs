@@ -603,3 +603,9 @@ if (typeof module !== 'undefined' && module.exports) {
     Provider
   };
 }
+
+export {InheritedElement,
+    InheritedWidget,
+    ChangeNotifier,
+    ValueNotifier,
+    Provider};

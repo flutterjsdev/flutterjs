@@ -4,11 +4,8 @@
  * Real-world scenarios testing the complete runtime system
  */
 
-const {
-  RuntimeEngine,
-  StatelessElement,
-  StatefulElement
-} = require('../src/runtime_engine');
+
+import { RuntimeEngine,StatefulElement,StatefulElement } from '../src/runtime_engine.js';
 
 // Mock DOM
 if (typeof document === 'undefined') {

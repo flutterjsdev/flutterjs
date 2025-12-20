@@ -18,7 +18,7 @@ if (typeof document === 'undefined') {
   };
 }
 
-const { BuildContext } = require('../src/build_context.js');
+import { BuildContext } from '../src/build_context.js';
 
 // Mock classes
 class MockWidget {

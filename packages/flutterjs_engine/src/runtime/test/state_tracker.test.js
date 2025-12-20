@@ -10,7 +10,8 @@
  * - Real-world scenarios
  */
 
-const { StateTracker } = require('../src/state_tracker');
+
+import { StateTracker } from '../src/state_tracker.js';
 
 // Mock Element
 class MockElement {
