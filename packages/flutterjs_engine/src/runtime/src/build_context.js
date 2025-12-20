@@ -513,3 +513,4 @@ class BuildContext {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { BuildContext };
 }
+export {BuildContext};

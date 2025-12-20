@@ -606,3 +606,4 @@ if (typeof module !== 'undefined' && module.exports) {
     StateTracker
   };
 }
+export {StateTracker};

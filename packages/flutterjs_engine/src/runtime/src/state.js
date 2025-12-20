@@ -769,3 +769,10 @@ if (typeof module !== 'undefined' && module.exports) {
     StateObserver
   };
 }
+
+export { State,
+    StateManager,
+    UpdateBatcher,
+    StateTracker,
+    ReactiveState,
+    StateObserver};

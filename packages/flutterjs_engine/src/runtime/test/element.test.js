@@ -4,13 +4,8 @@
  * Comprehensive tests for the FlutterJS Element system
  */
 
-const {
-  Element,
-  StatelessElement,
-  StatefulElement,
-  InheritedElement,
-  ComponentElement
-} = require('../src/element.js');
+
+import { Element,StatefulElement,StatelessElement,InheritedElement,ComponentElement } from '../src/element.js';
 
 // Mock runtime
 class MockRuntime {
