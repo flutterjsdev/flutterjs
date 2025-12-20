@@ -17,6 +17,9 @@
  * - Elements own the DOM references and state
  */
 
+// Import BuildContext
+const { BuildContext } = require('./build_context.js');
+
 /**
  * Base Element Class
  * 
@@ -473,28 +476,7 @@ class StatelessElement extends Element {
    * Create BuildContext for this element
    */
   buildContext() {
-    return {
-      element: this,
-      runtime: this.runtime,
-      widget: this.widget,
-      
-      // Context methods
-      findAncestorWidgetOfExactType: (Type) => {
-        const element = this.findAncestorOfType(Type);
-        return element ? element.widget : null;
-      },
-      
-      findAncestorStateOfType: (Type) => {
-        let current = this.parent;
-        while (current) {
-          if (current instanceof StatefulElement && current.state instanceof Type) {
-            return current.state;
-          }
-          current = current.parent;
-        }
-        return null;
-      }
-    };
+    return new BuildContext(this, this.runtime);
   }
 }
 
@@ -606,36 +588,7 @@ class StatefulElement extends Element {
    * Create BuildContext for this element
    */
   buildContext() {
-    return {
-      element: this,
-      runtime: this.runtime,
-      widget: this.widget,
-      state: this.state,
-      
-      // Context methods
-      findAncestorWidgetOfExactType: (Type) => {
-        const element = this.findAncestorOfType(Type);
-        return element ? element.widget : null;
-      },
-      
-      findAncestorStateOfType: (Type) => {
-        let current = this.parent;
-        while (current) {
-          if (current instanceof StatefulElement && current.state instanceof Type) {
-            return current.state;
-          }
-          current = current.parent;
-        }
-        return null;
-      },
-      
-      // State-specific
-      setState: (updateFn) => {
-        if (this.state && this.state.setState) {
-          this.state.setState(updateFn);
-        }
-      }
-    };
+    return new BuildContext(this, this.runtime, this.state);
   }
   
   /**
@@ -815,3 +768,11 @@ if (typeof module !== 'undefined' && module.exports) {
     ComponentElement
   };
 }
+
+export {
+    Element,
+    StatelessElement,
+    StatefulElement,
+    InheritedElement,
+    ComponentElement
+};

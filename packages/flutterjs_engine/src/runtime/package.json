@@ -2,6 +2,7 @@
   "name": "runtime",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "directories": {
     "test": "test"
   },
@@ -11,13 +12,14 @@
     "test:element": "node ./test/element.test.js",
     "test:elementSystemImp": "node ./test/event_system_integration.test.js",
 
-    "test:elementSystem": "node ./test/event_system.test.js",
+    "test:event": "node ./test/event_system.test.js",
     "test:runtime": "node ./test/flutterjs_runtime.test.js",
     "test:focus": "node ./test/focus_manager.test.js",
     "test:gesture": "node ./test/gesture.test.js",
     "test:inheritentInte": "node ./test/inherited_element_integration.test.js",
     "test:inheritedElement": "node ./test/inherited_element.test.js",
     "test:memory": "node ./test/memory_integration.test.js",
+    "test:memoryMan": "node ./test/memory_manager.test.js",
     "test:runtimeEng": "node ./test/runtime_engine.test.js",
     "test:runtimeInte": "node ./test/runtime_integration.test",
     "test:service": "node ./test/service_registry.test.js",

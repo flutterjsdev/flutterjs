@@ -664,3 +664,6 @@ if (typeof module !== 'undefined' && module.exports) {
     SyntheticEvent
   };
 }
+
+export {  EventSystem,
+    SyntheticEvent};

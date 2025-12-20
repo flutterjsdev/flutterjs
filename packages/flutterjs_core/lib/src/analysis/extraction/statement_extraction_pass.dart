@@ -722,7 +722,7 @@ class StatementExtractionPass {
         metadata: metadata,
       );
 
-      print('      âœ… Created StringInterpolationExpressionIR');
+      print('      ✓ Created StringInterpolationExpressionIR');
       return result;
     }
     if (expr is StringLiteral) {
@@ -1051,10 +1051,10 @@ class StatementExtractionPass {
           final argName = arg.name.label.name;
           final argValue = extractExpression(arg.expression);
 
-          // âœ… PRESERVE NAME WITH VALUE
+          // ✓ PRESERVE NAME WITH VALUE
           named[argName] = argValue;
 
-          // âœ… CAPTURE NAMED ARGUMENT WITH TYPE INFO
+          // ✓ CAPTURE NAMED ARGUMENT WITH TYPE INFO
           namedWithTypes.add(
             NamedArgumentIR(
               id: builder.generateId('named_arg_$argName'),
@@ -1081,9 +1081,9 @@ class StatementExtractionPass {
 
         constructorName: constructorName,
         positionalArguments: positional,
-        namedArguments: named, // âœ… KEEP MAP OF NAMES TO EXPRESSIONS
-        arguments: positional, // âœ… ONLY positional, NOT mixed!
-        namedArgumentsDetailed: namedWithTypes, // âœ… HAS DETAILS
+        namedArguments: named, // ✓ KEEP MAP OF NAMES TO EXPRESSIONS
+        arguments: positional, // ✓ ONLY positional, NOT mixed!
+        namedArgumentsDetailed: namedWithTypes, // ✓ HAS DETAILS
         resultType: SimpleTypeIR(
           id: builder.generateId('type'),
           name: className,

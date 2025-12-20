@@ -756,3 +756,6 @@ if (typeof module !== 'undefined' && module.exports) {
     MemoryProfiler
   };
 }
+
+export { MemoryManager,
+    MemoryProfiler};

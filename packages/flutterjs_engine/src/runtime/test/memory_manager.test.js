@@ -4,10 +4,9 @@
  * Comprehensive tests for the FlutterJS Memory Manager
  */
 
-const {
-  MemoryManager,
-  MemoryProfiler
-} = require('../src/memory_manager');
+
+import {  MemoryManager,
+  MemoryProfiler} from "../src/memory_manager.js";
 
 // Mock Element
 class MockElement {

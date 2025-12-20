@@ -90,7 +90,7 @@ class UnifiedConversionPipeline {
       allIssues.addAll(diagnosticReport.issues);
 
       if (diagnosticReport.hasCriticalIssues && config.strictMode) {
-        _log('âŒ Diagnostics failed with critical issues');
+        _log('✗ Diagnostics failed with critical issues');
         return UnifiedPipelineResult.failed(
           message: 'Diagnostic validation failed',
           issues: diagnosticReport.issues,
@@ -98,7 +98,7 @@ class UnifiedConversionPipeline {
         );
       }
 
-      _log('âœ… Diagnostics complete (${diagnosticReport.totalIssues} issues)');
+      _log('✓ Diagnostics complete (${diagnosticReport.totalIssues} issues)');
 
       // ===== PHASES 1-3: IR GENERATION & INTEGRATION =====
       _log('ðŸ"„ Phases 1-3: IR Generation & Integration');
@@ -108,7 +108,7 @@ class UnifiedConversionPipeline {
       );
 
       if (!integrationResult.success && config.strictMode) {
-        _log('âŒ Integration phases failed');
+        _log('✗ Integration phases failed');
         return UnifiedPipelineResult.failed(
           message: 'Integration phases failed',
           issues: allIssues,
@@ -116,10 +116,10 @@ class UnifiedConversionPipeline {
         );
       }
 
-      _log('âœ… Integration complete');
+      _log('✓ Integration complete');
 
       // ===== PHASES 4-6: FILE GENERATION & VALIDATION =====
-      _log('âœï¸  Phases 4-6: File Generation, Validation & Optimization');
+      _log('✗ï¸  Phases 4-6: File Generation, Validation & Optimization');
       _log('📝 About to call _runGenerationPhases');
       _log('   - Optimize: $optimize');
       _log('   - Optimization Level: $optimizationLevel');
@@ -140,7 +140,7 @@ class UnifiedConversionPipeline {
       _log('   - Output path: ${generationResult.outputPath}');
 
       if (!generationResult.success && config.strictMode) {
-        _log('âŒ Generation phases failed');
+        _log('✗ Generation phases failed');
         return UnifiedPipelineResult.failed(
           message: generationResult.message ?? "unknown error",
           issues: allIssues,
@@ -159,7 +159,7 @@ class UnifiedConversionPipeline {
         _log('   - Size: $fileSize bytes');
       }
 
-      _log('âœ… Generation complete');
+      _log('✓ Generation complete');
 
       stopwatch.stop();
 
@@ -178,7 +178,7 @@ class UnifiedConversionPipeline {
         },
       );
     } catch (e, st) {
-      _log('âŒ Pipeline error: $e');
+      _log('✗ Pipeline error: $e');
       _log('Stack trace:');
       _log(st.toString());
       if (config.verbose) _log('Stack: $st');
