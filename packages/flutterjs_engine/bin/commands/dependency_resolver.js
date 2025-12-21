@@ -84,8 +84,8 @@ class ResolutionResult {
   }
 
   hasErrors() {
-    return this.errors.length > 0 || 
-           Array.from(this.packages.values()).some(pkg => !pkg.isValid());
+    return this.errors.length > 0 ||
+      Array.from(this.packages.values()).some(pkg => !pkg.isValid());
   }
 
   toString() {
@@ -121,26 +121,52 @@ class DependencyResolver {
   }
 
   /**
+  * FIX for DependencyResolver.resolveAll()
+  * 
+  * The problem: importStatements parameter is coming in wrong format
+  * Solution: Add normalization at the start of resolveAll()
+  */
+
+  /**
    * MAIN ENTRY POINT: Resolve all imports
+   * FIXED: Now handles multiple input formats
    */
   async resolveAll(importStatements) {
     const startTime = Date.now();
 
+    // ===== CRITICAL FIX: Normalize input =====
+    importStatements = this.normalizeInput(importStatements);
+
     if (this.config.debugMode) {
-      console.log(chalk.gray('\n🔍 Starting dependency resolution...\n'));
+      console.log(chalk.gray('\nðŸ" Starting dependency resolution...\n'));
+      console.log(chalk.gray(`Input type: ${typeof importStatements}`));
+      console.log(chalk.gray(`Is array: ${Array.isArray(importStatements)}`));
+      console.log(chalk.gray(`Length: ${importStatements.length}`));
     }
 
     try {
+      // Validate we have an iterable
+      if (!Array.isArray(importStatements)) {
+        console.error('importStatements after normalization:', importStatements);
+        throw new Error(`importStatements must be an array, got ${typeof importStatements}`);
+      }
+
       // Collect all unique import sources
       const sources = new Set();
+
       for (const imp of importStatements) {
-        sources.add(imp.source);
+        // Extract source from different formats
+        const source = imp?.source || imp?.from || imp?.module || (typeof imp === 'string' ? imp : null);
+
+        if (source) {
+          sources.add(source);
+        }
       }
 
       if (this.config.debugMode) {
         console.log(chalk.gray(`Found ${sources.size} unique imports:`));
         for (const source of sources) {
-          console.log(chalk.gray(`  • ${source}`));
+          console.log(chalk.gray(`  â€¢ ${source}`));
         }
         console.log();
       }
@@ -176,7 +202,50 @@ class DependencyResolver {
   }
 
   /**
-   * Resolve single import (recursive with cycle detection)
+   * NORMALIZE INPUT - Handle any format
+   */
+  normalizeInput(input) {
+    // Null/undefined
+    if (!input) {
+      return [];
+    }
+
+    // Already an array
+    if (Array.isArray(input)) {
+      return input;
+    }
+
+    // Object with values
+    if (typeof input === 'object') {
+      console.error('[DependencyResolver] Received object instead of array:', Object.keys(input).slice(0, 5));
+      return Object.values(input);
+    }
+
+    // Single string
+    if (typeof input === 'string') {
+      return [input];
+    }
+
+    console.error('[DependencyResolver] Unknown input type:', typeof input, input);
+    return [];
+  }
+
+  /**
+   * Extract source from import object (multiple formats supported)
+   */
+  extractSource(imp) {
+    if (!imp) return null;
+    if (typeof imp === 'string') return imp;
+
+    return imp.source     // DependencyResolver format
+      || imp.from       // Analyzer format
+      || imp.module     // Alternative format
+      || imp.name       // Another alternative
+      || null;
+  }
+
+  /**
+   * Updated resolveOne to use extractSource
    */
   async resolveOne(packageName, depth = 0) {
     const indent = '  '.repeat(depth);
@@ -184,14 +253,14 @@ class DependencyResolver {
     // Check if already resolved
     if (this.cache.has(packageName)) {
       if (this.config.debugMode && depth === 0) {
-        console.log(chalk.green(`${indent}✓ ${packageName} (cached)`));
+        console.log(chalk.green(`${indent}âœ" ${packageName} (cached)`));
       }
       return this.cache.get(packageName);
     }
 
     // Check for circular dependencies
     if (this.resolvingStack.includes(packageName)) {
-      const cycle = [...this.resolvingStack, packageName].join(' → ');
+      const cycle = [...this.resolvingStack, packageName].join(' -> ');
       const message = `Circular dependency detected: ${cycle}`;
       this.result.addError(message);
       throw new Error(message);
@@ -212,11 +281,11 @@ class DependencyResolver {
       }
 
       // Cache result
-      this.cache.set(packageName.name, resolved);
+      this.cache.set(packageName, resolved);  // Use packageName directly
       this.result.addPackage(resolved);
 
       if (this.config.debugMode && depth === 0) {
-        console.log(chalk.green(`${indent}✓ ${packageName}\n`));
+        console.log(chalk.green(`${indent}âœ" ${packageName}\n`));
       }
 
       // Recursively resolve dependencies
@@ -232,6 +301,10 @@ class DependencyResolver {
       this.visited.add(packageName);
       return resolved;
 
+    } catch (error) {
+      this.result.addError(`Failed to resolve ${packageName}: ${error.message}`);
+      // Don't re-throw, allow build to continue
+      return null;
     } finally {
       this.resolvingStack.pop();
     }
@@ -264,12 +337,12 @@ class DependencyResolver {
     if (!fs.existsSync(packagePath)) {
       const message = `Built-in package not found: ${packageName}\n` +
         `Expected at: ${packagePath}`;
-      
+
       if (this.config.ignoreMissing) {
         this.result.addWarning(message);
         return null;
       }
-      
+
       throw new Error(message);
     }
 
@@ -285,7 +358,7 @@ class DependencyResolver {
     if (!fs.existsSync(packagePath)) {
       const message = `Local package not found: ${packageName}\n` +
         `Expected at: ${packagePath}`;
-      
+
       if (this.config.ignoreMissing) {
         this.result.addWarning(message);
         return null;
@@ -311,7 +384,7 @@ class DependencyResolver {
       const message = `NPM package not found: ${packageName}\n` +
         `Expected at: ${packagePath}\n` +
         `Install with: npm install ${packageName}`;
-      
+
       if (this.config.ignoreMissing) {
         this.result.addWarning(message);
         return null;
@@ -332,7 +405,7 @@ class DependencyResolver {
     try {
       // Read package.json
       const packageJsonPath = path.join(packagePath, 'package.json');
-      
+
       if (!fs.existsSync(packageJsonPath)) {
         resolved.addError(`Missing package.json at ${packageJsonPath}`);
         return resolved;
@@ -390,7 +463,7 @@ class DependencyResolver {
     for (const dir of [libDir, srcDir, resolved.packagePath]) {
       if (fs.existsSync(dir)) {
         const files = await fs.promises.readdir(dir);
-        
+
         for (const file of files) {
           if (file.endsWith('.js') && !file.startsWith('_')) {
             const name = file.replace('.js', '');
@@ -489,13 +562,13 @@ class DependencyResolver {
   getBuiltinPath(packageName) {
     // Extract package name: @flutterjs/material -> material
     const name = packageName.replace('@flutterjs/', '');
-    
+
     // Look in framework packages directory
     const builtinRoot = path.join(
       path.dirname(new URL(import.meta.url).pathname),
       '../../packages'
     );
-    
+
     return path.join(builtinRoot, name);
   }
 
@@ -664,7 +737,7 @@ class DependencyResolver {
    */
   validateImport(packageName, exportNames) {
     const resolved = this.cache.get(packageName);
-    
+
     if (!resolved) {
       return {
         valid: false,

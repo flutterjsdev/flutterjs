@@ -18,11 +18,12 @@ import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
-import { FlutterJSAnalyzer } from './analyzer.js';
+import { Analyzer } from '../../src/analyzer/src/analyzer.js';
 import { DependencyResolver } from './dependency_resolver.js';
 import { PackageCollector } from './package_collector.js';
 import { ImportRewriter } from './import_rewriter.js';
 import { CodeTransformer } from './code_transformer.js';
+import { PathResolver } from './path-resolver.js';
 
 // ============================================================================
 // BUILD RESULT TYPES
@@ -87,7 +88,11 @@ class BuildPipeline {
       projectRoot: config.projectRoot || process.cwd(),
       mode: config.mode || 'development',
       target: config.target || 'spa',
-      entryFile: config.entryFile || 'lib/main.fjs',
+
+      // FIX: Properly extract entry file from config.entry.main
+      entry: config.entry || { main: 'lib/main.fjs' },
+      entryFile: config.entryFile || config.entry?.main || 'lib/main.fjs',  // âœ… NORMALIZED
+
       outputDir: config.outputDir || 'dist',
       devDir: config.devDir || '.dev',
       debugMode: config.debugMode || false,
@@ -99,13 +104,21 @@ class BuildPipeline {
     };
 
     this.projectRoot = this.config.projectRoot;
-    this.result = new BuildResult();
-  }
 
+    this.pathResolver = new PathResolver(this.projectRoot, this.config);
+
+    this.result = new BuildResult();
+
+    if (this.config.debugMode) {
+      console.log(chalk.gray('[BuildPipeline] Initialized'));
+      console.log(chalk.gray(`  Entry: ${this.config.entryFile}`));
+      console.log(chalk.gray(`  Output: ${this.config.outputDir}`));
+    }
+  }
   /**
    * MAIN ENTRY POINT: Execute complete build
    */
-  async build() {
+  async run() {
     const startTime = Date.now();
 
     if (this.config.debugMode) {
@@ -113,7 +126,8 @@ class BuildPipeline {
       console.log(chalk.blue('FLUTTERJS BUILD PIPELINE'));
       console.log(chalk.blue('='.repeat(70)));
       console.log(chalk.gray(`Mode: ${this.config.mode}`));
-      console.log(chalk.gray(`Entry: ${this.config.entryFile}`));
+      console.log(chalk.gray(`Entry (from config): ${this.config.entry?.main || 'lib/main.fjs'}`));
+      console.log(chalk.gray(`Resolved: ${this.pathResolver.getSourcePath()}`));
       console.log(chalk.gray(`Output: ${this.config.outputDir}\n`));
     }
 
@@ -158,39 +172,124 @@ class BuildPipeline {
   }
 
   /**
-   * Step 1: Analyze source code
+   * FIXED: analyzeCode() method
+   * 
+   * The problem:
+   * - this.config.entryFile is a STRING: 'lib/main.fjs'
+   * - You were trying to access .main on it: this.config.entryFile.main
+   * - This caused: "Cannot read properties of undefined (reading 'main')"
+   * 
+   * The solution:
+   * - Use this.config.entryFile directly (it's already the full path)
+   * - OR use this.config.entry.main from the config object
    */
-  async analyzeCode() {
-    if (this.config.debugMode) {
-      console.log(chalk.blue('ðŸ"Š STEP 1: Code Analysis'));
-    }
 
-    try {
-      const entryPath = path.join(this.projectRoot, this.config.entryFile);
-
-      if (!fs.existsSync(entryPath)) {
-        throw new Error(`Entry file not found: ${entryPath}`);
-      }
-
-      const sourceCode = fs.readFileSync(entryPath, 'utf-8');
-
-      const analyzer = new FlutterJSAnalyzer({
-        debugMode: this.config.debugMode
-      });
-
-      this.result.analysis = analyzer.analyze(sourceCode);
-      this.result.stats.linesOfCode = sourceCode.split('\n').length;
-      this.result.stats.widgetsFound = this.result.analysis.widgets.total;
-
-      if (this.config.debugMode) {
-        console.log(chalk.green(`âœ" Found ${this.result.analysis.widgets.total} widgets`));
-        console.log(chalk.green(`âœ" ${this.result.analysis.imports.length} imports\n`));
-      }
-
-    } catch (error) {
-      throw new Error(`Analysis failed: ${error.message}`);
-    }
+async analyzeCode() {
+  if (this.config.debugMode) {
+    console.log(chalk.blue('ðŸ"Š STEP 1: Code Analysis'));
   }
+
+  try {
+    // FIX: Get entry file path correctly
+    // Option 1: Use config.entry.main (from flutterjs.config.js)
+    const entryFile = this.config.entry?.main || this.config.entryFile || 'lib/main.fjs';
+    
+    const entryPath = path.join(this.projectRoot, entryFile);
+
+    if (this.config.debugMode) {
+      console.log(chalk.gray(`  Entry: ${entryFile}`));
+      console.log(chalk.gray(`  Full path: ${entryPath}`));
+    }
+
+    if (!fs.existsSync(entryPath)) {
+      throw new Error(`Entry file not found: ${entryPath}`);
+    }
+
+    const sourceCode = fs.readFileSync(entryPath, 'utf-8');
+
+    if (this.config.debugMode) {
+      console.log(chalk.gray(`  Source file loaded: ${entryPath}`));
+      console.log(chalk.gray(`  Source code length: ${sourceCode.length} chars`));
+    }
+
+    // FIX: Pass sourceCode to constructor, not to analyze()
+    const analyzer = new Analyzer({
+      sourceCode: sourceCode,      // ← Pass here in constructor options
+      sourceFile: entryPath,       // Also pass file path
+      debugMode: this.config.debugMode,
+      verbose: false,
+      includeImports: true,
+      includeContext: true,
+      includeSsr: true
+    });
+
+    // Call analyze() with NO parameters
+    this.result.analysis = await analyzer.analyze();
+    
+    this.result.stats.linesOfCode = sourceCode.split('\n').length;
+    
+    // Handle different widget object structures
+    const widgetsObj = this.result.analysis?.widgets || {};
+    const widgetCount = (widgetsObj.count || 0) + (widgetsObj.stateless || 0) + (widgetsObj.stateful || 0);
+    
+    this.result.stats.widgetsFound = widgetCount;
+
+    if (this.config.debugMode) {
+      console.log(chalk.green(`âœ" Found ${widgetCount} widgets`));
+      console.log(chalk.green(`âœ" ${this.result.analysis.imports?.total || 0} imports\n`));
+    }
+
+  } catch (error) {
+    throw new Error(`Analysis failed: ${error.message}`);
+  }
+}
+
+/**
+ * ALSO FIX: rewriteImports() method
+ * Same issue here - using this.config.entryFile incorrectly
+ */
+
+async rewriteImports() {
+  if (this.config.debugMode) {
+    console.log(chalk.blue('âœ"ðŸ¸ STEP 4: Import Rewriting'));
+  }
+
+  try {
+    // FIX: Get entry file correctly
+    const entryFile = this.config.entry?.main || this.config.entryFile || 'lib/main.fjs';
+    const entryPath = path.join(this.projectRoot, entryFile);
+    
+    const sourceCode = fs.readFileSync(entryPath, 'utf-8');
+
+    const rewriter = new ImportRewriter(this.exportMaps, {
+      debugMode: this.config.debugMode,
+      libPath: './lib',
+      preserveStructure: false,
+      validateExports: true
+    });
+
+    this.result.rewrite = rewriter.rewrite(sourceCode);
+    this.result.stats.importsRewritten = this.result.rewrite.stats.rewritten;
+
+    if (this.config.debugMode) {
+      console.log(chalk.green(
+        `âœ" Rewritten ${this.result.rewrite.stats.rewritten} imports`
+      ));
+      console.log(chalk.green(
+        `âœ" Unchanged: ${this.result.rewrite.stats.unchanged}\n`
+      ));
+    }
+
+    if (this.result.rewrite.errors.length > 0) {
+      for (const error of this.result.rewrite.errors) {
+        this.result.addError(`Import: ${error}`);
+      }
+    }
+
+  } catch (error) {
+    throw new Error(`Import rewriting failed: ${error.message}`);
+  }
+}
 
   /**
    * Step 2: Resolve dependencies
@@ -332,7 +431,7 @@ class BuildPipeline {
         this.result.rewrite.rewrittenCode
       );
 
-      this.result.stats.transformationsApplied = 
+      this.result.stats.transformationsApplied =
         this.result.transformation.transformations.length;
 
       if (this.config.debugMode) {
@@ -403,7 +502,7 @@ class BuildPipeline {
 
     try {
       const outputDir = path.join(this.projectRoot, this.config.outputDir);
-      
+
       await fs.promises.mkdir(outputDir, { recursive: true });
 
       const files = [
@@ -420,7 +519,7 @@ class BuildPipeline {
       for (const file of files) {
         const filePath = path.join(outputDir, file.name);
         await fs.promises.writeFile(filePath, file.content, 'utf-8');
-        
+
         const size = Buffer.byteLength(file.content, 'utf-8');
         totalSize += size;
 
