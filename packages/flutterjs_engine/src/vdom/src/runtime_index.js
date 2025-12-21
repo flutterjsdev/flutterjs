@@ -24,7 +24,7 @@ import { SSRRenderer } from './ssr_renderer.js';
 import { RenderEngine } from './render_engine.js';
 import { Hydrator } from './hydrator.js';
 
-class FlutterJSRuntime {
+export class VNodeRuntime {
   constructor() {
     this.app = null;
     this.rootElement = null;
@@ -679,19 +679,6 @@ export function hydrate(app, options = {}) {
 }
 
 
-
-// Export all components for advanced usage
-export {
-  FlutterJSRuntime,
-  VNode,
-  VNodeBuilder,
-  StyleConverter,
-  VNodeRenderer,
-  SSRRenderer,
-  RenderEngine,
-  Hydrator
-};
-
 // Default export
 export default {
   runApp,
@@ -701,14 +688,13 @@ export default {
   hotReload,
   renderToString,
   hydrate,
-  FlutterJSRuntime,
   VNode,
   VNodeBuilder,
   StyleConverter,
   VNodeRenderer,
   SSRRenderer,
-  RenderEngine,
-  Hydrator
+  Hydrator,
+  VNodeRuntime
 };
 
 // Browser global

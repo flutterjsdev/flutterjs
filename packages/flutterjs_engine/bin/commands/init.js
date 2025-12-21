@@ -14,16 +14,18 @@
  * Location: cli/commands/create.js or cli/commands/init.js
  */
 
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
-const chalk = require('chalk');
+
+
+import fs from "fs";
+import path from "path";
+import { execSync } from "child_process";
+import chalk from "chalk";
 
 // ============================================================================
 // TEMPLATES DEFINITION
 // ============================================================================
 
-const TEMPLATES = {
+export const TEMPLATES = {
   default: {
     name: 'Default App',
     description: 'Basic FlutterJS application with Material Design',
@@ -518,7 +520,7 @@ export { TodoApp, TodoPage, main };
 // MAIN INIT FUNCTION
 // ============================================================================
 
-async function init(projectName, options) {
+export async function initProject(projectName, options) {
   console.log(chalk.blue(`\n🚀 Creating FlutterJS project: ${projectName}\n`));
 
   // 1. Validate project name
@@ -1121,15 +1123,3 @@ function displayProjectStructure(projectPath, projectName) {
 // ============================================================================
 // EXPORTS
 // ============================================================================
-
-module.exports = {
-  init,
-  TEMPLATES,
-  validateProjectName,
-  createDirectoryStructure,
-  copyTemplateFiles,
-  createConfigFiles,
-  initGitRepository,
-  installDependencies,
-  detectPackageManager
-};

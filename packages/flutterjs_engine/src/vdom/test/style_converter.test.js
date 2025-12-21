@@ -3,7 +3,7 @@
  * Tests all style conversion methods
  */
 
-import { StyleConverter } from '../src/vnode/style_converter.js';
+import { StyleConverter } from '../src/style_converter.js';
 
 console.log('\n' + '='.repeat(80));
 console.log('🧪 STYLE CONVERTER TESTS');

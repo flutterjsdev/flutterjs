@@ -3,9 +3,9 @@
  * Comprehensive testing for universal rendering and SSR
  */
 
-import { RenderEngine } from '../src/vnode/render_engine.js';
-import { SSRRenderer } from '../src/vnode/ssr_renderer.js';
-import { VNode } from '../src/vnode/vnode.js';
+import { RenderEngine } from '../src/render_engine.js';
+import { SSRRenderer } from '../src/ssr_renderer.js';
+import { VNode } from '../src/vnode.js';
 import { JSDOM } from 'jsdom';
 
 // Setup DOM environment

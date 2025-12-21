@@ -3,9 +3,9 @@
  * Tests SSR → CSR transition and hydration correctness
  */
 
-import { Hydrator } from '../src/vnode/hydrator.js';
-import { VNode } from '../src/vnode/vnode.js';
-import { SSRRenderer } from '../src/vnode/ssr_renderer.js';
+import { Hydrator } from '../src/hydrator.js';
+import { VNode } from '../src/vnode.js';
+import { SSRRenderer } from '../src/ssr_renderer.js';
 import { JSDOM } from 'jsdom';
 
 // Setup DOM environment
