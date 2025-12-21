@@ -3,7 +3,7 @@
  * Tests all scheduling strategies, priorities, batching, and performance
  */
 
-import { UpdateScheduler, UpdatePriority } from '../src/vnode/update_scheduler.js';
+import { UpdateScheduler, UpdatePriority } from '../src/update_scheduler.js';
 
 console.log('\n' + '='.repeat(80));
 console.log('🧪 UPDATE SCHEDULER TESTS');

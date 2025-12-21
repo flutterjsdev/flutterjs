@@ -10,7 +10,7 @@
 import { VNode } from './vnode.js';
 import { StyleConverter } from './style_converter.js';
 
-class VNodeBuilder {
+export class VNodeBuilder {
   /**
    * Build VNode tree from widget
    * @param {Widget} widget - Flutter widget instance
@@ -1198,5 +1198,3 @@ if (typeof module !== 'undefined' && module.exports) {
 if (typeof window !== 'undefined') {
   window.VNodeBuilder = VNodeBuilder;
 }
-
-export {VNodeBuilder}

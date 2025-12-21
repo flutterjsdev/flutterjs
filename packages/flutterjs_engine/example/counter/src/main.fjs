@@ -21,7 +21,7 @@ import {
   StatelessWidget,
   BuildContext,
   Key,
-} from 'flutter-js-framework/widgets';
+} from '@flutterjs/core';
 
 
 // ===== RUNTIME HELPERS (3) =====

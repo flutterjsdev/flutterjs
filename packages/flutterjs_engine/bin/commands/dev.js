@@ -1,38 +1,26 @@
 /**
  * ============================================================================
- * FlutterJS Development Server - Complete Implementation
+ * FlutterJS Development Server - Fixed Version
  * ============================================================================
  * 
- * This module provides:
- * 1. HTTP server with middleware support
- * 2. Hot Module Replacement (HMR) with WebSocket
- * 3. File watching & change detection
- * 4. API endpoints for build analysis
- * 5. Static asset serving with caching
- * 6. CORS support for development
- * 7. Error overlay for build failures
- * 8. Live reload triggering
- * 9. Proxy support for API calls
- * 10. Browser auto-open functionality
- * 
- * Location: cli/server/dev-server.js
- * Usage:
- *   const devServer = new DevServer(config, projectContext);
- *   await devServer.start();
+ * Fixes:
+ * - Proper proxy configuration handling
+ * - Server-side safe initialization
+ * - No browser-only APIs during setup
  */
 
-const http = require('http');
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const chalk = require('chalk');
-const chokidar = require('chokidar');
-const WebSocket = require('ws');
-const { execSync } = require('child_process');
-const open = require('open');
-const compression = require('compression');
-const cors = require('cors');
-const { createProxyMiddleware } = require('http-proxy-middleware');
+import http from "http";
+import express from "express";
+import path from "path";
+import fs from "fs";
+import chalk from "chalk";
+import chokidar from "chokidar";
+import { WebSocketServer } from "ws";
+import { execSync } from "child_process";
+import open from "open";
+import compression from "compression";
+import cors from "cors";
+import { createProxyMiddleware } from "http-proxy-middleware";
 
 // ============================================================================
 // CONSTANTS
@@ -60,21 +48,11 @@ const MIME_TYPES = {
   '.map': 'application/json',
 };
 
-const DEVELOPMENT_DEPENDENCIES = {
-  express: true,
-  'ws': true,
-  'chokidar': true,
-  'compression': true,
-  'cors': true,
-  'http-proxy-middleware': true,
-  'open': true,
-};
-
 // ============================================================================
 // DEVELOPMENT SERVER CLASS
 // ============================================================================
 
-class DevServer {
+export class DevServer {
   constructor(config, projectContext) {
     this.config = config;
     this.projectContext = projectContext;
@@ -114,28 +92,66 @@ class DevServer {
     try {
       console.log(chalk.blue('\n🚀 Starting development server...\n'));
 
-      // 1. Initialize Express app
-      this._initializeApp();
+      // 1. Ensure build directory exists
+      try {
+        if (!fs.existsSync(this.buildDir)) {
+          fs.mkdirSync(this.buildDir, { recursive: true });
+        }
+      } catch (error) {
+        throw new Error(`Failed to create build directory: ${error.message}`);
+      }
 
-      // 2. Setup middleware
-      this._setupMiddleware();
+      // 2. Initialize Express app
+      try {
+        this._initializeApp();
+      } catch (error) {
+        throw new Error(`Failed to initialize app: ${error.message}`);
+      }
 
-      // 3. Setup routes
-      this._setupRoutes();
+      // 3. Setup middleware
+      try {
+        this._setupMiddleware();
+      } catch (error) {
+        throw new Error(`Failed to setup middleware: ${error.message}`);
+      }
 
-      // 4. Create HTTP server
-      this.server = http.createServer(this.app);
+      // 4. Setup routes
+      try {
+        this._setupRoutes();
+      } catch (error) {
+        throw new Error(`Failed to setup routes: ${error.message}`);
+      }
 
-      // 5. Setup WebSocket for HMR
-      this._setupWebSocket();
+      // 5. Create HTTP server
+      try {
+        this.server = http.createServer(this.app);
+      } catch (error) {
+        throw new Error(`Failed to create HTTP server: ${error.message}`);
+      }
 
-      // 6. Setup file watcher
-      this._setupFileWatcher();
+      // 6. Setup WebSocket for HMR
+      try {
+        this._setupWebSocket();
+      } catch (error) {
+        throw new Error(`Failed to setup WebSocket: ${error.message}`);
+      }
 
-      // 7. Start listening
-      await this._listen();
+      // 7. Setup file watcher (after ensuring paths exist)
+      try {
+        this._setupFileWatcher();
+      } catch (error) {
+        console.warn(chalk.yellow(`⚠️  Warning: File watcher setup failed: ${error.message}`));
+        // Don't throw - file watcher is optional
+      }
 
-      // 8. Open browser (if requested)
+      // 8. Start listening
+      try {
+        await this._listen();
+      } catch (error) {
+        throw new Error(`Failed to start listening: ${error.message}`);
+      }
+
+      // 9. Open browser (if requested)
       if (this.config.dev?.behavior?.open) {
         setTimeout(() => this._openBrowser(), 500);
       }
@@ -146,7 +162,11 @@ class DevServer {
 
     } catch (error) {
       console.error(chalk.red('\n❌ Failed to start dev server:'));
-      console.error(chalk.red(`${error.message}\n`));
+      console.error(chalk.red(`${error.message}`));
+      if (process.env.DEBUG) {
+        console.error(chalk.gray('\n📍 Stack trace:'));
+        console.error(chalk.gray(error.stack));
+      }
       throw error;
     }
   }
@@ -172,7 +192,7 @@ class DevServer {
     this.app.use(compression());
 
     // 2. CORS
-    if (this.config.dev?.server?.cors) {
+    if (this.config.dev?.server?.cors !== false) {
       this.app.use(cors({
         origin: '*',
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -214,22 +234,66 @@ class DevServer {
       next();
     });
 
-    // 5. API proxy
-    if (this.config.dev?.proxy) {
-      Object.entries(this.config.dev.proxy).forEach(([path, target]) => {
-        this.app.use(path, createProxyMiddleware({
-          target,
-          changeOrigin: true,
-          logLevel: 'warn',
-          onError: (err, req, res) => {
-            console.error(chalk.red(`Proxy error for ${path}:`), err.message);
-            res.status(502).json({
-              error: 'Proxy error',
-              message: err.message,
-            });
-          },
-        }));
-      });
+    // 5. API proxy - FIX: Only setup if proxy config exists and is valid
+    const proxyConfig = this.config.dev?.proxy || this.config.dev?.behavior?.proxy || {};
+    
+    if (typeof proxyConfig === 'object' && Object.keys(proxyConfig).length > 0) {
+      try {
+        Object.entries(proxyConfig).forEach(([pathPattern, target]) => {
+          try {
+            // Validate path pattern
+            if (!pathPattern || pathPattern.trim() === '') {
+              console.warn(chalk.yellow(`⚠️  Skipping empty proxy pattern`));
+              return;
+            }
+
+            // Skip invalid patterns like "*" or "/*"
+            if (pathPattern === '*' || pathPattern === '/*') {
+              console.warn(chalk.yellow(`⚠️  Skipping invalid proxy pattern: "${pathPattern}" (use /api or similar)`));
+              return;
+            }
+
+            // Ensure path starts with /
+            const normalizedPath = pathPattern.startsWith('/') ? pathPattern : `/${pathPattern}`;
+
+            // Validate target URL
+            if (!target || typeof target !== 'string') {
+              console.warn(chalk.yellow(`⚠️  Skipping proxy - invalid target for ${normalizedPath}: ${target}`));
+              return;
+            }
+
+            console.log(chalk.gray(`  Setting up proxy: ${normalizedPath} -> ${target}`));
+
+            this.app.use(normalizedPath, createProxyMiddleware({
+              target,
+              changeOrigin: true,
+              logLevel: 'warn',
+              onError: (err, req, res) => {
+                console.error(chalk.red(`Proxy error for ${normalizedPath}:`), err.message);
+                res.status(502).json({
+                  error: 'Proxy error',
+                  message: err.message,
+                  target: target
+                });
+              },
+            }));
+
+            if (process.env.DEBUG) {
+              console.log(chalk.gray(`  ✓ Proxy configured: ${normalizedPath} -> ${target}`));
+            }
+          } catch (error) {
+            console.warn(chalk.yellow(`⚠️  Could not setup proxy for "${pathPattern}": ${error.message}`));
+            if (process.env.DEBUG) {
+              console.error(chalk.gray(error.stack));
+            }
+          }
+        });
+      } catch (error) {
+        console.warn(chalk.yellow(`⚠️  Error setting up proxies: ${error.message}`));
+        if (process.env.DEBUG) {
+          console.error(chalk.gray(error.stack));
+        }
+      }
     }
 
     // 6. JSON & URL-encoded body parser
@@ -366,7 +430,8 @@ class DevServer {
     });
 
     // SPA fallback: Serve index.html for unknown routes
-    this.app.get('*', (req, res) => {
+    // IMPORTANT: Use regex instead of '*' for catch-all
+    this.app.get(/^(?!\/api\/).*/, (req, res) => {
       const indexPath = path.join(this.buildDir, 'index.html');
 
       if (fs.existsSync(indexPath)) {
@@ -380,9 +445,9 @@ class DevServer {
       }
     });
 
-    // Error handler
+    // Error handler (must be last)
     this.app.use((err, req, res, next) => {
-      console.error(chalk.red('Server error:'), err);
+      console.error(chalk.red('Server error:'), err.message);
 
       res.status(500).json({
         error: 'Internal server error',
@@ -395,64 +460,86 @@ class DevServer {
    * Setup WebSocket for HMR
    */
   _setupWebSocket() {
-    this.wss = new WebSocket.Server({
-      noServer: true,
-      perMessageDeflate: false,
-    });
-
-    this.server.on('upgrade', (request, socket, head) => {
-      // Only allow WebSocket upgrade from same origin
-      const origin = request.headers.origin;
-      const host = request.headers.host;
-
-      if (origin && !origin.includes(host)) {
-        socket.destroy();
-        return;
-      }
-
-      this.wss.handleUpgrade(request, socket, head, (ws) => {
-        this.wss.emit('connection', ws, request);
+    try {
+      // Create WebSocket server
+      this.wss = new WebSocketServer({
+        noServer: true,
+        perMessageDeflate: false,
       });
-    });
 
-    // Handle WebSocket connections
-    this.wss.on('connection', (ws, request) => {
-      const clientId = this._generateClientId();
-      const clientIp = request.socket.remoteAddress;
-
-      console.log(chalk.cyan(`HMR client connected: ${clientId} (${clientIp})`));
-
-      this.clients.add(ws);
-
-      // Send initial state
-      ws.send(JSON.stringify({
-        type: 'connected',
-        clientId,
-        hmrEnabled: this.hmrEnabled,
-        timestamp: new Date().toISOString(),
-      }));
-
-      // Handle client messages
-      ws.on('message', (data) => {
+      // Handle upgrade requests
+      this.server.on('upgrade', (request, socket, head) => {
         try {
-          const message = JSON.parse(data.toString());
-          this._handleClientMessage(message, ws, clientId);
+          // Only allow WebSocket upgrade from same origin
+          const origin = request.headers.origin;
+          const host = request.headers.host;
+
+          if (origin && !origin.includes(host)) {
+            socket.destroy();
+            return;
+          }
+
+          this.wss.handleUpgrade(request, socket, head, (ws) => {
+            this.wss.emit('connection', ws, request);
+          });
         } catch (error) {
-          console.error(chalk.red('Failed to parse client message:'), error);
+          console.error(chalk.red('WebSocket upgrade error:'), error.message);
+          socket.destroy();
         }
       });
 
-      // Handle client disconnection
-      ws.on('close', () => {
-        this.clients.delete(ws);
-        console.log(chalk.cyan(`HMR client disconnected: ${clientId}`));
+      // Handle WebSocket connections
+      this.wss.on('connection', (ws, request) => {
+        try {
+          const clientId = this._generateClientId();
+          const clientIp = request.socket.remoteAddress;
+
+          console.log(chalk.cyan(`HMR client connected: ${clientId} (${clientIp})`));
+
+          this.clients.add(ws);
+
+          // Send initial state
+          ws.send(JSON.stringify({
+            type: 'connected',
+            clientId,
+            hmrEnabled: this.hmrEnabled,
+            timestamp: new Date().toISOString(),
+          }));
+
+          // Handle client messages
+          ws.on('message', (data) => {
+            try {
+              const message = JSON.parse(data.toString());
+              this._handleClientMessage(message, ws, clientId);
+            } catch (error) {
+              console.error(chalk.red(`Failed to parse message from ${clientId}:`), error.message);
+            }
+          });
+
+          // Handle client disconnection
+          ws.on('close', (code, reason) => {
+            this.clients.delete(ws);
+            console.log(chalk.cyan(`HMR client disconnected: ${clientId}`));
+          });
+
+          // Handle errors
+          ws.on('error', (error) => {
+            console.error(chalk.red(`WebSocket error (${clientId}):`), error.message);
+          });
+        } catch (error) {
+          console.error(chalk.red('Error handling WebSocket connection:'), error.message);
+          ws.close(1011, 'Server error');
+        }
       });
 
-      // Handle errors
-      ws.on('error', (error) => {
-        console.error(chalk.red(`WebSocket error (${clientId}):`), error.message);
+      // Handle WebSocket server errors
+      this.wss.on('error', (error) => {
+        console.error(chalk.red('WebSocket server error:'), error.message);
       });
-    });
+
+    } catch (error) {
+      throw new Error(`WebSocket setup failed: ${error.message}`);
+    }
   }
 
   /**
@@ -473,7 +560,6 @@ class DevServer {
         break;
 
       case 'custom':
-        // Allow clients to send custom messages
         this._broadcastToClients({
           type: 'custom',
           data: message.data,
@@ -483,7 +569,6 @@ class DevServer {
 
       default:
         if (message.type.startsWith('custom:')) {
-          // Custom message type
           this._broadcastToClients(message, ws);
         }
         break;
@@ -494,47 +579,71 @@ class DevServer {
    * Setup file watcher
    */
   _setupFileWatcher() {
-    const watchPaths = [
-      this.sourceDir,
-      path.join(this.projectRoot, 'public'),
-      path.join(this.projectRoot, 'assets'),
-      path.join(this.projectRoot, 'flutterjs.config.js'),
-    ];
+    try {
+      // Build list of paths to watch (only if they exist)
+      const potentialPaths = [
+        this.sourceDir,
+        path.join(this.projectRoot, 'public'),
+        path.join(this.projectRoot, 'assets'),
+        path.join(this.projectRoot, 'flutterjs.config.js'),
+      ];
 
-    const ignorePaths = [
-      '**/node_modules/**',
-      '**/.git/**',
-      '**/.flutterjs/**',
-      '**/dist/**',
-      '**/.DS_Store',
-    ];
+      const watchPaths = potentialPaths.filter(p => {
+        const exists = fs.existsSync(p);
+        if (!exists && process.env.DEBUG) {
+          console.log(chalk.gray(`  Watch path not found: ${p}`));
+        }
+        return exists;
+      });
 
-    this.fileWatcher = chokidar.watch(watchPaths, {
-      ignoreInitial: true,
-      ignored: ignorePaths,
-      awaitWriteFinish: {
-        stabilityThreshold: 100,
-        pollInterval: 50,
-      },
-      usePolling: process.platform === 'win32',
-    });
+      // Only setup watcher if we have paths to watch
+      if (watchPaths.length === 0) {
+        console.warn(chalk.yellow('⚠️  No source paths found to watch'));
+        return;
+      }
 
-    // File changed
-    this.fileWatcher.on('change', (filePath) => {
-      this._handleFileChange(filePath, 'change');
-    });
+      const ignorePaths = [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/.flutterjs/**',
+        '**/dist/**',
+        '**/.DS_Store',
+      ];
 
-    // File added
-    this.fileWatcher.on('add', (filePath) => {
-      this._handleFileChange(filePath, 'add');
-    });
+      this.fileWatcher = chokidar.watch(watchPaths, {
+        ignoreInitial: true,
+        ignored: ignorePaths,
+        awaitWriteFinish: {
+          stabilityThreshold: 100,
+          pollInterval: 50,
+        },
+        usePolling: process.platform === 'win32',
+      });
 
-    // File deleted
-    this.fileWatcher.on('unlink', (filePath) => {
-      this._handleFileChange(filePath, 'unlink');
-    });
+      // File changed
+      this.fileWatcher.on('change', (filePath) => {
+        this._handleFileChange(filePath, 'change');
+      });
 
-    console.log(chalk.gray('👀 Watching for file changes...\n'));
+      // File added
+      this.fileWatcher.on('add', (filePath) => {
+        this._handleFileChange(filePath, 'add');
+      });
+
+      // File deleted
+      this.fileWatcher.on('unlink', (filePath) => {
+        this._handleFileChange(filePath, 'unlink');
+      });
+
+      // Handle watcher errors
+      this.fileWatcher.on('error', (error) => {
+        console.error(chalk.red('File watcher error:'), error.message);
+      });
+
+      console.log(chalk.gray('👀 Watching for file changes...\n'));
+    } catch (error) {
+      console.warn(chalk.yellow(`⚠️  Could not setup file watcher: ${error.message}`));
+    }
   }
 
   /**
@@ -580,7 +689,7 @@ class DevServer {
         const url = `${protocol}://${this.host}:${this.port}`;
 
         console.log(chalk.green('\n✅ Development server running!\n'));
-        console.log(chalk.blue('📍 URLs:\n'));
+        console.log(chalk.blue('🔗 URLs:\n'));
         console.log(chalk.cyan(`  Local:   ${url}`));
         console.log(chalk.cyan(`  Network: ${protocol}://127.0.0.1:${this.port}`));
         console.log(chalk.gray(`\n  Press Ctrl+C to stop\n`));
@@ -612,7 +721,7 @@ class DevServer {
       console.log(chalk.blue(`🌐 Opening browser at ${url}\n`));
       await open(url);
     } catch (error) {
-      console.warn(chalk.yellow('⚠ Could not open browser automatically'));
+      console.warn(chalk.yellow('⚠️  Could not open browser automatically'));
     }
   }
 
@@ -753,7 +862,4 @@ class DevServer {
 // EXPORTS
 // ============================================================================
 
-module.exports = {
-  DevServer,
-  MIME_TYPES,
-};
+export default DevServer;

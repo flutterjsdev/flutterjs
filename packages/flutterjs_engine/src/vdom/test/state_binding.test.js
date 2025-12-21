@@ -10,7 +10,7 @@ import {
   createBinding,
   createTwoWayBinding,
   createOneWayBinding
-} from '../src/vnode/state_binding.js';
+} from '../src/state_binding.js';
 import { JSDOM } from 'jsdom';
 
 // Setup DOM environment

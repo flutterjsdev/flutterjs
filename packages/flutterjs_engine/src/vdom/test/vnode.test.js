@@ -3,7 +3,7 @@
  * Tests VNode creation, rendering (DOM/SSR), hydration, and Flutter widget integration
  */
 
-import { VNode } from '../src/vnode/vnode.js';
+import { VNode } from '../src/vnode.js';
 import { JSDOM } from 'jsdom';
 
 // Setup DOM environment for testing

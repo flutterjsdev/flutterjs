@@ -3,7 +3,7 @@
  * Comprehensive logging to identify failures
  */
 
-import { PatchApplier } from '../src/vnode/patch_applier.js';
+import { PatchApplier } from '../src/patch_applier.js';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
