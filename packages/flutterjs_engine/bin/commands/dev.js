@@ -27,7 +27,7 @@ import cors from "cors";
 import { createProxyMiddleware } from "http-proxy-middleware";
 
 // Import FlutterJS systems
-import { FlutterJSAnalyzer } from "./analyzer.js";
+import { Analyzer } from "../../src/analyzer/src/analyzer.js";
 import { BuildPipeline } from "./build_pipeline.js";
 
 // ============================================================================
@@ -60,7 +60,7 @@ export class DevServer {
   constructor(config, projectContext) {
     this.config = config;
     this.projectContext = projectContext;
-    
+
     // Server state
     this.app = null;
     this.server = null;
@@ -74,24 +74,24 @@ export class DevServer {
     this.analysisData = null;
     this.lastBuildTime = null;
     this.isBuilding = false;
-    
+
     // Port & host
     this.port = parseInt(config.dev?.server?.port || 3000, 10);
     this.host = config.dev?.server?.host || 'localhost';
     this.https = config.dev?.server?.https || false;
-    
+
     // HMR settings
     this.hmrEnabled = config.dev?.hmr?.enabled !== false;
     this.hmrInterval = config.dev?.hmr?.interval || 300;
     this.overlayEnabled = config.dev?.hmr?.overlay !== false;
-    
+
     // Paths
     this.projectRoot = projectContext.projectRoot;
     this.buildDir = path.join(this.projectRoot, '.dev');
     this.sourceDir = path.join(this.projectRoot, config.build?.source || 'lib');
     this.entryFile = config.entry?.main || 'lib/main.fjs';
     this.entryPath = path.join(this.projectRoot, this.entryFile);
-    
+
     // Client connections
     this.clients = new Set();
 
@@ -166,21 +166,36 @@ export class DevServer {
         throw new Error(`Entry file not found: ${this.entryPath}`);
       }
 
-      this.analyzer = new FlutterJSAnalyzer({
-        debugMode: this.config.debugMode
+      // STEP 1: Read source code
+      const sourceCode = fs.readFileSync(this.entryPath, 'utf-8');
+
+      // STEP 2: Create Analyzer with sourceCode in constructor options
+      this.analyzer = new Analyzer({
+        sourceCode: sourceCode,        // ← Pass HERE in constructor
+        sourceFile: this.entryPath,    // Also pass file path
+        debugMode: this.config.debugMode,
+        verbose: false,
+        includeImports: true,
+        includeContext: true,
+        includeSsr: true
       });
 
-      const sourceCode = fs.readFileSync(this.entryPath, 'utf-8');
-      this.analysisData = this.analyzer.analyze(sourceCode);
+      // STEP 3: Call analyze() with NO parameters
+      this.analysisData = await this.analyzer.analyze();
 
-      console.log(chalk.green(`✓ Analysis complete`));
-      console.log(chalk.gray(`  Widgets found: ${this.analysisData.widgets?.total || 0}`));
-      console.log(chalk.gray(`  Imports: ${this.analysisData.imports?.length || 0}`));
-      console.log(chalk.gray(`  State classes: ${this.analysisData.stateClasses?.length || 0}\n`));
+      // STEP 4: Extract widget count safely
+      const widgetsObj = this.analysisData?.widgets || {};
+      const widgetCount = (widgetsObj.count || 0) + (widgetsObj.stateless || 0) + (widgetsObj.stateful || 0);
+
+      console.log(chalk.green(`âœ" Analysis complete`));
+      console.log(chalk.gray(`  Widgets found: ${widgetCount}`));
+      console.log(chalk.gray(`  Imports: ${this.analysisData.imports?.total || 0}`));
+      console.log(chalk.gray(`  State classes: ${this.analysisData.state?.stateClasses || 0}\n`));
 
       return this.analysisData;
+
     } catch (error) {
-      console.error(chalk.red(`✗ Analysis failed: ${error.message}`));
+      console.error(chalk.red(`âœ— Analysis failed: ${error.message}`));
       throw error;
     }
   }
@@ -191,7 +206,7 @@ export class DevServer {
    */
   async runBuild() {
     if (this.isBuilding) {
-      console.log(chalk.yellow('⚠ Build already in progress...'));
+      console.log(chalk.yellow('⚠  Build already in progress...'));
       return;
     }
 
@@ -203,62 +218,98 @@ export class DevServer {
         await fs.promises.mkdir(this.buildDir, { recursive: true });
       }
 
-      // Create build pipeline with analysis metadata
-      this.buildPipeline = new BuildPipeline({
+      console.log(chalk.cyan('Building application...\n'));
+
+      // Create build pipeline
+      const pipeline = new BuildPipeline({
         projectRoot: this.projectRoot,
         mode: 'development',
         target: 'spa',
-        entryFile: this.entryFile,
+        entry: {
+          main: this.entryFile  // ← Pass as entry.main like in config
+        },
         outputDir: '.dev',
-        debugMode: this.config.debugMode,
-        // ===== PASS ANALYSIS METADATA TO PIPELINE =====
-        analysisMetadata: this.analysisData
+        debugMode: this.config.debugMode || false,
+        verbose: false
       });
 
       // Execute build
-      const buildResult = await this.buildPipeline.build();
+      const buildResult = await pipeline.run();
 
-      if (!buildResult.success) {
-        throw new Error('Build failed');
+      if (!buildResult || !buildResult.success) {
+        throw new Error('Build failed - no result returned');
       }
 
       this.lastBuildTime = new Date().toISOString();
 
-      console.log(chalk.green(`✓ Build complete`));
-      console.log(chalk.gray(`  Bundle size: ${(buildResult.stats.bundleSize / 1024).toFixed(2)} KB`));
-      console.log(chalk.gray(`  Duration: ${buildResult.duration}ms\n`));
+      // Calculate bundle size safely
+      const bundleSize = buildResult.stats?.bundleSize || 0;
+      const bundleSizeKB = (bundleSize / 1024).toFixed(2);
 
-      // ===== BROADCAST BUILD RESULT TO CLIENTS =====
-      this._broadcastToClients({
-        type: 'build-complete',
-        data: {
-          success: true,
-          stats: buildResult.stats,
-          analysisData: this.analysisData,
-          timestamp: this.lastBuildTime
-        }
-      });
+      console.log(chalk.green(`✔ Build complete`));
+      console.log(chalk.gray(`  Bundle size: ${bundleSizeKB} KB`));
+      console.log(chalk.gray(`  Duration: ${buildResult.duration || 0}ms\n`));
+
+      // Broadcast to clients if WebSocket is ready
+      if (this.wss && this.clients.size > 0) {
+        this._broadcastToClients({
+          type: 'build-complete',
+          data: {
+            success: true,
+            stats: buildResult.stats,
+            timestamp: this.lastBuildTime
+          }
+        });
+      }
 
       return buildResult;
 
     } catch (error) {
       console.error(chalk.red(`✗ Build failed: ${error.message}`));
 
-      // ===== BROADCAST BUILD ERROR =====
-      this._broadcastToClients({
-        type: 'build-error',
-        data: {
-          error: error.message,
-          timestamp: new Date().toISOString()
-        }
-      });
+      if (this.config.debugMode) {
+        console.error(chalk.gray(`Stack: ${error.stack}`));
+      }
+
+      // Broadcast error to clients if WebSocket is ready
+      if (this.wss && this.clients.size > 0) {
+        this._broadcastToClients({
+          type: 'build-error',
+          data: {
+            error: error.message,
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
 
       throw error;
+
     } finally {
       this.isBuilding = false;
     }
   }
 
+  /**
+   * Helper: Broadcast to clients safely
+   */
+  _broadcastToClients(message, exclude = null) {
+    if (!this.clients || this.clients.size === 0) {
+      return;
+    }
+
+    const data = JSON.stringify(message);
+
+    this.clients.forEach((client) => {
+      if (client !== exclude && client.readyState === 1) { // 1 = OPEN
+        try {
+          client.send(data);
+        } catch (error) {
+          console.error(chalk.red('Failed to send to client:'), error.message);
+          this.clients.delete(client);
+        }
+      }
+    });
+  }
   /**
    * Initialize Express application
    */
@@ -295,10 +346,10 @@ export class DevServer {
     this.app.use((req, res, next) => {
       const originalEnd = res.end;
 
-      res.end = function(...args) {
+      res.end = function (...args) {
         const statusCode = res.statusCode;
-        const statusColor = statusCode >= 400 ? chalk.red : 
-                           statusCode >= 300 ? chalk.yellow : chalk.green;
+        const statusColor = statusCode >= 400 ? chalk.red :
+          statusCode >= 300 ? chalk.yellow : chalk.green;
 
         console.log(
           `${statusColor(statusCode)}${chalk.reset()} ` +
@@ -313,13 +364,13 @@ export class DevServer {
 
     // API proxy
     const proxyConfig = this.config.dev?.proxy || this.config.dev?.behavior?.proxy || {};
-    
+
     if (typeof proxyConfig === 'object' && Object.keys(proxyConfig).length > 0) {
       Object.entries(proxyConfig).forEach(([pathPattern, target]) => {
         try {
           if (pathPattern && pathPattern !== '*' && pathPattern !== '/*' && target) {
             const normalizedPath = pathPattern.startsWith('/') ? pathPattern : `/${pathPattern}`;
-            
+
             this.app.use(normalizedPath, createProxyMiddleware({
               target,
               changeOrigin: true,
@@ -748,7 +799,7 @@ export class DevServer {
    */
   _generateClientId() {
     return Math.random().toString(36).substring(2, 15) +
-           Math.random().toString(36).substring(2, 15);
+      Math.random().toString(36).substring(2, 15);
   }
 
   /**

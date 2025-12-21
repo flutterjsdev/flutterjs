@@ -358,28 +358,31 @@ export async function run(options, projectContext) {
   const spinner = ora('Starting FlutterJS runtime...').start();
 
   try {
-    // Load configuration
-    const config = loadConfig(projectContext);
+    // ===== CRITICAL: AWAIT the config loading =====
+    spinner.text = 'Loading configuration...';
+    const config = await loadConfig(projectContext);  // ← ADD await HERE!
 
-    // Resolve entry file path
-    const entryFile = config.entry?.main || 'lib/main.fjs';
+    console.log('checking' + config?.entry?.main);
+
+    if (!config?.entry?.main) {
+      throw new Error('No entry.main in config. Check flutterjs.config.js');
+    }
+
+    const entryFile = config.entry.main;
     const entryPath = path.resolve(projectContext.projectRoot, entryFile);
 
     if (!fs.existsSync(entryPath)) {
-      throw new Error(`Entry file not found: ${entryFile}`);
+      throw new Error(`Entry file not found: ${entryPath}`);
     }
 
-
-
+    // ===== Create pipeline with FULL config =====
     const pipeline = new BuildPipeline({
       projectRoot: projectContext.projectRoot,
       mode: 'production',
       target: options.target || 'spa',
       outputDir: options.output || 'dist',
       debugMode: options.debug || false,
-      // ✅ IMPORTANT: Pass the loaded config object!
-      // This is what PathResolver reads from
-      config: config,
+      ...config  // ← Pass full config
     });
 
     // Run build
@@ -391,7 +394,7 @@ export async function run(options, projectContext) {
     // Display build info
     console.log(chalk.blue('\n📊 Build Complete:\n'));
     console.log(chalk.gray(`  Widgets:    ${buildResult.analysis.widgets?.count || 0}`));
-    console.log(chalk.gray(`  Build time: ${buildResult.stats.totalTime.toFixed(2)}ms`));
+    console.log(chalk.gray(`  Build time: ${buildResult.duration}ms`));
     console.log();
 
     // Start server if not production-only
@@ -425,10 +428,12 @@ export async function run(options, projectContext) {
   } catch (error) {
     spinner.fail(chalk.red('❌ Run failed'));
     console.error(chalk.red(`\nError: ${error.message}`));
+    if (options.debug) {
+      console.error(chalk.gray('\nStack:'), error.stack);
+    }
     process.exit(1);
   }
 }
-
 // ============================================================================
 // CLEAN COMMAND
 // ============================================================================
