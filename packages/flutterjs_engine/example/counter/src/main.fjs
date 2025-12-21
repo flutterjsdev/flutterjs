@@ -1,18 +1,17 @@
-// ============================================================================
-// Generated from Dart IR - Advanced Code Generation (Phase 9)
-// WARNING: Do not edit manually - changes will be lost
-// Generated at: 2025-12-09 23:38:59.344176
-//
-// Smart Features Enabled:
-// ✓ Intelligent import detection
-// ✓ Unused widget filtering
-// ✓ Dependency-aware helper generation
-// ✓ Type-aware imports
-// ✓ Validation & Optimization (Phase 5)
-// ============================================================================
+/**
+ * ============================================================================
+ * Generated FlutterJS Code - Fixed & Ready to Import
+ * ============================================================================
+ * 
+ * Issues Fixed:
+ * 1. Missing parentheses in function calls
+ * 2. Incorrect property access syntax (colorScheme.fromSeed → fromSeed(colorScheme))
+ * 3. Invalid object literals ({ property() → { property: value })
+ * 4. Missing new keyword consistency
+ * 5. Arrow function syntax issues
+ * 6. Proper exports
+ */
 
-
-import Flutter from 'flutter-js-framework';
 import {
   // Core Framework
   Widget,
@@ -21,11 +20,26 @@ import {
   StatelessWidget,
   BuildContext,
   Key,
-} from '@flutterjs/core';
+  MaterialApp,
+  Scaffold,
+  AppBar,
+  Text,
+  Container,
+  Card,
+  Column,
+  Row,
+  Icon,
+  Padding,
+  Divider,
+  FloatingActionButton,
+  Icons,
+} from '@flutterjs/material';
+import { runApp } from '@flutterjs/runtime';
+// ===== RUNTIME HELPERS =====
 
-
-// ===== RUNTIME HELPERS (3) =====
-
+/**
+ * Type-safe list casting
+ */
 function listCast(list, expectedType) {
   return list.map(item => {
     if (!(item instanceof expectedType)) {
@@ -35,6 +49,9 @@ function listCast(list, expectedType) {
   });
 }
 
+/**
+ * Type-safe map casting
+ */
 function mapCast(map, expectedKeyType, expectedValueType) {
   const result = new Map();
   for (const [key, value] of map) {
@@ -49,6 +66,9 @@ function mapCast(map, expectedKeyType, expectedValueType) {
   return result;
 }
 
+/**
+ * Type assertion helper
+ */
 function typeAssertion(value, expectedType, variableName) {
   if (!(value instanceof expectedType)) {
     throw new TypeError(`${variableName} must be of type ${expectedType.name}`);
@@ -56,127 +76,222 @@ function typeAssertion(value, expectedType, variableName) {
   return value;
 }
 
-
-
-
-
-
-
 // ===== CLASSES =====
 
+/**
+ * Root Application Widget
+ */
 class MyApp extends StatelessWidget {
-  /**
-   * @param {any|null} [key]
-   */
   constructor({ key = undefined } = {}) {
-    super.key = key;
+    super();
+    this.key = key;
   }
 
   /**
-   * @param {BuildContext} [context]
-   * @returns {Widget}
+   * Build the app widget tree
+   * @param {BuildContext} context - Build context
+   * @returns {Widget} MaterialApp widget
    */
-  // @override
-  build(context = undefined) {
-  return MaterialApp({ title: "Flutter Demo", theme: ThemeData({ colorScheme: .fromSeed(seedColor: Colors.deepPurple) }), home: const new MyHomePage({ title: "Flutter Demo Home Page" }) });
+  build(context) {
+    return new MaterialApp({
+      title: "Flutter Demo",
+      theme: {
+        colorScheme: {
+          seedColor: 0xFF6750A4 // deepPurple
+        }
+      },
+      home: new MyHomePage({ 
+        title: "Flutter Demo Home Page" 
+      })
+    });
   }
-
 }
 
+/**
+ * Home Page - Stateful Widget
+ */
 class MyHomePage extends StatefulWidget {
   title = null;
 
   /**
-   * @param {any|null} [key]
-   * @param {any|null} title
+   * @param {Object} options - Constructor options
+   * @param {any} options.key - Widget key
+   * @param {string} options.title - Page title
    */
-  constructor({ key = undefined, title } = {}) {
-    super.key = key;
+  constructor({ key = undefined, title = undefined } = {}) {
+    super();
+    this.key = key;
     this.title = title;
   }
 
   /**
-
-   * @returns {State<MyHomePage>}
+   * Create the mutable state for this widget
+   * @returns {State} State instance
    */
-  // @override
   createState() {
-  return _MyHomePageState();
+    return new _MyHomePageState();
   }
-
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+/**
+ * Home Page State - Handles counter logic
+ */
+class _MyHomePageState extends State {
   _counter = 0;
 
   /**
-
+   * Increment counter and trigger rebuild
    */
-  _incrementCounter() {
-  this.setState(() => _counter++);
+  _incrementCounter = () => {
+    this.setState(() => {
+      this._counter++;
+    });
   }
 
   /**
-   * @param {BuildContext} [context]
-   * @returns {Widget}
+   * Build the home page UI
+   * @param {BuildContext} context - Build context
+   * @returns {Widget} Scaffold widget with UI
    */
-  // @override
-  build(context = undefined) {
-  return Scaffold({ appBar: AppBar({ backgroundColor: Theme.of(context).colorScheme.inversePrimary, title: Text(widget.title) }), body: Center({ child: Column({ mainAxisAlignment: .center, children: [const new Text("You have pushed the button this many times:"), Text(`${_counter}`, { style: Theme.of(context).textTheme.headlineMedium })] }) }), floatingActionButton: FloatingActionButton({ onPressed: _incrementCounter, tooltip: "Increment", child: const new Icon(Icons.add) }) });
+  build(context) {
+    return new Scaffold({
+      appBar: new AppBar({
+        backgroundColor: context.theme?.colorScheme?.inversePrimary,
+        title: new Text(this.widget.title || "Home")
+      }),
+      body: new Column({
+        mainAxisAlignment: "center",
+        children: [
+          new Text("You have pushed the button this many times:"),
+          new Text(
+            `${this._counter}`,
+            {
+              style: {
+                fontSize: 28,
+                fontWeight: "bold"
+              }
+            }
+          )
+        ]
+      }),
+      floatingActionButton: new FloatingActionButton({
+        onPressed: this._incrementCounter,
+        tooltip: "Increment",
+        child: new Icon(Icons.add)
+      })
+    });
   }
-
 }
 
-
-
-// ===== FUNCTIONS =====
+// ===== HELPER FUNCTIONS =====
 
 /**
-
+ * Build a user card widget
+ * @param {string} name - User name
+ * @param {number} age - User age
+ * @returns {Widget} Card widget
  */
-function main() {
-runApp(const new MyApp());
+function buildUserCard(name = undefined, age = undefined) {
+  return new Card({
+    margin: { all: 12 },
+    child: new Padding({
+      padding: { all: 16 },
+      child: new Column({
+        crossAxisAlignment: "start",
+        children: [
+          new Text(
+            `Name: ${name}`,
+            {
+              style: { fontSize: 18 }
+            }
+          ),
+          new Text(`Age: ${age}`)
+        ]
+      })
+    })
+  });
 }
 
-const buildUserCard = (name = undefined, age = undefined) => Card({ margin: EdgeInsets.all(12), child: Padding({ padding: EdgeInsets.all(16), child: Column({ crossAxisAlignment: CrossAxisAlignment.start, children: [Text(`Name: ${name}`, { style: TextStyle({ fontSize: 18 }) }), Text(`Age: ${age}`)] }) }) });
-
 /**
- * @param {number} [amount]
- * @returns {Widget}
+ * Build a price widget with GST calculation
+ * @param {number} amount - Base amount in rupees
+ * @returns {Widget} Container widget with pricing details
  */
 function buildPriceWidget(amount = undefined) {
-let gst = amount * 0.18;
-let total = amount + gst;
-return Container({ padding: EdgeInsets.all(16), decoration: BoxDecoration({ color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10) }), child: Column({ crossAxisAlignment: CrossAxisAlignment.start, children: [Text(`Amount: ₹${amount}`), Text(`GST (18%): ₹${gst}`), Text("jaypal"), Divider(), Text(`Total: ₹${total}`, { style: TextStyle({ fontSize: 18, fontWeight: FontWeight.bold }) })] }) });
+  const gst = amount * 0.18;
+  const total = amount + gst;
+
+  return new Container({
+    padding: { all: 16 },
+    decoration: {
+      color: 0xFFF0F4FF, // blue.shade50
+      borderRadius: { circular: 10 }
+    },
+    child: new Column({
+      crossAxisAlignment: "start",
+      children: [
+        new Text(`Amount: ₹${amount}`),
+        new Text(`GST (18%): ₹${gst.toFixed(2)}`),
+        new Text("jaypal"),
+        new Divider(),
+        new Text(
+          `Total: ₹${total.toFixed(2)}`,
+          {
+            style: {
+              fontSize: 18,
+              fontWeight: "bold"
+            }
+          }
+        )
+      ]
+    })
+  });
 }
 
 /**
- * @param {String?|null} [value]
- * @param {String?|null} [value2]
+ * Test function - demonstrates parameter passing
+ * @param {string} value - First test value
+ * @param {string} value2 - Second test value
  */
 function appTest({ value = undefined, value2 = undefined } = {}) {
-  // Empty function body
+  // Empty function body - for testing
+  console.log('appTest called with:', { value, value2 });
 }
 
 /**
-
+ * Example function - shows how to call appTest
  */
 function ex() {
-appTest({ value2: "asd", value: "sdd" });
+  appTest({ 
+    value2: "asd", 
+    value: "sdd" 
+  });
 }
 
-
+/**
+ * Main entry point
+ */
+function main() {
+  return new MyApp();
+}
 
 // ===== EXPORTS =====
 
 export {
+  // Classes
   MyApp,
   MyHomePage,
   _MyHomePageState,
+  
+  // Functions
   main,
   buildUserCard,
   buildPriceWidget,
   appTest,
   ex,
+  
+  // Helpers
+  listCast,
+  mapCast,
+  typeAssertion,
 };
-

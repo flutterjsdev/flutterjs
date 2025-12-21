@@ -1,0 +1,6 @@
+{
+    "imports": {
+        "@flutterjs/material": "./package/material/src/index.js",
+        "@flutterjs/runtime": "./src/runtime/src/flutterjs_runtime.js"
+    }
+}

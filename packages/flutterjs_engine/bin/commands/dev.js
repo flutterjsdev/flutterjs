@@ -1,12 +1,16 @@
 /**
  * ============================================================================
- * FlutterJS Development Server - Fixed Version
+ * FlutterJS Development Server - Updated with AppBuilder Support
  * ============================================================================
  * 
- * Fixes:
- * - Proper proxy configuration handling
- * - Server-side safe initialization
- * - No browser-only APIs during setup
+ * UPDATED TO:
+ * - Run analyzer to get metadata
+ * - Pass analysis data to AppBuilder
+ * - Rebuild on file changes
+ * - Support hot reload
+ * - Serve analysis for DevTools
+ * 
+ * Location: cli/dev/dev.js
  */
 
 import http from "http";
@@ -21,6 +25,10 @@ import open from "open";
 import compression from "compression";
 import cors from "cors";
 import { createProxyMiddleware } from "http-proxy-middleware";
+
+// Import FlutterJS systems
+import { FlutterJSAnalyzer } from "./analyzer.js";
+import { BuildPipeline } from "./build_pipeline.js";
 
 // ============================================================================
 // CONSTANTS
@@ -42,10 +50,6 @@ const MIME_TYPES = {
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
-  '.otf': 'font/otf',
-  '.txt': 'text/plain',
-  '.webp': 'image/webp',
-  '.map': 'application/json',
 };
 
 // ============================================================================
@@ -63,7 +67,13 @@ export class DevServer {
     this.wss = null;
     this.fileWatcher = null;
     this.isRunning = false;
-    this.buildAnalysisData = null;
+
+    // ===== NEW: Analysis and build state =====
+    this.analyzer = null;
+    this.buildPipeline = null;
+    this.analysisData = null;
+    this.lastBuildTime = null;
+    this.isBuilding = false;
     
     // Port & host
     this.port = parseInt(config.dev?.server?.port || 3000, 10);
@@ -79,10 +89,18 @@ export class DevServer {
     this.projectRoot = projectContext.projectRoot;
     this.buildDir = path.join(this.projectRoot, '.dev');
     this.sourceDir = path.join(this.projectRoot, config.build?.source || 'lib');
+    this.entryFile = config.entry?.main || 'lib/main.fjs';
+    this.entryPath = path.join(this.projectRoot, this.entryFile);
     
     // Client connections
     this.clients = new Set();
-    this.lastBuildTime = null;
+
+    if (this.config.debugMode) {
+      console.log(chalk.gray('[DevServer] Initialized with:'));
+      console.log(chalk.gray(`  Entry: ${this.entryFile}`));
+      console.log(chalk.gray(`  Build Dir: ${this.buildDir}`));
+      console.log(chalk.gray(`  Port: ${this.port}\n`));
+    }
   }
 
   /**
@@ -92,66 +110,33 @@ export class DevServer {
     try {
       console.log(chalk.blue('\n🚀 Starting development server...\n'));
 
-      // 1. Ensure build directory exists
-      try {
-        if (!fs.existsSync(this.buildDir)) {
-          fs.mkdirSync(this.buildDir, { recursive: true });
-        }
-      } catch (error) {
-        throw new Error(`Failed to create build directory: ${error.message}`);
-      }
+      // ===== STEP 1: Initial Analysis =====
+      console.log(chalk.cyan('Step 1: Running code analysis...'));
+      await this.runAnalysis();
 
-      // 2. Initialize Express app
-      try {
-        this._initializeApp();
-      } catch (error) {
-        throw new Error(`Failed to initialize app: ${error.message}`);
-      }
+      // ===== STEP 2: Initial Build =====
+      console.log(chalk.cyan('Step 2: Building application...'));
+      await this.runBuild();
 
-      // 3. Setup middleware
-      try {
-        this._setupMiddleware();
-      } catch (error) {
-        throw new Error(`Failed to setup middleware: ${error.message}`);
-      }
+      // ===== STEP 3: Initialize Express =====
+      console.log(chalk.cyan('Step 3: Initializing server...'));
+      this._initializeApp();
+      this._setupMiddleware();
+      this._setupRoutes();
 
-      // 4. Setup routes
-      try {
-        this._setupRoutes();
-      } catch (error) {
-        throw new Error(`Failed to setup routes: ${error.message}`);
-      }
+      // ===== STEP 4: Create HTTP Server =====
+      this.server = http.createServer(this.app);
 
-      // 5. Create HTTP server
-      try {
-        this.server = http.createServer(this.app);
-      } catch (error) {
-        throw new Error(`Failed to create HTTP server: ${error.message}`);
-      }
+      // ===== STEP 5: Setup WebSocket for HMR =====
+      this._setupWebSocket();
 
-      // 6. Setup WebSocket for HMR
-      try {
-        this._setupWebSocket();
-      } catch (error) {
-        throw new Error(`Failed to setup WebSocket: ${error.message}`);
-      }
+      // ===== STEP 6: Setup File Watcher =====
+      this._setupFileWatcher();
 
-      // 7. Setup file watcher (after ensuring paths exist)
-      try {
-        this._setupFileWatcher();
-      } catch (error) {
-        console.warn(chalk.yellow(`⚠️  Warning: File watcher setup failed: ${error.message}`));
-        // Don't throw - file watcher is optional
-      }
+      // ===== STEP 7: Start Listening =====
+      await this._listen();
 
-      // 8. Start listening
-      try {
-        await this._listen();
-      } catch (error) {
-        throw new Error(`Failed to start listening: ${error.message}`);
-      }
-
-      // 9. Open browser (if requested)
+      // ===== STEP 8: Open Browser =====
       if (this.config.dev?.behavior?.open) {
         setTimeout(() => this._openBrowser(), 500);
       }
@@ -163,11 +148,114 @@ export class DevServer {
     } catch (error) {
       console.error(chalk.red('\n❌ Failed to start dev server:'));
       console.error(chalk.red(`${error.message}`));
-      if (process.env.DEBUG) {
-        console.error(chalk.gray('\n📍 Stack trace:'));
+      if (this.config.debugMode) {
+        console.error(chalk.gray('\n🔍 Stack trace:'));
         console.error(chalk.gray(error.stack));
       }
       throw error;
+    }
+  }
+
+  /**
+   * ===== NEW METHOD: Run analyzer =====
+   * Analyze source code and extract metadata
+   */
+  async runAnalysis() {
+    try {
+      if (!fs.existsSync(this.entryPath)) {
+        throw new Error(`Entry file not found: ${this.entryPath}`);
+      }
+
+      this.analyzer = new FlutterJSAnalyzer({
+        debugMode: this.config.debugMode
+      });
+
+      const sourceCode = fs.readFileSync(this.entryPath, 'utf-8');
+      this.analysisData = this.analyzer.analyze(sourceCode);
+
+      console.log(chalk.green(`✓ Analysis complete`));
+      console.log(chalk.gray(`  Widgets found: ${this.analysisData.widgets?.total || 0}`));
+      console.log(chalk.gray(`  Imports: ${this.analysisData.imports?.length || 0}`));
+      console.log(chalk.gray(`  State classes: ${this.analysisData.stateClasses?.length || 0}\n`));
+
+      return this.analysisData;
+    } catch (error) {
+      console.error(chalk.red(`✗ Analysis failed: ${error.message}`));
+      throw error;
+    }
+  }
+
+  /**
+   * ===== NEW METHOD: Run build =====
+   * Build application with analysis metadata
+   */
+  async runBuild() {
+    if (this.isBuilding) {
+      console.log(chalk.yellow('⚠ Build already in progress...'));
+      return;
+    }
+
+    this.isBuilding = true;
+
+    try {
+      // Ensure build directory exists
+      if (!fs.existsSync(this.buildDir)) {
+        await fs.promises.mkdir(this.buildDir, { recursive: true });
+      }
+
+      // Create build pipeline with analysis metadata
+      this.buildPipeline = new BuildPipeline({
+        projectRoot: this.projectRoot,
+        mode: 'development',
+        target: 'spa',
+        entryFile: this.entryFile,
+        outputDir: '.dev',
+        debugMode: this.config.debugMode,
+        // ===== PASS ANALYSIS METADATA TO PIPELINE =====
+        analysisMetadata: this.analysisData
+      });
+
+      // Execute build
+      const buildResult = await this.buildPipeline.build();
+
+      if (!buildResult.success) {
+        throw new Error('Build failed');
+      }
+
+      this.lastBuildTime = new Date().toISOString();
+
+      console.log(chalk.green(`✓ Build complete`));
+      console.log(chalk.gray(`  Bundle size: ${(buildResult.stats.bundleSize / 1024).toFixed(2)} KB`));
+      console.log(chalk.gray(`  Duration: ${buildResult.duration}ms\n`));
+
+      // ===== BROADCAST BUILD RESULT TO CLIENTS =====
+      this._broadcastToClients({
+        type: 'build-complete',
+        data: {
+          success: true,
+          stats: buildResult.stats,
+          analysisData: this.analysisData,
+          timestamp: this.lastBuildTime
+        }
+      });
+
+      return buildResult;
+
+    } catch (error) {
+      console.error(chalk.red(`✗ Build failed: ${error.message}`));
+
+      // ===== BROADCAST BUILD ERROR =====
+      this._broadcastToClients({
+        type: 'build-error',
+        data: {
+          error: error.message,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+      throw error;
+    } finally {
+      this.isBuilding = false;
     }
   }
 
@@ -176,11 +264,7 @@ export class DevServer {
    */
   _initializeApp() {
     this.app = express();
-
-    // Disable x-powered-by header
     this.app.disable('x-powered-by');
-
-    // Set trust proxy
     this.app.set('trust proxy', 1);
   }
 
@@ -188,44 +272,37 @@ export class DevServer {
    * Setup Express middleware
    */
   _setupMiddleware() {
-    // 1. Compression
+    // Compression
     this.app.use(compression());
 
-    // 2. CORS
+    // CORS
     if (this.config.dev?.server?.cors !== false) {
       this.app.use(cors({
         origin: '*',
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         credentials: true,
-        optionsSuccessStatus: 200,
       }));
     }
 
-    // 3. Development headers
+    // Development headers
     this.app.use((req, res, next) => {
       res.setHeader('X-Dev-Server', 'FlutterJS');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
       next();
     });
 
-    // 4. Request logging
+    // Request logging
     this.app.use((req, res, next) => {
       const originalEnd = res.end;
 
       res.end = function(...args) {
         const statusCode = res.statusCode;
-        const method = req.method;
-        const url = req.url;
-        const timestamp = new Date().toLocaleTimeString();
-
         const statusColor = statusCode >= 400 ? chalk.red : 
                            statusCode >= 300 ? chalk.yellow : chalk.green;
 
         console.log(
           `${statusColor(statusCode)}${chalk.reset()} ` +
-          `${chalk.gray(method)} ${url} - ${chalk.gray(timestamp)}`
+          `${chalk.gray(req.method)} ${req.url}`
         );
 
         originalEnd.apply(res, args);
@@ -234,73 +311,36 @@ export class DevServer {
       next();
     });
 
-    // 5. API proxy - FIX: Only setup if proxy config exists and is valid
+    // API proxy
     const proxyConfig = this.config.dev?.proxy || this.config.dev?.behavior?.proxy || {};
     
     if (typeof proxyConfig === 'object' && Object.keys(proxyConfig).length > 0) {
-      try {
-        Object.entries(proxyConfig).forEach(([pathPattern, target]) => {
-          try {
-            // Validate path pattern
-            if (!pathPattern || pathPattern.trim() === '') {
-              console.warn(chalk.yellow(`⚠️  Skipping empty proxy pattern`));
-              return;
-            }
-
-            // Skip invalid patterns like "*" or "/*"
-            if (pathPattern === '*' || pathPattern === '/*') {
-              console.warn(chalk.yellow(`⚠️  Skipping invalid proxy pattern: "${pathPattern}" (use /api or similar)`));
-              return;
-            }
-
-            // Ensure path starts with /
+      Object.entries(proxyConfig).forEach(([pathPattern, target]) => {
+        try {
+          if (pathPattern && pathPattern !== '*' && pathPattern !== '/*' && target) {
             const normalizedPath = pathPattern.startsWith('/') ? pathPattern : `/${pathPattern}`;
-
-            // Validate target URL
-            if (!target || typeof target !== 'string') {
-              console.warn(chalk.yellow(`⚠️  Skipping proxy - invalid target for ${normalizedPath}: ${target}`));
-              return;
-            }
-
-            console.log(chalk.gray(`  Setting up proxy: ${normalizedPath} -> ${target}`));
-
+            
             this.app.use(normalizedPath, createProxyMiddleware({
               target,
               changeOrigin: true,
               logLevel: 'warn',
               onError: (err, req, res) => {
-                console.error(chalk.red(`Proxy error for ${normalizedPath}:`), err.message);
-                res.status(502).json({
-                  error: 'Proxy error',
-                  message: err.message,
-                  target: target
-                });
+                console.error(chalk.red(`Proxy error for ${normalizedPath}:`, err.message));
+                res.status(502).json({ error: 'Proxy error', message: err.message });
               },
             }));
-
-            if (process.env.DEBUG) {
-              console.log(chalk.gray(`  ✓ Proxy configured: ${normalizedPath} -> ${target}`));
-            }
-          } catch (error) {
-            console.warn(chalk.yellow(`⚠️  Could not setup proxy for "${pathPattern}": ${error.message}`));
-            if (process.env.DEBUG) {
-              console.error(chalk.gray(error.stack));
-            }
           }
-        });
-      } catch (error) {
-        console.warn(chalk.yellow(`⚠️  Error setting up proxies: ${error.message}`));
-        if (process.env.DEBUG) {
-          console.error(chalk.gray(error.stack));
+        } catch (error) {
+          console.warn(chalk.yellow(`Could not setup proxy for "${pathPattern}": ${error.message}`));
         }
-      }
+      });
     }
 
-    // 6. JSON & URL-encoded body parser
+    // Body parsers
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
 
-    // 7. Static files middleware
+    // Static files
     this.app.use(express.static(this.buildDir, {
       maxAge: 0,
       etag: false,
@@ -311,6 +351,8 @@ export class DevServer {
    * Setup Express routes
    */
   _setupRoutes() {
+    // ===== NEW ROUTES FOR ANALYSIS METADATA =====
+
     // Health check
     this.app.get('/health', (req, res) => {
       res.json({
@@ -320,18 +362,18 @@ export class DevServer {
       });
     });
 
-    // API: Get build analysis
-    this.app.get('/api/build-analysis', (req, res) => {
+    // Get analysis metadata
+    this.app.get('/api/analysis', (req, res) => {
       try {
-        if (!this.buildAnalysisData) {
+        if (!this.analysisData) {
           return res.status(404).json({
-            error: 'No build analysis available',
-            message: 'Run build first to generate analysis',
+            error: 'No analysis available',
+            message: 'Run build first',
           });
         }
 
         res.json({
-          ...this.buildAnalysisData,
+          ...this.analysisData,
           lastUpdate: this.lastBuildTime,
         });
       } catch (error) {
@@ -342,80 +384,38 @@ export class DevServer {
       }
     });
 
-    // API: Get build errors
-    this.app.get('/api/build-errors', (req, res) => {
-      try {
-        const errors = this.buildAnalysisData?.analysisErrors || [];
-
-        res.json({
-          errors,
-          count: errors.length,
-          timestamp: new Date().toISOString(),
-        });
-      } catch (error) {
-        res.status(500).json({
-          error: 'Failed to fetch errors',
-          message: error.message,
-        });
-      }
+    // Get build status
+    this.app.get('/api/build-status', (req, res) => {
+      res.json({
+        isBuilding: this.isBuilding,
+        lastBuildTime: this.lastBuildTime,
+        analysis: this.analysisData ? {
+          widgets: this.analysisData.widgets?.total || 0,
+          imports: this.analysisData.imports?.length || 0,
+        } : null,
+      });
     });
 
-    // API: Update build analysis
-    this.app.post('/api/build-analysis', (req, res) => {
+    // Trigger rebuild
+    this.app.post('/api/rebuild', async (req, res) => {
       try {
-        this.buildAnalysisData = req.body;
-        this.lastBuildTime = new Date().toISOString();
-
-        // Broadcast to all connected clients
-        this._broadcastToClients({
-          type: 'analysis-update',
-          data: this.buildAnalysisData,
-          timestamp: this.lastBuildTime,
-        });
+        console.log(chalk.cyan('\n📦 Manual rebuild requested...\n'));
+        await this.runAnalysis();
+        await this.runBuild();
 
         res.json({
           success: true,
-          message: 'Analysis updated',
+          message: 'Rebuild complete',
         });
       } catch (error) {
         res.status(500).json({
-          error: 'Failed to update analysis',
-          message: error.message,
+          success: false,
+          error: error.message,
         });
       }
     });
 
-    // API: File change notification
-    this.app.post('/api/file-changed', (req, res) => {
-      try {
-        const { file, type } = req.body;
-
-        this._broadcastToClients({
-          type: 'file-changed',
-          data: { file, type },
-          timestamp: new Date().toISOString(),
-        });
-
-        res.json({ success: true });
-      } catch (error) {
-        res.status(500).json({
-          error: 'Failed to notify file change',
-          message: error.message,
-        });
-      }
-    });
-
-    // API: Request full reload
-    this.app.post('/api/reload', (req, res) => {
-      this._broadcastToClients({
-        type: 'reload',
-        reason: req.body?.reason || 'Server requested reload',
-      });
-
-      res.json({ success: true });
-    });
-
-    // API: Get server info
+    // Server info
     this.app.get('/api/server-info', (req, res) => {
       res.json({
         name: 'FlutterJS Dev Server',
@@ -429,8 +429,7 @@ export class DevServer {
       });
     });
 
-    // SPA fallback: Serve index.html for unknown routes
-    // IMPORTANT: Use regex instead of '*' for catch-all
+    // SPA fallback
     this.app.get(/^(?!\/api\/).*/, (req, res) => {
       const indexPath = path.join(this.buildDir, 'index.html');
 
@@ -440,18 +439,16 @@ export class DevServer {
         res.status(404).json({
           error: 'Not found',
           path: req.url,
-          message: 'File not found and no index.html available',
         });
       }
     });
 
-    // Error handler (must be last)
+    // Error handler
     this.app.use((err, req, res, next) => {
       console.error(chalk.red('Server error:'), err.message);
-
       res.status(500).json({
         error: 'Internal server error',
-        message: process.env.NODE_ENV === 'development' ? err.message : 'Unknown error',
+        message: this.config.debugMode ? err.message : 'Unknown error',
       });
     });
   }
@@ -461,7 +458,6 @@ export class DevServer {
    */
   _setupWebSocket() {
     try {
-      // Create WebSocket server
       this.wss = new WebSocketServer({
         noServer: true,
         perMessageDeflate: false,
@@ -470,7 +466,6 @@ export class DevServer {
       // Handle upgrade requests
       this.server.on('upgrade', (request, socket, head) => {
         try {
-          // Only allow WebSocket upgrade from same origin
           const origin = request.headers.origin;
           const host = request.headers.host;
 
@@ -488,21 +483,22 @@ export class DevServer {
         }
       });
 
-      // Handle WebSocket connections
+      // Handle connections
       this.wss.on('connection', (ws, request) => {
         try {
           const clientId = this._generateClientId();
           const clientIp = request.socket.remoteAddress;
 
-          console.log(chalk.cyan(`HMR client connected: ${clientId} (${clientIp})`));
+          console.log(chalk.cyan(`HMR client connected: ${clientId}`));
 
           this.clients.add(ws);
 
-          // Send initial state
+          // Send initial state with analysis data
           ws.send(JSON.stringify({
             type: 'connected',
             clientId,
             hmrEnabled: this.hmrEnabled,
+            analysisData: this.analysisData,
             timestamp: new Date().toISOString(),
           }));
 
@@ -512,11 +508,11 @@ export class DevServer {
               const message = JSON.parse(data.toString());
               this._handleClientMessage(message, ws, clientId);
             } catch (error) {
-              console.error(chalk.red(`Failed to parse message from ${clientId}:`), error.message);
+              console.error(chalk.red(`Failed to parse message from ${clientId}:`, error.message));
             }
           });
 
-          // Handle client disconnection
+          // Handle disconnection
           ws.on('close', (code, reason) => {
             this.clients.delete(ws);
             console.log(chalk.cyan(`HMR client disconnected: ${clientId}`));
@@ -524,7 +520,7 @@ export class DevServer {
 
           // Handle errors
           ws.on('error', (error) => {
-            console.error(chalk.red(`WebSocket error (${clientId}):`), error.message);
+            console.error(chalk.red(`WebSocket error (${clientId}):`, error.message));
           });
         } catch (error) {
           console.error(chalk.red('Error handling WebSocket connection:'), error.message);
@@ -532,7 +528,6 @@ export class DevServer {
         }
       });
 
-      // Handle WebSocket server errors
       this.wss.on('error', (error) => {
         console.error(chalk.red('WebSocket server error:'), error.message);
       });
@@ -553,59 +548,42 @@ export class DevServer {
 
       case 'ready':
         console.log(chalk.cyan(`Client ${clientId} ready for HMR`));
+        // Send current analysis
+        ws.send(JSON.stringify({
+          type: 'analysis-update',
+          data: this.analysisData,
+        }));
         break;
 
       case 'error':
         console.error(chalk.red(`Client ${clientId} error:`), message.data);
         break;
 
-      case 'custom':
-        this._broadcastToClients({
-          type: 'custom',
-          data: message.data,
-          from: clientId,
-        }, ws);
-        break;
-
       default:
-        if (message.type.startsWith('custom:')) {
-          this._broadcastToClients(message, ws);
-        }
         break;
     }
   }
 
   /**
-   * Setup file watcher
+   * Setup file watcher for hot rebuild
    */
   _setupFileWatcher() {
     try {
-      // Build list of paths to watch (only if they exist)
-      const potentialPaths = [
+      const watchPaths = [
         this.sourceDir,
         path.join(this.projectRoot, 'public'),
-        path.join(this.projectRoot, 'assets'),
         path.join(this.projectRoot, 'flutterjs.config.js'),
-      ];
+      ].filter(p => fs.existsSync(p));
 
-      const watchPaths = potentialPaths.filter(p => {
-        const exists = fs.existsSync(p);
-        if (!exists && process.env.DEBUG) {
-          console.log(chalk.gray(`  Watch path not found: ${p}`));
-        }
-        return exists;
-      });
-
-      // Only setup watcher if we have paths to watch
       if (watchPaths.length === 0) {
-        console.warn(chalk.yellow('⚠️  No source paths found to watch'));
+        console.warn(chalk.yellow('⚠ No source paths found to watch'));
         return;
       }
 
       const ignorePaths = [
         '**/node_modules/**',
         '**/.git/**',
-        '**/.flutterjs/**',
+        '**/.dev/**',
         '**/dist/**',
         '**/.DS_Store',
       ];
@@ -617,39 +595,36 @@ export class DevServer {
           stabilityThreshold: 100,
           pollInterval: 50,
         },
-        usePolling: process.platform === 'win32',
       });
 
-      // File changed
+      // File changed - trigger rebuild
       this.fileWatcher.on('change', (filePath) => {
         this._handleFileChange(filePath, 'change');
       });
 
-      // File added
       this.fileWatcher.on('add', (filePath) => {
         this._handleFileChange(filePath, 'add');
       });
 
-      // File deleted
       this.fileWatcher.on('unlink', (filePath) => {
         this._handleFileChange(filePath, 'unlink');
       });
 
-      // Handle watcher errors
       this.fileWatcher.on('error', (error) => {
         console.error(chalk.red('File watcher error:'), error.message);
       });
 
       console.log(chalk.gray('👀 Watching for file changes...\n'));
+
     } catch (error) {
-      console.warn(chalk.yellow(`⚠️  Could not setup file watcher: ${error.message}`));
+      console.warn(chalk.yellow(`⚠ Could not setup file watcher: ${error.message}`));
     }
   }
 
   /**
-   * Handle file changes
+   * Handle file changes - trigger rebuild
    */
-  _handleFileChange(filePath, eventType) {
+  async _handleFileChange(filePath, eventType) {
     const relativePath = path.relative(this.projectRoot, filePath);
     const ext = path.extname(filePath);
 
@@ -669,13 +644,38 @@ export class DevServer {
       },
     });
 
-    // Determine if full reload needed
+    // Trigger rebuild if main files changed
     if (
       filePath.includes('flutterjs.config.js') ||
       filePath.includes('package.json') ||
+      ext === '.fjs' ||
       ext === '.html'
     ) {
-      this._broadcastReload('Configuration or HTML changed');
+      try {
+        await this.runAnalysis();
+        await this.runBuild();
+
+        // Broadcast rebuild complete
+        this._broadcastToClients({
+          type: 'rebuild-complete',
+          data: {
+            success: true,
+            timestamp: this.lastBuildTime,
+            analysisData: this.analysisData,
+          },
+        });
+      } catch (error) {
+        console.error(chalk.red('Rebuild failed:'), error.message);
+
+        // Broadcast rebuild error
+        this._broadcastToClients({
+          type: 'rebuild-error',
+          data: {
+            error: error.message,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      }
     }
   }
 
@@ -689,7 +689,7 @@ export class DevServer {
         const url = `${protocol}://${this.host}:${this.port}`;
 
         console.log(chalk.green('\n✅ Development server running!\n'));
-        console.log(chalk.blue('🔗 URLs:\n'));
+        console.log(chalk.blue('🌐 URLs:\n'));
         console.log(chalk.cyan(`  Local:   ${url}`));
         console.log(chalk.cyan(`  Network: ${protocol}://127.0.0.1:${this.port}`));
         console.log(chalk.gray(`\n  Press Ctrl+C to stop\n`));
@@ -721,7 +721,7 @@ export class DevServer {
       console.log(chalk.blue(`🌐 Opening browser at ${url}\n`));
       await open(url);
     } catch (error) {
-      console.warn(chalk.yellow('⚠️  Could not open browser automatically'));
+      console.warn(chalk.yellow('⚠ Could not open browser automatically'));
     }
   }
 
@@ -733,19 +733,13 @@ export class DevServer {
 
     this.clients.forEach((client) => {
       if (client !== exclude && client.readyState === WebSocket.OPEN) {
-        client.send(data);
+        try {
+          client.send(data);
+        } catch (error) {
+          console.error(chalk.red('Failed to send to client:'), error.message);
+          this.clients.delete(client);
+        }
       }
-    });
-  }
-
-  /**
-   * Request page reload on all clients
-   */
-  _broadcastReload(reason = 'Server requested reload') {
-    this._broadcastToClients({
-      type: 'reload',
-      reason,
-      timestamp: new Date().toISOString(),
     });
   }
 
@@ -758,41 +752,13 @@ export class DevServer {
   }
 
   /**
-   * Update build analysis data
-   */
-  updateBuildAnalysis(analysisData) {
-    this.buildAnalysisData = analysisData;
-    this.lastBuildTime = new Date().toISOString();
-
-    this._broadcastToClients({
-      type: 'analysis-update',
-      data: analysisData,
-      timestamp: this.lastBuildTime,
-    });
-  }
-
-  /**
-   * Report build error to clients
-   */
-  reportBuildError(error) {
-    this._broadcastToClients({
-      type: 'build-error',
-      error: {
-        message: error.message,
-        stack: error.stack,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  }
-
-  /**
-   * Gracefully shut down server
+   * Gracefully shut down
    */
   async stop() {
     console.log(chalk.yellow('\n\n👋 Shutting down development server...\n'));
 
     return new Promise((resolve, reject) => {
-      // Close all WebSocket connections
+      // Close WebSocket connections
       this.clients.forEach((client) => {
         client.close(1000, 'Server shutting down');
       });
@@ -837,6 +803,13 @@ export class DevServer {
       hmrEnabled: this.hmrEnabled,
       connectedClients: this.clients.size,
       buildDir: this.buildDir,
+      isBuilding: this.isBuilding,
+      lastBuildTime: this.lastBuildTime,
+      analysisData: this.analysisData ? {
+        widgets: this.analysisData.widgets?.total || 0,
+        imports: this.analysisData.imports?.length || 0,
+        stateClasses: this.analysisData.stateClasses?.length || 0,
+      } : null,
       uptime: process.uptime(),
       memoryUsage: process.memoryUsage(),
     };
@@ -853,7 +826,17 @@ export class DevServer {
     console.log(chalk.gray(`URL: ${stats.url}`));
     console.log(chalk.gray(`HMR: ${stats.hmrEnabled ? chalk.green('Enabled') : chalk.red('Disabled')}`));
     console.log(chalk.gray(`Connected Clients: ${stats.connectedClients}`));
-    console.log(chalk.gray(`Uptime: ${(stats.uptime).toFixed(2)}s`));
+    console.log(chalk.gray(`Building: ${stats.isBuilding ? chalk.yellow('Yes') : chalk.green('No')}`));
+    console.log(chalk.gray(`Last Build: ${stats.lastBuildTime || 'N/A'}`));
+
+    if (stats.analysisData) {
+      console.log(chalk.gray(`\nAnalysis:`));
+      console.log(chalk.gray(`  Widgets: ${stats.analysisData.widgets}`));
+      console.log(chalk.gray(`  Imports: ${stats.analysisData.imports}`));
+      console.log(chalk.gray(`  State Classes: ${stats.analysisData.stateClasses}`));
+    }
+
+    console.log(chalk.gray(`\nUptime: ${stats.uptime.toFixed(2)}s`));
     console.log(chalk.gray(`Memory: ${(stats.memoryUsage.heapUsed / 1024 / 1024).toFixed(2)} MB\n`));
   }
 }
