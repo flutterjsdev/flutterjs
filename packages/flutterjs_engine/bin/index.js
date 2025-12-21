@@ -33,18 +33,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 
 
-// Create logger
-global.logger = new SilentLogger();
-
-// COMPLETELY SILENCE console.log (no output in CMD at all)
-console.log = (...args) => logger.log(...args);
-console.info = console.warn = console.error = console.log;
-
-// At the very end of your file (after process.exit), add this:
-process.on('exit', () => {
-  if (global.logger) global.logger.save();
-});
-
 // ============================================================================
 // VERSION & METADATA
 // ============================================================================
