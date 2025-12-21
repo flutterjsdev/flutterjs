@@ -94,7 +94,7 @@ function loadConfigFile(configPath) {
 
     // Create a safe sandbox for eval
     const sandbox = { module: { exports: {} } };
-    
+
     try {
       // Execute the config file in the sandbox
       new Function('module', 'exports', configCode).call(sandbox, sandbox.module, sandbox.module.exports);
@@ -114,7 +114,7 @@ function loadConfigFile(configPath) {
 function loadConfig(projectContext) {
   try {
     const configPath = path.join(projectContext.projectRoot, 'flutterjs.config.js');
-    
+
     if (!fs.existsSync(configPath)) {
       if (projectContext.projectRoot !== process.cwd()) {
         console.warn(chalk.yellow(`⚠️  No flutterjs.config.js found, using defaults\n`));
@@ -124,7 +124,7 @@ function loadConfig(projectContext) {
 
     // Try to load the actual config file
     const userConfig = loadConfigFile(configPath);
-    
+
     if (userConfig && typeof userConfig === 'object') {
       // Deep merge user config with defaults
       return deepMergeConfig(getDefaultConfig(), userConfig);
@@ -300,7 +300,7 @@ export async function dev(options, projectContext) {
       projectRoot: projectContext.projectRoot,
       mode: 'development',
       target: 'spa',
-      entryFile: entryFile,
+      entryFile: entryFile,  // ✅ Pass .fjs file
       outputDir: '.dev',
       debugMode: options.debug || false,
       enableHotReload: true,
@@ -311,6 +311,17 @@ export async function dev(options, projectContext) {
     // Run initial build
     spinner.text = 'Running initial build...';
     const buildResult = await pipeline.run();
+
+    // ✅ Copy app.js to .dev/
+    const appJsSource = path.join(
+      path.dirname(import.meta.url).replace('file://', ''),
+      '../app.js'
+    );
+    const appJsDest = path.join(projectContext.projectRoot, '.dev', 'app.js');
+
+    if (fs.existsSync(appJsSource)) {
+      fs.copyFileSync(appJsSource, appJsDest);
+    }
 
     // Create development server
     const devServer = new DevServer(config, projectContext);
@@ -323,18 +334,11 @@ export async function dev(options, projectContext) {
     // Setup file watching for rebuilds
     setupDevWatch(devServer, pipeline, projectContext, config);
 
-    // Open browser if requested
-    if (options.open) {
-      setTimeout(async () => {
-        await open(`http://${options.host || 'localhost'}:${parseInt(options.port || 3000, 10)}`).catch(() => {});
-      }, 1000);
-    }
-
     // Handle graceful shutdown
     setupGracefulShutdown(devServer, pipeline);
 
   } catch (error) {
-    spinner.fail(chalk.red('❌ Dev server failed'));
+    spinner.fail(chalk.red('✗ Dev server failed'));
     console.error(chalk.red(`\nError: ${error.message}`));
     if (options.debug) {
       console.error(chalk.gray(error.stack));
@@ -365,16 +369,17 @@ export async function run(options, projectContext) {
       throw new Error(`Entry file not found: ${entryFile}`);
     }
 
-    // Create build pipeline
+
+
     const pipeline = new BuildPipeline({
       projectRoot: projectContext.projectRoot,
-      mode: options.mode === 'production' ? 'production' : 'development',
+      mode: 'production',
       target: options.target || 'spa',
-      entryFile: entryFile,
-      outputDir: options.output || '.dev',
+      outputDir: options.output || 'dist',
       debugMode: options.debug || false,
-      enableHotReload: options.mode !== 'production',
-      enablePerformanceMonitoring: true,
+      // ✅ IMPORTANT: Pass the loaded config object!
+      // This is what PathResolver reads from
+      config: config,
     });
 
     // Run build
@@ -393,7 +398,7 @@ export async function run(options, projectContext) {
     if (options.serve !== false) {
       const port = parseInt(options.port || 3000, 10);
       const host = 'localhost';
-      
+
       console.log(chalk.cyan('Starting development server...\n'));
 
       const devServer = new DevServer(
@@ -505,7 +510,7 @@ export async function preview(options, projectContext) {
       // Open browser if requested
       if (options.open) {
         setTimeout(() => {
-          open(`http://localhost:${port}`).catch(() => {});
+          open(`http://localhost:${port}`).catch(() => { });
         }, 500);
       }
     });
@@ -775,19 +780,19 @@ function checkPackageManagers() {
     execSync('npm --version', { stdio: 'ignore' });
     managers.npm = true;
     if (!managers.active) managers.active = 'npm';
-  } catch {}
+  } catch { }
 
   try {
     execSync('yarn --version', { stdio: 'ignore' });
     managers.yarn = true;
     if (!managers.active) managers.active = 'yarn';
-  } catch {}
+  } catch { }
 
   try {
     execSync('pnpm --version', { stdio: 'ignore' });
     managers.pnpm = true;
     managers.active = 'pnpm';
-  } catch {}
+  } catch { }
 
   return managers;
 }

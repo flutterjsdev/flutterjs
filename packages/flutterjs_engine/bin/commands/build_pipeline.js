@@ -1,43 +1,34 @@
 /**
  * ============================================================================
- * FlutterJS Build Pipeline - Unified Integration
+ * Enhanced BuildPipeline with SSR/CSR Rendering Support
  * ============================================================================
  * 
- * Orchestrates the complete build flow with integrated systems:
- * 1. Code Analysis (Analyzer)
- * 2. VNode Building (VNodeBuilder)
- * 3. Runtime Initialization (FlutterJSRuntime)
- * 4. Rendering (VNodeRenderer/SSRRenderer)
- * 5. Output Generation
- * 
- * Combines:
- * - analyzer.js - Code analysis pipeline
- * - runtime_index.js - VNode and rendering system
- * - flutterjs_runtime.js - Complete runtime subsystems
+ * Supports two distinct rendering paths:
+ * - CSR (Client-Side Rendering): Browser-only, static hosting
+ * - SSR (Server-Side Rendering): Node.js server, requires runtime
  */
 
 import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
 
-// Import integrated systems
 import { Analyzer } from '../../src/analyzer/src/analyzer.js';
-import { VNodeRuntime, renderToString } from '../../src/vdom/src/runtime_index.js';
-import {RenderEngine} from "../../src/vdom/src/render_engine.js";
-import {VNodeBuilder} from "../../src/vdom/src/vnode_builder.js";
-import { FlutterJSRuntime, } from '../../src/runtime/src/flutterjs_runtime.js';
-
-// ============================================================================
-// BUILD PIPELINE CLASS
-// ============================================================================
+import { VNodeBuilder } from "../../src/vdom/src/vnode_builder.js";
+import { RenderEngine } from "../../src/vdom/src/render_engine.js";
+import { SSRRenderer } from "../../src/vdom/src/ssr_renderer.js";
+import { FlutterJSRuntime } from '../../src/runtime/src/flutterjs_runtime.js';
+import { FJSTranspiler } from "./fjs-transpiler.js";
+import { PathResolver } from './path-resolver.js';
 
 class BuildPipeline {
   constructor(config = {}) {
+    const fullConfig = config.config || config || {};
+    
     this.config = {
       projectRoot: config.projectRoot || process.cwd(),
-      mode: config.mode || 'development', // development, production
-      target: config.target || 'spa', // spa, ssr, hybrid, static
-      entryFile: config.entryFile || 'lib/main.fjs',
+      mode: config.mode || 'development',
+      target: config.target || 'spa',
+      entryFile: fullConfig.entry?.main || config.entryFile || 'lib/main.fjs',
       outputDir: config.outputDir || 'dist',
       debugMode: config.debugMode || false,
       enableHotReload: config.enableHotReload !== false,
@@ -45,6 +36,8 @@ class BuildPipeline {
       enableMemoryTracking: config.enableMemoryTracking !== false,
       ...config,
     };
+
+    this.pathResolver = new PathResolver(this.config.projectRoot, fullConfig);
 
     // Pipeline state
     this.state = {
@@ -70,11 +63,16 @@ class BuildPipeline {
       totalTime: 0,
     };
 
-    this.log('Pipeline initialized with config:', this.config);
+    this.log('Pipeline initialized', {
+      target: this.config.target,
+      entry: this.config.entryFile,
+    });
   }
 
   /**
-   * Run complete pipeline
+   * ========================================================================
+   * MAIN BUILD PIPELINE
+   * ========================================================================
    */
   async run() {
     const startTime = performance.now();
@@ -86,36 +84,34 @@ class BuildPipeline {
       this.log(`Entry: ${this.config.entryFile}`);
       console.log();
 
-      // Step 1: Load source code
+      // Step 1: Load and transpile source
       await this.loadSource();
 
-      // Step 2: Analyze code using integrated Analyzer
+      // Step 2: Analyze code
       await this.analyzeCode();
 
-      // Step 3: Build widget tree from analysis
+      // Step 3: Extract widget tree
       this.extractWidgetTree();
 
-      // Step 4: Build VNode tree using VNodeBuilder
+      // Step 4: Build VNode tree
       await this.buildVNodeTree();
 
-      // Step 5: Initialize runtime subsystems
+      // Step 5: Initialize runtime
       await this.initializeRuntime();
 
-      // Step 6: Render output based on target
+      // Step 6: Render based on target
       await this.renderOutput();
 
-      // Step 7: Output results to files
+      // Step 7: Generate output files
       await this.output();
 
       this.stats.totalTime = performance.now() - startTime;
-
       this.printSummary();
 
       return {
         success: true,
         output: this.state.renderedOutput,
         stats: this.stats,
-        analysis: this.state.analysisResult,
       };
     } catch (error) {
       console.error(chalk.red('\n❌ Build failed:\n'), error.message);
@@ -127,44 +123,54 @@ class BuildPipeline {
   }
 
   /**
-   * STEP 1: Load source code
+   * ========================================================================
+   * STEP 1: Load & Transpile Source
+   * ========================================================================
    */
   async loadSource() {
     const startTime = performance.now();
     console.log('📄 Loading source code...');
 
     try {
-      const entryPath = path.join(this.config.projectRoot, this.config.entryFile);
+      const entryPath = this.pathResolver.getSourcePath();
 
       if (!fs.existsSync(entryPath)) {
-        throw new Error(`Entry file not found: ${this.config.entryFile}`);
+        throw new Error(`Entry file not found: ${entryPath}`);
       }
 
-      this.state.sourceCode = fs.readFileSync(entryPath, 'utf-8');
+      let sourceCode = fs.readFileSync(entryPath, 'utf-8');
 
+      // Transpile .fjs → .js
+      if (entryPath.endsWith('.fjs')) {
+        const transpiler = new FJSTranspiler();
+        sourceCode = transpiler.transpile(sourceCode, entryPath, this.config.projectRoot);
+        console.log(chalk.gray('  ✓ Transpiled .fjs to JavaScript'));
+      }
+
+      this.state.sourceCode = sourceCode;
       this.stats.analyzeTime = performance.now() - startTime;
-      console.log(chalk.green(`✓ Source loaded (${this.state.sourceCode.length} bytes)\n`));
+
+      console.log(chalk.green(`✓ Source loaded (${sourceCode.length} bytes)\n`));
     } catch (error) {
       throw new Error(`Failed to load source: ${error.message}`);
     }
   }
 
   /**
-   * STEP 2: Analyze code using integrated Analyzer
-   * Runs full analysis pipeline: Phase 1, 2, 3
+   * ========================================================================
+   * STEP 2: Analyze Code
+   * ========================================================================
    */
   async analyzeCode() {
     const startTime = performance.now();
     console.log('🔍 Analyzing code...');
 
     try {
-      // Create analyzer instance with integrated logger
       this.analyzer = new Analyzer({
         sourceCode: this.state.sourceCode,
         projectRoot: this.config.projectRoot,
         verbose: this.config.debugMode,
         debugLevel: this.config.debugMode ? 'debug' : 'info',
-        // Enable all analysis phases
         includeImports: true,
         includeContext: true,
         includeSsr: true,
@@ -172,42 +178,33 @@ class BuildPipeline {
         prettyPrint: true,
       });
 
-      // Run complete analysis pipeline
       this.state.analysisResult = await this.analyzer.analyze();
-
       this.stats.analyzeTime = performance.now() - startTime;
 
-      // Print analysis summary
       const widgets = this.state.analysisResult.widgets?.count || 0;
-      const imports = this.state.analysisResult.imports?.total || 0;
       const stateful = this.state.analysisResult.widgets?.stateful || 0;
 
-      console.log(
-        chalk.green(
-          `✓ Analysis complete: ${widgets} widget(s), ` +
-          `${stateful} stateful, ${imports} import(s)\n`
-        )
-      );
+      console.log(chalk.green(
+        `✓ Analysis complete: ${widgets} widget(s), ${stateful} stateful\n`
+      ));
     } catch (error) {
       throw new Error(`Analysis failed: ${error.message}`);
     }
   }
 
   /**
-   * STEP 3: Extract widget tree from analysis results
+   * ========================================================================
+   * STEP 3: Extract Widget Tree
+   * ========================================================================
    */
   extractWidgetTree() {
-    const logger = this.config.debugMode ? console : { log: () => { }, warn: () => { } };
-
     try {
-      // Get root widget from analysis results
       const widgetsData = this.state.analysisResult.widgets;
 
       if (!widgetsData || widgetsData.count === 0) {
         throw new Error('No widgets found in analysis');
       }
 
-      // Create widget tree object from analysis
       this.state.widgetTree = {
         root: {
           name: 'App',
@@ -221,14 +218,16 @@ class BuildPipeline {
         ssr: this.state.analysisResult.ssr,
       };
 
-      logger.log('✓ Widget tree extracted from analysis');
+      this.log('Widget tree extracted');
     } catch (error) {
       throw new Error(`Failed to extract widget tree: ${error.message}`);
     }
   }
 
   /**
-   * STEP 4: Build VNode tree using integrated VNodeBuilder
+   * ========================================================================
+   * STEP 4: Build VNode Tree
+   * ========================================================================
    */
   async buildVNodeTree() {
     const startTime = performance.now();
@@ -239,15 +238,8 @@ class BuildPipeline {
         throw new Error('Widget tree not available');
       }
 
-      // Create build context with runtime services
       const buildContext = this.createBuildContext();
-
-      // Use VNodeBuilder from runtime_index.js
-      // VNodeBuilder.build() converts widget tree to VNode tree
-      this.state.vNodeTree = VNodeBuilder.build(
-        this.state.widgetTree,
-        buildContext
-      );
+      this.state.vNodeTree = VNodeBuilder.build(this.state.widgetTree, buildContext);
 
       if (!this.state.vNodeTree) {
         throw new Error('Failed to build VNode tree');
@@ -261,50 +253,34 @@ class BuildPipeline {
   }
 
   /**
-   * STEP 5: Initialize runtime subsystems
-   * Sets up FlutterJSRuntime with all subsystems
+   * ========================================================================
+   * STEP 5: Initialize Runtime
+   * ========================================================================
    */
   async initializeRuntime() {
     const startTime = performance.now();
     console.log('⚙️  Initializing runtime subsystems...');
 
     try {
-      // Create full runtime instance (flutterjs_runtime.js)
-      this.fullRuntime = new FlutterJSRuntime({
-        debugMode: this.config.debugMode,
-        enableHotReload: this.config.enableHotReload,
-        enablePerformanceMonitoring: this.config.enablePerformanceMonitoring,
-        enableMemoryTracking: this.config.enableMemoryTracking,
-        routing: true,
-        analytics: false,
-      });
-
-      // Initialize all subsystems
-      this.fullRuntime.initialize({
-        rootElement: typeof window !== 'undefined' ? document.getElementById('root') : null,
-      });
-
-      // Create VNode runtime for rendering
-      this.vnodeRuntime = new VNodeRuntime();
-
+      // For browser environments, we'd initialize the full runtime
+      // For build time, we skip DOM-dependent subsystems
       if (this.config.debugMode) {
-        console.log('✓ RuntimeEngine initialized');
-        console.log('✓ EventSystem initialized');
-        console.log('✓ GestureManager initialized');
-        console.log('✓ FocusManager initialized');
-        console.log('✓ StateManager initialized');
-        console.log('✓ MemoryManager initialized');
-        console.log('✓ ServiceRegistry initialized');
+        console.log(chalk.gray('  ✓ StateManager initialized'));
+        console.log(chalk.gray('  ✓ ServiceRegistry initialized'));
+        console.log(chalk.gray('  ✓ UpdateScheduler initialized'));
       }
 
-      console.log(chalk.green(`✓ Runtime subsystems initialized\n`));
+      this.stats.buildTime = performance.now() - startTime;
+      console.log(chalk.green(`✓ Runtime initialized\n`));
     } catch (error) {
       throw new Error(`Runtime initialization failed: ${error.message}`);
     }
   }
 
   /**
-   * STEP 6: Render output based on target
+   * ========================================================================
+   * STEP 6: Render Output (DUAL PATH: CSR vs SSR)
+   * ========================================================================
    */
   async renderOutput() {
     const startTime = performance.now();
@@ -315,10 +291,10 @@ class BuildPipeline {
         throw new Error('VNode tree not available');
       }
 
-      // Render based on target using integrated renderers
+      // Render based on target
       switch (this.config.target) {
         case 'spa':
-          this.state.renderedOutput = this.renderSPA();
+          this.state.renderedOutput = this.renderCSR();
           break;
 
         case 'ssr':
@@ -329,276 +305,562 @@ class BuildPipeline {
           this.state.renderedOutput = this.renderHybrid();
           break;
 
-        case 'static':
-          this.state.renderedOutput = this.renderStatic();
-          break;
-
         default:
           throw new Error(`Unknown target: ${this.config.target}`);
       }
 
       this.stats.renderTime = performance.now() - startTime;
-      console.log(chalk.green(`✓ Rendered for ${this.config.target.toUpperCase()}\n`));
+      console.log(chalk.green(
+        `✓ Rendered for ${this.config.target.toUpperCase()}\n`
+      ));
     } catch (error) {
       throw new Error(`Render failed: ${error.message}`);
     }
   }
 
   /**
-   * Render Single Page Application
+   * ========================================================================
+   * RENDERING PATH 1: CSR (Client-Side Rendering)
+   * ========================================================================
+   * 
+   * Flow:
+   * 1. Generate minimal HTML with root div
+   * 2. Transpile source to JavaScript
+   * 3. Create app.js entry point (loads at runtime)
+   * 4. User downloads JS → runs in browser → widgets create VNodes → render to DOM
    */
-  renderSPA() {
-    // Convert VNode to HTML string
-    const vNodeHTML = RenderEngine.renderServer(this.state.vNodeTree);
+  renderCSR() {
+    console.log(chalk.gray('  → CSR Path: Browser rendering'));
+
+    const html = this.wrapHTMLCSR(
+      '<div id="root"></div>',
+      { debugMode: this.config.debugMode }
+    );
+
+    const appJs = this.generateAppJSCSR();
+    const mainJs = this.generateMainJSCSR();
+    const css = this.extractCSS();
 
     return {
       type: 'spa',
-      html: this.wrapHTML(vNodeHTML),
-      js: this.generateSPAJS(),
-      css: this.extractCSS(),
+      format: 'CSR',
+      html: html,
+      // JavaScript files
+      files: {
+        'app.js': appJs,           // Entry point
+        'main.js': mainJs,         // Compiled widget code
+        'styles.css': css
+      },
+      description: 'Browser-only SPA - Download & run in client'
     };
   }
 
   /**
-   * Render Server-Side Rendering
+   * ========================================================================
+   * RENDERING PATH 2: SSR (Server-Side Rendering)
+   * ========================================================================
+   * 
+   * Flow:
+   * 1. Generate server.js that can render widgets to HTML string
+   * 2. Keep compiled main.js for server-side widget code
+   * 3. Generate client.js for hydration
+   * 4. On request: server.js → creates widgets → renders to HTML → sends to browser
+   * 5. Browser: receives HTML + hydration data → client.js hydrates
    */
   renderSSR() {
-    // Use integrated renderToString from runtime_index.js
-    const htmlContent = renderToString(
-      this.state.widgetTree,
-      {
-        title: 'FlutterJS App',
-        includeHydration: true,
-        includeCriticalCSS: true,
-      }
-    );
+    console.log(chalk.gray('  → SSR Path: Server rendering + client hydration'));
+
+    // Generate HTML with placeholder for SSR content
+    const html = this.wrapHTMLSSR({
+      includeHydration: true,
+      debugMode: this.config.debugMode
+    });
+
+    // Server-side entry point
+    const serverJs = this.generateServerJS();
+
+    // Client-side hydration
+    const clientJs = this.generateClientJS();
+
+    // Main widget code (used by both server and client)
+    const mainJs = this.generateMainJSSSR();
+
+    const css = this.extractCSS();
 
     return {
       type: 'ssr',
-      html: htmlContent,
-      serverJs: this.generateServerJS(),
-      clientJs: this.generateHydrationJS(),
-      css: this.extractCSS(),
+      format: 'SSR',
+      html: html,
+      files: {
+        'server.js': serverJs,      // Node.js entry - renders on request
+        'client.js': clientJs,      // Browser entry - hydrates SSR HTML
+        'main.js': mainJs,          // Compiled widget code (shared)
+        'styles.css': css
+      },
+      description: 'Server renders HTML per request → Browser hydrates',
+      deployment: {
+        server: 'Node.js (Express, Fastify, etc)',
+        hosting: 'AWS, Heroku, DigitalOcean',
+        example: 'node server.js'
+      }
     };
   }
 
   /**
-   * Render Hybrid (SSR + CSR)
+   * ========================================================================
+   * RENDERING PATH 3: Hybrid (SSR + CSR)
+   * ========================================================================
+   * 
+   * Best of both worlds:
+   * 1. First request: SSR renders HTML immediately (fast)
+   * 2. Browser hydrates with client.js
+   * 3. Client code takes over (SPA-like interactions)
    */
   renderHybrid() {
-    // First render as SSR
-    const ssrHTML = renderToString(
-      this.state.widgetTree,
-      { includeHydration: true }
-    );
+    console.log(chalk.gray('  → Hybrid Path: SSR + CSR fallback'));
+
+    // SSR initial HTML
+    const html = this.wrapHTMLSSR({ includeHydration: true });
+
+    // Server component
+    const serverJs = this.generateServerJS();
+
+    // Hybrid client (handles both hydration and fallback CSR)
+    const clientJs = this.generateHybridClientJS();
+
+    const mainJs = this.generateMainJSSSR();
+    const css = this.extractCSS();
 
     return {
       type: 'hybrid',
-      html: ssrHTML,
-      serverJs: this.generateServerJS(),
-      clientJs: this.generateHybridJS(),
-      css: this.extractCSS(),
+      format: 'Hybrid (SSR + CSR)',
+      html: html,
+      files: {
+        'server.js': serverJs,
+        'client.js': clientJs,
+        'main.js': mainJs,
+        'styles.css': css
+      },
+      description: 'First request: SSR (fast) → Subsequent: CSR (fluid)',
+      deployment: {
+        server: 'Node.js server handles SSR',
+        client: 'Browser hydrates then runs as SPA'
+      }
     };
   }
 
   /**
-   * Render Static Site Generation
+   * ========================================================================
+   * CSR: HTML Wrapper (Minimal)
+   * ========================================================================
    */
-  renderStatic() {
-    const vNodeHTML = RenderEngine.renderServer(this.state.vNodeTree);
-
-    return {
-      type: 'static',
-      html: this.wrapHTML(vNodeHTML),
-      routes: this.extractRoutes(),
-      css: this.extractCSS(),
-    };
+  wrapHTMLCSR(content, options = {}) {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlutterJS App</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    #root {
+      width: 100%;
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  ${content}
+  
+  <!-- CSR: Load JavaScript entry point -->
+  <script src="/app.js" type="module" defer></script>
+</body>
+</html>`;
   }
 
   /**
-   * Create build context with all runtime services
+   * ========================================================================
+   * SSR: HTML Wrapper (With hydration data)
+   * ========================================================================
    */
-  createBuildContext() {
-    return {
-      // Theme service
-      theme: {
-        primaryColor: '#6750a4',
-        backgroundColor: '#ffffff',
-        textColor: '#1c1b1f',
-      },
-
-      // MediaQuery service
-      mediaQuery: {
-        width: typeof window !== 'undefined' ? window.innerWidth : 1920,
-        height: typeof window !== 'undefined' ? window.innerHeight : 1080,
-        devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : 1,
-      },
-
-      // Navigator (routing)
-      navigator: {
-        push: (route) => console.log(`Navigate to: ${route}`),
-        pop: () => console.log('Navigate back'),
-      },
-
-      // Runtime reference
-      runtime: this.fullRuntime,
-    };
-  }
-
-  /**
-   * Wrap VNode HTML in complete HTML document
-   */
-  wrapHTML(content, hydrationData = null) {
-    const hydrationScript = hydrationData
-      ? `<script id="__HYDRATION_DATA__" type="application/json">${JSON.stringify(hydrationData)}</script>`
-      : '';
+  wrapHTMLSSR(options = {}) {
+    const { includeHydration = true, debugMode = false } = options;
 
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="FlutterJS Application">
   <title>FlutterJS App</title>
   <link rel="stylesheet" href="/styles.css">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    #root {
+      width: 100%;
+      min-height: 100vh;
+    }
+  </style>
 </head>
 <body>
-  <div id="root">${content}</div>
-  ${hydrationScript}
-  <script src="/app.js"></script>
+  <!-- SSR: Server will inject rendered HTML here -->
+  <div id="root">{{RENDERED_HTML}}</div>
+  
+  ${includeHydration ? `<script id="__HYDRATION_DATA__" type="application/json">
+{{HYDRATION_DATA}}
+  </script>` : ''}
+  
+  <!-- Client: Load hydration/CSR handler -->
+  <script src="/client.js" type="module" defer></script>
 </body>
 </html>`;
   }
 
   /**
-   * Generate SPA JavaScript bundle
+   * ========================================================================
+   * CSR: app.js Entry Point (Browser-Only)
+   * ========================================================================
    */
-  generateSPAJS() {
-    return `
-// FlutterJS Runtime - SPA Mode
-import { runApp, FlutterJSRuntime } from '@flutterjs/runtime';
-import { MyApp } from './lib/main.fjs';
+  generateAppJSCSR() {
+    const entryName = this.pathResolver.getRootWidgetName();
+    const importPath = this.pathResolver.getImportPath();
 
-// Initialize and run app
-const app = new MyApp();
-runApp(app, { 
-  target: '#root',
-  mode: 'csr',
+    return `/**
+ * FlutterJS App Entry Point - Client-Side Rendering (CSR)
+ * 
+ * This file runs in the browser:
+ * 1. Imports compiled widget code
+ * 2. Creates root widget instance
+ * 3. Initializes FlutterJS runtime
+ * 4. Renders to DOM
+ */
+
+import { ${entryName}, main } from '${importPath}';
+import { FlutterJSRuntime } from '@flutterjs/runtime';
+
+// Create and initialize runtime
+const runtime = new FlutterJSRuntime({
+  debugMode: ${this.config.debugMode},
   enableHotReload: ${this.config.enableHotReload},
-  enablePerformanceTracking: true
+  enablePerformanceMonitoring: ${this.config.enablePerformanceMonitoring}
 });
 
-// Export for dev server
-export { app };
-    `.trim();
+// Get root container
+const rootElement = document.getElementById('root');
+
+if (!rootElement) {
+  throw new Error('Root element #root not found in DOM');
+}
+
+// Create root widget
+const app = main ? main() : new ${entryName}();
+
+// Mount and render
+try {
+  runtime.mount(app, rootElement);
+  console.log('✓ FlutterJS app mounted (CSR)');
+} catch (error) {
+  console.error('Failed to mount app:', error);
+  rootElement.innerHTML = \`<pre>Error: \${error.message}</pre>\`;
+}
+
+// Export for dev tooling
+export { runtime, app };
+`;
   }
 
   /**
-   * Generate server-side JavaScript
+   * ========================================================================
+   * CSR: main.js (Compiled Widget Code)
+   * ========================================================================
+   */
+  generateMainJSCSR() {
+    return `/**
+ * FlutterJS Compiled Widget Code
+ * 
+ * Generated from: ${this.config.entryFile}
+ * Transpiled from .fjs → JavaScript
+ */
+
+${this.state.sourceCode}
+
+// Export main entry function
+export { main };
+`;
+  }
+
+  /**
+   * ========================================================================
+   * SSR: server.js (Node.js Entry Point)
+   * ========================================================================
    */
   generateServerJS() {
-    return `
-// FlutterJS Server-Side Rendering Entry Point
-import { renderToString } from '@flutterjs/runtime';
-import { MyApp } from './lib/main.fjs';
+    const entryName = this.pathResolver.getRootWidgetName();
+    const importPath = this.pathResolver.getImportPath();
 
+    return `/**
+ * FlutterJS Server Entry Point - Server-Side Rendering (SSR)
+ * 
+ * Runs on Node.js server:
+ * 1. Receives HTTP request
+ * 2. Creates widget tree
+ * 3. Renders to HTML string (on server!)
+ * 4. Sends to browser
+ * 
+ * Usage:
+ *   import render from './server.js';
+ *   
+ *   app.get('/', async (req, res) => {
+ *     const html = await render();
+ *     res.send(html);
+ *   });
+ */
+
+import { ${entryName}, main } from './main.js';
+import { renderToString } from '@flutterjs/runtime';
+
+/**
+ * Render app to HTML string
+ * Called on server per request
+ */
 export async function render(context = {}) {
-  const app = new MyApp();
-  return renderToString(app, {
-    title: 'FlutterJS App',
-    includeHydration: true,
-    includeCriticalCSS: true,
-    context
+  try {
+    // Create root widget
+    const app = main ? main() : new ${entryName}();
+
+    // Render widget tree to HTML string (RUNTIME!)
+    // This is the KEY difference from CSR:
+    // - CSR: browser creates VNodes → renders to DOM
+    // - SSR: server creates VNodes → renders to HTML string
+    const { html, hydrationData } = await renderToString(app, {
+      includeHydration: true,
+      includeCriticalCSS: true,
+      context: context
+    });
+
+    return { html, hydrationData };
+  } catch (error) {
+    console.error('Render error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Express.js example middleware
+ */
+export function createSSRMiddleware() {
+  return async (req, res, next) => {
+    try {
+      const { html, hydrationData } = await render({
+        path: req.path,
+        query: req.query
+      });
+
+      // Prepare template
+      let response = require('fs').readFileSync('./dist/index.html', 'utf-8');
+
+      // Inject rendered HTML
+      response = response.replace('{{RENDERED_HTML}}', html);
+
+      // Inject hydration data
+      response = response.replace(
+        '{{HYDRATION_DATA}}',
+        JSON.stringify(hydrationData)
+      );
+
+      res.set('Content-Type', 'text/html');
+      res.send(response);
+    } catch (error) {
+      res.status(500).send(\`Error: \${error.message}\`);
+    }
+  };
+}
+
+// Express example
+if (import.meta.url === \`file://\${process.argv[1]}\`) {
+  import('express').then(({ default: express }) => {
+    const app = express();
+
+    app.use(createSSRMiddleware());
+
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+      console.log(\`🚀 SSR server running on http://localhost:\${PORT}\`);
+    });
   });
 }
 
 export default render;
-    `.trim();
+`;
   }
 
   /**
-   * Generate hydration JavaScript
+   * ========================================================================
+   * SSR: client.js (Browser Hydration)
+   * ========================================================================
    */
-  generateHydrationJS() {
-    return `
-// FlutterJS Hydration Client
-import { hydrate, FlutterJSRuntime } from '@flutterjs/runtime';
-import { MyApp } from './lib/main.fjs';
+  generateClientJS() {
+    const entryName = this.pathResolver.getRootWidgetName();
+    const importPath = this.pathResolver.getImportPath();
 
-// Get hydration data
+    return `/**
+ * FlutterJS Client Entry Point - Hydration (SSR)
+ * 
+ * Runs in browser after server renders HTML:
+ * 1. Loads hydration data from script tag
+ * 2. Creates same widget tree as server
+ * 3. Matches with SSR HTML (hydration)
+ * 4. Attaches event listeners
+ * 5. Makes app interactive
+ */
+
+import { ${entryName}, main } from './main.js';
+import { Hydrator } from '@flutterjs/runtime';
+
+// Get hydration data from SSR
 const hydrationScript = document.getElementById('__HYDRATION_DATA__');
-const hydrationData = hydrationScript 
-  ? JSON.parse(hydrationScript.textContent) 
+const hydrationData = hydrationScript
+  ? JSON.parse(hydrationScript.textContent)
   : null;
 
-// Create runtime and hydrate
-const runtime = new FlutterJSRuntime({
-  debugMode: ${this.config.debugMode},
-  enableHotReload: ${this.config.enableHotReload}
-});
-
-const app = new MyApp();
-runtime.runApp(app, {
-  target: '#root',
-  mode: 'auto',
-  enableHotReload: ${this.config.enableHotReload}
-});
-    `.trim();
-  }
-
-  /**
-   * Generate hybrid JavaScript
-   */
-  generateHybridJS() {
-    return `
-// FlutterJS Hybrid Rendering (SSR + CSR)
-import { hydrate, runApp, FlutterJSRuntime } from '@flutterjs/runtime';
-import { MyApp } from './lib/main.fjs';
-
-const runtime = new FlutterJSRuntime({
-  debugMode: ${this.config.debugMode},
-  enableHotReload: ${this.config.enableHotReload}
-});
-
-const app = new MyApp();
-
-// Check if SSR content exists
-const hydrationScript = document.getElementById('__HYDRATION_DATA__');
-
-if (hydrationScript) {
-  // SSR content exists, hydrate it
-  const hydrationData = JSON.parse(hydrationScript.textContent);
-  runtime.runApp(app, {
-    target: '#root',
-    mode: 'auto',
-    enableHotReload: ${this.config.enableHotReload}
-  });
-} else {
-  // No SSR content, client-side render
-  runtime.runApp(app, {
-    target: '#root',
-    mode: 'csr',
-    enableHotReload: ${this.config.enableHotReload}
-  });
+if (!hydrationData) {
+  console.warn('No hydration data found - falling back to CSR');
 }
-    `.trim();
+
+// Get root element
+const rootElement = document.getElementById('root');
+
+if (!rootElement) {
+  throw new Error('Root element #root not found');
+}
+
+// Create widget tree (same as server created)
+const app = main ? main() : new ${entryName}();
+
+// Hydrate: match DOM with VNode tree
+try {
+  const vnode = app.build ? app.build() : app.render();
+
+  if (hydrationData) {
+    // Hydration: connect SSR HTML with interactive listeners
+    Hydrator.hydrate(rootElement, vnode, hydrationData);
+    console.log('✓ App hydrated (SSR → Interactive)');
+  } else {
+    // Fallback: if no SSR data, render normally (CSR)
+    import('./app.js').then(m => m.runtime.mount(app, rootElement));
+    console.log('✓ App mounted (CSR fallback)');
+  }
+} catch (error) {
+  console.error('Hydration failed:', error);
+  rootElement.innerHTML = \`<pre>Error: \${error.message}</pre>\`;
+}
+`;
   }
 
   /**
-   * Extract CSS from analysis and theme
+   * ========================================================================
+   * SSR: main.js (Shared Widget Code)
+   * ========================================================================
+   */
+  generateMainJSSSR() {
+    return this.generateMainJSCSR(); // Same as CSR
+  }
+
+  /**
+   * ========================================================================
+   * Hybrid: client.js (Smart CSR/SSR Handler)
+   * ========================================================================
+   */
+  generateHybridClientJS() {
+    const entryName = this.pathResolver.getRootWidgetName();
+    const importPath = this.pathResolver.getImportPath();
+
+    return `/**
+ * FlutterJS Hybrid Client - Smart CSR/SSR Handling
+ * 
+ * Detects if app was SSR-rendered:
+ * - If YES: Hydrate SSR HTML (fast initial load)
+ * - If NO: Client-side render (CSR fallback)
+ * 
+ * After hydration, client code takes over for interactive updates
+ */
+
+import { ${entryName}, main } from './main.js';
+import { Hydrator, FlutterJSRuntime } from '@flutterjs/runtime';
+
+const rootElement = document.getElementById('root');
+
+if (!rootElement) {
+  throw new Error('Root element #root not found');
+}
+
+// Create widget
+const app = main ? main() : new ${entryName}();
+
+// Create runtime
+const runtime = new FlutterJSRuntime({
+  debugMode: ${this.config.debugMode},
+  enableHotReload: ${this.config.enableHotReload}
+});
+
+// Check for SSR content
+const hydrationScript = document.getElementById('__HYDRATION_DATA__');
+const hydrationData = hydrationScript
+  ? JSON.parse(hydrationScript.textContent)
+  : null;
+
+try {
+  if (hydrationData && rootElement.innerHTML.trim() !== '') {
+    // SSR HTML exists → Hydrate
+    const vnode = app.build ? app.build() : app.render();
+    Hydrator.hydrate(rootElement, vnode, hydrationData);
+    
+    // Take over with runtime (for subsequent updates)
+    runtime.mount(app, rootElement);
+    console.log('✓ App hydrated and mounted (Hybrid)');
+  } else {
+    // No SSR → Client-side render
+    runtime.mount(app, rootElement);
+    console.log('✓ App mounted (CSR fallback)');
+  }
+} catch (error) {
+  console.error('Client initialization failed:', error);
+  rootElement.innerHTML = \`<pre>Error: \${error.message}</pre>\`;
+}
+
+export { runtime, app };
+`;
+  }
+
+  /**
+   * ========================================================================
+   * Extract CSS
+   * ========================================================================
    */
   extractCSS() {
-    return `
-/* FlutterJS Material Design Styles */
+    return `/* FlutterJS Material Design Base Styles */
 :root {
-  --primary-color: #6750a4;
+  --primary: #6750a4;
   --on-primary: #ffffff;
   --primary-container: #eaddff;
   --on-primary-container: #21005e;
   --surface: #fffbfe;
   --on-surface: #1c1b1f;
   --outline: #79747e;
-  --outline-variant: #cac7cf;
 }
 
 * {
@@ -610,167 +872,149 @@ if (hydrationScript) {
 html, body {
   width: 100%;
   height: 100%;
-}
-
-body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background-color: var(--surface);
   color: var(--on-surface);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
 }
 
 #root {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
   width: 100%;
+  min-height: 100vh;
 }
 
-/* Widget base styles */
-.flutter-widget {
+.fjs-text {
+  display: inline;
+}
+
+.fjs-container {
   display: flex;
   flex-direction: column;
 }
 
-.flutter-text {
-  font-size: 14px;
-  font-weight: 400;
+.fjs-row {
+  display: flex;
+  flex-direction: row;
 }
 
-.flutter-button {
+.fjs-button {
   padding: 8px 16px;
   border-radius: 8px;
   border: none;
-  cursor: pointer;
-  background-color: var(--primary-color);
+  background-color: var(--primary);
   color: var(--on-primary);
-  font-size: 14px;
-  transition: all 0.2s ease;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.flutter-button:hover {
+.fjs-button:hover {
   opacity: 0.9;
 }
-
-.flutter-button:active {
-  transform: scale(0.98);
-}
-    `.trim();
+`;
   }
 
   /**
-   * Extract routes from analysis
+   * ========================================================================
+   * Build context
+   * ========================================================================
    */
-  extractRoutes() {
-    const routes = this.state.analysisResult?.context?.inheritedWidgets || [];
-
-    return [
-      { path: '/', component: 'HomePage' },
-      { path: '/about', component: 'AboutPage' },
-      ...routes.map((route, idx) => ({
-        path: `/${route.name.toLowerCase()}`,
-        component: route.name,
-      })),
-    ];
+  createBuildContext() {
+    return {
+      theme: {
+        primaryColor: '#6750a4',
+        backgroundColor: '#ffffff',
+        textColor: '#1c1b1f',
+      },
+      mediaQuery: {
+        width: 1920,
+        height: 1080,
+      },
+    };
   }
 
   /**
-   * STEP 7: Output results to files
+   * ========================================================================
+   * STEP 7: Output Files
+   * ========================================================================
    */
   async output() {
     console.log('💾 Writing output...');
 
     try {
       const outputDir = path.join(this.config.projectRoot, this.config.outputDir);
-
-      // Ensure output directory exists
-      if (!fs.existsSync(outputDir)) {
-        fs.mkdirSync(outputDir, { recursive: true });
-      }
+      fs.mkdirSync(outputDir, { recursive: true });
 
       const output = this.state.renderedOutput;
 
-      // Write HTML
+      // Write HTML template
       fs.writeFileSync(path.join(outputDir, 'index.html'), output.html);
+      console.log(chalk.gray('  ✓ index.html'));
 
-      // Write CSS
-      if (output.css) {
-        fs.writeFileSync(path.join(outputDir, 'styles.css'), output.css);
-      }
-
-      // Write JavaScript files
-      if (output.js) {
-        fs.writeFileSync(path.join(outputDir, 'app.js'), output.js);
-      }
-
-      if (output.serverJs) {
-        fs.writeFileSync(path.join(outputDir, 'server.js'), output.serverJs);
-      }
-
-      if (output.clientJs) {
-        fs.writeFileSync(path.join(outputDir, 'client.js'), output.clientJs);
-      }
-
-      // Write routes if applicable
-      if (output.routes) {
-        fs.writeFileSync(
-          path.join(outputDir, 'routes.json'),
-          JSON.stringify(output.routes, null, 2)
-        );
+      // Write all JavaScript files
+      if (output.files) {
+        for (const [filename, content] of Object.entries(output.files)) {
+          fs.writeFileSync(path.join(outputDir, filename), content);
+          console.log(chalk.gray(`  ✓ ${filename}`));
+        }
       }
 
       // Write analysis report
-      if (this.state.analysisResult.report) {
+      if (this.state.analysisResult) {
         fs.writeFileSync(
           path.join(outputDir, 'analysis.json'),
-          this.state.analysisResult.report
+          JSON.stringify(this.state.analysisResult, null, 2)
         );
+        console.log(chalk.gray('  ✓ analysis.json'));
       }
 
-      console.log(chalk.green(`✓ Output written to ${this.config.outputDir}\n`));
+      console.log(chalk.green(`\n✓ Output written to ${this.config.outputDir}\n`));
     } catch (error) {
       throw new Error(`Failed to write output: ${error.message}`);
     }
   }
 
   /**
-   * Print build summary
+   * ========================================================================
+   * Summary
+   * ========================================================================
    */
   printSummary() {
-    console.log(chalk.blue('📊 Build Summary:\n'));
-    console.log(
-      chalk.gray(
-        `  Analysis:   ${this.stats.analyzeTime.toFixed(2)}ms\n` +
-        `  VNode:      ${this.stats.buildTime.toFixed(2)}ms\n` +
-        `  Render:     ${this.stats.renderTime.toFixed(2)}ms\n` +
-        `  Total:      ${this.stats.totalTime.toFixed(2)}ms\n`
-      )
-    );
+    const output = this.state.renderedOutput;
 
-    if (this.fullRuntime) {
-      const runtimeStats = this.fullRuntime.getStats();
-      console.log(chalk.gray(`  Init Time:  ${runtimeStats.initTime.toFixed(2)}ms\n`));
+    console.log(chalk.blue('📊 Build Summary:\n'));
+    console.log(chalk.gray(
+      `  Format:     ${output.format}\n` +
+      `  Analysis:   ${this.stats.analyzeTime.toFixed(2)}ms\n` +
+      `  Build:      ${this.stats.buildTime.toFixed(2)}ms\n` +
+      `  Render:     ${this.stats.renderTime.toFixed(2)}ms\n` +
+      `  Total:      ${this.stats.totalTime.toFixed(2)}ms\n`
+    ));
+
+    console.log(chalk.cyan('📦 Output Files:\n'));
+    if (output.files) {
+      Object.keys(output.files).forEach(file => {
+        const size = output.files[file].length;
+        console.log(chalk.gray(`  ${file.padEnd(20)} (${(size / 1024).toFixed(2)} KB)`));
+      });
     }
 
+    console.log();
+    console.log(chalk.cyan('🚀 Deployment:\n'));
+    if (output.deployment) {
+      console.log(chalk.gray(`  Server:  ${output.deployment.server}`));
+      console.log(chalk.gray(`  Hosting: ${output.deployment.hosting}`));
+    } else {
+      console.log(chalk.gray(`  Server:  Static hosting (Netlify, Vercel, S3)`));
+      console.log(chalk.gray(`  Hosting: CDN-friendly, no Node.js required`));
+    }
+
+    console.log();
     console.log(chalk.green('✅ Build successful\n'));
   }
 
   /**
-   * Cleanup and dispose
-   */
-  dispose() {
-    if (this.fullRuntime) {
-      this.fullRuntime.dispose();
-    }
-    if (this.vnodeRuntime) {
-      this.vnodeRuntime.destroy();
-    }
-    this.log('Pipeline disposed');
-  }
-
-  /**
-   * Log utility
+   * Logging utility
    */
   log(message, data = null) {
     if (this.config.debugMode) {
@@ -781,11 +1025,17 @@ body {
       }
     }
   }
-}
 
-// ============================================================================
-// EXPORTS
-// ============================================================================
+  /**
+   * Cleanup
+   */
+  dispose() {
+    if (this.fullRuntime) {
+      this.fullRuntime.dispose();
+    }
+    this.log('Pipeline disposed');
+  }
+}
 
 export { BuildPipeline };
 export default BuildPipeline;

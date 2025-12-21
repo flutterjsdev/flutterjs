@@ -1,0 +1,177 @@
+/**
+ * ============================================================================
+ * FlutterJS SPA - Client Runtime Entry Point
+ * ============================================================================
+ * 
+ * GENERATED FILE - Based on flutterjs.config.js
+ * Entry: {ENTRY_POINT}
+ * Root Widget: {ROOT_WIDGET}
+ */
+
+// ============================================================================
+// IMPORTS
+// ============================================================================
+
+// ✅ Import from transpiled source (path from config)
+import { {ROOT_WIDGET}, main } from '{IMPORT_PATH}';
+
+// ✅ Import runtime system
+import {
+  FlutterJSRuntime,
+  runApp,
+  hotReload,
+} from '@flutterjs/runtime';
+
+// ============================================================================
+// RUNTIME INITIALIZATION
+// ============================================================================
+
+let runtime = null;
+
+/**
+ * Initialize and run the FlutterJS application
+ */
+function initializeApp() {
+  console.log('🚀 FlutterJS App Initializing...');
+  console.log('Entry: {ENTRY_POINT}');
+
+  try {
+    // Get root container
+    const rootContainer = document.getElementById('root');
+    if (!rootContainer) {
+      throw new Error('Root element (#root) not found in DOM');
+    }
+
+    // ✅ Create runtime instance
+    runtime = new FlutterJSRuntime({
+      debugMode: {DEBUG_MODE},
+      enableHotReload: {ENABLE_HOT_RELOAD},
+      enablePerformanceMonitoring: true,
+    });
+
+    // ✅ Initialize runtime subsystems
+    runtime.initialize({
+      rootElement: rootContainer,
+    });
+
+    // ✅ Create root widget instance
+    const rootWidget = typeof main === 'function' 
+      ? main() 
+      : new {ROOT_WIDGET}();
+
+    // ✅ Mount and run application
+    console.log('📦 Mounting application...');
+    runtime.runApp(rootWidget, rootContainer);
+
+    console.log('✅ App running!\n');
+
+    return runtime;
+
+  } catch (error) {
+    console.error('❌ Failed to initialize app:', error);
+    console.error(error.stack);
+    
+    const rootContainer = document.getElementById('root');
+    if (rootContainer) {
+      rootContainer.innerHTML = `
+        <div style="padding: 20px; color: red; font-family: monospace;">
+          <h2>Application Error</h2>
+          <p>${error.message}</p>
+          <pre>${error.stack}</pre>
+        </div>
+      `;
+    }
+    
+    throw error;
+  }
+}
+
+// ============================================================================
+// HOT RELOAD SUPPORT (Development)
+// ============================================================================
+
+if ({DEBUG_MODE} && module.hot) {
+  module.hot.accept('{IMPORT_PATH}', () => {
+    console.log('♻️  HMR: Reloading app...');
+    
+    try {
+      import('{IMPORT_PATH}').then(({ {ROOT_WIDGET}: UpdatedApp, main: updatedMain }) => {
+        const newRootWidget = 
+          typeof updatedMain === 'function' 
+            ? updatedMain() 
+            : new UpdatedApp();
+
+        if (runtime) {
+          runtime.hotReload(newRootWidget);
+          console.log('✅ HMR complete');
+        }
+      });
+    } catch (error) {
+      console.error('❌ HMR failed:', error);
+    }
+  });
+
+  module.hot.accept('./styles.css', () => {
+    console.log('♻️  HMR: Styles reloaded');
+  });
+}
+
+// ============================================================================
+// HYDRATION SUPPORT (SSR/Hybrid)
+// ============================================================================
+
+function getHydrationData() {
+  const hydrationScript = document.getElementById('__FLUTTERJS_HYDRATION_DATA__');
+  if (!hydrationScript) return null;
+
+  try {
+    return JSON.parse(hydrationScript.textContent);
+  } catch (error) {
+    console.warn('Invalid hydration data:', error);
+    return null;
+  }
+}
+
+function hydrateFromSSR(hydrationData) {
+  if (!hydrationData || !runtime) return;
+
+  console.log('💧 Hydrating from SSR...');
+
+  try {
+    if (runtime.hydrate) {
+      runtime.hydrate(hydrationData);
+      console.log('✅ Hydration complete');
+    }
+  } catch (error) {
+    console.error('❌ Hydration failed:', error);
+    console.log('⚠️  Falling back to client-side render');
+  }
+}
+
+// ============================================================================
+// APP LIFECYCLE
+// ============================================================================
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    runtime = initializeApp();
+    
+    const hydrationData = getHydrationData();
+    if (hydrationData) {
+      hydrateFromSSR(hydrationData);
+    }
+  });
+} else {
+  runtime = initializeApp();
+  
+  const hydrationData = getHydrationData();
+  if (hydrationData) {
+    hydrateFromSSR(hydrationData);
+  }
+}
+
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
+export { runtime, initializeApp };
