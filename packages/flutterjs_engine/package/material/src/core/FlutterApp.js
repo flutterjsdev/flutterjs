@@ -336,10 +336,10 @@ class FlutterApp {
  * Usage:
  * runApp(MyAppWidget, document.getElementById('root'));
  */
-function runApp(rootWidget, targetElement, options = {}) {
-  const app = new FlutterApp(rootWidget, targetElement, options);
-  app.run();
-  return app;
-}
+// function runApp(rootWidget, targetElement, options = {}) {
+//   const app = new FlutterApp(rootWidget, targetElement, options);
+//   app.run();
+//   return app;
+// }
 
-export { FlutterApp, runApp };
+export { FlutterApp };
