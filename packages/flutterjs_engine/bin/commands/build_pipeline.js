@@ -90,8 +90,8 @@ class BuildPipeline {
       target: config.target || 'spa',
 
       // FIX: Properly extract entry file from config.entry.main
-      entry: config.entry || { main: 'lib/main.fjs' },
-      entryFile: config.entryFile || config.entry?.main || 'lib/main.fjs',  // âœ… NORMALIZED
+      entry: config.entry || { main: 'src/main.fjs' },  // ✅ src not lib
+      entryFile: config.entryFile || config.entry?.main || 'src/main.fjs',
 
       outputDir: config.outputDir || 'dist',
       devDir: config.devDir || '.dev',
@@ -184,112 +184,112 @@ class BuildPipeline {
    * - OR use this.config.entry.main from the config object
    */
 
-async analyzeCode() {
-  if (this.config.debugMode) {
-    console.log(chalk.blue('ðŸ"Š STEP 1: Code Analysis'));
-  }
-
-  try {
-    // FIX: Get entry file path correctly
-    // Option 1: Use config.entry.main (from flutterjs.config.js)
-    const entryFile = this.config.entry?.main || this.config.entryFile || 'lib/main.fjs';
-    
-    const entryPath = path.join(this.projectRoot, entryFile);
-
+  async analyzeCode() {
     if (this.config.debugMode) {
-      console.log(chalk.gray(`  Entry: ${entryFile}`));
-      console.log(chalk.gray(`  Full path: ${entryPath}`));
+      console.log(chalk.blue('ðŸ"Š STEP 1: Code Analysis'));
     }
 
-    if (!fs.existsSync(entryPath)) {
-      throw new Error(`Entry file not found: ${entryPath}`);
-    }
+    try {
+      // FIX: Get entry file path correctly
+      // Option 1: Use config.entry.main (from flutterjs.config.js)
+      const entryFile = this.config.entry?.main || this.config.entryFile || 'src/main.fjs';
 
-    const sourceCode = fs.readFileSync(entryPath, 'utf-8');
+      const entryPath = path.join(this.projectRoot, entryFile);
 
-    if (this.config.debugMode) {
-      console.log(chalk.gray(`  Source file loaded: ${entryPath}`));
-      console.log(chalk.gray(`  Source code length: ${sourceCode.length} chars`));
-    }
-
-    // FIX: Pass sourceCode to constructor, not to analyze()
-    const analyzer = new Analyzer({
-      sourceCode: sourceCode,      // ← Pass here in constructor options
-      sourceFile: entryPath,       // Also pass file path
-      debugMode: this.config.debugMode,
-      verbose: false,
-      includeImports: true,
-      includeContext: true,
-      includeSsr: true
-    });
-
-    // Call analyze() with NO parameters
-    this.result.analysis = await analyzer.analyze();
-    
-    this.result.stats.linesOfCode = sourceCode.split('\n').length;
-    
-    // Handle different widget object structures
-    const widgetsObj = this.result.analysis?.widgets || {};
-    const widgetCount = (widgetsObj.count || 0) + (widgetsObj.stateless || 0) + (widgetsObj.stateful || 0);
-    
-    this.result.stats.widgetsFound = widgetCount;
-
-    if (this.config.debugMode) {
-      console.log(chalk.green(`âœ" Found ${widgetCount} widgets`));
-      console.log(chalk.green(`âœ" ${this.result.analysis.imports?.total || 0} imports\n`));
-    }
-
-  } catch (error) {
-    throw new Error(`Analysis failed: ${error.message}`);
-  }
-}
-
-/**
- * ALSO FIX: rewriteImports() method
- * Same issue here - using this.config.entryFile incorrectly
- */
-
-async rewriteImports() {
-  if (this.config.debugMode) {
-    console.log(chalk.blue('âœ"ðŸ¸ STEP 4: Import Rewriting'));
-  }
-
-  try {
-    // FIX: Get entry file correctly
-    const entryFile = this.config.entry?.main || this.config.entryFile || 'lib/main.fjs';
-    const entryPath = path.join(this.projectRoot, entryFile);
-    
-    const sourceCode = fs.readFileSync(entryPath, 'utf-8');
-
-    const rewriter = new ImportRewriter(this.exportMaps, {
-      debugMode: this.config.debugMode,
-      libPath: './lib',
-      preserveStructure: false,
-      validateExports: true
-    });
-
-    this.result.rewrite = rewriter.rewrite(sourceCode);
-    this.result.stats.importsRewritten = this.result.rewrite.stats.rewritten;
-
-    if (this.config.debugMode) {
-      console.log(chalk.green(
-        `âœ" Rewritten ${this.result.rewrite.stats.rewritten} imports`
-      ));
-      console.log(chalk.green(
-        `âœ" Unchanged: ${this.result.rewrite.stats.unchanged}\n`
-      ));
-    }
-
-    if (this.result.rewrite.errors.length > 0) {
-      for (const error of this.result.rewrite.errors) {
-        this.result.addError(`Import: ${error}`);
+      if (this.config.debugMode) {
+        console.log(chalk.gray(`  Entry: ${entryFile}`));
+        console.log(chalk.gray(`  Full path: ${entryPath}`));
       }
+
+      if (!fs.existsSync(entryPath)) {
+        throw new Error(`Entry file not found: ${entryPath}`);
+      }
+
+      const sourceCode = fs.readFileSync(entryPath, 'utf-8');
+
+      if (this.config.debugMode) {
+        console.log(chalk.gray(`  Source file loaded: ${entryPath}`));
+        console.log(chalk.gray(`  Source code length: ${sourceCode.length} chars`));
+      }
+
+      // FIX: Pass sourceCode to constructor, not to analyze()
+      const analyzer = new Analyzer({
+        sourceCode: sourceCode,      // ← Pass here in constructor options
+        sourceFile: entryPath,       // Also pass file path
+        debugMode: this.config.debugMode,
+        verbose: false,
+        includeImports: true,
+        includeContext: true,
+        includeSsr: true
+      });
+
+      // Call analyze() with NO parameters
+      this.result.analysis = await analyzer.analyze();
+
+      this.result.stats.linesOfCode = sourceCode.split('\n').length;
+
+      // Handle different widget object structures
+      const widgetsObj = this.result.analysis?.widgets || {};
+      const widgetCount = (widgetsObj.count || 0) + (widgetsObj.stateless || 0) + (widgetsObj.stateful || 0);
+
+      this.result.stats.widgetsFound = widgetCount;
+
+      if (this.config.debugMode) {
+        console.log(chalk.green(`âœ" Found ${widgetCount} widgets`));
+        console.log(chalk.green(`âœ" ${this.result.analysis.imports?.total || 0} imports\n`));
+      }
+
+    } catch (error) {
+      throw new Error(`Analysis failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * ALSO FIX: rewriteImports() method
+   * Same issue here - using this.config.entryFile incorrectly
+   */
+
+  async rewriteImports() {
+    if (this.config.debugMode) {
+      console.log(chalk.blue('âœ"ðŸ¸ STEP 4: Import Rewriting'));
     }
 
-  } catch (error) {
-    throw new Error(`Import rewriting failed: ${error.message}`);
+    try {
+      // FIX: Get entry file correctly
+      const entryFile = this.config.entry?.main || this.config.entryFile || 'lib/main.fjs';
+      const entryPath = path.join(this.projectRoot, entryFile);
+
+      const sourceCode = fs.readFileSync(entryPath, 'utf-8');
+
+      const rewriter = new ImportRewriter(this.exportMaps, {
+        debugMode: this.config.debugMode,
+        libPath: './lib',
+        preserveStructure: false,
+        validateExports: true
+      });
+
+      this.result.rewrite = rewriter.rewrite(sourceCode);
+      this.result.stats.importsRewritten = this.result.rewrite.stats.rewritten;
+
+      if (this.config.debugMode) {
+        console.log(chalk.green(
+          `âœ" Rewritten ${this.result.rewrite.stats.rewritten} imports`
+        ));
+        console.log(chalk.green(
+          `âœ" Unchanged: ${this.result.rewrite.stats.unchanged}\n`
+        ));
+      }
+
+      if (this.result.rewrite.errors.length > 0) {
+        for (const error of this.result.rewrite.errors) {
+          this.result.addError(`Import: ${error}`);
+        }
+      }
+
+    } catch (error) {
+      throw new Error(`Import rewriting failed: ${error.message}`);
+    }
   }
-}
 
   /**
    * Step 2: Resolve dependencies
@@ -456,7 +456,7 @@ async rewriteImports() {
    */
   async generateOutput() {
     if (this.config.debugMode) {
-      console.log(chalk.blue('ðŸ" STEP 6: Output Generation'));
+      console.log(chalk.blue('📦 STEP 6: Output Generation'));
     }
 
     try {
@@ -472,6 +472,12 @@ async rewriteImports() {
       // Generate styles.css
       this.result.files.styles_css = this.generateStyles();
 
+      // ✅ ADD: Generate lib/index.js
+      this.result.files.lib_index_js = this.generateLibIndex();
+
+      // ✅ ADD: Generate lib/export-maps.json
+      this.result.files.export_maps_json = this.generateExportMaps();
+
       // Generate manifest.json
       this.result.files.manifest_json = this.generateManifest();
 
@@ -479,12 +485,14 @@ async rewriteImports() {
       this.result.files.app_builder_js = this.generateAppBuilderJS();
 
       if (this.config.debugMode) {
-        console.log(chalk.green('âœ" Generated index.html'));
-        console.log(chalk.green('âœ" Generated app.js (with AppBuilder)'));
-        console.log(chalk.green('âœ" Generated runtime.js'));
-        console.log(chalk.green('âœ" Generated styles.css'));
-        console.log(chalk.green('âœ" Generated app_builder.js'));
-        console.log(chalk.green('âœ" Generated manifest.json\n'));
+        console.log(chalk.green('✓ Generated index.html'));
+        console.log(chalk.green('✓ Generated app.js (with AppBuilder)'));
+        console.log(chalk.green('✓ Generated runtime.js'));
+        console.log(chalk.green('✓ Generated styles.css'));
+        console.log(chalk.green('✓ Generated lib/index.js'));
+        console.log(chalk.green('✓ Generated lib/export-maps.json'));
+        console.log(chalk.green('✓ Generated app_builder.js'));
+        console.log(chalk.green('✓ Generated manifest.json\n'));
       }
 
     } catch (error) {
@@ -505,19 +513,33 @@ async rewriteImports() {
 
       await fs.promises.mkdir(outputDir, { recursive: true });
 
-      const files = [
-        { name: 'index.html', content: this.result.files.index_html },
-        { name: 'app.js', content: this.result.files.app_js },
-        { name: 'runtime.js', content: this.result.files.runtime_js },
-        { name: 'styles.css', content: this.result.files.styles_css },
-        { name: 'manifest.json', content: this.result.files.manifest_json },
-        { name: 'app_builder.js', content: this.result.files.app_builder_js }
+      const rootFiles = [
+        { path: 'index.html', content: this.result.files.index_html },
+        { path: 'app.js', content: this.result.files.app_js },
+        { path: 'runtime.js', content: this.result.files.runtime_js },
+        { path: 'styles.css', content: this.result.files.styles_css },
+        { path: 'manifest.json', content: this.result.files.manifest_json },  // ✅ ROOT!
+        { path: 'app_builder.js', content: this.result.files.app_builder_js }
       ];
+
+      // ✅ Lib level files
+      const libFiles = [
+        {
+          path: 'lib/index.js',
+          content: this.result.files.lib_index_js || ''  // Will be generated by PackageCollector
+        },
+        {
+          path: 'lib/export-maps.json',
+          content: this.result.files.export_maps_json || '{}'  // Package export map
+        }
+      ];
+
 
       let totalSize = 0;
 
-      for (const file of files) {
-        const filePath = path.join(outputDir, file.name);
+      // Write root files
+      for (const file of rootFiles) {
+        const filePath = path.join(outputDir, file.path);
         await fs.promises.writeFile(filePath, file.content, 'utf-8');
 
         const size = Buffer.byteLength(file.content, 'utf-8');
@@ -525,21 +547,98 @@ async rewriteImports() {
 
         if (this.config.debugMode) {
           const sizeKB = (size / 1024).toFixed(2);
-          console.log(chalk.green(`âœ" ${file.name} (${sizeKB} KB)`));
+          console.log(chalk.green(`✓ ${file.path} (${sizeKB} KB)`));
         }
       }
+
+      for (const file of libFiles) {
+        const filePath = path.join(outputDir, file.path);
+        const fileDir = path.dirname(filePath);
+
+        await fs.promises.mkdir(fileDir, { recursive: true });
+        await fs.promises.writeFile(filePath, file.content, 'utf-8');
+
+        const size = Buffer.byteLength(file.content, 'utf-8');
+        totalSize += size;
+
+        if (this.config.debugMode) {
+          const sizeKB = (size / 1024).toFixed(2);
+          console.log(chalk.green(`✓ ${file.path} (${sizeKB} KB)`));
+        }
+      }
+
 
       this.result.stats.bundleSize = totalSize;
 
       if (this.config.debugMode) {
         const totalMB = (totalSize / (1024 * 1024)).toFixed(2);
-        console.log(chalk.green(`âœ" Total size: ${totalMB} MB\n`));
+        console.log(chalk.green(`✓ Total size: ${totalMB} MB\n`));
       }
 
     } catch (error) {
       throw new Error(`Failed to write files: ${error.message}`);
     }
   }
+
+
+  /**
+ * Generate lib/index.js - Re-exports all packages
+ */
+  generateLibIndex() {
+    // Get export maps from package collector
+    const exportMaps = this.exportMaps || new Map();
+
+    let content = `/**
+ * Auto-generated index file
+ * Exports all resolved packages and their contents
+ * Generated: ${new Date().toISOString()}
+ */
+
+`;
+
+    if (exportMaps.size === 0) {
+      // No packages found - add fallback
+      content += `// No packages were resolved in this build
+// Framework packages are loaded at runtime via AppBuilder
+
+// Built-in widgets from @flutterjs/material, @flutterjs/core, etc.
+// are registered in app.js via AppBuilder.registerBuiltInWidgets()
+
+export {};
+`;
+    } else {
+      // Export each package's contents
+      for (const [packageName, exports] of exportMaps) {
+        content += `// ${packageName}\n`;
+
+        if (exports && typeof exports === 'object') {
+          for (const [exportName, filePath] of Object.entries(exports)) {
+            content += `export { ${exportName} } from '${filePath}';\n`;
+          }
+        }
+
+        content += '\n';
+      }
+    }
+
+    return content;
+  }
+
+
+  /**
+   * Generate lib/export-maps.json - Package export mapping
+   */
+  generateExportMaps() {
+    const exportMaps = this.exportMaps || new Map();
+    const mapsObj = {};
+
+    for (const [packageName, exports] of exportMaps) {
+      mapsObj[packageName] = exports;
+    }
+
+    return JSON.stringify(mapsObj, null, 2);
+  }
+
 
   /**
    * Generate index.html
@@ -957,7 +1056,6 @@ if (typeof module !== 'undefined' && module.exports) {
 // For now, this will be replaced by actual file during build
 // See build_pipeline.js writeFiles() method
 
-console.warn('[AppBuilder] Stub loaded - replace with actual implementation');
 
 // Export to window for app.js to access
 if (typeof window !== 'undefined') {
