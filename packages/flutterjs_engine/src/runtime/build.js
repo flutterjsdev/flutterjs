@@ -3,12 +3,12 @@ import esbuild from 'esbuild';
 
 esbuild
     .build({
-        entryPoints: ['src/analyzer.js'],        // or src/analyzer.js – your main file
+        entryPoints: ['src/flutterjs_runtime.js'],        // or src/analyzer.js – your main file
         bundle: true,
         minify: true,
         platform: 'node',                     // THIS IS THE KEY LINE
         target: ['node14'],                   // or node16, node18, etc.
-        outfile: 'dist/analyzer.js',
+        outfile: 'dist/flutterjs_runtime.js',
         format: 'esm',                        // keeps import/export syntax
         sourcemap: true,
         external: ['fs', 'path'],             // don't bundle Node.js builtins
@@ -16,7 +16,7 @@ esbuild
         // drop: ['console', 'debugger'],
     })
     .then(() => {
-        console.log('Build successful: dist/analyzer.js (Node.js tool)');
+        console.log('Build successful: dist/flutterjs_runtime.js (Node.js tool)');
     })
     .catch((error) => {
         console.error('Build failed:', error);
