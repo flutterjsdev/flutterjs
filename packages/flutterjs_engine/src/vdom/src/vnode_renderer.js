@@ -540,12 +540,6 @@ class VNodeRenderer {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = VNodeRenderer;
-}
-if (typeof window !== 'undefined') {
-  window.VNodeRenderer = VNodeRenderer;
-}
+
 
 export {VNodeRenderer}

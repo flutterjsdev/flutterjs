@@ -686,12 +686,6 @@ class StyleConverter {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = StyleConverter;
-}
-if (typeof window !== 'undefined') {
-  window.StyleConverter = StyleConverter;
-}
+
 
 export { StyleConverter }

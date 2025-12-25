@@ -20,13 +20,127 @@
 // Import BuildContext
 import { BuildContext } from './build_context.js';
 
+
+
+// ============================================================================
+// DIAGNOSTIC LEVELS - Mirror Dart's DiagnosticLevel
+// ============================================================================
+
+const DiagnosticLevel = {
+  hidden: 'hidden',
+  fine: 'fine',
+  debug: 'debug',
+  info: 'info',
+  warning: 'warning',
+  hint: 'hint',
+  summary: 'summary',
+  error: 'error',
+  off: 'off'
+};
+
+const DiagnosticsTreeStyle = {
+  none: 'none',
+  sparse: 'sparse',
+  offstage: 'offstage',
+  dense: 'dense',
+  transition: 'transition',
+  error: 'error',
+  whitespace: 'whitespace',
+  flat: 'flat',
+  singleLine: 'singleLine',
+  errorProperty: 'errorProperty',
+  shallow: 'shallow',
+  truncateChildren: 'truncateChildren'
+};
+
+// ============================================================================
+// DIAGNOSTICABLE MIXIN - Minimal debug support
+// ============================================================================
+
+export class Diagnosticable {
+  /**
+   * Short one-line description of the object
+   * Usually: ClassName(key: keyValue) or ClassName(unkeyed)
+   */
+  toStringShort() {
+    return `${this.constructor.name}${this.key ? `(key: ${this.key})` : '(unkeyed)'}`;
+  }
+
+  /**
+   * Get diagnostics node for this object
+   * Used by debugging tools and toStringDeep
+   */
+  toDiagnosticsNode(name = null, style = DiagnosticsTreeStyle.sparse) {
+    return {
+      name: name || this.constructor.name,
+      value: this,
+      style: style,
+      toString: () => this.toStringShort()
+    };
+  }
+
+  /**
+   * Fill in properties for debugging
+   * Override in subclasses to add custom properties
+   * 
+   * Example:
+   * debugFillProperties(props) {
+   *   props.push({ name: 'enabled', value: this.enabled });
+   *   props.push({ name: 'count', value: this.count });
+   * }
+   */
+  debugFillProperties(properties) {
+    // Base implementation: add key if present
+    if (this.key !== null && this.key !== undefined) {
+      properties.push({ name: 'key', value: this.key });
+    }
+  }
+
+  /**
+   * Get all debug info for this object
+   * Returns: { type, key, properties, style }
+   */
+  debugInfo() {
+    const properties = [];
+    this.debugFillProperties(properties);
+
+    return {
+      type: this.constructor.name,
+      key: this.key || null,
+      properties: properties,
+      style: this.style || DiagnosticsTreeStyle.sparse,
+      description: this.toStringShort()
+    };
+  }
+
+  /**
+   * Development-only string representation
+   * In production (NODE_ENV !== 'development'), returns short version
+   */
+  toString() {
+    if (process.env.NODE_ENV === 'development') {
+      const info = this.debugInfo();
+      if (info.properties.length === 0) {
+        return this.toStringShort();
+      }
+      const propsStr = info.properties
+        .map(p => `${p.name}: ${p.value}`)
+        .join(', ');
+      return `${this.toStringShort()} { ${propsStr} }`;
+    }
+    return this.toStringShort();
+  }
+}
+
+
+
 /**
  * Base Element Class
  * 
  * Represents a node in the element tree. Elements are created from widgets
  * and manage the actual rendering and lifecycle.
  */
-class Element {
+class Element  extends Diagnosticable{
   constructor(widget, parent, runtime) {
     if (!widget) {
       throw new Error('Widget is required for Element creation');
@@ -758,16 +872,7 @@ class ComponentElement extends Element {
   }
 }
 
-// Export classes
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    Element,
-    StatelessElement,
-    StatefulElement,
-    InheritedElement,
-    ComponentElement
-  };
-}
+
 
 export {
     Element,

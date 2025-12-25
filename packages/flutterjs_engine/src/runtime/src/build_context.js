@@ -509,8 +509,5 @@ class BuildContext {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { BuildContext };
-}
+
 export {BuildContext};

@@ -252,12 +252,5 @@ class SSRRenderer {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = SSRRenderer;
-}
-if (typeof window !== 'undefined') {
-  window.SSRRenderer = SSRRenderer;
-}
 
-export {SSRRenderer}
+export {SSRRenderer};

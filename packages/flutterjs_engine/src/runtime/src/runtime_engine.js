@@ -445,13 +445,7 @@ class RuntimeEngine {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    RuntimeEngine
-  
-  };
-}
+
 
 export { RuntimeEngine
     };

@@ -27,7 +27,7 @@ import cors from "cors";
 import { createProxyMiddleware } from "http-proxy-middleware";
 
 // Import FlutterJS systems
-import { Analyzer } from "../../src/analyzer/src/analyzer.js";
+import { Analyzer } from "@flutterjs/analyzer/analyzer";
 import { BuildPipeline } from "./build_pipeline.js";
 
 // ============================================================================

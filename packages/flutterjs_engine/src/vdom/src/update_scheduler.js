@@ -611,18 +611,5 @@ class UpdateScheduler {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    UpdateScheduler,
-    UpdateRequest,
-    UpdateBatch,
-    UpdatePriority
-  };
-}
-if (typeof window !== 'undefined') {
-  window.UpdateScheduler = UpdateScheduler;
-  window.UpdatePriority = UpdatePriority;
-}
 
 export { UpdatePriority, UpdateRequest, UpdateBatch, UpdateScheduler }

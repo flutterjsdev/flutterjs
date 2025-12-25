@@ -2,9 +2,21 @@
   "name": "@flutterjs/vdom",
   "version": "1.0.0",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/vdom.js",
   "exports": {
-    ".": "./dist/index.js"
+    "./hydrator": "./dist/hydrator.js",
+    "./patch_applier": "./dist/patch_applier.js",
+    "./context_analyzer": "./dist/context_analyzer.js",
+    "./render_engine": "./dist/render_engine.js",
+    "./runtime_index": "./dist/runtime_index.js",
+    "./ssr_renderer": "./dist/ssr_renderer.js",
+    "./state_binding": "./dist/state_binding.js",
+    "./style_converter": "./dist/style_converter.js",
+    "./update_scheduler": "./dist/update_scheduler.js",
+    "./vnode": "./dist/vnode.js",
+    "./vnode_builder": "./dist/vnode_builder.js",
+    "./vnode_differ": "./dist/vnode_differ.js",
+    "./vnode_renderer": "./dist/vnode_renderer.js"
   },
   "files": [
     "dist"
@@ -25,5 +37,8 @@
   "dependencies": {
     "jest": "^29.7.0",
     "jsdom": "^22.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.2"
   }
 }

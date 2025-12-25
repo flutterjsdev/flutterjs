@@ -600,10 +600,5 @@ class StateTracker {
 // Static counter for state IDs
 StateTracker._stateIdCounter = 0;
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    StateTracker
-  };
-}
+
 export {StateTracker};

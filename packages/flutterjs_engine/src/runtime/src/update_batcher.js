@@ -415,9 +415,6 @@ class UpdateBatcher {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { UpdateBatcher };
-}
+
 
 export {UpdateBatcher}

@@ -1,15 +1,42 @@
 {
   "name": "@flutterjs/material",
   "version": "1.0.0",
-  "description": "Widget handler for Material",
-  "main": "material.js",
+  "description": "Material Design widget handlers for Flutter.js",
+  "type": "module",
+  "main": "./dist/material.js",
+  "exports": {
+
+    "./material": "./dist/material.js",
+    "./"
+   
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "test": "npm test"
+    "build": "node build.js",
+    "test": "node test/runner.js",
+    "dev": "node build.js --watch"
   },
   "keywords": [
-    "widget",
-    "material"
+    "flutterjs",
+    "flutter",
+    "material",
+    "widgets",
+    "ui",
+    "javascript",
+    "web"
   ],
-  "author": "Jayprakash Pal",
-  "license": "MIT"
+   "dependencies": {
+  
+    "@flutterjs/vdom":"file:../../src/vdom",
+    "@flutterjs/runtime": "file:../../src/runtime"
+  },
+  "author": "Jayprakash Pal <jayprakash.pal@flutterjs.dev>",
+  "license": "MIT",
+  "homepage": "https://flutterjs.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flutterjsdev/flutterjs.git"
+  }
 }

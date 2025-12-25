@@ -577,12 +577,6 @@ class Hydrator {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = Hydrator;
-}
-if (typeof window !== 'undefined') {
-  window.Hydrator = Hydrator;
-}
+
 
 export {Hydrator}

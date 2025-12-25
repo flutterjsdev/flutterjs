@@ -657,13 +657,7 @@ class EventSystem {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    EventSystem,
-    SyntheticEvent
-  };
-}
+
 
 export {  EventSystem,
     SyntheticEvent};

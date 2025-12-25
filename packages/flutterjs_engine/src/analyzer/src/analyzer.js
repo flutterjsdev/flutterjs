@@ -511,6 +511,34 @@ class Analyzer {
    * Get analysis results - FIXED: Include logger info
    */
   getResults() {
+    // Extract widget arrays by type
+    const allWidgets = this.results.widgets?.widgets || [];
+    const statelessWidgets = allWidgets.filter((w) => w.type === 'stateless');
+    const statefulWidgets = allWidgets.filter((w) => w.type === 'stateful');
+    const stateWidgets = allWidgets.filter((w) => w.type === 'state');
+
+    // Extract widget names as arrays
+    const statelessNames = statelessWidgets.map((w) => w.name);
+    const statefulNames = statefulWidgets.map((w) => w.name);
+
+    // Build state classes mapping: StatefulWidget -> State class
+    const stateClasses = {};
+    stateWidgets.forEach((stateWidget) => {
+      // Convention: _MyHomePageState -> MyHomePage
+      const widgetName = stateWidget.name.replace(/^_/, '').replace(/State$/, '');
+      const stateFields = stateWidget.fields || [];
+      stateClasses[stateWidget.name] = stateFields.map((f) => f.name);
+    });
+
+    // Also map by StatefulWidget name if we have linking info
+    statefulWidgets.forEach((statefulWidget) => {
+      const expectedStateName = `_${statefulWidget.name}State`;
+      if (stateClasses[expectedStateName]) {
+        // Create mapping for easy lookup
+        stateClasses[statefulWidget.name] = stateClasses[expectedStateName];
+      }
+    });
+
     return {
       source: {
         length: this.results.source?.length || 0,
@@ -522,19 +550,35 @@ class Analyzer {
       ast: {
         items: this.results.ast?.body?.length || 0,
       },
+      // FIXED: Return actual widget names and full widget objects
       widgets: {
-        count: this.results.widgets?.widgets?.length || 0,
-        stateless: this.results.widgets?.widgets?.filter((w) => w.type === 'stateless').length || 0,
-        stateful: this.results.widgets?.widgets?.filter((w) => w.type === 'stateful').length || 0,
-        stateClasses: this.results.widgets?.widgets?.filter((w) => w.type === 'state').length || 0,
+        // Arrays of widget names for easy access
+        stateless: statelessNames,
+        stateful: statefulNames,
+        count: allWidgets.length,
+
+        // Full widget objects for detailed analysis
+        all: allWidgets,
+
+        // State class mappings
+        stateClasses: stateClasses,
+
+        // Metadata
+        total: {
+          stateless: statelessWidgets.length,
+          stateful: statefulWidgets.length,
+          state: stateWidgets.length,
+        },
       },
-      imports: this.options.includeImports ? {
-        total: this.results.importResolution?.summary?.total || 0,
-        resolved: this.results.importResolution?.summary?.resolved || 0,
-        unresolved: this.results.importResolution?.summary?.unresolved || 0,
-        errors: this.results.importResolution?.summary?.errors || 0,
-        resolutionRate: this.results.importResolution?.summary?.resolutionRate || 'N/A',
-      } : null,
+      imports: this.options.includeImports
+        ? {
+          total: this.results.importResolution?.summary?.total || 0,
+          resolved: this.results.importResolution?.summary?.resolved || 0,
+          unresolved: this.results.importResolution?.summary?.unresolved || 0,
+          errors: this.results.importResolution?.summary?.errors || 0,
+          resolutionRate: this.results.importResolution?.summary?.resolutionRate || 'N/A',
+        }
+        : null,
       state: {
         stateClasses: this.results.state?.stateClasses?.length || 0,
         stateFields: this.results.state?.stateFields?.length || 0,
@@ -543,24 +587,27 @@ class Analyzer {
         eventHandlers: this.results.state?.eventHandlers?.length || 0,
         validationIssues: this.results.state?.validationResults?.length || 0,
       },
-      context: this.options.includeContext ? {
-        inheritedWidgets: this.results.context?.inheritedWidgets?.length || 0,
-        changeNotifiers: this.results.context?.changeNotifiers?.length || 0,
-        providers: this.results.context?.providers?.length || 0,
-        contextAccessPoints: this.results.context?.contextAccessPoints?.length || 0,
-      } : null,
-      ssr: this.options.includeSsr ? {
-        compatibility: this.results.ssr?.overallCompatibility || 'unknown',
-        compatibilityScore: this.results.ssr?.ssrCompatibilityScore || 0,
-        safePatterns: this.results.ssr?.ssrSafePatterns?.length || 0,
-        unsafePatterns: this.results.ssr?.ssrUnsafePatterns?.length || 0,
-        hydrationNeeded: this.results.ssr?.hydrationCount || 0,
-        migrationSteps: this.results.ssr?.ssrMigrationPath?.length || 0,
-        estimatedEffort: this.results.ssr?.estimatedEffort || 'unknown',
-      } : null,
+      context: this.options.includeContext
+        ? {
+          inheritedWidgets: this.results.context?.inheritedWidgets?.length || 0,
+          changeNotifiers: this.results.context?.changeNotifiers?.length || 0,
+          providers: this.results.context?.providers?.length || 0,
+          contextAccessPoints: this.results.context?.contextAccessPoints?.length || 0,
+        }
+        : null,
+      ssr: this.options.includeSsr
+        ? {
+          compatibility: this.results.ssr?.overallCompatibility || 'unknown',
+          compatibilityScore: this.results.ssr?.ssrCompatibilityScore || 0,
+          safePatterns: this.results.ssr?.ssrSafePatterns?.length || 0,
+          unsafePatterns: this.results.ssr?.ssrUnsafePatterns?.length || 0,
+          hydrationNeeded: this.results.ssr?.hydrationCount || 0,
+          migrationSteps: this.results.ssr?.ssrMigrationPath?.length || 0,
+          estimatedEffort: this.results.ssr?.estimatedEffort || 'unknown',
+        }
+        : null,
       timings: this.timings,
       report: this.results.report,
-      // FIXED: Include logger report and debug files
       logger: this.logger.getReport(),
       debugFiles: this.logger.readDebugFiles(),
     };

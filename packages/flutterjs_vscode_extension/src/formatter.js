@@ -358,4 +358,6 @@ class FJSFormatter {
   }
 }
 
-module.exports = { FJSFormatter };
+
+
+export {FJSFormatter};
