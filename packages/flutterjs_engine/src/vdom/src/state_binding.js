@@ -770,21 +770,6 @@ function createOneWayBinding({
   });
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    StateBinding,
-    StateBindingRegistry,
-    BindingMode,
-    createBinding,
-    createTwoWayBinding,
-    createOneWayBinding
-  };
-}
-if (typeof window !== 'undefined') {
-  window.StateBinding = StateBinding;
-  window.StateBindingRegistry = StateBindingRegistry;
-  window.BindingMode = BindingMode;
-}
+
 
 export {BindingMode, StateBinding,StateBindingRegistry,createBinding,createTwoWayBinding,createOneWayBinding}

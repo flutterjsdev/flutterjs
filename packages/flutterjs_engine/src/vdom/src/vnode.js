@@ -458,12 +458,5 @@ VNode.VOID_TAGS = [
   'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'
 ];
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = VNode;
-}
-if (typeof window !== 'undefined') {
-  window.VNode = VNode;
-}
 
 export { VNode }

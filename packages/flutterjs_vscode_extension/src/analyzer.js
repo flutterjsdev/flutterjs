@@ -409,4 +409,4 @@ class FJSAnalyzer {
   }
 }
 
-module.exports = { FJSAnalyzer };
+export {FJSAnalyzer};

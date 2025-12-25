@@ -23,6 +23,13 @@ export class VNodeBuilder {
       return null;
     }
 
+
+    // ⭐ ADD THIS BLOCK ⭐
+    // If already a VNode, return as-is
+    if (widget && typeof widget === 'object' && widget.tag) {
+      return widget;
+    }
+
     // Handle text strings directly
     if (typeof widget === 'string') {
       return widget;
@@ -130,7 +137,7 @@ export class VNodeBuilder {
    */
   static getWidgetType(widget) {
     if (!widget) return 'Unknown';
-    
+
     // Check constructor name
     if (widget.constructor && widget.constructor.name) {
       return widget.constructor.name;
@@ -479,14 +486,14 @@ export class VNodeBuilder {
   static buildScaffold(widget, context) {
     const appBar = widget.appBar ? this.build(widget.appBar, context) : null;
     const body = widget.body ? this.build(widget.body, context) : null;
-    const fab = widget.floatingActionButton 
-      ? this.build(widget.floatingActionButton, context) 
+    const fab = widget.floatingActionButton
+      ? this.build(widget.floatingActionButton, context)
       : null;
     const drawer = widget.drawer ? this.build(widget.drawer, context) : null;
     const backgroundColor = widget.backgroundColor;
 
     const children = [];
-    
+
     if (appBar) children.push(appBar);
     if (body) {
       children.push(new VNode({
@@ -911,7 +918,7 @@ export class VNodeBuilder {
     const onTap = widget.onTap;
 
     const children = [];
-    
+
     if (leading) {
       children.push(new VNode({
         tag: 'div',
@@ -1057,10 +1064,10 @@ export class VNodeBuilder {
     const fit = widget.fit || 'contain';
 
     const style = {};
-    
+
     if (width) style.width = typeof width === 'number' ? `${width}px` : width;
     if (height) style.height = typeof height === 'number' ? `${height}px` : height;
-    
+
     // Map Flutter BoxFit to CSS object-fit
     const fitMap = {
       fill: 'fill',
@@ -1183,7 +1190,7 @@ export class VNodeBuilder {
         ...this.extractCommonProps(widget)
       },
       children,
-      metadata: { 
+      metadata: {
         widgetType,
         note: 'Generic widget - no specific builder implemented'
       }
@@ -1191,10 +1198,5 @@ export class VNodeBuilder {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = VNodeBuilder;
-}
-if (typeof window !== 'undefined') {
-  window.VNodeBuilder = VNodeBuilder;
-}
+
+export {VNodeBuilder};

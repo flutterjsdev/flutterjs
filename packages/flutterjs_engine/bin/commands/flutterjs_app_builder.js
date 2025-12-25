@@ -28,8 +28,8 @@
  * ```
  */
 
-import { VNodeBuilder } from './vnode_builder.js';
-import { StyleConverter } from './style_converter.js';
+import { VNodeBuilder } from '@flutterjs/vdom/vnode_builder';
+import { StyleConverter } from '@flutterjs/vdom/style_converter';
 
 // ============================================================================
 // WIDGET REGISTRY & DEFINITIONS

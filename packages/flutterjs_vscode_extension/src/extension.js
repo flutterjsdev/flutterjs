@@ -432,7 +432,6 @@ function deactivate() {
   console.log('FlutterJS Pro Extension Deactivated');
 }
 
-module.exports = {
-  activate,
-  deactivate
-};
+
+export { activate,
+  deactivate};

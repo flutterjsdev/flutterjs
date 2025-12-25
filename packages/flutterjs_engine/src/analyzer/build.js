@@ -1,22 +1,38 @@
 // build.js
 import esbuild from 'esbuild';
+import { readdirSync, statSync } from 'fs';
+import { join, extname, basename } from 'path';
 
+// Define your source directory and output directory
+const srcDir = 'src';
+const outDir = 'dist';
+
+// Get all .js files in src/ (recursively if you have subfolders, but you seem flat)
+const entryPoints = readdirSync(srcDir)
+    .filter(file => extname(file) === '.js')
+    .map(file => join(srcDir, file));
+
+// Build all files independently (no bundling between them)
 esbuild
     .build({
-        entryPoints: ['src/analyzer.js'],        // or src/analyzer.js – your main file
-        bundle: true,
+        entryPoints,
+        outdir: outDir,
+        bundle: false,              // IMPORTANT: no bundling across files
         minify: true,
-        platform: 'node',                     // THIS IS THE KEY LINE
-        target: ['node14'],                   // or node16, node18, etc.
-        outfile: 'dist/analyzer.js',
-        format: 'esm',                        // keeps import/export syntax
+        platform: 'node',
+        target: ['node18'],         // or node20 if you want latest features
+        format: 'esm',
         sourcemap: true,
-        external: ['fs', 'path'],             // don't bundle Node.js builtins
-        // Optional: remove console.log in production
+        // Keep original filenames: src/analyzer.js → dist/analyzer.js
+        outExtension: { '.js': '.js' },
+        // Optional: exclude Node.js builtins
+        external: ['fs', 'path', 'os', 'crypto', 'url'],
+        // Optional: drop console.log/debugger in production
         // drop: ['console', 'debugger'],
     })
     .then(() => {
-        console.log('Build successful: dist/analyzer.js (Node.js tool)');
+        console.log(`Build successful! ${entryPoints.length} files built to ${outDir}/`);
+        console.log('Files:', entryPoints.map(p => basename(p)).join(', '));
     })
     .catch((error) => {
         console.error('Build failed:', error);

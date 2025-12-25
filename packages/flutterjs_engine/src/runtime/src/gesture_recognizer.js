@@ -1020,19 +1020,6 @@ class GestureManager {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    GestureRecognizer,
-    TapRecognizer,
-    LongPressRecognizer,
-    SwipeRecognizer,
-    PanRecognizer,
-    ScaleRecognizer,
-    GestureArena,
-    GestureManager
-  };
-}
 export {
   GestureRecognizer,
   TapRecognizer,

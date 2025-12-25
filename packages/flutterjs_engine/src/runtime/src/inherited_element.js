@@ -593,16 +593,6 @@ class Provider extends InheritedWidget {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    InheritedElement,
-    InheritedWidget,
-    ChangeNotifier,
-    ValueNotifier,
-    Provider
-  };
-}
 
 export {InheritedElement,
     InheritedWidget,

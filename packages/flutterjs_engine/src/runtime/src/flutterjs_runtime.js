@@ -25,8 +25,9 @@
  * ```
  */
 
-import { VNodeRenderer } from './vnode_renderer.js';
-import { Hydrator } from './hydrator.js';
+import { VNodeRenderer } from '@flutterjs/vdom/vnode_renderer';
+import { Hydrator } from '@flutterjs/vdom/hydrator';
+
 
 // ============================================================================
 // UTILITIES

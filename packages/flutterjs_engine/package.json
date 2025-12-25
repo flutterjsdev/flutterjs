@@ -1,7 +1,7 @@
 {
   "name": "flutterjs",
   "version": "1.0.0",
-  "type": "module" ,
+  "type": "module",
   "description": "Lightweight Flutter.js CLI with zero external dependencies - Build tool for Flutter to JavaScript projects",
   "main": "bin/index.js",
   "bin": {
@@ -22,7 +22,7 @@
   "dependencies": {
     "jest": "^29.7.0",
     "chalk": "^5.6.2",
-    "ora":"^9.0.0",
+    "ora": "^9.0.0",
     "open": "^11.0.0",
     "http-proxy-middleware": "^3.0.5",
     "chokidar": "^5.0.0",
@@ -30,7 +30,10 @@
     "ws": "^8.18.3",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
-    "commander":"^14.0.2"
+    "commander": "^14.0.2",
+    "@flutterjs/analyzer": "file:./src/analyzer",
+    "@flutterjs/runtime": "file:./src/runtime",
+    "@flutterjs/vdom":"file:./src/vdom"
   },
   "keywords": [
     "flutter",
@@ -78,7 +81,6 @@
       "dist/**/*"
     ]
   },
-  
   "repository": {
     "type": "git",
     "url": "git+https://github.com/flutterjsdev/flutterjs.git"
@@ -86,6 +88,5 @@
   "bugs": {
     "url": "https://github.com/flutterjsdev/flutterjs/issues"
   },
-   
   "homepage": "https://github.com/flutterjsdev/flutterjs#readme"
 }

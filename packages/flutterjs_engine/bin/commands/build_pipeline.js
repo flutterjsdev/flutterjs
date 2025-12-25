@@ -18,7 +18,7 @@ import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
-import { Analyzer } from '../../src/analyzer/src/analyzer.js';
+import { Analyzer } from '@flutterjs/analyzer/analyzer';
 import { DependencyResolver } from './dependency_resolver.js';
 import { PackageCollector } from './package_collector.js';
 import { ImportRewriter } from './import_rewriter.js';
@@ -126,33 +126,45 @@ class BuildPipeline {
       console.log(chalk.blue('FLUTTERJS BUILD PIPELINE'));
       console.log(chalk.blue('='.repeat(70)));
       console.log(chalk.gray(`Mode: ${this.config.mode}`));
-      console.log(chalk.gray(`Entry (from config): ${this.config.entry?.main || 'lib/main.fjs'}`));
-      console.log(chalk.gray(`Resolved: ${this.pathResolver.getSourcePath()}`));
+      console.log(chalk.gray(`Entry: ${this.config.entry?.main || 'src/main.fjs'}`));
       console.log(chalk.gray(`Output: ${this.config.outputDir}\n`));
     }
 
     try {
-      // Step 1: Analyze code
+      // ========================================================================
+      // PHASE 1: ANALYZE SOURCE CODE
+      // ========================================================================
       await this.analyzeCode();
 
-      // Step 2: Resolve dependencies
+      // ========================================================================
+      // PHASE 2: RESOLVE & COLLECT DEPENDENCIES
+      // ========================================================================
       await this.resolveDependencies();
-
-      // Step 3: Collect packages
       await this.collectPackages();
 
-      // Step 4: Rewrite imports
+      // ========================================================================
+      // PHASE 3: REWRITE & TRANSFORM CODE
+      // ========================================================================
       await this.rewriteImports();
-
-      // Step 5: Transform code
       await this.transformCode();
 
-      // Step 6: Generate output (WITH AppBuilder integration)
-      await this.generateOutput();
+      // ========================================================================
+      // PHASE 4: GENERATE METADATA (for runtime AppBridge)
+      // ========================================================================
+      await this.generateAnalysisMetadata();
+      await this.generateWidgetRegistry();
+      await this.generateAppGlue();
+      await this.generateManifest();
 
-      // Step 7: Write files
+      // ========================================================================
+      // PHASE 5: GENERATE & WRITE OUTPUT FILES
+      // ========================================================================
+      await this.generateOutput();
       await this.writeFiles();
 
+      // ========================================================================
+      // SUCCESS!
+      // ========================================================================
       this.result.success = true;
       this.result.duration = Date.now() - startTime;
       this.result.outputDir = path.join(this.projectRoot, this.config.outputDir);
@@ -166,10 +178,16 @@ class BuildPipeline {
     } catch (error) {
       this.result.success = false;
       this.result.addError(`Build failed: ${error.message}`);
-      console.error(chalk.red(`\nâŒ ${error.message}\n`));
+      console.error(chalk.red(`\n✖ ${error.message}\n`));
+      if (this.config.debugMode) {
+        console.error(chalk.red(`Stack: ${error.stack}`));
+      }
       throw error;
     }
   }
+
+
+
 
   /**
    * FIXED: analyzeCode() method
@@ -183,17 +201,17 @@ class BuildPipeline {
    * - Use this.config.entryFile directly (it's already the full path)
    * - OR use this.config.entry.main from the config object
    */
-
+  /**
+     * FIXED: analyzeCode() method - Now handles the new widget format from Analyzer
+     */
   async analyzeCode() {
     if (this.config.debugMode) {
-      console.log(chalk.blue('ðŸ"Š STEP 1: Code Analysis'));
+      console.log(chalk.blue('🔍 STEP 1: Code Analysis'));
     }
 
     try {
       // FIX: Get entry file path correctly
-      // Option 1: Use config.entry.main (from flutterjs.config.js)
       const entryFile = this.config.entry?.main || this.config.entryFile || 'src/main.fjs';
-
       const entryPath = path.join(this.projectRoot, entryFile);
 
       if (this.config.debugMode) {
@@ -214,29 +232,49 @@ class BuildPipeline {
 
       // FIX: Pass sourceCode to constructor, not to analyze()
       const analyzer = new Analyzer({
-        sourceCode: sourceCode,      // ← Pass here in constructor options
-        sourceFile: entryPath,       // Also pass file path
+        sourceCode: sourceCode,
+        sourceFile: entryPath,
         debugMode: this.config.debugMode,
         verbose: false,
         includeImports: true,
         includeContext: true,
-        includeSsr: true
+        includeSsr: true,
+        outputFormat: 'json',
       });
 
-      // Call analyze() with NO parameters
-      this.result.analysis = await analyzer.analyze();
+      // Call analyze() to run full pipeline
+      const analysisResults = await analyzer.analyze();
 
-      this.result.stats.linesOfCode = sourceCode.split('\n').length;
-
-      // Handle different widget object structures
-      const widgetsObj = this.result.analysis?.widgets || {};
-      const widgetCount = (widgetsObj.count || 0) + (widgetsObj.stateless || 0) + (widgetsObj.stateful || 0);
-
-      this.result.stats.widgetsFound = widgetCount;
+      // Extract the widgets from results
+      const widgets = analysisResults.widgets;
 
       if (this.config.debugMode) {
-        console.log(chalk.green(`âœ" Found ${widgetCount} widgets`));
-        console.log(chalk.green(`âœ" ${this.result.analysis.imports?.total || 0} imports\n`));
+        console.log(chalk.gray(`  Analysis complete`));
+        console.log(chalk.gray(`  Stateless widgets: ${widgets.stateless?.length || 0}`));
+        console.log(chalk.gray(`  Stateful widgets: ${widgets.stateful?.length || 0}`));
+        console.log(chalk.gray(`  State classes: ${Object.keys(widgets.stateClasses || {}).length}\n`));
+      }
+
+      // Build analysis metadata for build pipeline
+      this.result.analysis = {
+        projectName: 'FlutterJS App',
+        widgets: {
+          stateless: widgets.stateless || [],
+          stateful: widgets.stateful || [],
+          count: widgets.count || 0,
+          all: widgets.all || [],
+        },
+        stateClasses: widgets.stateClasses || {},
+        imports: analysisResults.imports || [],
+        rootWidget: widgets.stateful?.[0] || widgets.stateless?.[0] || 'MyApp',
+      };
+
+      this.result.stats.linesOfCode = sourceCode.split('\n').length;
+      this.result.stats.widgetsFound = widgets.count || 0;
+
+      if (this.config.debugMode) {
+        console.log(chalk.green(`✓ Found ${this.result.stats.widgetsFound} widgets`));
+        console.log(chalk.green(`✓ ${this.result.analysis.imports.length || 0} imports\n`));
       }
 
     } catch (error) {
@@ -331,6 +369,279 @@ class BuildPipeline {
     }
   }
 
+
+
+
+  /**
+   * Generate analysis metadata for AppBridge
+   * Output: this.result.analysisMetadata (for analysis_metadata.json)
+   */
+  async generateAnalysisMetadata() {
+    if (this.config.debugMode) {
+      console.log(chalk.blue('📊 STEP 5A: Generating Analysis Metadata'));
+    }
+
+    try {
+      const metadata = {
+        version: '1.0.0',
+        timestamp: new Date().toISOString(),
+        projectName: this.result.analysis.projectName || 'FlutterJS App',
+
+        // Root widget to instantiate
+        rootWidget: this.result.analysis.rootWidget || 'MyApp',
+
+        // All widgets found during analysis
+        widgets: {
+          stateless: this.result.analysis.widgets?.stateless || [],
+          stateful: this.result.analysis.widgets?.stateful || [],
+          count: (this.result.analysis.widgets?.stateless?.length || 0) +
+            (this.result.analysis.widgets?.stateful?.length || 0)
+        },
+
+        // StatefulWidget → State class mapping
+        stateClasses: this.extractStateClasses(),
+
+        // State property tracking
+        stateProperties: this.extractStateProperties(),
+
+        // All imports from source code
+        imports: this.result.analysis.imports || [],
+
+        // Runtime infrastructure needed
+        runtimeRequirements: {
+          requiresThemeProvider: true,
+          requiresMediaQuery: true,
+          requiresNavigator: false,
+          stateManagement: 'local',
+          asyncOperations: false
+        }
+      };
+
+      this.result.analysisMetadata = metadata;
+
+      if (this.config.debugMode) {
+        console.log(chalk.green(`✓ Analysis metadata prepared`));
+        console.log(chalk.gray(`  Widgets: ${metadata.widgets.count}`));
+        console.log(chalk.gray(`  Root: ${metadata.rootWidget}\n`));
+      }
+
+    } catch (error) {
+      throw new Error(`Analysis metadata generation failed: ${error.message}`);
+    }
+  }
+
+
+  /**
+     * Extract StatefulWidget → State mappings
+     * @private
+     */
+  extractStateClasses() {
+    const mapping = {};
+
+    // Get stateful widgets - handle different possible formats
+    const widgets = this.result.analysis.widgets || {};
+
+    // Could be an array
+    let statefulWidgets = widgets.stateful || [];
+
+    // Or could be keys of an object
+    if (!Array.isArray(statefulWidgets)) {
+      if (typeof statefulWidgets === 'object') {
+        statefulWidgets = Object.keys(statefulWidgets);
+      } else {
+        statefulWidgets = [];
+      }
+    }
+
+    // Create mapping: WidgetName -> _WidgetNameState
+    if (Array.isArray(statefulWidgets)) {
+      statefulWidgets.forEach(widgetName => {
+        // Convention: State class is _${WidgetName}State
+        // e.g., MyHomePage → _MyHomePageState
+        const stateName = `_${widgetName}State`;
+        mapping[widgetName] = stateName;
+      });
+    }
+
+    if (this.config.debugMode) {
+      console.log(chalk.gray(`  State class mappings: ${Object.keys(mapping).length}`));
+    }
+
+    return mapping;
+  }
+
+  /**
+   * Extract state properties from analysis
+   * @private
+   */
+  extractStateProperties() {
+
+    // this.result.analysis
+    console.log('analysis.widgets:', this.result.analysis.widgets);
+    const properties = {};
+
+    const analysis = this.result.analysis || {};
+    const stateClasses = analysis.stateClasses || {};
+
+    // stateClasses is an object: { StateClassName: [properties] }
+    for (const [className, stateVars] of Object.entries(stateClasses)) {
+      // Ensure stateVars is an array
+      if (Array.isArray(stateVars)) {
+        properties[className] = stateVars;
+      } else {
+        // If it's an object, get the keys
+        properties[className] = typeof stateVars === 'object'
+          ? Object.keys(stateVars)
+          : [];
+      }
+    }
+
+    if (this.config.debugMode) {
+      console.log(chalk.gray(`  State properties: ${Object.keys(properties).length} classes`));
+    }
+
+    return properties;
+  }
+
+
+
+  /**
+ * Generate widget registry for fast lookup
+ * Output: this.result.widgetRegistry (for widget_registry.json)
+ */
+  async generateWidgetRegistry() {
+    if (this.config.debugMode) {
+      console.log(chalk.blue('📋 STEP 5B: Generating Widget Registry'));
+    }
+
+    try {
+      const registry = {};
+
+      const allWidgets = [
+        ...(this.result.analysis.widgets?.stateless || []),
+        ...(this.result.analysis.widgets?.stateful || [])
+      ];
+
+      for (const widgetName of allWidgets) {
+        const widgetMetadata = this.result.analysis.widgets[widgetName] || {};
+
+        registry[widgetName] = {
+          type: widgetMetadata.type || 'Unknown',
+          exports: true,
+          constructorParams: widgetMetadata.constructorParams || [],
+          methods: widgetMetadata.methods || [],
+          imports: widgetMetadata.imports || [],
+          stateClass: widgetMetadata.stateClass || null,
+          stateProperties: widgetMetadata.stateProperties || []
+        };
+      }
+
+      this.result.widgetRegistry = registry;
+
+      if (this.config.debugMode) {
+        console.log(chalk.green(`✓ Widget registry prepared`));
+        console.log(chalk.gray(`  Widgets: ${Object.keys(registry).length}\n`));
+      }
+
+    } catch (error) {
+      throw new Error(`Widget registry generation failed: ${error.message}`);
+    }
+  }
+
+
+
+
+  /**
+  * Generate app.js glue code
+  * Output: this.result.appGlue (for app.js)
+  */
+  async generateAppGlue() {
+    if (this.config.debugMode) {
+      console.log(chalk.blue('🔧 STEP 5C: Generating App Glue Code'));
+    }
+
+    try {
+      // Get all widgets to import
+      const stateless = this.result.analysis.widgets?.stateless || [];
+      const stateful = this.result.analysis.widgets?.stateful || [];
+      const stateClasses = Object.values(this.result.analysis.stateClasses || {});
+
+      const allWidgets = [
+        ...stateless,
+        ...stateful,
+        ...stateClasses
+      ].filter(Boolean);
+
+      // Build import statement
+      const importNames = allWidgets.join(', ');
+
+      // Generate app.js content
+      const appJs = `/**
+ * FlutterJS Application Glue Code
+ * Generated by build_pipeline.js at ${new Date().toISOString()}
+ */
+
+// Import user widgets from main.fjs
+import { ${importNames} } from './main.fjs';
+
+// Import bridge and initialization
+import { AppBridge, initializeApp } from './app_bridge.js';
+
+// Analysis metadata (from build time)
+const analysisMetadata = ${JSON.stringify(this.result.analysisMetadata, null, 2)};
+
+// Collect all widget exports
+const widgetExports = {
+${allWidgets.map(name => `  ${name}`).join(',\n')}
+};
+
+// Boot app on DOM ready
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootApp);
+  } else {
+    bootApp();
+  }
+}
+
+async function bootApp() {
+  console.log('🚀 FlutterJS App Starting...');
+  
+  try {
+    const rootElement = document.getElementById('root');
+    if (!rootElement) {
+      throw new Error('Root element #root not found');
+    }
+
+    const result = await initializeApp(analysisMetadata, widgetExports, {
+      debugMode: ${this.config.debugMode},
+      enableHotReload: ${this.config.mode === 'development'},
+      mode: '${this.config.mode}'
+    });
+
+    if (result.success) {
+      console.log('✅ App initialized in', result.duration + 'ms');
+      console.log('Stats:', result.stats);
+    } else {
+      console.error('❌ Initialization failed:', result.error);
+    }
+  } catch (error) {
+    console.error('❌ Critical error:', error);
+  }
+}
+`;
+
+      this.result.appGlue = appJs;
+
+      if (this.config.debugMode) {
+        console.log(chalk.green(`✓ App glue code generated`));
+        console.log(chalk.gray(`  Size: ${(appJs.length / 1024).toFixed(2)} KB\n`));
+      }
+
+    } catch (error) {
+      throw new Error(`App glue generation failed: ${error.message}`);
+    }
+  }
   /**
    * Step 3: Collect packages
    */
@@ -499,63 +810,65 @@ class BuildPipeline {
       throw new Error(`Output generation failed: ${error.message}`);
     }
   }
+  // ============================================================================
+  // PHASE 7 UPDATE: writeFiles() must now write the bridge files
+  // ============================================================================
 
-  /**
-   * Step 7: Write files to disk
-   */
   async writeFiles() {
     if (this.config.debugMode) {
-      console.log(chalk.blue(' STEP 7: Writing Files'));
+      console.log(chalk.blue('💾 STEP 7: Writing Files'));
     }
 
     try {
       const outputDir = path.join(this.projectRoot, this.config.outputDir);
-
       await fs.promises.mkdir(outputDir, { recursive: true });
 
-      const rootFiles = [
+      // All files to write
+      const files = [
+        // HTML
         { path: 'index.html', content: this.result.files.index_html },
-        { path: 'app.js', content: this.result.files.app_js },
-        { path: 'runtime.js', content: this.result.files.runtime_js },
-        { path: 'styles.css', content: this.result.files.styles_css },
-        { path: 'manifest.json', content: this.result.files.manifest_json },  // ✅ ROOT!
-        { path: 'app_builder.js', content: this.result.files.app_builder_js }
-      ];
 
-      // ✅ Lib level files
-      const libFiles = [
+        // CSS
+        { path: 'styles.css', content: this.result.files.styles_css },
+
+        // JavaScript runtime
+        { path: 'runtime.js', content: this.result.files.runtime_js },
+
+        // NEW: Bridge layer metadata files
         {
-          path: 'lib/index.js',
-          content: this.result.files.lib_index_js || ''  // Will be generated by PackageCollector
+          path: 'analysis_metadata.json',
+          content: JSON.stringify(this.result.analysisMetadata, null, 2)
         },
         {
-          path: 'lib/export-maps.json',
-          content: this.result.files.export_maps_json || '{}'  // Package export map
+          path: 'widget_registry.json',
+          content: JSON.stringify(this.result.widgetRegistry, null, 2)
+        },
+        {
+          path: 'app.js',
+          content: this.result.appGlue
+        },
+        {
+          path: 'manifest.json',
+          content: JSON.stringify(this.result.manifest, null, 2)
+        },
+
+        // User code (if available)
+        {
+          path: 'main.fjs',
+          content: this.result.transformation?.code || this.result.rewrite?.rewrittenCode || ''
         }
       ];
-
 
       let totalSize = 0;
 
-      // Write root files
-      for (const file of rootFiles) {
-        const filePath = path.join(outputDir, file.path);
-        await fs.promises.writeFile(filePath, file.content, 'utf-8');
-
-        const size = Buffer.byteLength(file.content, 'utf-8');
-        totalSize += size;
-
-        if (this.config.debugMode) {
-          const sizeKB = (size / 1024).toFixed(2);
-          console.log(chalk.green(`✓ ${file.path} (${sizeKB} KB)`));
-        }
-      }
-
-      for (const file of libFiles) {
+      for (const file of files) {
         const filePath = path.join(outputDir, file.path);
         const fileDir = path.dirname(filePath);
 
+        // Create directory if needed
         await fs.promises.mkdir(fileDir, { recursive: true });
+
+        // Write file
         await fs.promises.writeFile(filePath, file.content, 'utf-8');
 
         const size = Buffer.byteLength(file.content, 'utf-8');
@@ -566,20 +879,18 @@ class BuildPipeline {
           console.log(chalk.green(`✓ ${file.path} (${sizeKB} KB)`));
         }
       }
-
 
       this.result.stats.bundleSize = totalSize;
 
       if (this.config.debugMode) {
         const totalMB = (totalSize / (1024 * 1024)).toFixed(2);
-        console.log(chalk.green(`✓ Total size: ${totalMB} MB\n`));
+        console.log(chalk.green(`✓ Total: ${totalMB} MB\n`));
       }
 
     } catch (error) {
       throw new Error(`Failed to write files: ${error.message}`);
     }
   }
-
 
   /**
  * Generate lib/index.js - Re-exports all packages
@@ -1243,39 +1554,57 @@ html, body {
   }
 
   /**
-   * Generate manifest.json
-   */
-  generateManifest() {
-    return JSON.stringify({
-      name: this.result.analysis.projectName || 'FlutterJS App',
-      version: this.result.analysis.version || '1.0.0',
-      description: 'Built with FlutterJS',
-      build: {
-        timestamp: this.result.timestamp,
-        mode: this.config.mode,
-        target: this.config.target
-      },
-      stats: this.result.stats,
-      analysis: {
-        widgets: this.result.analysis.widgets,
-        imports: this.result.analysis.imports.length,
-        stateClasses: this.result.analysis.stateClasses?.length || 0
-      },
-      appBuilder: {
-        version: '1.0.0',
-        enabled: true,
-        features: [
-          'widget-instantiation',
-          'state-lifecycle',
-          'vnode-conversion',
-          'hot-reload',
-          'ssr-support',
-          'hydration'
-        ]
-      }
-    }, null, 2);
-  }
+  * Generate manifest.json
+  * Output: this.result.manifest (for manifest.json)
+  */
+  async generateManifest() {
+    if (this.config.debugMode) {
+      console.log(chalk.blue('📦 STEP 5D: Generating Manifest'));
+    }
 
+    try {
+      const manifest = {
+        name: this.result.analysis.projectName || 'FlutterJS App',
+        version: '1.0.0',
+        description: 'Built with FlutterJS',
+
+        build: {
+          timestamp: new Date().toISOString(),
+          mode: this.config.mode,
+          target: this.config.target,
+          duration: Date.now() // Will be updated in writeFiles
+        },
+
+        stats: this.result.stats,
+
+        vnode: {
+          count: this.result.stats.vnodeCount || 0,
+          depth: this.result.stats.vnodeDepth || 0
+        },
+
+        appBuilder: {
+          version: '1.0.0',
+          enabled: true,
+          features: [
+            'widget-instantiation',
+            'state-lifecycle',
+            'vnode-conversion',
+            'event-system',
+            'hot-reload'
+          ]
+        }
+      };
+
+      this.result.manifest = manifest;
+
+      if (this.config.debugMode) {
+        console.log(chalk.green(`✓ Manifest generated\n`));
+      }
+
+    } catch (error) {
+      throw new Error(`Manifest generation failed: ${error.message}`);
+    }
+  }
   /**
    * Print build summary
    */

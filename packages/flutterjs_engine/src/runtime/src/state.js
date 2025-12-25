@@ -542,15 +542,6 @@ class StateObserver {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    State,
-    StateManager,
-    ReactiveState,
-    StateObserver
-  };
-}
 
 export {
   State,

@@ -749,13 +749,6 @@ class MemoryProfiler {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    MemoryManager,
-    MemoryProfiler
-  };
-}
 
 export { MemoryManager,
     MemoryProfiler};

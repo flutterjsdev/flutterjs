@@ -616,11 +616,5 @@ body {
   }
 }
 
-// Export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = RenderEngine;
-}
-if (typeof window !== 'undefined') {
-  window.RenderEngine = RenderEngine;
-}
+
 export {RenderEngine}

@@ -532,9 +532,5 @@ class FocusManager {
   }
 }
 
-// Export for use in runtime
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = FocusManager;
-}
 
 export {FocusManager};
