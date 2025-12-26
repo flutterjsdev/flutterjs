@@ -539,6 +539,10 @@ class Analyzer {
       }
     });
 
+    // ✅ FIX: Return actual imports array, not summary stats
+    // Get imports from WidgetAnalyzer results (Phase 1)
+    const importsArray = this.results.widgets?.imports || [];
+
     return {
       source: {
         length: this.results.source?.length || 0,
@@ -570,15 +574,21 @@ class Analyzer {
           state: stateWidgets.length,
         },
       },
-      imports: this.options.includeImports
-        ? {
-          total: this.results.importResolution?.summary?.total || 0,
-          resolved: this.results.importResolution?.summary?.resolved || 0,
-          unresolved: this.results.importResolution?.summary?.unresolved || 0,
-          errors: this.results.importResolution?.summary?.errors || 0,
-          resolutionRate: this.results.importResolution?.summary?.resolutionRate || 'N/A',
+      // ✅ FIXED: Return the actual imports array from Phase 1 (WidgetAnalyzer)
+      // NOT the summary stats from import resolution
+      imports: this.options.includeImports ? importsArray : null,
+
+      // Optional: Also provide import resolution stats if needed (for reference)
+      importResolution: this.options.includeImports ? {
+        summary: this.results.importResolution?.summary || {
+          total: importsArray.length,
+          resolved: 0,
+          unresolved: importsArray.length,
+          errors: 0,
+          resolutionRate: '0%'
         }
-        : null,
+      } : null,
+
       state: {
         stateClasses: this.results.state?.stateClasses?.length || 0,
         stateFields: this.results.state?.stateFields?.length || 0,

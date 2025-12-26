@@ -40,6 +40,11 @@
     "parser",
     "javascript"
   ],
+  "dependencies": {
+    "@flutterjs/runtime": "file:../../../../src/runtime",
+    "@flutterjs/vdom": "file:../../../vdom",
+    "@flutterjs/material": "file:../../../../package/material"
+  },
   "author": "jayprakash.pal@flutterjs.dev",
   "license": "MIT",
   "devDependencies": {

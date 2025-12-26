@@ -1,279 +1,31 @@
 /**
  * ============================================================================
- * FlutterJS Complete Runtime Integration (UPDATED)
+ * FlutterJS Complete Runtime Integration (FIXED - ACTUALLY USING IMPORTS)
  * ============================================================================
  * 
- * NOW USES AppBuilder's VNode OUTPUT
- * 
- * This runtime:
- * - Receives VNode tree from AppBuilder
- * - Renders to browser DOM or SSR HTML
- * - Manages state updates and re-renders
- * - Handles hydration (SSR → CSR)
- * - Provides lifecycle hooks
- * - Tracks performance metrics
+ * NOW PROPERLY USES:
+ * - VNodeRenderer: To render VNode to actual DOM elements
+ * - VNodeBuilder: To build VNode tree and manage rendering
+ * - Hydrator: To hydrate SSR content to CSR
  * 
  * Location: cli/runtime/flutterjs_runtime.js
- * 
- * Usage:
- * ```javascript
- * import { FlutterJSRuntime } from './flutterjs_runtime.js';
- * 
- * const runtime = new FlutterJSRuntime({debugMode: true});
- * runtime.initialize({rootElement: document.getElementById('root')});
- * runtime.runApp(MyApp, {rootElement});
- * ```
  */
 
 import { VNodeRenderer } from '@flutterjs/vdom/vnode_renderer';
 import { Hydrator } from '@flutterjs/vdom/hydrator';
+import { VNodeBuilder } from '@flutterjs/vdom/vnode_builder';
 
 
 // ============================================================================
 // UTILITIES
 // ============================================================================
 
-/**
- * Check if code is running in browser environment
- */
 function isBrowser() {
   return typeof window !== 'undefined' && typeof document !== 'undefined';
 }
 
-/**
- * Check if running in SSR mode (Node.js)
- */
 function isSSR() {
   return typeof window === 'undefined';
-}
-
-// ============================================================================
-// VNODE RENDERER IMPLEMENTATION
-// ============================================================================
-
-/**
- * Renders VNode tree to actual DOM elements
- */
-class SimpleVNodeRenderer {
-  /**
-   * Render VNode to DOM element
-   */
-  static render(vnode, container, options = {}) {
-    if (!isBrowser()) {
-      throw new Error('[Runtime] Cannot render to DOM in SSR mode');
-    }
-
-    try {
-      const element = this.createDOMElement(vnode);
-      
-      if (options.clear) {
-        container.innerHTML = '';
-      }
-      
-      container.appendChild(element);
-      
-      return element;
-    } catch (error) {
-      console.error('[Runtime] Rendering failed:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Create actual DOM element from VNode
-   */
-  static createDOMElement(vnode) {
-    if (vnode === null || vnode === undefined) {
-      return document.createTextNode('');
-    }
-
-    // Text node
-    if (typeof vnode === 'string' || typeof vnode === 'number') {
-      return document.createTextNode(String(vnode));
-    }
-
-    // Element node
-    if (vnode.tag) {
-      const element = document.createElement(vnode.tag);
-
-      // Set attributes
-      if (vnode.props) {
-        Object.entries(vnode.props).forEach(([key, value]) => {
-          if (key === 'className') {
-            element.className = value;
-          } else if (key === 'style' && typeof value === 'object') {
-            Object.assign(element.style, value);
-          } else if (key !== 'children' && value !== null && value !== undefined) {
-            try {
-              element.setAttribute(key, String(value));
-            } catch (e) {
-              console.warn(`[Runtime] Could not set attribute ${key}:`, e.message);
-            }
-          }
-        });
-      }
-
-      // Set inline styles
-      if (vnode.style && typeof vnode.style === 'object') {
-        Object.assign(element.style, vnode.style);
-      }
-
-      // Attach event handlers
-      if (vnode.events && typeof vnode.events === 'object') {
-        Object.entries(vnode.events).forEach(([eventName, handler]) => {
-          if (typeof handler === 'function') {
-            const eventType = eventName.toLowerCase();
-            element.addEventListener(eventType, handler);
-          }
-        });
-      }
-
-      // Add children
-      if (vnode.children && Array.isArray(vnode.children)) {
-        vnode.children.forEach(child => {
-          const childElement = this.createDOMElement(child);
-          if (childElement) {
-            element.appendChild(childElement);
-          }
-        });
-      }
-
-      // Store reference in VNode
-      vnode.ref = element;
-
-      return element;
-    }
-
-    // Fallback
-    return document.createTextNode(String(vnode));
-  }
-
-  /**
-   * Render VNode tree to HTML string (SSR)
-   */
-  static renderToString(vnode, options = {}) {
-    if (isBrowser()) {
-      console.warn('[Runtime] renderToString should be called in SSR context');
-    }
-
-    try {
-      return this.vnodeToString(vnode);
-    } catch (error) {
-      console.error('[Runtime] SSR rendering failed:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Convert VNode to HTML string
-   */
-  static vnodeToString(vnode) {
-    if (vnode === null || vnode === undefined) {
-      return '';
-    }
-
-    // Text node
-    if (typeof vnode === 'string' || typeof vnode === 'number') {
-      return this.escapeHtml(String(vnode));
-    }
-
-    // Element node
-    if (vnode.tag) {
-      let html = `<${vnode.tag}`;
-
-      // Add attributes
-      if (vnode.props) {
-        Object.entries(vnode.props).forEach(([key, value]) => {
-          if (key !== 'children' && value !== null && value !== undefined) {
-            html += ` ${key}="${this.escapeHtml(String(value))}"`;
-          }
-        });
-      }
-
-      // Add inline styles
-      if (vnode.style && typeof vnode.style === 'object') {
-        const styleStr = Object.entries(vnode.style)
-          .map(([k, v]) => `${k}:${v}`)
-          .join(';');
-        html += ` style="${styleStr}"`;
-      }
-
-      html += '>';
-
-      // Add children
-      if (vnode.children && Array.isArray(vnode.children)) {
-        vnode.children.forEach(child => {
-          html += this.vnodeToString(child);
-        });
-      }
-
-      // Close tag
-      html += `</${vnode.tag}>`;
-
-      return html;
-    }
-
-    return '';
-  }
-
-  /**
-   * Escape HTML special characters
-   */
-  static escapeHtml(text) {
-    const map = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, m => map[m]);
-  }
-
-  /**
-   * Update DOM with new VNode tree (diff/patch)
-   */
-  static update(oldElement, newVNode) {
-    if (!isBrowser()) {
-      throw new Error('[Runtime] Cannot update DOM in SSR mode');
-    }
-
-    // Simple approach: rebuild entire element
-    // In production, would use sophisticated diffing algorithm
-    const parent = oldElement.parentElement;
-    if (parent) {
-      const newElement = this.createDOMElement(newVNode);
-      parent.replaceChild(newElement, oldElement);
-      return newElement;
-    }
-
-    return oldElement;
-  }
-
-  /**
-   * Cleanup event listeners and references
-   */
-  static cleanup(element) {
-    if (!element) return;
-
-    // Remove event listeners
-    if (element._vnodeEvents) {
-      Object.entries(element._vnodeEvents).forEach(([eventName, handler]) => {
-        element.removeEventListener(eventName, handler);
-      });
-      delete element._vnodeEvents;
-    }
-
-    // Recursively cleanup children
-    Array.from(element.children).forEach(child => {
-      this.cleanup(child);
-    });
-
-    // Clear references
-    if (element._vnode) {
-      element._vnode.ref = null;
-    }
-  }
 }
 
 // ============================================================================
@@ -303,8 +55,11 @@ export class FlutterJSRuntime {
     this.rootVNode = null;
     this.currentDOMElement = null;
 
-    // AppBuilder reference
+    // Component instances
     this.appBuilder = null;
+    this.vNodeBuilder = null;      // ✅ ADD: VNodeBuilder instance
+    this.vNodeRenderer = null;     // ✅ ADD: VNodeRenderer instance
+    this.hydrator = null;          // ✅ ADD: Hydrator instance
 
     // Performance metrics
     this.stats = {
@@ -334,7 +89,7 @@ export class FlutterJSRuntime {
     this.setupErrorHandling();
 
     if (this.config.debugMode) {
-      console.log('[Runtime] âœ" Instance created', {
+      console.log('[Runtime] ✅ Instance created', {
         environment: this.config.isBrowser ? 'browser' : 'server',
         mode: this.config.mode
       });
@@ -343,6 +98,7 @@ export class FlutterJSRuntime {
 
   /**
    * Initialize runtime
+   * ✅ NOW CREATES VNodeBuilder, VNodeRenderer instances
    */
   initialize(options = {}) {
     if (this.initialized) {
@@ -366,13 +122,48 @@ export class FlutterJSRuntime {
         throw new Error('[Runtime] rootElement required in browser mode');
       }
 
+      // ✅ INITIALIZE VNODE BUILDER
+      if (this.config.debugMode) {
+        console.log('[Runtime] 🟣 Creating VNodeBuilder...');
+      }
+      this.vNodeBuilder = new VNodeBuilder({
+        debugMode: this.config.debugMode
+      });
+
+      // ✅ INITIALIZE VNODE RENDERER
+      if (this.config.isBrowser) {
+        if (this.config.debugMode) {
+          console.log('[Runtime] 🟠 Creating VNodeRenderer...');
+        }
+        this.vNodeRenderer = new VNodeRenderer({
+          rootElement: this.rootElement,
+          debugMode: this.config.debugMode
+        });
+      }
+
+      // ✅ INITIALIZE HYDRATOR
+      if (this.config.mode === 'hydrate' || options.hydrateFromSSR) {
+        if (this.config.debugMode) {
+          console.log('[Runtime] 💧 Creating Hydrator...');
+        }
+        this.hydrator = new Hydrator({
+          rootElement: this.rootElement,
+          debugMode: this.config.debugMode
+        });
+      }
+
       this.initialized = true;
       this.stats.initTime = performance.now() - startTime;
 
       this.runHooks('afterInit');
 
       if (this.config.debugMode) {
-        console.log('[Runtime] âœ" Initialized in', this.stats.initTime.toFixed(2), 'ms');
+        console.log('[Runtime] ✅ Initialized in', this.stats.initTime.toFixed(2), 'ms');
+        console.log('[Runtime] 📊 Components ready:', {
+          vNodeBuilder: !!this.vNodeBuilder,
+          vNodeRenderer: !!this.vNodeRenderer,
+          hydrator: !!this.hydrator
+        });
       }
 
       return this;
@@ -384,8 +175,7 @@ export class FlutterJSRuntime {
 
   /**
    * MAIN METHOD: Run application
-   * 
-   * Receives VNode tree from AppBuilder and renders it
+   * ✅ NOW USES VNodeBuilder + VNodeRenderer
    */
   runApp(widgetOrVNode, options = {}) {
     if (!this.initialized) {
@@ -401,34 +191,44 @@ export class FlutterJSRuntime {
         console.log('[Runtime] Mounting application...');
       }
 
-      // Determine if we have a VNode or a Widget class
+      // Determine input type
       const isVNode = widgetOrVNode && widgetOrVNode.tag !== undefined;
-      const isWidget = widgetOrVNode && widgetOrVNode.build !== undefined;
+      const isWidget = widgetOrVNode && typeof widgetOrVNode.build === 'function';
 
       if (isVNode) {
-        // Use VNode directly from AppBuilder
+        // Already a VNode from AppBuilder
         this.rootVNode = widgetOrVNode;
         if (this.config.debugMode) {
-          console.log('[Runtime] Using VNode from AppBuilder');
+          console.log('[Runtime] 📦 Using VNode from AppBuilder');
         }
       } else if (isWidget) {
-        // Build VNode from widget (fallback)
-        console.warn('[Runtime] Received widget instead of VNode - building VNode');
-        if (typeof widgetOrVNode.build === 'function') {
-          this.rootVNode = widgetOrVNode.build({});
-        } else {
-          this.rootVNode = widgetOrVNode;
+        // Need to build VNode from widget using VNodeBuilder
+        if (this.config.debugMode) {
+          console.log('[Runtime] 🏗️  Building VNode from Widget class...');
+        }
+
+        // ✅ USE VNODE BUILDER TO CONVERT WIDGET TO VNODE
+        if (!this.vNodeBuilder) {
+          this.vNodeBuilder = new VNodeBuilder({ debugMode: this.config.debugMode });
+        }
+
+        this.rootVNode = this.vNodeBuilder.build(widgetOrVNode, {
+          context: options.buildContext || {}
+        });
+
+        if (this.config.debugMode) {
+          console.log('[Runtime] ✅ VNode built successfully');
         }
       } else {
         throw new Error('[Runtime] Invalid input: expected VNode or Widget');
       }
 
-      // Store reference to AppBuilder if provided
+      // Store AppBuilder reference if provided
       if (options.appBuilder) {
         this.appBuilder = options.appBuilder;
       }
 
-      // Render to DOM
+      // ✅ RENDER TO APPROPRIATE TARGET
       if (this.config.isBrowser && this.rootElement) {
         this.renderToDOM();
       } else if (this.config.isSSR) {
@@ -441,7 +241,7 @@ export class FlutterJSRuntime {
       this.runHooks('afterMount');
 
       if (this.config.debugMode) {
-        console.log('[Runtime] âœ" Mounted in', this.stats.mountTime.toFixed(2), 'ms');
+        console.log('[Runtime] ✅ Mounted in', this.stats.mountTime.toFixed(2), 'ms');
         this.logStats();
       }
 
@@ -454,6 +254,7 @@ export class FlutterJSRuntime {
 
   /**
    * Render VNode to DOM
+   * ✅ NOW USES VNodeRenderer
    */
   renderToDOM() {
     if (!this.config.isBrowser) {
@@ -471,8 +272,20 @@ export class FlutterJSRuntime {
     try {
       const startTime = performance.now();
 
-      // Use VNodeRenderer to convert VNode to DOM
-      this.currentDOMElement = SimpleVNodeRenderer.render(
+      if (this.config.debugMode) {
+        console.log('[Runtime] 🎨 Rendering VNode to DOM...');
+        console.log('[Runtime] 📦 VNode structure:', JSON.stringify(this.rootVNode, null, 2).substring(0, 200) + '...');
+      }
+
+      // ✅ USE VNODE RENDERER TO CREATE ACTUAL DOM
+      if (!this.vNodeRenderer) {
+        this.vNodeRenderer = new VNodeRenderer({
+          rootElement: this.rootElement,
+          debugMode: this.config.debugMode
+        });
+      }
+
+      this.currentDOMElement = this.vNodeRenderer.render(
         this.rootVNode,
         this.rootElement,
         { clear: true }
@@ -481,16 +294,18 @@ export class FlutterJSRuntime {
       this.stats.renderTime = performance.now() - startTime;
 
       if (this.config.debugMode) {
-        console.log('[Runtime] âœ" Rendered to DOM in', this.stats.renderTime.toFixed(2), 'ms');
+        console.log('[Runtime] ✅ Rendered to DOM in', this.stats.renderTime.toFixed(2), 'ms');
+        console.log('[Runtime] 🌳 DOM Element:', this.currentDOMElement.tagName || 'Fragment');
       }
     } catch (error) {
-      console.error('[Runtime] DOM rendering failed:', error);
+      console.error('[Runtime] ❌ DOM rendering failed:', error);
       throw error;
     }
   }
 
   /**
    * Render VNode to HTML string (SSR)
+   * ✅ NOW USES VNodeRenderer
    */
   renderToString() {
     if (!this.config.isSSR) {
@@ -503,25 +318,41 @@ export class FlutterJSRuntime {
     }
 
     try {
-      const html = SimpleVNodeRenderer.renderToString(this.rootVNode);
+      const startTime = performance.now();
 
       if (this.config.debugMode) {
-        console.log('[Runtime] âœ" Generated SSR HTML:', html.length, 'bytes');
+        console.log('[Runtime] 📝 Rendering VNode to HTML string (SSR)...');
+      }
+
+      // ✅ USE VNODE RENDERER TO CREATE HTML STRING
+      if (!this.vNodeRenderer) {
+        this.vNodeRenderer = new VNodeRenderer({
+          debugMode: this.config.debugMode
+        });
+      }
+
+      const html = this.vNodeRenderer.renderToString(this.rootVNode);
+
+      this.stats.renderTime = performance.now() - startTime;
+
+      if (this.config.debugMode) {
+        console.log('[Runtime] ✅ Generated SSR HTML:', html.length, 'bytes in', this.stats.renderTime.toFixed(2), 'ms');
       }
 
       return html;
     } catch (error) {
-      console.error('[Runtime] SSR rendering failed:', error);
+      console.error('[Runtime] ❌ SSR rendering failed:', error);
       throw error;
     }
   }
 
   /**
    * Update application (after state change)
+   * ✅ NOW USES VNodeRenderer FOR RECONCILIATION
    */
   update(options = {}) {
     if (!this.mounted) {
-      console.warn('[Runtime] Cannot update: app not mounted');
+      console.warn('[Runtime] ❌ Cannot update: app not mounted');
       return this;
     }
 
@@ -531,29 +362,44 @@ export class FlutterJSRuntime {
       this.runHooks('beforeUpdate');
 
       if (this.config.debugMode) {
-        console.log('[Runtime] Updating...');
+        console.log('[Runtime] 🔄 Updating application...');
       }
 
       // If AppBuilder is available, rebuild VNode tree
       if (this.appBuilder && options.rebuild !== false) {
         if (this.config.debugMode) {
-          console.log('[Runtime] Rebuilding widget tree with AppBuilder...');
+          console.log('[Runtime] 🏗️  Rebuilding widget tree with AppBuilder...');
         }
 
-        // Rebuild should be done by AppBuilder when state changes
-        // This is just a placeholder
-      }
+        // Get new VNode from AppBuilder
+        const newVNode = this.appBuilder.build();
+        
+        // ✅ USE VNODE RENDERER FOR RECONCILIATION
+        if (this.config.isBrowser && this.vNodeRenderer && this.currentDOMElement) {
+          if (this.config.debugMode) {
+            console.log('[Runtime] 🔍 Running VNode reconciliation...');
+          }
 
-      // Re-render if in browser
-      if (this.config.isBrowser && this.rootVNode) {
-        if (this.currentDOMElement) {
-          this.currentDOMElement = SimpleVNodeRenderer.update(
+          // Use renderer to update/reconcile DOM
+          this.currentDOMElement = this.vNodeRenderer.reconcile(
             this.currentDOMElement,
-            this.rootVNode
+            this.rootVNode,
+            newVNode
           );
-        } else {
-          this.renderToDOM();
+
+          this.rootVNode = newVNode;
         }
+      } else if (this.config.isBrowser && this.rootVNode && options.forceRender) {
+        // Force full re-render
+        if (this.config.debugMode) {
+          console.log('[Runtime] 💥 Force rendering...');
+        }
+
+        if (this.currentDOMElement) {
+          this.vNodeRenderer.cleanup(this.currentDOMElement);
+        }
+
+        this.renderToDOM();
       }
 
       const updateTime = performance.now() - startTime;
@@ -565,7 +411,7 @@ export class FlutterJSRuntime {
       this.runHooks('afterUpdate');
 
       if (this.config.debugMode) {
-        console.log('[Runtime] âœ" Updated in', updateTime.toFixed(2), 'ms');
+        console.log('[Runtime] ✅ Updated in', updateTime.toFixed(2), 'ms');
       }
 
       return this;
@@ -577,6 +423,7 @@ export class FlutterJSRuntime {
 
   /**
    * Hot reload (development mode)
+   * ✅ NOW USES VNodeRenderer
    */
   hotReload(newVNode) {
     if (!this.config.enableHotReload) {
@@ -591,20 +438,22 @@ export class FlutterJSRuntime {
 
     try {
       if (this.config.debugMode) {
-        console.log('[Runtime] ðŸ"¥ Hot reloading...');
+        console.log('[Runtime] 🔥 Hot reloading...');
       }
 
-      // Update VNode tree
+      // ✅ USE VNODE RENDERER FOR HOT RELOAD
+      if (this.vNodeRenderer && this.currentDOMElement) {
+        this.currentDOMElement = this.vNodeRenderer.reconcile(
+          this.currentDOMElement,
+          this.rootVNode,
+          newVNode
+        );
+      }
+
       this.rootVNode = newVNode;
 
-      // Re-render
-      if (this.currentDOMElement && this.rootElement) {
-        SimpleVNodeRenderer.cleanup(this.currentDOMElement);
-        this.renderToDOM();
-      }
-
       if (this.config.debugMode) {
-        console.log('[Runtime] âœ" Hot reload complete');
+        console.log('[Runtime] ✅ Hot reload complete');
       }
 
       return this;
@@ -616,6 +465,7 @@ export class FlutterJSRuntime {
 
   /**
    * Hydrate (SSR → CSR bridge)
+   * ✅ NOW USES HYDRATOR
    */
   hydrate(hydrationData, options = {}) {
     if (!this.config.isBrowser) {
@@ -625,22 +475,27 @@ export class FlutterJSRuntime {
 
     try {
       if (this.config.debugMode) {
-        console.log('[Runtime] Hydrating SSR content...');
+        console.log('[Runtime] 💧 Hydrating SSR content...');
       }
 
-      // Use hydrator to attach listeners to SSR-rendered HTML
-      if (Hydrator && typeof Hydrator.hydrate === 'function') {
-        Hydrator.hydrate(
-          this.rootElement,
-          this.rootVNode,
-          hydrationData
-        );
+      // ✅ USE HYDRATOR TO ATTACH LISTENERS TO SSR HTML
+      if (!this.hydrator) {
+        this.hydrator = new Hydrator({
+          rootElement: this.rootElement,
+          debugMode: this.config.debugMode
+        });
       }
+
+      this.hydrator.hydrate(
+        this.rootElement,
+        this.rootVNode,
+        hydrationData || {}
+      );
 
       this.mounted = true;
 
       if (this.config.debugMode) {
-        console.log('[Runtime] âœ" Hydration complete');
+        console.log('[Runtime] ✅ Hydration complete');
       }
 
       return this;
@@ -652,10 +507,11 @@ export class FlutterJSRuntime {
 
   /**
    * Unmount application
+   * ✅ NOW USES VNodeRenderer FOR CLEANUP
    */
   unmount() {
     if (!this.mounted) {
-      console.warn('[Runtime] Not mounted');
+      console.warn('[Runtime] ❌ Not mounted');
       return this;
     }
 
@@ -663,16 +519,20 @@ export class FlutterJSRuntime {
       this.runHooks('beforeUnmount');
 
       if (this.config.debugMode) {
-        console.log('[Runtime] Unmounting...');
+        console.log('[Runtime] 🗑️  Unmounting...');
       }
 
-      // Cleanup DOM
-      if (this.currentDOMElement) {
-        SimpleVNodeRenderer.cleanup(this.currentDOMElement);
+      // ✅ USE VNODE RENDERER FOR CLEANUP
+      if (this.vNodeRenderer && this.currentDOMElement) {
+        this.vNodeRenderer.cleanup(this.currentDOMElement);
+      }
+
+      // Clear DOM
+      if (this.rootElement) {
+        this.rootElement.innerHTML = '';
       }
 
       // Clear references
-      this.rootElement.innerHTML = '';
       this.currentDOMElement = null;
       this.rootVNode = null;
       this.appBuilder = null;
@@ -682,7 +542,7 @@ export class FlutterJSRuntime {
       this.runHooks('afterUnmount');
 
       if (this.config.debugMode) {
-        console.log('[Runtime] âœ" Unmounted');
+        console.log('[Runtime] ✅ Unmounted');
       }
 
       return this;
@@ -708,10 +568,15 @@ export class FlutterJSRuntime {
     // Clear error handlers
     this.errorHandlers = [];
 
+    // Clear component instances
+    this.vNodeBuilder = null;
+    this.vNodeRenderer = null;
+    this.hydrator = null;
+
     this.initialized = false;
 
     if (this.config.debugMode) {
-      console.log('[Runtime] âœ" Disposed');
+      console.log('[Runtime] ✅ Disposed');
     }
   }
 
@@ -734,7 +599,7 @@ export class FlutterJSRuntime {
    * Handle error
    */
   handleError(source, error) {
-    console.error(`[Runtime] Error in ${source}:`, error);
+    console.error(`[Runtime] ❌ Error in ${source}:`, error);
 
     this.errorHandlers.forEach(handler => {
       try {
@@ -744,7 +609,6 @@ export class FlutterJSRuntime {
       }
     });
 
-    // Show error overlay in development mode
     if (this.config.debugMode && this.config.isBrowser) {
       this.showErrorOverlay(source, error);
     }
@@ -788,9 +652,7 @@ export class FlutterJSRuntime {
     `;
 
     box.innerHTML = `
-      <h2 style="color: #d32f2f; margin: 0 0 20px 0;">
-        ðŸ'¥ Runtime Error
-      </h2>
+      <h2 style="color: #d32f2f; margin: 0 0 20px 0;">⚠️ Runtime Error</h2>
       <p style="color: #666; margin: 0 0 10px 0;">
         <strong>Source:</strong> ${source}
       </p>
@@ -863,7 +725,7 @@ export class FlutterJSRuntime {
 
     const stats = this.getStats();
 
-    console.group('[Runtime] Statistics');
+    console.group('[Runtime] 📊 Statistics');
     console.log('Environment:', stats.environment);
     console.log('Mount Time:', `${stats.mountTime.toFixed(2)}ms`);
     console.log('Render Time:', `${stats.renderTime.toFixed(2)}ms`);
@@ -937,7 +799,7 @@ export function updateApp(updateFn) {
     updateFn();
   }
 
-  globalRuntime.update({ rebuild: false });
+  globalRuntime.update({ rebuild: true, forceRender: false });
 }
 
 /**

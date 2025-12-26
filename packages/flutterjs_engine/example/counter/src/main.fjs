@@ -11,7 +11,7 @@
  * 5. Arrow function syntax issues
  * 6. Proper exports
  */
-
+import { runApp } from '@flutterjs/runtime';
 import {
   // Core Framework
   Widget,
@@ -34,7 +34,7 @@ import {
   FloatingActionButton,
   Icons,
 } from '@flutterjs/material';
-import { runApp } from '@flutterjs/runtime';
+
 // ===== RUNTIME HELPERS =====
 
 /**

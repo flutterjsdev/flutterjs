@@ -24,6 +24,7 @@ import { PackageCollector } from './package_collector.js';
 import { ImportRewriter } from './import_rewriter.js';
 import { CodeTransformer } from './code_transformer.js';
 import { PathResolver } from './path-resolver.js';
+import { BuildIntegration } from './build_integration.js';
 
 // ============================================================================
 // BUILD RESULT TYPES
@@ -100,15 +101,15 @@ class BuildPipeline {
       minify: config.minify || false,
       sourceMap: config.sourceMap !== false,
       verbose: config.verbose || false,
+      installDependencies: config.installDependencies !== false,
       ...config
     };
 
     this.projectRoot = this.config.projectRoot;
-
     this.pathResolver = new PathResolver(this.projectRoot, this.config);
 
     this.result = new BuildResult();
-
+    this.integration = new BuildIntegration(this.projectRoot, this.config);
     if (this.config.debugMode) {
       console.log(chalk.gray('[BuildPipeline] Initialized'));
       console.log(chalk.gray(`  Entry: ${this.config.entryFile}`));
@@ -121,253 +122,57 @@ class BuildPipeline {
   async run() {
     const startTime = Date.now();
 
-    if (this.config.debugMode) {
-      console.log(chalk.blue('\n' + '='.repeat(70)));
-      console.log(chalk.blue('FLUTTERJS BUILD PIPELINE'));
-      console.log(chalk.blue('='.repeat(70)));
-      console.log(chalk.gray(`Mode: ${this.config.mode}`));
-      console.log(chalk.gray(`Entry: ${this.config.entry?.main || 'src/main.fjs'}`));
-      console.log(chalk.gray(`Output: ${this.config.outputDir}\n`));
-    }
-
     try {
-      // ========================================================================
-      // PHASE 1: ANALYZE SOURCE CODE
-      // ========================================================================
-      await this.analyzeCode();
+      // ✅ STEP 1: Run BuildIntegration (handles analysis through output)
+      const integrationResult = await this.integration.execute();
 
-      // ========================================================================
-      // PHASE 2: RESOLVE & COLLECT DEPENDENCIES
-      // ========================================================================
-      await this.resolveDependencies();
-      await this.collectPackages();
+      if (!integrationResult.success) {
+        throw new Error('BuildIntegration failed');
+      }
 
-      // ========================================================================
-      // PHASE 3: REWRITE & TRANSFORM CODE
-      // ========================================================================
-      await this.rewriteImports();
-      await this.transformCode();
+      // ✅ STEP 2: Extract results from BuildIntegration
+      this.result.analysis = integrationResult.analysis;
+      this.result.resolution = integrationResult.resolution;
+      this.result.collection = integrationResult.collection;
+      this.result.transformed = integrationResult.transformed;
+      this.result.stats = this.extractStats(integrationResult);
 
-      // ========================================================================
-      // PHASE 4: GENERATE METADATA (for runtime AppBridge)
-      // ========================================================================
+      // ✅ STEP 3: Generate AppBuilder-specific files
       await this.generateAnalysisMetadata();
       await this.generateWidgetRegistry();
       await this.generateAppGlue();
       await this.generateManifest();
 
-      // ========================================================================
-      // PHASE 5: GENERATE & WRITE OUTPUT FILES
-      // ========================================================================
-      await this.generateOutput();
+      // ✅ STEP 4: Write everything to disk
       await this.writeFiles();
 
-      // ========================================================================
-      // SUCCESS!
-      // ========================================================================
       this.result.success = true;
       this.result.duration = Date.now() - startTime;
       this.result.outputDir = path.join(this.projectRoot, this.config.outputDir);
-
-      if (this.config.debugMode) {
-        this.printSummary();
-      }
 
       return this.result;
 
     } catch (error) {
       this.result.success = false;
       this.result.addError(`Build failed: ${error.message}`);
-      console.error(chalk.red(`\n✖ ${error.message}\n`));
-      if (this.config.debugMode) {
-        console.error(chalk.red(`Stack: ${error.stack}`));
-      }
       throw error;
     }
   }
 
-
-
-
-  /**
-   * FIXED: analyzeCode() method
-   * 
-   * The problem:
-   * - this.config.entryFile is a STRING: 'lib/main.fjs'
-   * - You were trying to access .main on it: this.config.entryFile.main
-   * - This caused: "Cannot read properties of undefined (reading 'main')"
-   * 
-   * The solution:
-   * - Use this.config.entryFile directly (it's already the full path)
-   * - OR use this.config.entry.main from the config object
-   */
-  /**
-     * FIXED: analyzeCode() method - Now handles the new widget format from Analyzer
-     */
-  async analyzeCode() {
-    if (this.config.debugMode) {
-      console.log(chalk.blue('🔍 STEP 1: Code Analysis'));
-    }
-
-    try {
-      // FIX: Get entry file path correctly
-      const entryFile = this.config.entry?.main || this.config.entryFile || 'src/main.fjs';
-      const entryPath = path.join(this.projectRoot, entryFile);
-
-      if (this.config.debugMode) {
-        console.log(chalk.gray(`  Entry: ${entryFile}`));
-        console.log(chalk.gray(`  Full path: ${entryPath}`));
-      }
-
-      if (!fs.existsSync(entryPath)) {
-        throw new Error(`Entry file not found: ${entryPath}`);
-      }
-
-      const sourceCode = fs.readFileSync(entryPath, 'utf-8');
-
-      if (this.config.debugMode) {
-        console.log(chalk.gray(`  Source file loaded: ${entryPath}`));
-        console.log(chalk.gray(`  Source code length: ${sourceCode.length} chars`));
-      }
-
-      // FIX: Pass sourceCode to constructor, not to analyze()
-      const analyzer = new Analyzer({
-        sourceCode: sourceCode,
-        sourceFile: entryPath,
-        debugMode: this.config.debugMode,
-        verbose: false,
-        includeImports: true,
-        includeContext: true,
-        includeSsr: true,
-        outputFormat: 'json',
-      });
-
-      // Call analyze() to run full pipeline
-      const analysisResults = await analyzer.analyze();
-
-      // Extract the widgets from results
-      const widgets = analysisResults.widgets;
-
-      if (this.config.debugMode) {
-        console.log(chalk.gray(`  Analysis complete`));
-        console.log(chalk.gray(`  Stateless widgets: ${widgets.stateless?.length || 0}`));
-        console.log(chalk.gray(`  Stateful widgets: ${widgets.stateful?.length || 0}`));
-        console.log(chalk.gray(`  State classes: ${Object.keys(widgets.stateClasses || {}).length}\n`));
-      }
-
-      // Build analysis metadata for build pipeline
-      this.result.analysis = {
-        projectName: 'FlutterJS App',
-        widgets: {
-          stateless: widgets.stateless || [],
-          stateful: widgets.stateful || [],
-          count: widgets.count || 0,
-          all: widgets.all || [],
-        },
-        stateClasses: widgets.stateClasses || {},
-        imports: analysisResults.imports || [],
-        rootWidget: widgets.stateful?.[0] || widgets.stateless?.[0] || 'MyApp',
-      };
-
-      this.result.stats.linesOfCode = sourceCode.split('\n').length;
-      this.result.stats.widgetsFound = widgets.count || 0;
-
-      if (this.config.debugMode) {
-        console.log(chalk.green(`✓ Found ${this.result.stats.widgetsFound} widgets`));
-        console.log(chalk.green(`✓ ${this.result.analysis.imports.length || 0} imports\n`));
-      }
-
-    } catch (error) {
-      throw new Error(`Analysis failed: ${error.message}`);
-    }
+  extractStats(integrationResult) {
+    return {
+      linesOfCode: integrationResult.analysis?.metadata?.linesOfCode || 0,
+      widgetsFound: integrationResult.analysis?.widgets?.count || 0,
+      packagesResolved: integrationResult.resolution?.packages.size || 0,
+      filesCollected: integrationResult.collection?.copiedFiles.length || 0,
+      importsRewritten: integrationResult.transformed?.importsRewritten || 0,
+      transformationsApplied: integrationResult.transformed?.transformations || 0,
+      bundleSize: 0 // Set during writeFiles()
+    };
   }
 
-  /**
-   * ALSO FIX: rewriteImports() method
-   * Same issue here - using this.config.entryFile incorrectly
-   */
 
-  async rewriteImports() {
-    if (this.config.debugMode) {
-      console.log(chalk.blue('âœ"ðŸ¸ STEP 4: Import Rewriting'));
-    }
 
-    try {
-      // FIX: Get entry file correctly
-      const entryFile = this.config.entry?.main || this.config.entryFile || 'lib/main.fjs';
-      const entryPath = path.join(this.projectRoot, entryFile);
-
-      const sourceCode = fs.readFileSync(entryPath, 'utf-8');
-
-      const rewriter = new ImportRewriter(this.exportMaps, {
-        debugMode: this.config.debugMode,
-        libPath: './lib',
-        preserveStructure: false,
-        validateExports: true
-      });
-
-      this.result.rewrite = rewriter.rewrite(sourceCode);
-      this.result.stats.importsRewritten = this.result.rewrite.stats.rewritten;
-
-      if (this.config.debugMode) {
-        console.log(chalk.green(
-          `âœ" Rewritten ${this.result.rewrite.stats.rewritten} imports`
-        ));
-        console.log(chalk.green(
-          `âœ" Unchanged: ${this.result.rewrite.stats.unchanged}\n`
-        ));
-      }
-
-      if (this.result.rewrite.errors.length > 0) {
-        for (const error of this.result.rewrite.errors) {
-          this.result.addError(`Import: ${error}`);
-        }
-      }
-
-    } catch (error) {
-      throw new Error(`Import rewriting failed: ${error.message}`);
-    }
-  }
-
-  /**
-   * Step 2: Resolve dependencies
-   */
-  async resolveDependencies() {
-    if (this.config.debugMode) {
-      console.log(chalk.blue('ðŸ" STEP 2: Dependency Resolution'));
-    }
-
-    try {
-      const resolver = new DependencyResolver({
-        projectRoot: this.projectRoot,
-        debugMode: this.config.debugMode
-      });
-
-      this.result.resolution = await resolver.resolveAll(
-        this.result.analysis.imports
-      );
-
-      this.result.stats.packagesResolved = this.result.resolution.packages.size;
-
-      if (this.config.debugMode) {
-        console.log(chalk.green(
-          `âœ" Resolved ${this.result.resolution.packages.size} packages`
-        ));
-        console.log(chalk.green(
-          `âœ" Found ${this.result.resolution.allFiles.length} files\n`
-        ));
-      }
-
-      if (this.result.resolution.hasErrors?.()) {
-        for (const error of this.result.resolution.errors) {
-          this.result.addError(`Resolution: ${error}`);
-        }
-      }
-
-    } catch (error) {
-      throw new Error(`Dependency resolution failed: ${error.message}`);
-    }
-  }
 
 
 
@@ -382,32 +187,28 @@ class BuildPipeline {
     }
 
     try {
+      // ✅ FIX: Use correct property path from BuildIntegration result
+      const projectName = this.result.analysis?.metadata?.projectName || 'FlutterJS App';
+      const rootWidget = this.result.analysis?.metadata?.rootWidget || 'MyApp';
+      const stateless = this.result.analysis?.widgets?.stateless || [];
+      const stateful = this.result.analysis?.widgets?.stateful || [];
+      const stateClasses = this.result.analysis?.metadata?.stateClasses || {};
+
       const metadata = {
         version: '1.0.0',
         timestamp: new Date().toISOString(),
-        projectName: this.result.analysis.projectName || 'FlutterJS App',
+        projectName,
+        rootWidget,
 
-        // Root widget to instantiate
-        rootWidget: this.result.analysis.rootWidget || 'MyApp',
-
-        // All widgets found during analysis
         widgets: {
-          stateless: this.result.analysis.widgets?.stateless || [],
-          stateful: this.result.analysis.widgets?.stateful || [],
-          count: (this.result.analysis.widgets?.stateless?.length || 0) +
-            (this.result.analysis.widgets?.stateful?.length || 0)
+          stateless,
+          stateful,
+          count: stateless.length + stateful.length
         },
 
-        // StatefulWidget → State class mapping
-        stateClasses: this.extractStateClasses(),
+        stateClasses,
+        imports: this.result.analysis?.imports || [],
 
-        // State property tracking
-        stateProperties: this.extractStateProperties(),
-
-        // All imports from source code
-        imports: this.result.analysis.imports || [],
-
-        // Runtime infrastructure needed
         runtimeRequirements: {
           requiresThemeProvider: true,
           requiresMediaQuery: true,
@@ -517,24 +318,27 @@ class BuildPipeline {
     try {
       const registry = {};
 
-      const allWidgets = [
-        ...(this.result.analysis.widgets?.stateless || []),
-        ...(this.result.analysis.widgets?.stateful || [])
-      ];
+      const stateless = this.result.analysis?.widgets?.stateless || [];
+      const stateful = this.result.analysis?.widgets?.stateful || [];
 
-      for (const widgetName of allWidgets) {
-        const widgetMetadata = this.result.analysis.widgets[widgetName] || {};
-
-        registry[widgetName] = {
-          type: widgetMetadata.type || 'Unknown',
+      // Register stateless widgets
+      stateless.forEach(widget => {
+        registry[widget] = {
+          type: 'stateless',
           exports: true,
-          constructorParams: widgetMetadata.constructorParams || [],
-          methods: widgetMetadata.methods || [],
-          imports: widgetMetadata.imports || [],
-          stateClass: widgetMetadata.stateClass || null,
-          stateProperties: widgetMetadata.stateProperties || []
+          methods: ['build']
         };
-      }
+      });
+
+      // Register stateful widgets
+      stateful.forEach(widget => {
+        registry[widget] = {
+          type: 'stateful',
+          exports: true,
+          methods: ['createState'],
+          stateClass: `_${widget}State`
+        };
+      });
 
       this.result.widgetRegistry = registry;
 
@@ -551,9 +355,17 @@ class BuildPipeline {
 
 
 
+
   /**
   * Generate app.js glue code
   * Output: this.result.appGlue (for app.js)
+  */
+  /**
+  * Generate app.js glue code - FIXED VERSION
+  * Output: this.result.appGlue (for app.js)
+  * 
+  * FIX: Only import widget classes, NOT state classes
+  * State classes are internal implementation details
   */
   async generateAppGlue() {
     if (this.config.debugMode) {
@@ -561,41 +373,36 @@ class BuildPipeline {
     }
 
     try {
-      // Get all widgets to import
-      const stateless = this.result.analysis.widgets?.stateless || [];
-      const stateful = this.result.analysis.widgets?.stateful || [];
-      const stateClasses = Object.values(this.result.analysis.stateClasses || {});
+      // ✅ FIX: Use correct paths
+      const stateless = this.result.analysis?.widgets?.stateless || [];
+      const stateful = this.result.analysis?.widgets?.stateful || [];
+      const allWidgets = [...stateless, ...stateful].filter(Boolean);
 
-      const allWidgets = [
-        ...stateless,
-        ...stateful,
-        ...stateClasses
-      ].filter(Boolean);
+      if (allWidgets.length === 0) {
+        throw new Error('No widgets found to import');
+      }
 
-      // Build import statement
       const importNames = allWidgets.join(', ');
+      const widgetExportsCode = allWidgets
+        .map(name => `  ${name}`)
+        .join(',\n');
 
-      // Generate app.js content
+      const rootWidget = this.result.analysisMetadata?.rootWidget || 'MyApp';
+
       const appJs = `/**
  * FlutterJS Application Glue Code
  * Generated by build_pipeline.js at ${new Date().toISOString()}
  */
 
-// Import user widgets from main.fjs
 import { ${importNames} } from './main.fjs';
-
-// Import bridge and initialization
 import { AppBridge, initializeApp } from './app_bridge.js';
 
-// Analysis metadata (from build time)
 const analysisMetadata = ${JSON.stringify(this.result.analysisMetadata, null, 2)};
 
-// Collect all widget exports
 const widgetExports = {
-${allWidgets.map(name => `  ${name}`).join(',\n')}
+${widgetExportsCode}
 };
 
-// Boot app on DOM ready
 if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bootApp);
@@ -606,78 +413,107 @@ if (typeof document !== 'undefined') {
 
 async function bootApp() {
   console.log('🚀 FlutterJS App Starting...');
+  console.log('Root widget: ${rootWidget}');
   
   try {
     const rootElement = document.getElementById('root');
     if (!rootElement) {
-      throw new Error('Root element #root not found');
+      throw new Error('Root element #root not found in DOM');
     }
 
     const result = await initializeApp(analysisMetadata, widgetExports, {
       debugMode: ${this.config.debugMode},
       enableHotReload: ${this.config.mode === 'development'},
-      mode: '${this.config.mode}'
+      mode: '${this.config.mode}',
+      target: '${this.config.target}'
     });
 
     if (result.success) {
-      console.log('✅ App initialized in', result.duration + 'ms');
-      console.log('Stats:', result.stats);
+      console.log('✅ App initialized successfully');
+      console.log(\`   Time: \${result.duration}ms\`);
+      console.log('   Stats:', result.stats);
     } else {
       console.error('❌ Initialization failed:', result.error);
+      showErrorOverlay(result.error);
     }
   } catch (error) {
-    console.error('❌ Critical error:', error);
+    console.error('❌ Critical error during boot:', error.message);
+    if (${this.config.debugMode}) {
+      console.error('Stack:', error.stack);
+    }
+    showErrorOverlay(error.message);
   }
 }
+
+function showErrorOverlay(message) {
+  if (typeof document === 'undefined') return;
+
+  const overlay = document.createElement('div');
+  overlay.id = '__flutterjs_error_overlay__';
+  overlay.style.cssText = \`
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999999;
+    font-family: monospace;
+  \`;
+
+  const errorBox = document.createElement('div');
+  errorBox.style.cssText = \`
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    max-width: 600px;
+    color: #d32f2f;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  \`;
+
+  errorBox.innerHTML = \`
+    <h2 style="margin: 0 0 15px 0; color: #d32f2f;">❌ Application Error</h2>
+    <pre style="
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 0;
+      color: #c62828;
+      overflow-x: auto;
+      font-size: 13px;
+    ">\${message}</pre>
+  \`;
+
+  overlay.appendChild(errorBox);
+  document.body.appendChild(overlay);
+}
+
+if (typeof window !== 'undefined') {
+  window.__flutterjs_boot__ = bootApp;
+  window.__flutterjs_widgets__ = widgetExports;
+  window.__flutterjs_metadata__ = analysisMetadata;
+}
+
+export { bootApp, widgetExports, analysisMetadata };
 `;
 
       this.result.appGlue = appJs;
 
       if (this.config.debugMode) {
         console.log(chalk.green(`✓ App glue code generated`));
-        console.log(chalk.gray(`  Size: ${(appJs.length / 1024).toFixed(2)} KB\n`));
+        console.log(chalk.gray(`  Widgets imported: ${allWidgets.length}`));
+        console.log(chalk.gray(`  Root widget: ${rootWidget}\n`));
       }
 
     } catch (error) {
       throw new Error(`App glue generation failed: ${error.message}`);
     }
   }
-  /**
-   * Step 3: Collect packages
-   */
-  async collectPackages() {
-    if (this.config.debugMode) {
-      console.log(chalk.blue('ðŸ"¦ STEP 3: Package Collection'));
-    }
 
-    try {
-      const collector = new PackageCollector({
-        projectRoot: this.projectRoot,
-        outputDir: this.config.devDir,
-        libDir: 'lib',
-        debugMode: this.config.debugMode,
-        createIndexFiles: true,
-        generateExportMaps: true
-      });
 
-      this.result.collection = await collector.collect(this.result.resolution);
-      this.result.stats.filesCollected = this.result.collection.copiedFiles.length;
-
-      if (this.config.debugMode) {
-        console.log(chalk.green(
-          `âœ" Collected ${this.result.collection.copiedFiles.length} files`
-        ));
-        console.log(chalk.green(
-          `âœ" Total size: ${this.result.collection.totalSizeMB} MB\n`
-        ));
-      }
-
-      this.exportMaps = collector.getExportMaps();
-
-    } catch (error) {
-      throw new Error(`Package collection failed: ${error.message}`);
-    }
-  }
 
   /**
    * Step 4: Rewrite imports
@@ -721,95 +557,6 @@ async function bootApp() {
     }
   }
 
-  /**
-   * Step 5: Transform code
-   */
-  async transformCode() {
-    if (this.config.debugMode) {
-      console.log(chalk.blue('ðŸ"§ STEP 5: Code Transformation'));
-    }
-
-    try {
-      const transformer = new CodeTransformer(this.result.analysis, {
-        debugMode: this.config.debugMode,
-        injectState: true,
-        injectLifecycle: true,
-        addMetadata: true,
-        validateExports: true
-      });
-
-      this.result.transformation = transformer.transform(
-        this.result.rewrite.rewrittenCode
-      );
-
-      this.result.stats.transformationsApplied =
-        this.result.transformation.transformations.length;
-
-      if (this.config.debugMode) {
-        console.log(chalk.green(
-          `âœ" Transformed ${this.result.transformation.widgets.size} widgets`
-        ));
-        console.log(chalk.green(
-          `âœ" Applied ${this.result.transformation.transformations.length} transformations`
-        ));
-        console.log(chalk.green(
-          `âœ" Generated exports for ${this.result.transformation.exports.length} symbols\n`
-        ));
-      }
-
-    } catch (error) {
-      throw new Error(`Code transformation failed: ${error.message}`);
-    }
-  }
-
-  /**
-   * Step 6: Generate output files (WITH AppBuilder)
-   */
-  async generateOutput() {
-    if (this.config.debugMode) {
-      console.log(chalk.blue('📦 STEP 6: Output Generation'));
-    }
-
-    try {
-      // Generate HTML
-      this.result.files.index_html = this.generateHTML();
-
-      // Generate app.js WITH AppBuilder injection
-      this.result.files.app_js = this.generateAppJS();
-
-      // Generate runtime.js
-      this.result.files.runtime_js = this.generateRuntimeJS();
-
-      // Generate styles.css
-      this.result.files.styles_css = this.generateStyles();
-
-      // ✅ ADD: Generate lib/index.js
-      this.result.files.lib_index_js = this.generateLibIndex();
-
-      // ✅ ADD: Generate lib/export-maps.json
-      this.result.files.export_maps_json = this.generateExportMaps();
-
-      // Generate manifest.json
-      this.result.files.manifest_json = this.generateManifest();
-
-      // Generate app_builder.js (copy from framework)
-      this.result.files.app_builder_js = this.generateAppBuilderJS();
-
-      if (this.config.debugMode) {
-        console.log(chalk.green('✓ Generated index.html'));
-        console.log(chalk.green('✓ Generated app.js (with AppBuilder)'));
-        console.log(chalk.green('✓ Generated runtime.js'));
-        console.log(chalk.green('✓ Generated styles.css'));
-        console.log(chalk.green('✓ Generated lib/index.js'));
-        console.log(chalk.green('✓ Generated lib/export-maps.json'));
-        console.log(chalk.green('✓ Generated app_builder.js'));
-        console.log(chalk.green('✓ Generated manifest.json\n'));
-      }
-
-    } catch (error) {
-      throw new Error(`Output generation failed: ${error.message}`);
-    }
-  }
   // ============================================================================
   // PHASE 7 UPDATE: writeFiles() must now write the bridge files
   // ============================================================================
@@ -823,18 +570,24 @@ async function bootApp() {
       const outputDir = path.join(this.projectRoot, this.config.outputDir);
       await fs.promises.mkdir(outputDir, { recursive: true });
 
+      // ✅ GENERATE CONTENT HERE (don't reference undefined this.result.files)
+      const htmlContent = this.generateHTML();
+      const cssContent = this.generateStyles();
+      const runtimeContent = this.generateRuntime();
+      const transformedCode = this.result.transformed?.transformedCode || '';
+
       // All files to write
       const files = [
         // HTML
-        { path: 'index.html', content: this.result.files.index_html },
+        { path: 'index.html', content: htmlContent },
 
         // CSS
-        { path: 'styles.css', content: this.result.files.styles_css },
+        { path: 'styles.css', content: cssContent },
 
         // JavaScript runtime
-        { path: 'runtime.js', content: this.result.files.runtime_js },
+        { path: 'runtime.js', content: runtimeContent },
 
-        // NEW: Bridge layer metadata files
+        // Metadata files
         {
           path: 'analysis_metadata.json',
           content: JSON.stringify(this.result.analysisMetadata, null, 2)
@@ -843,24 +596,29 @@ async function bootApp() {
           path: 'widget_registry.json',
           content: JSON.stringify(this.result.widgetRegistry, null, 2)
         },
+
+        // App glue code
         {
           path: 'app.js',
           content: this.result.appGlue
         },
+
+        // Manifest
         {
           path: 'manifest.json',
           content: JSON.stringify(this.result.manifest, null, 2)
         },
 
-        // User code (if available)
+        // User code (transformed)
         {
           path: 'main.fjs',
-          content: this.result.transformation?.code || this.result.rewrite?.rewrittenCode || ''
+          content: transformedCode
         }
       ];
 
       let totalSize = 0;
 
+      // Write all files
       for (const file of files) {
         const filePath = path.join(outputDir, file.path);
         const fileDir = path.dirname(filePath);
@@ -955,6 +713,8 @@ export {};
    * Generate index.html
    */
   generateHTML() {
+    const projectName = this.result.analysis?.metadata?.projectName || 'FlutterJS App';
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -962,8 +722,8 @@ export {};
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="FlutterJS Application">
   <meta name="theme-color" content="#6750a4">
-  <title>${this.result.analysis.projectName || 'FlutterJS App'}</title>
-  <link rel="stylesheet" href="/styles.css">
+  <title>${projectName}</title>
+  <link rel="stylesheet" href="./styles.css">
   <style>
     html, body {
       width: 100%;
@@ -979,12 +739,12 @@ export {};
 </head>
 <body>
   <div id="root"></div>
-  <script src="/runtime.js" defer></script>
-  <script src="/app_builder.js" defer></script>
-  <script src="/app.js" type="module" defer></script>
+  <script src="./runtime.js" defer></script>
+  <script src="./app.js" type="module" defer></script>
 </body>
 </html>`;
   }
+
 
   /**
    * Generate app.js WITH AppBuilder integration
@@ -1383,7 +1143,7 @@ if (typeof window !== 'undefined') {
   /**
    * Generate runtime.js
    */
-  generateRuntimeJS() {
+  generateRuntime() {
     return `/**
  * FlutterJS Runtime
  * Core rendering and state management engine
@@ -1481,8 +1241,10 @@ class FlutterJSRuntime {
 
 // Expose to window
 if (typeof window !== 'undefined') {
-  window.__flutterjs_runtime__ = FlutterJSRuntime;
-}`;
+  window.FlutterJSRuntime = FlutterJSRuntime;
+}
+
+export { FlutterJSRuntime };`;
   }
 
   /**
@@ -1563,24 +1325,20 @@ html, body {
     }
 
     try {
+      const projectName = this.result.analysis?.metadata?.projectName || 'FlutterJS App';
+
       const manifest = {
-        name: this.result.analysis.projectName || 'FlutterJS App',
+        name: projectName,
         version: '1.0.0',
         description: 'Built with FlutterJS',
 
         build: {
           timestamp: new Date().toISOString(),
           mode: this.config.mode,
-          target: this.config.target,
-          duration: Date.now() // Will be updated in writeFiles
+          target: this.config.target
         },
 
         stats: this.result.stats,
-
-        vnode: {
-          count: this.result.stats.vnodeCount || 0,
-          depth: this.result.stats.vnodeDepth || 0
-        },
 
         appBuilder: {
           version: '1.0.0',
@@ -1589,8 +1347,7 @@ html, body {
             'widget-instantiation',
             'state-lifecycle',
             'vnode-conversion',
-            'event-system',
-            'hot-reload'
+            'event-system'
           ]
         }
       };
@@ -1598,7 +1355,7 @@ html, body {
       this.result.manifest = manifest;
 
       if (this.config.debugMode) {
-        console.log(chalk.green(`✓ Manifest generated\n`));
+        console.log(chalk.green(`✓ Manifest prepared\n`));
       }
 
     } catch (error) {
