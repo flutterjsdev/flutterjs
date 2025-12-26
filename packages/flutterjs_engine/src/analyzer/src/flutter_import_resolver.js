@@ -23,14 +23,10 @@ class ImportResolver {
 
     // Framework package mappings
     this.frameworkPackages = {
-      '@package:flutter': 'flutter-js-framework/core',
-      '@package:material': 'flutter-js-framework/material',
-      '@package:cupertino': 'flutter-js-framework/cupertino',
-      '@package:foundation': 'flutter-js-framework/foundation',
-      '@package:widgets': 'flutter-js-framework/widgets',
-      '@package:painting': 'flutter-js-framework/painting',
-      '@package:rendering': 'flutter-js-framework/rendering',
-      '@package:animation': 'flutter-js-framework/animation',
+      "@flutterjs/runtime": "file:../../../../../src/runtime",
+      "@flutterjs/vdom": "file:../../../../../src/vdom",
+      "@flutterjs/analyzer": "file:../../../../analyzer",
+      '@flutterjs:material': 'file:../../../../../package/material',
     };
 
     // User-defined custom package mappings
@@ -444,12 +440,12 @@ ${this.results.unresolved.length > 0 ? `
 ⚠️  UNRESOLVED IMPORTS
 ─────────────────────
 ${this.results.unresolved
-  .map(
-    (imp) =>
-      `  ❌ ${imp.original}
+          .map(
+            (imp) =>
+              `  ❌ ${imp.original}
      Reason: ${imp.reason}`
-  )
-  .join('\n')}
+          )
+          .join('\n')}
 ` : ''}
 
 ${this.results.errors.length > 0 ? `

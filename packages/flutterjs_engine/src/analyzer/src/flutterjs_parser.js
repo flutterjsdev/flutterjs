@@ -217,7 +217,28 @@ class Parser {
     return new Program(body);
   }
 
+  /**
+ * Skip any comment tokens
+ * Comments should be transparent to the parser
+ */
+  skipComments() {
+    while (!this.isAtEnd() && this.check(TokenType.COMMENT)) {
+      this.advance();
+    }
+  }
+
+  /**
+   * Check if token is a comment
+   */
+  isComment() {
+    if (this.isAtEnd()) return false;
+    return this.peek().type === TokenType.COMMENT;
+  }
+
+
   parseTopLevel() {
+    this.skipComments();  // ← ADD THIS LINE
+
     if (this.isAtEnd()) return null;
 
     if (this.isKeyword('import')) {
@@ -239,7 +260,6 @@ class Parser {
     this.consumeStatementEnd();
     return new ExpressionStatement(expr, this.getLocation());
   }
-
   isKeyword(value) {
     if (this.isAtEnd()) return false;
     const token = this.peek();
@@ -330,6 +350,10 @@ class Parser {
     let itemCount = 0;
 
     while (!this.isPunctuation('}') && !this.isAtEnd()) {
+      this.skipComments();  // ← ADD THIS LINE - skip comments in class body
+
+      if (this.isPunctuation('}')) break;  // Check again after skipping comments
+
       logger.trace(`    [item ${itemCount}] Current token: ${this.peek().value} (${this.peek().type})`);
 
       // Skip semicolons
@@ -402,6 +426,7 @@ class Parser {
     logger.trace(`[parseClassDeclaration] SUCCESS\n`);
     return new ClassDeclaration(name, superClass, body, startLocation);
   }
+
 
   parseMethodDeclaration() {
     const logger = getLogger().createComponentLogger('Parser.parseMethodDeclaration');
@@ -592,6 +617,10 @@ class Parser {
     const statements = [];
 
     while (!this.isPunctuation('}') && !this.isAtEnd()) {
+      this.skipComments();  // ← ADD THIS LINE - skip comments in block
+
+      if (this.isPunctuation('}')) break;  // Check again after skipping
+
       console.log(`  [parseBlock] Current token: ${this.peek().value} (${this.peek().type})`);
 
       if (this.isKeyword('return')) {
@@ -1092,9 +1121,13 @@ class Parser {
   }
 
   consumeStatementEnd() {
+    this.skipComments();  // ← ADD THIS LINE
+
     if (this.isPunctuation(';')) {
       this.advance();
     }
+
+    this.skipComments();  // ← ADD THIS LINE - skip trailing comments too
   }
 
   advance() {

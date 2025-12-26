@@ -5,10 +5,7 @@
   "type": "module",
   "main": "./dist/material.js",
   "exports": {
-
-    "./material": "./dist/material.js",
-    "./"
-   
+    "./material": "./dist/material.js"
   },
   "files": [
     "dist"
@@ -27,9 +24,8 @@
     "javascript",
     "web"
   ],
-   "dependencies": {
-  
-    "@flutterjs/vdom":"file:../../src/vdom",
+  "dependencies": {
+    "@flutterjs/vdom": "file:../../src/vdom",
     "@flutterjs/runtime": "file:../../src/runtime"
   },
   "author": "Jayprakash Pal <jayprakash.pal@flutterjs.dev>",

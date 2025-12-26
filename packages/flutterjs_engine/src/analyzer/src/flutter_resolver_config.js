@@ -63,7 +63,7 @@ export const resolverConfig = {
 /**
  * Create and configure resolver
  */
-export function createResolver(options = {}){
+export function createResolver(options = {}) {
   const { ImportResolver } = import('./flutter_import_resolver.js');
 
   const resolver = new ImportResolver({
@@ -125,12 +125,10 @@ export const presets = {
       '.',
     ],
     customPackageMappings: {
-      '@package:flutter': 'flutter-js-framework/core',
-      '@package:material': 'flutter-js-framework/material',
-      '@package:ui': './lib/widgets',
-      '@package:models': './lib/models',
-      '@package:services': './lib/services',
-      '@package:utils': './lib/utils',
+      "@flutterjs/runtime": "file:../../../../runtime",
+      "@flutterjs/vdom": "file:../../../../vdom",
+      "@flutterjs/analyzer": "file:../../../../analyzer",
+      '@flutterjs:material': 'file:../../../../../package/material',
     },
   },
 };

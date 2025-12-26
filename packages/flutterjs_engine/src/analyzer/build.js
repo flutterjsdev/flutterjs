@@ -25,8 +25,7 @@ esbuild
         sourcemap: true,
         // Keep original filenames: src/analyzer.js → dist/analyzer.js
         outExtension: { '.js': '.js' },
-        // Optional: exclude Node.js builtins
-        external: ['fs', 'path', 'os', 'crypto', 'url'],
+        
         // Optional: drop console.log/debugger in production
         // drop: ['console', 'debugger'],
     })
