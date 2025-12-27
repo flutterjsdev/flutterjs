@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "description": "Material Design widget handlers for Flutter.js",
   "type": "module",
-  "main": "./dist/material.js",
+  "main": "./dist/index.js",
   "exports": {
-    "./material": "./dist/material.js"
+    ".": "./dist/index.js",
+    "./material": "./dist/material.js",
+    "./core": "./dist/core.js",
+    "./widgets": "./dist/widgets.js"
   },
   "files": [
     "dist"
@@ -27,6 +30,9 @@
   "dependencies": {
     "@flutterjs/vdom": "file:../../src/vdom",
     "@flutterjs/runtime": "file:../../src/runtime"
+  },
+  "devDependencies": {
+    "esbuild": "^0.18.0"
   },
   "author": "Jayprakash Pal <jayprakash.pal@flutterjs.dev>",
   "license": "MIT",

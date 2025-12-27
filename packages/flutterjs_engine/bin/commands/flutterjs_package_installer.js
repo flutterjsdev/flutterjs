@@ -594,8 +594,20 @@ class PackageInstaller {
   /**
    * Get destination path for package
    */
+  // FIXED:
   getDestinationPath(packageName) {
-    // Clean package name: @flutterjs/material → flutterjs-material
+    // ✅ For @flutterjs/* packages, use node_modules/@flutterjs structure
+    if (packageName.startsWith('@flutterjs/')) {
+      const scopedName = packageName.split('/')[1];
+      return path.join(
+        this.outputBase,
+        'node_modules',
+        '@flutterjs',
+        scopedName
+      );
+    }
+
+    // ✅ For other packages, use packages directory
     const cleanName = packageName
       .replace('@', '')
       .replace(/\//g, '-')

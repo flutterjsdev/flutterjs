@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../src/core/index.js"],
+  "sourcesContent": ["// src/core/index.js\n// Core widget and element classes\n\nexport {\n    GlobalKey,\n    ValueKey,\n    ObjectKey,\n    Key,\n    ProxyWidget,\n    InheritedWidget,\n    Notification,\n    NotificationListener,\n    ErrorWidget,\n    DiagnosticLevel,\n    DiagnosticsTreeStyle,\n    Diagnosticable,\n    Widget,\n    Element,\n    StatelessWidget,\n    StatelessElement,\n    StatefulWidget,\n    StatefulElement\n} from \"./widget_element.js\";"],
+  "mappings": "AAGA,OACI,aAAAA,EACA,YAAAC,EACA,aAAAC,EACA,OAAAC,EACA,eAAAC,EACA,mBAAAC,EACA,gBAAAC,EACA,wBAAAC,EACA,eAAAC,EACA,mBAAAC,EACA,wBAAAC,EACA,kBAAAC,EACA,UAAAC,EACA,WAAAC,EACA,mBAAAC,EACA,oBAAAC,EACA,kBAAAC,EACA,mBAAAC,MACG",
+  "names": ["GlobalKey", "ValueKey", "ObjectKey", "Key", "ProxyWidget", "InheritedWidget", "Notification", "NotificationListener", "ErrorWidget", "DiagnosticLevel", "DiagnosticsTreeStyle", "Diagnosticable", "Widget", "Element", "StatelessWidget", "StatelessElement", "StatefulWidget", "StatefulElement"]
+}
