@@ -187,17 +187,17 @@ class ImportRewriter {
 
     // Framework packages configuration
     this.frameworkPackages = new Map([
-      ['@flutterjs/runtime', new FrameworkPackage('@flutterjs/runtime', 'runtime', 'src/flutterjs_runtime.js')],
-      ['@flutterjs/analyzer', new FrameworkPackage('@flutterjs/analyzer', 'analyzer', 'src/analyzer.js')],
-      ['@flutterjs/core', new FrameworkPackage('@flutterjs/core', 'core', 'src/index.js')],
-      ['@flutterjs/material', new FrameworkPackage('@flutterjs/material', 'material', 'src/index.js')],
-      ['@flutterjs/widgets', new FrameworkPackage('@flutterjs/widgets', 'widgets', 'src/index.js')],
-      ['@flutterjs/cupertino', new FrameworkPackage('@flutterjs/cupertino', 'cupertino', 'src/index.js')],
-      ['@flutterjs/vdom', new FrameworkPackage('@flutterjs/vdom', 'vdom', 'src/vnode_renderer.js')],
-      ['@flutterjs/rendering', new FrameworkPackage('@flutterjs/rendering', 'src/rendering', 'index.js')],
-      ['@flutterjs/painting', new FrameworkPackage('@flutterjs/painting', 'src/painting', 'index.js')],
-      ['@flutterjs/foundation', new FrameworkPackage('@flutterjs/foundation', 'foundation', 'src/index.js')],
-      ['@flutterjs/animation', new FrameworkPackage('@flutterjs/animation', 'animation', 'src/index.js')],
+      ['@flutterjs/runtime', new FrameworkPackage('@flutterjs/runtime', 'runtime', 'dist/flutterjs_runtime.js')],
+      ['@flutterjs/analyzer', new FrameworkPackage('@flutterjs/analyzer', 'analyzer', 'dist/analyzer.js')],
+      ['@flutterjs/core', new FrameworkPackage('@flutterjs/core', 'core', 'dist/index.js')],
+      ['@flutterjs/material', new FrameworkPackage('@flutterjs/material', 'material', 'dist/index.js')],
+      ['@flutterjs/widgets', new FrameworkPackage('@flutterjs/widgets', 'widgets', 'dist/index.js')],
+      ['@flutterjs/cupertino', new FrameworkPackage('@flutterjs/cupertino', 'cupertino', 'dist/index.js')],
+      ['@flutterjs/vdom', new FrameworkPackage('@flutterjs/vdom', 'vdom', 'dist/vnode_renderer.js')],
+      ['@flutterjs/rendering', new FrameworkPackage('@flutterjs/rendering', 'dist/rendering', 'index.js')],
+      ['@flutterjs/painting', new FrameworkPackage('@flutterjs/painting', 'dist/painting', 'index.js')],
+      ['@flutterjs/foundation', new FrameworkPackage('@flutterjs/foundation', 'foundation', 'dist/index.js')],
+      ['@flutterjs/animation', new FrameworkPackage('@flutterjs/animation', 'animation', 'dist/index.js')],
     ]);
 
     this.result = new ImportAnalysisResult();

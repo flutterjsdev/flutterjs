@@ -676,7 +676,6 @@ class PackageInstaller {
       'node_modules',
       '.git',
       '.github',
-      'dist',
       'build',
       'coverage',
       '.DS_Store',
