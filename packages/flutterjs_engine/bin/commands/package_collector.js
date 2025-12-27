@@ -178,6 +178,10 @@ class PackageCollector {
     
     // ✅ FIXED: Correct path to node_modules/@flutterjs
     this.nodeModulesDir = path.join(this.outputDir, 'node_modules', '@flutterjs');
+    
+    // ✅ NEW: Source and destination for all node_modules
+    this.sourceNodeModules = path.join(this.projectRoot, 'node_modules');
+    this.destNodeModules = path.join(this.outputDir, 'node_modules');
 
     // Package mappings: source folder -> @flutterjs package name
     this.packageMappings = {
@@ -206,6 +210,132 @@ class PackageCollector {
 
   /**
    * ========================================================================
+   * ✅ NEW: Copy entire node_modules from source
+   * ========================================================================
+   */
+  async copyAllNodeModules() {
+    if (this.options.debugMode) {
+      console.log(chalk.blue('\n📦 Copying all node_modules from source...\n'));
+    }
+
+    try {
+      // Check if source exists
+      if (!fs.existsSync(this.sourceNodeModules)) {
+        console.warn(chalk.yellow(`⚠️  Source node_modules not found at: ${this.sourceNodeModules}`));
+        return;
+      }
+
+      // Create destination directory
+      await fs.promises.mkdir(this.destNodeModules, { recursive: true });
+
+      // Copy entire node_modules
+      const result = await this.copyDirectoryRecursive(
+        this.sourceNodeModules,
+        this.destNodeModules
+      );
+
+      if (this.options.debugMode) {
+        console.log(chalk.green(`✓ node_modules copied`));
+        console.log(chalk.gray(`  Files copied: ${result.filesCount}`));
+        console.log(chalk.gray(`  Size: ${result.totalSize} MB\n`));
+      }
+
+    } catch (error) {
+      console.error(chalk.red(`✗ Failed to copy node_modules: ${error.message}\n`));
+    }
+  }
+
+  /**
+   * ========================================================================
+   * ✅ NEW: Helper function to copy directory recursively
+   * ========================================================================
+   */
+  async copyDirectoryRecursive(sourceDir, destDir, isTopLevel = true) {
+    let filesCount = 0;
+    let totalSize = 0;
+
+    const skipDirs = new Set([
+      '.git',
+      '.github',
+      'coverage'
+    ]);
+
+    const skipFiles = new Set([
+      '.DS_Store',
+      'thumbs.db',
+      '.npmignore',
+      '.gitignore'
+    ]);
+
+    // ✅ RECURSIVE FUNCTION
+    const traverse = async (src, dest) => {
+      try {
+        // Verify source exists
+        if (!fs.existsSync(src)) {
+          console.warn(chalk.yellow(`Source path does not exist: ${src}`));
+          return;
+        }
+
+        // Create destination directory first
+        await fs.promises.mkdir(dest, { recursive: true });
+        
+        // Read all entries
+        const entries = await fs.promises.readdir(src, { withFileTypes: true });
+
+        console.log(chalk.gray(`  Scanning: ${src} (${entries.length} items)`));
+
+        for (const entry of entries) {
+          try {
+            // Skip specific files and directories
+            if (skipFiles.has(entry.name) || skipDirs.has(entry.name)) {
+              continue;
+            }
+
+            // Skip hidden files (except specific ones)
+            if (entry.name.startsWith('.') && entry.name !== '.npmignore') {
+              continue;
+            }
+
+            const srcPath = path.join(src, entry.name);
+            const destPath = path.join(dest, entry.name);
+
+            if (entry.isDirectory()) {
+              console.log(chalk.gray(`    → Dir: ${entry.name}`));
+              // Recursively traverse subdirectories
+              await traverse(srcPath, destPath);
+            } else if (entry.isFile()) {
+              try {
+                // Copy the file
+                await fs.promises.copyFile(srcPath, destPath);
+                
+                // Get file size
+                const stats = await fs.promises.stat(destPath);
+                totalSize += stats.size;
+                filesCount++;
+              } catch (fileError) {
+                console.warn(chalk.yellow(`    ⚠️  Failed to copy ${entry.name}: ${fileError.message}`));
+              }
+            }
+          } catch (entryError) {
+            console.warn(chalk.yellow(`    ⚠️  Error processing ${entry.name}: ${entryError.message}`));
+          }
+        }
+      } catch (error) {
+        console.warn(chalk.yellow(`Warning: Could not traverse ${src}: ${error.message}`));
+      }
+    };
+
+    // Start traversal
+    await traverse(sourceDir, destDir);
+
+    return {
+      filesCount,
+      totalSize: (totalSize / (1024 * 1024)).toFixed(2)
+    };
+  }
+
+  /**
+   * ========================================================================
    * MAIN ENTRY POINT: Collect and Copy Packages
    * ========================================================================
    */
@@ -216,10 +346,14 @@ class PackageCollector {
     if (this.options.debugMode) {
       console.log(chalk.blue('\n📦 Package Collection & Copying Started'));
       console.log(chalk.blue('='.repeat(70)));
+      console.log(chalk.gray(`Project Root: ${this.projectRoot}`));
       console.log(chalk.gray(`Destination: ${this.nodeModulesDir}\n`));
     }
 
     try {
+      // ✅ NEW: Copy all node_modules first
+      await this.copyAllNodeModules();
+
       // ✅ CRITICAL: Ensure node_modules/@flutterjs directory exists FIRST
       await fs.promises.mkdir(this.nodeModulesDir, { recursive: true });
 
@@ -236,8 +370,13 @@ class PackageCollector {
 
       if (this.options.debugMode) {
         console.log(chalk.yellow(`Found ${resolution.packages.size} packages to collect:\n`));
-        for (const [name] of resolution.packages) {
-          console.log(chalk.gray(`  • ${name}`));
+        let idx = 0;
+        for (const [name, info] of resolution.packages) {
+          console.log(chalk.gray(`  [${idx}] ${name}`));
+          if (this.options.debugMode) {
+            console.log(chalk.gray(`       Path: ${info?.path || info?.actualPath || 'NOT SET'}`));
+          }
+          idx++;
         }
         console.log();
       }
@@ -275,18 +414,54 @@ class PackageCollector {
   /**
    * Collect and copy a single package
    * ✅ FIXED: Copies to node_modules/@flutterjs/[scopedName]
+   * ✅ NEW: Also copies nested node_modules dependencies
    */
   async collectPackage(packageName, packageInfo) {
     const result = new PackageCollectionResult(packageName);
 
     try {
-      // Get package path
-      const sourcePath = packageInfo.path || packageInfo.actualPath;
+      // ✅ NEW: Get package path with fallback search
+      let sourcePath = packageInfo.path || packageInfo.actualPath;
+      
+      // If not found or is just package name, search in common locations
+      if (!sourcePath || !fs.existsSync(sourcePath) || sourcePath === packageName) {
+        const scopedName = this.getScopedPackageName(packageName);
+        const searchPaths = [
+          // FlutterJS SDK structure
+          path.join(this.projectRoot, 'src', scopedName),
+          path.join(this.projectRoot, 'packages', `flutterjs-${scopedName}`),
+          path.join(this.projectRoot, 'packages', scopedName),
+          // Node modules
+          path.join(this.projectRoot, 'node_modules', packageName),
+          // Go up directories (for nested projects)
+          path.join(this.projectRoot, '..', '..', 'src', scopedName),
+          path.join(this.projectRoot, '..', '..', 'packages', scopedName),
+        ];
+
+        if (this.options.debugMode) {
+          console.log(chalk.gray(`  Searching for ${packageName}...`));
+        }
+
+        for (const searchPath of searchPaths) {
+          if (fs.existsSync(searchPath)) {
+            sourcePath = searchPath;
+            if (this.options.debugMode) {
+              console.log(chalk.gray(`  ✓ Found at: ${searchPath}`));
+            }
+            break;
+          }
+        }
+      }
 
       if (!sourcePath || !fs.existsSync(sourcePath)) {
         result.error = 'Package source not found';
         if (this.options.debugMode) {
           console.log(chalk.yellow(`⚠️  ${packageName}: Source not found`));
+          const scopedName = this.getScopedPackageName(packageName);
+          console.log(chalk.yellow(`  Checked:`));
+          console.log(chalk.yellow(`    - ${path.join(this.projectRoot, 'src', scopedName)}`));
+          console.log(chalk.yellow(`    - ${path.join(this.projectRoot, 'packages', `flutterjs-${scopedName}`)}`));
+          console.log(chalk.yellow(`    - ${path.join(this.projectRoot, 'node_modules', packageName)}`));
         }
         return result;
       }
@@ -318,6 +493,35 @@ class PackageCollector {
       result.copiedFiles = copyResult.files;
       result.failedFiles = copyResult.failedFiles;
       result.totalSize = copyResult.totalSize;
+
+      // ✅ NEW: Copy nested node_modules from this package
+      const nestedNodeModulesSource = path.join(sourcePath, 'node_modules');
+      if (fs.existsSync(nestedNodeModulesSource)) {
+        const nestedNodeModulesDest = path.join(destPath, 'node_modules');
+        
+        if (this.options.debugMode) {
+          console.log(chalk.gray(`  Copying nested node_modules from: ${nestedNodeModulesSource}`));
+          console.log(chalk.gray(`  To: ${nestedNodeModulesDest}`));
+        }
+
+        try {
+          const nestedResult = await this.copyDirectoryRecursive(nestedNodeModulesSource, nestedNodeModulesDest);
+          
+          // Convert MB to bytes for totalSize
+          const nestedSizeBytes = parseFloat(nestedResult.totalSize) * 1024 * 1024;
+          result.totalSize += nestedSizeBytes;
+
+          if (this.options.debugMode) {
+            console.log(chalk.green(`    ✓ Nested copied: ${nestedResult.filesCount} files | ${nestedResult.totalSize} MB`));
+          }
+        } catch (nestedError) {
+          console.error(chalk.red(`    ✗ Failed to copy nested node_modules: ${nestedError.message}`));
+        }
+      } else {
+        if (this.options.debugMode) {
+          console.log(chalk.yellow(`  ⚠️  No nested node_modules found at: ${nestedNodeModulesSource}`));
+        }
+      }
 
       // Generate export map for this package
       result.exportMap = this.generateExportMap(pkgJson, destPath);
@@ -451,7 +655,6 @@ class PackageCollector {
   async getAllPackageFiles(packagePath) {
     const files = [];
     const skipDirs = new Set([
-      'node_modules',
       '.git',
       '.github',
       'dist',
@@ -654,7 +857,6 @@ class PackageCollector {
     };
   }
 }
-
 // ============================================================================
 // EXPORTS
 // ============================================================================

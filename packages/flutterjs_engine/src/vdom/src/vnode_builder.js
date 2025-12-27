@@ -10,7 +10,7 @@
 import { VNode } from './vnode.js';
 import { StyleConverter } from './style_converter.js';
 
-export class VNodeBuilder {
+ class VNodeBuilder {
   /**
    * Build VNode tree from widget
    * @param {Widget} widget - Flutter widget instance

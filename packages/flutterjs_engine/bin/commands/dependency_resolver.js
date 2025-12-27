@@ -112,8 +112,45 @@ class DependencyResolver {
   }
 
   /**
+   * ✅ NEW: Resolve actual file path for a package
+   */
+  resolvePackagePath(packageName) {
+    const scopedName = packageName.startsWith('@') 
+      ? packageName.split('/')[1] 
+      : packageName;
+
+    const searchPaths = [
+      // SDK structure: /src/runtime, /src/material, etc.
+      path.join(this.options.projectRoot, 'src', scopedName),
+      // Nested projects
+      path.join(this.options.projectRoot, '..', '..', 'src', scopedName),
+      // packages/ directory
+      path.join(this.options.projectRoot, 'packages', `flutterjs-${scopedName}`),
+      path.join(this.options.projectRoot, 'packages', scopedName),
+      // node_modules
+      path.join(this.options.projectRoot, 'node_modules', packageName),
+      // Fallback: npm registry path
+      path.join(this.options.projectRoot, 'node_modules', '@flutterjs', scopedName),
+    ];
+
+    for (const searchPath of searchPaths) {
+      if (fs.existsSync(searchPath) && fs.existsSync(path.join(searchPath, 'package.json'))) {
+        if (this.options.debugMode) {
+          console.log(chalk.gray(`    ✓ Found ${packageName} at: ${searchPath}`));
+        }
+        return searchPath;
+      }
+    }
+
+    if (this.options.debugMode) {
+      console.log(chalk.yellow(`    ⚠️  Could not find ${packageName}`));
+    }
+    return null;
+  }
+
+  /**
    * Main entry point - resolve all imports
-   * Simplified: No ImportResolver dependency
+   * ✅ UPDATED: Now resolves actual file paths
    */
   async resolveAll(importStatements = []) {
     if (this.options.debugMode) {
@@ -135,7 +172,7 @@ class DependencyResolver {
         console.log(`[DependencyResolver] Resolving ${imports.length} imports\n`);
       }
 
-      // ✅ SIMPLIFIED: Map imports to packages directly
+      // ✅ FIXED: Map imports to packages with ACTUAL PATHS
       const packages = new Map();
       const allFiles = [];
       const errors = [];
@@ -150,14 +187,21 @@ class DependencyResolver {
         const packageName = this.mapSourceToPackage(source);
 
         if (packageName) {
+          // ✅ NEW: Resolve actual file path
+          const actualPath = this.resolvePackagePath(packageName);
+
           packages.set(packageName, {
             source,
-            actualPath: packageName,
+            path: actualPath,           // ✅ Actual file path
+            actualPath: actualPath,     // ✅ For compatibility
             items,
             type: this.getPackageType(packageName),
-            resolved: true
+            resolved: actualPath !== null
           });
-          allFiles.push(packageName);
+          
+          if (actualPath) {
+            allFiles.push(actualPath);
+          }
         } else {
           errors.push(`Cannot resolve: ${source}`);
         }
