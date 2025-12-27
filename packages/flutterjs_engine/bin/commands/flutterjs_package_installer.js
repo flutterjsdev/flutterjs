@@ -673,7 +673,6 @@ class PackageInstaller {
   async getAllPackageFiles(packagePath) {
     const files = [];
     const ignore = new Set([
-      'node_modules',
       '.git',
       '.github',
       'build',
