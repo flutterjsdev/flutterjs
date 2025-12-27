@@ -1,16 +1,16 @@
 /**
  * ============================================================================
- * FlutterJS Package Collector - Complete Implementation
+ * Enhanced PackageCollector - Complete Package Collection & Copying
  * ============================================================================
- * 
- * Purpose:
- * - Copies resolved package files to output directory
- * - Creates index files for easy importing
- * - Generates export maps for code transformation
- * - Tracks copied files for bundling
- * - Validates and reports collection status
- * 
- * Location: cli/build/package-collector.js
+ *
+ * ✅ FIXED: Copies packages to correct node_modules/@flutterjs/ structure
+ *
+ * Responsibilities:
+ * 1. Collect resolved packages from DependencyResolver
+ * 2. Copy package files to dist/node_modules/@flutterjs/ structure
+ * 3. Generate export maps for each package
+ * 4. Create index files for easy importing
+ * 5. Report collection statistics
  */
 
 import fs from 'fs';
@@ -18,7 +18,7 @@ import path from 'path';
 import chalk from 'chalk';
 
 // ============================================================================
-// COLLECTION DATA TYPES
+// DATA TYPES
 // ============================================================================
 
 /**
@@ -26,13 +26,13 @@ import chalk from 'chalk';
  */
 class CopiedFile {
   constructor(source, dest, packageName, relative) {
-    this.source = source;              // Absolute source path
-    this.dest = dest;                  // Absolute dest path
-    this.package = packageName;        // '@flutterjs/material'
-    this.relative = relative;          // Relative path in package
-    this.size = 0;                     // File size in bytes
-    this.copied = false;               // Whether successfully copied
-    this.error = null;                 // Error if any
+    this.source = source;
+    this.dest = dest;
+    this.package = packageName;
+    this.relative = relative;
+    this.size = 0;
+    this.copied = false;
+    this.error = null;
   }
 
   getSizeKB() {
@@ -41,81 +41,128 @@ class CopiedFile {
 }
 
 /**
- * Collection result summary
+ * Package collection result
  */
-class CollectionResult {
-  constructor() {
-    this.copiedFiles = [];             // All copied files
-    this.failedFiles = [];             // Files that failed to copy
-    this.indexFiles = [];              // Generated index files
-    this.exportMaps = new Map();       // package -> export map
-    this.errors = [];
+class PackageCollectionResult {
+  constructor(packageName) {
+    this.packageName = packageName;
+    this.source = null;
+    this.version = null;
+    this.destinationPath = null;
+    this.copiedFiles = [];
+    this.failedFiles = [];
+    this.totalSize = 0;
+    this.exportMap = new Map();
+    this.indexFile = null;
+    this.success = false;
+    this.error = null;
     this.warnings = [];
-    this.totalSize = 0;                // Total bytes copied
-    this.startTime = null;
-    this.endTime = null;
   }
 
-  addCopiedFile(copiedFile) {
-    this.copiedFiles.push(copiedFile);
-    this.totalSize += copiedFile.size;
+  addCopiedFile(file) {
+    this.copiedFiles.push(file);
+    this.totalSize += file.size;
   }
 
-  addFailedFile(copiedFile) {
-    this.failedFiles.push(copiedFile);
-  }
-
-  addIndexFile(path, content) {
-    this.indexFiles.push({ path, content });
-  }
-
-  addExportMap(packageName, exports) {
-    this.exportMaps.set(packageName, exports);
-  }
-
-  addError(message) {
-    this.errors.push(message);
+  addFailedFile(filename, error) {
+    this.failedFiles.push({ filename, error });
   }
 
   addWarning(message) {
     this.warnings.push(message);
   }
 
-  get totalFiles() {
-    return this.copiedFiles.length + this.failedFiles.length;
-  }
-
-  get successCount() {
-    return this.copiedFiles.length;
-  }
-
-  get failureCount() {
-    return this.failedFiles.length;
-  }
-
-  get totalSizeMB() {
+  getTotalSizeMB() {
     return (this.totalSize / (1024 * 1024)).toFixed(2);
   }
 
-  hasFailed() {
-    return this.failedFiles.length > 0 || this.errors.length > 0;
+  toJSON() {
+    return {
+      package: this.packageName,
+      version: this.version,
+      success: this.success,
+      files: this.copiedFiles.length,
+      size: this.getTotalSizeMB() + ' MB',
+      failed: this.failedFiles.length,
+      destination: this.destinationPath,
+      error: this.error,
+      warnings: this.warnings
+    };
+  }
+}
+
+/**
+ * Complete collection session result
+ */
+class CollectionSession {
+  constructor() {
+    this.results = new Map();
+    this.totalPackages = 0;
+    this.successCount = 0;
+    this.failureCount = 0;
+    this.totalSize = 0;
+    this.totalFiles = 0;
+    this.globalErrors = [];
+    this.warnings = [];
+    this.startTime = Date.now();
+    this.endTime = null;
   }
 
-  toString() {
-    return `
-Copied ${this.successCount} files (${this.totalSizeMB} MB)
-Failed: ${this.failureCount}
-Index files: ${this.indexFiles.length}
-Errors: ${this.errors.length}
-Warnings: ${this.warnings.length}
-    `.trim();
+  addResult(result) {
+    this.results.set(result.packageName, result);
+    this.totalPackages++;
+
+    if (result.success) {
+      this.successCount++;
+      this.totalSize += result.totalSize;
+      this.totalFiles += result.copiedFiles.length;
+    } else {
+      this.failureCount++;
+    }
+
+    if (result.warnings.length > 0) {
+      this.warnings.push(...result.warnings);
+    }
+  }
+
+  addError(message) {
+    this.globalErrors.push(message);
+  }
+
+  addWarning(message) {
+    this.warnings.push(message);
+  }
+
+  getTotalSizeMB() {
+    return (this.totalSize / (1024 * 1024)).toFixed(2);
+  }
+
+  getDuration() {
+    return this.endTime ? this.endTime - this.startTime : 0;
+  }
+
+  isSuccessful() {
+    return this.failureCount === 0 && this.globalErrors.length === 0;
+  }
+
+  getReport() {
+    return {
+      total: this.totalPackages,
+      successful: this.successCount,
+      failed: this.failureCount,
+      files: this.totalFiles,
+      size: this.getTotalSizeMB() + ' MB',
+      duration: this.getDuration() + 'ms',
+      results: Array.from(this.results.values()).map(r => r.toJSON()),
+      errors: this.globalErrors,
+      warnings: this.warnings
+    };
   }
 }
 
 // ============================================================================
-// MAIN COLLECTOR CLASS
+// MAIN PACKAGE COLLECTOR CLASS
 // ============================================================================
-
 
 class PackageCollector {
   constructor(options = {}) {
@@ -128,154 +175,303 @@ class PackageCollector {
 
     this.projectRoot = this.options.projectRoot;
     this.outputDir = path.join(this.projectRoot, this.options.outputDir);
-  }
+    
+    // ✅ FIXED: Correct path to node_modules/@flutterjs
+    this.nodeModulesDir = path.join(this.outputDir, 'node_modules', '@flutterjs');
 
-  /**
-   * Main entry point - collect packages
-   * ✅ FIXED: Handle missing packages gracefully
-   */
-  async collect(resolution) {
-    try {
-      if (!resolution || !resolution.packages) {
-        return {
-          copiedFiles: [],
-          failedFiles: [],
-          indexFiles: [],
-          exportMaps: new Map(),
-          totalSize: 0,
-          errors: [],
-          warnings: ['No packages to collect']
-        };
-      }
+    // Package mappings: source folder -> @flutterjs package name
+    this.packageMappings = {
+      'flutterjs-runtime': 'runtime',
+      'flutterjs-analyzer': 'analyzer',
+      'flutterjs-core': 'core',
+      'flutterjs-material': 'material',
+      'flutterjs-widgets': 'widgets',
+      'flutterjs-cupertino': 'cupertino',
+      'flutterjs-vdom': 'vdom',
+      'flutterjs-rendering': 'rendering',
+      'flutterjs-painting': 'painting',
+      'flutterjs-foundation': 'foundation',
+      'flutterjs-animation': 'animation',
+    };
 
-      const copiedFiles = [];
-      const failedFiles = [];
-      const exportMaps = new Map();
-      let totalSize = 0;
-      const errors = [];
-      const warnings = [];
+    this.currentSession = null;
 
-      // ✅ FIX: Safely iterate over packages
-      if (resolution.packages instanceof Map) {
-        for (const [packageName, packageInfo] of resolution.packages) {
-          try {
-            // ✅ FIX: Check if package path exists before collecting
-            const packagePath = packageInfo.actualPath;
-
-            if (!packagePath || !fs.existsSync(packagePath)) {
-              // Package doesn't exist locally - skip it
-              if (this.options.debugMode) {
-                console.log(`[PackageCollector] ⚠️  Skipping missing package: ${packageName}`);
-              }
-              warnings.push(`Package not found: ${packageName} (will load from CDN)`);
-              continue;
-            }
-
-            // Collect files from this package
-            const collectionResult = await this.collectPackage(
-              packageName,
-              packagePath,
-              packageInfo
-            );
-
-            copiedFiles.push(...collectionResult.files);
-            totalSize += collectionResult.size;
-
-            // Add export map
-            if (collectionResult.exports) {
-              exportMaps.set(packageName, collectionResult.exports);
-            }
-
-          } catch (error) {
-            failedFiles.push(packageName);
-            errors.push(`Failed to collect ${packageName}: ${error.message}`);
-          }
-        }
-      }
-
-      return {
-        copiedFiles,
-        failedFiles,
-        indexFiles: [],
-        exportMaps,
-        totalSize,
-        errors,
-        warnings
-      };
-
-    } catch (error) {
-      // ✅ FIX: Return empty collection instead of crashing
-      return {
-        copiedFiles: [],
-        failedFiles: [],
-        indexFiles: [],
-        exportMaps: new Map(),
-        totalSize: 0,
-        errors: [error.message],
-        warnings: ['Collection failed, continuing without package files']
-      };
+    if (this.options.debugMode) {
+      console.log(chalk.gray('[PackageCollector] Initialized'));
+      console.log(chalk.gray(`  Project: ${this.projectRoot}`));
+      console.log(chalk.gray(`  Output: ${this.outputDir}`));
+      console.log(chalk.gray(`  NodeModules: ${this.nodeModulesDir}\n`));
     }
   }
 
   /**
-   * Collect files from a single package
+   * ========================================================================
+   * MAIN ENTRY POINT: Collect and Copy Packages
+   * ========================================================================
    */
-  async collectPackage(packageName, packagePath, packageInfo) {
-    const files = [];
-    let size = 0;
-    const exports = {};
+  async collectAndCopyPackages(resolution) {
+    const session = new CollectionSession();
+    this.currentSession = session;
+
+    if (this.options.debugMode) {
+      console.log(chalk.blue('\n📦 Package Collection & Copying Started'));
+      console.log(chalk.blue('='.repeat(70)));
+      console.log(chalk.gray(`Destination: ${this.nodeModulesDir}\n`));
+    }
 
     try {
-      // Create package output directory
-      const outputPath = path.join(this.outputDir, 'packages', packageName);
-      await fs.promises.mkdir(outputPath, { recursive: true });
+      // ✅ CRITICAL: Ensure node_modules/@flutterjs directory exists FIRST
+      await fs.promises.mkdir(this.nodeModulesDir, { recursive: true });
 
-      // Copy all files from package
-      const allFiles = await this.getAllFiles(packagePath);
+      if (!resolution || !resolution.packages || resolution.packages.size === 0) {
+        session.addWarning('No packages to collect');
+        session.endTime = Date.now();
+        
+        if (this.options.debugMode) {
+          console.log(chalk.yellow('⚠️  No packages to collect\n'));
+        }
+        
+        return session;
+      }
+
+      if (this.options.debugMode) {
+        console.log(chalk.yellow(`Found ${resolution.packages.size} packages to collect:\n`));
+        for (const [name] of resolution.packages) {
+          console.log(chalk.gray(`  • ${name}`));
+        }
+        console.log();
+      }
+
+      // Collect and copy each package
+      for (const [packageName, packageInfo] of resolution.packages) {
+        try {
+          const result = await this.collectPackage(packageName, packageInfo);
+          session.addResult(result);
+        } catch (error) {
+          session.addError(`Failed to collect ${packageName}: ${error.message}`);
+        }
+      }
+
+      session.endTime = Date.now();
+
+      if (this.options.debugMode) {
+        this.printCollectionReport(session);
+      }
+
+      return session;
+
+    } catch (error) {
+      session.addError(`Collection failed: ${error.message}`);
+      session.endTime = Date.now();
+
+      if (this.options.debugMode) {
+        console.log(chalk.red(`\n✗ Collection Error: ${error.message}\n`));
+      }
+
+      return session;
+    }
+  }
+
+  /**
+   * Collect and copy a single package
+   * ✅ FIXED: Copies to node_modules/@flutterjs/[scopedName]
+   */
+  async collectPackage(packageName, packageInfo) {
+    const result = new PackageCollectionResult(packageName);
+
+    try {
+      // Get package path
+      const sourcePath = packageInfo.path || packageInfo.actualPath;
+
+      if (!sourcePath || !fs.existsSync(sourcePath)) {
+        result.error = 'Package source not found';
+        if (this.options.debugMode) {
+          console.log(chalk.yellow(`⚠️  ${packageName}: Source not found`));
+        }
+        return result;
+      }
+
+      // Load package.json
+      const pkgJson = await this.loadPackageJson(sourcePath);
+      result.version = pkgJson.version || '1.0.0';
+      result.source = sourcePath;
+
+      // ✅ Get scoped name (runtime, material, core, etc.)
+      const scopedName = this.getScopedPackageName(packageName);
+      
+      // ✅ FIXED: Correct destination path
+      // node_modules/@flutterjs/runtime (not packages/flutterjs-runtime)
+      const destPath = path.join(this.nodeModulesDir, scopedName);
+      result.destinationPath = destPath;
+
+      if (this.options.debugMode) {
+        console.log(chalk.gray(`\nCopying ${packageName}...`));
+        console.log(chalk.gray(`  From: ${sourcePath}`));
+        console.log(chalk.gray(`  To:   ${destPath}`));
+      }
+
+      // Create destination directory
+      await fs.promises.mkdir(destPath, { recursive: true });
+
+      // Copy all package files
+      const copyResult = await this.copyPackageFiles(sourcePath, destPath);
+      result.copiedFiles = copyResult.files;
+      result.failedFiles = copyResult.failedFiles;
+      result.totalSize = copyResult.totalSize;
+
+      // Generate export map for this package
+      result.exportMap = this.generateExportMap(pkgJson, destPath);
+
+      // Create index file if doesn't exist
+      if (!fs.existsSync(path.join(destPath, 'index.js'))) {
+        const indexContent = this.generateIndexFile(pkgJson, result.exportMap);
+        const indexPath = path.join(destPath, 'index.js');
+        await fs.promises.writeFile(indexPath, indexContent, 'utf-8');
+        result.indexFile = indexPath;
+        
+        if (this.options.debugMode) {
+          console.log(chalk.gray(`  Generated: index.js`));
+        }
+      }
+
+      result.success = true;
+
+      if (this.options.debugMode) {
+        console.log(chalk.green(`✓ ${packageName}`));
+        console.log(chalk.gray(`  v${result.version} | ${result.copiedFiles.length} files | ${result.getTotalSizeMB()} MB`));
+      }
+
+    } catch (error) {
+      result.success = false;
+      result.error = error.message;
+
+      if (this.options.debugMode) {
+        console.log(chalk.red(`✗ ${packageName}: ${error.message}`));
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Load and validate package.json
+   */
+  async loadPackageJson(packagePath) {
+    const pkgJsonPath = path.join(packagePath, 'package.json');
+
+    if (!fs.existsSync(pkgJsonPath)) {
+      throw new Error('package.json not found');
+    }
+
+    try {
+      const content = await fs.promises.readFile(pkgJsonPath, 'utf-8');
+      return JSON.parse(content);
+    } catch (error) {
+      throw new Error(`Invalid package.json: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get scoped package name from full package name
+   * '@flutterjs/material' -> 'material'
+   * 'some-package' -> 'some-package'
+   */
+  getScopedPackageName(packageName) {
+    if (packageName.startsWith('@')) {
+      return packageName.split('/')[1];
+    }
+    return packageName;
+  }
+
+  /**
+   * ========================================================================
+   * FILE COPYING
+   * ========================================================================
+   */
+
+  /**
+   * Copy all files from package source to destination
+   */
+  async copyPackageFiles(sourcePath, destPath) {
+    const files = [];
+    const failedFiles = [];
+    let totalSize = 0;
+
+    try {
+      const allFiles = await this.getAllPackageFiles(sourcePath);
 
       for (const file of allFiles) {
         try {
-          const relativePath = path.relative(packagePath, file);
-          const destPath = path.join(outputPath, relativePath);
-          const destDir = path.dirname(destPath);
+          const relativePath = path.relative(sourcePath, file);
+          const destFile = path.join(destPath, relativePath);
+          const destFileDir = path.dirname(destFile);
 
           // Create directory if needed
-          await fs.promises.mkdir(destDir, { recursive: true });
+          await fs.promises.mkdir(destFileDir, { recursive: true });
 
           // Copy file
-          await fs.promises.copyFile(file, destPath);
-
-          files.push(destPath);
+          await fs.promises.copyFile(file, destFile);
 
           // Get file size
-          const stats = await fs.promises.stat(destPath);
-          size += stats.size;
+          const stats = await fs.promises.stat(destFile);
+          totalSize += stats.size;
+
+          const copiedFile = new CopiedFile(
+            file,
+            destFile,
+            sourcePath,
+            relativePath
+          );
+          copiedFile.size = stats.size;
+          copiedFile.copied = true;
+          files.push(copiedFile);
 
         } catch (error) {
-          // Skip individual file errors
-          continue;
+          failedFiles.push({
+            file: file,
+            error: error.message
+          });
         }
       }
 
-      return { files, size, exports };
-
     } catch (error) {
-      // Return partial result
-      return { files, size, exports };
+      failedFiles.push({
+        step: 'scan',
+        error: error.message
+      });
     }
+
+    return { files, failedFiles, totalSize };
   }
 
   /**
-   * Get all files from package directory
+   * Get all files from package directory recursively
+   * Filters out common non-essential directories
    */
-  async getAllFiles(packagePath) {
+  async getAllPackageFiles(packagePath) {
     const files = [];
-    const ignore = new Set([
+    const skipDirs = new Set([
       'node_modules',
       '.git',
+      '.github',
       'dist',
-      '.DS_Store',
-      'package-lock.json'
+      'build',
+      'coverage',
+      'test',
+      'tests',
+      '.next',
+      '.nuxt',
+      'cache'
+    ]);
+
+    const skipExtensions = new Set([
+      '.map',
+      '.ts',
+      '.tsx',
+      '.test.js',
+      '.spec.js',
+      '.env',
+      '.lock'
     ]);
 
     async function traverse(dir) {
@@ -283,27 +479,179 @@ class PackageCollector {
         const entries = await fs.promises.readdir(dir, { withFileTypes: true });
 
         for (const entry of entries) {
-          if (entry.name.startsWith('.') || ignore.has(entry.name)) {
+          // Skip hidden files and directories
+          if (entry.name.startsWith('.') && entry.name !== '.npmignore') {
+            continue;
+          }
+
+          // Skip specific directories
+          if (skipDirs.has(entry.name)) {
             continue;
           }
 
           const fullPath = path.join(dir, entry.name);
 
           if (entry.isFile()) {
-            if (/\.(js|json|css|html)$/i.test(entry.name)) {
+            // Include common source and config files
+            const ext = path.extname(entry.name);
+            if (
+              /\.(js|mjs|cjs|json|css|html|svg|md|woff|woff2|ttf|otf)$/i.test(entry.name) &&
+              !skipExtensions.has(ext)
+            ) {
               files.push(fullPath);
             }
           } else if (entry.isDirectory()) {
+            // Recursively traverse, including 'src' and other source directories
             await traverse(fullPath);
           }
         }
       } catch (error) {
-        // Skip unreadable directories
+        console.warn(chalk.yellow(`Warning: Could not read ${dir}`));
       }
     }
 
     await traverse(packagePath);
     return files;
+  }
+
+  /**
+   * ========================================================================
+   * EXPORT MAPS & INDEX FILES
+   * ========================================================================
+   */
+
+  /**
+   * Generate export map from package.json
+   */
+  generateExportMap(pkgJson, packagePath) {
+    const exports = new Map();
+
+    // Get main entry point
+    const main = pkgJson.main || 'index.js';
+    exports.set('default', main);
+
+    // Get named exports from 'exports' field
+    if (pkgJson.exports && typeof pkgJson.exports === 'object') {
+      for (const [exportName, exportPath] of Object.entries(pkgJson.exports)) {
+        if (exportName === '.') {
+          exports.set('default', exportPath);
+        } else {
+          const cleanName = exportName.replace(/^\.\//, '').split('/')[0];
+          if (cleanName) {
+            exports.set(cleanName, exportPath);
+          }
+        }
+      }
+    }
+
+    return exports;
+  }
+
+  /**
+   * Generate index.js file for package if it doesn't exist
+   */
+  generateIndexFile(pkgJson, exportMap) {
+    let content = `/**
+ * Generated index for ${pkgJson.name}
+ * Auto-generated by PackageCollector
+ */
+
+`;
+
+    const main = pkgJson.main || 'index.js';
+
+    content += `// Main export\n`;
+    content += `export * from './${main.replace(/\.js$/, '')}';\n`;
+    content += `export { default } from './${main.replace(/\.js$/, '')}';\n\n`;
+
+    if (exportMap.size > 1) {
+      content += `// Named exports\n`;
+      for (const [name, filePath] of exportMap) {
+        if (name !== 'default') {
+          const cleanPath = filePath.replace(/\.js$/, '').replace(/^\.\//, '');
+          content += `export * as ${name} from './${cleanPath}';\n`;
+        }
+      }
+    }
+
+    return content;
+  }
+
+  /**
+   * ========================================================================
+   * REPORTING
+   * ========================================================================
+   */
+
+  /**
+   * Print collection report
+   */
+  printCollectionReport(session) {
+    console.log(chalk.blue('\n' + '='.repeat(70)));
+    console.log(chalk.blue('PACKAGE COLLECTION REPORT'));
+    console.log(chalk.blue('='.repeat(70)));
+
+    const report = session.getReport();
+
+    console.log(chalk.gray(`\nPackages:`));
+    console.log(chalk.gray(`  Total: ${report.total}`));
+    console.log(chalk.green(`  Successful: ${report.successful}`));
+    if (report.failed > 0) {
+      console.log(chalk.red(`  Failed: ${report.failed}`));
+    }
+
+    console.log(chalk.gray(`\nFiles & Size:`));
+    console.log(chalk.gray(`  Files: ${report.files}`));
+    console.log(chalk.gray(`  Size: ${report.size}`));
+
+    console.log(chalk.gray(`\nTime: ${report.duration}`));
+
+    if (report.errors.length > 0) {
+      console.log(chalk.red(`\nErrors: ${report.errors.length}`));
+      report.errors.forEach(err => {
+        console.log(chalk.red(`  • ${err}`));
+      });
+    }
+
+    if (report.warnings.length > 0) {
+      console.log(chalk.yellow(`\nWarnings: ${report.warnings.length}`));
+      report.warnings.forEach(warn => {
+        console.log(chalk.yellow(`  • ${warn}`));
+      });
+    }
+
+    if (session.isSuccessful()) {
+      console.log(chalk.green(`\n✓ Collection successful!\n`));
+    } else {
+      console.log(chalk.red(`\n✗ Collection completed with issues\n`));
+    }
+
+    console.log(chalk.blue('='.repeat(70) + '\n'));
+  }
+
+  /**
+   * Get session report
+   */
+  getSessionReport() {
+    return this.currentSession ? this.currentSession.getReport() : null;
+  }
+
+  /**
+   * Get collection statistics
+   */
+  getStats() {
+    if (!this.currentSession) {
+      return null;
+    }
+
+    return {
+      totalPackages: this.currentSession.totalPackages,
+      successful: this.currentSession.successCount,
+      failed: this.currentSession.failureCount,
+      totalFiles: this.currentSession.totalFiles,
+      totalSize: this.currentSession.getTotalSizeMB() + ' MB',
+      duration: this.currentSession.getDuration() + 'ms'
+    };
   }
 }
 
@@ -313,6 +661,9 @@ class PackageCollector {
 
 export {
   PackageCollector,
-  CopiedFile,
-  CollectionResult
+  PackageCollectionResult,
+  CollectionSession,
+  CopiedFile
 };
+
+export default PackageCollector;

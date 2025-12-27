@@ -33,7 +33,8 @@
     "commander": "^14.0.2",
     "@flutterjs/analyzer": "file:./src/analyzer",
     "@flutterjs/runtime": "file:./src/runtime",
-    "@flutterjs/vdom":"file:./src/vdom"
+    "@flutterjs/vdom": "file:./src/vdom",
+    "@flutterjs/material": "file:./package/material"
   },
   "keywords": [
     "flutter",

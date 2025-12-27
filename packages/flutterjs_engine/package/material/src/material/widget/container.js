@@ -768,7 +768,6 @@ export {
   BoxDecoration,
   Decoration,
   DecorationPosition,
-  Align,
   Padding,
   ClipPath,
   ConstrainedBox,
