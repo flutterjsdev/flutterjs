@@ -196,50 +196,86 @@ class PackageResolver {
   }
 
   /**
-   * ✅ NEW: Search upward for SDK packages directory
-   * Looks for @flutterjs/runtime, @flutterjs/core, etc.
+   * ✅ FIXED: Search for SDK packages including flutterjs_engine structure
    */
   findSDKRootUpward(startPath) {
     let current = startPath;
     const visited = new Set();
 
-    // Search up to 10 levels
     for (let i = 0; i < 10; i++) {
       if (visited.has(current)) break;
       visited.add(current);
 
-      // Try multiple possible SDK locations
-      const candidates = [
-        path.join(current, 'node_modules', '@flutterjs'),
-        path.join(current, 'packages'),
-        path.join(current, 'sdk', 'packages')
-      ];
+      // ✅ CORRECTED: Check packages/flutterjs_engine/src and packages/flutterjs_engine/package
 
-      for (const candidate of candidates) {
-        if (fs.existsSync(candidate)) {
-          // Check if it actually contains @flutterjs packages
-          const hasRuntime = fs.existsSync(path.join(candidate, 'runtime'));
-          const hasCore = fs.existsSync(path.join(candidate, 'core'));
-          const hasMaterial = fs.existsSync(path.join(candidate, 'material'));
+      // Check packages/flutterjs_engine/src/
+      const srcPath = path.join(current, 'packages', 'flutterjs_engine', 'src');
+      if (fs.existsSync(srcPath)) {
+        const contents = fs.readdirSync(srcPath);
+        const hasPackages = contents.some(item => {
+          const itemPath = path.join(srcPath, item);
+          return fs.existsSync(path.join(itemPath, 'package.json'));
+        });
 
-          if (hasRuntime || hasCore || hasMaterial) {
-            if (this.debugMode) {
-              console.log(`[PackageResolver] Found SDK at: ${candidate}`);
-            }
-            return candidate;
+        if (hasPackages) {
+          if (this.debugMode) {
+            console.log(`[PackageResolver] Found SDK packages at: ${srcPath}`);
           }
+          return srcPath;
         }
       }
 
-      // Move up one directory
+      // Check packages/flutterjs_engine/package/
+      const packagePath = path.join(current, 'packages', 'flutterjs_engine', 'package');
+      if (fs.existsSync(packagePath)) {
+        const contents = fs.readdirSync(packagePath);
+        const hasPackages = contents.some(item => {
+          const itemPath = path.join(packagePath, item);
+          return fs.existsSync(path.join(itemPath, 'package.json'));
+        });
+
+        if (hasPackages) {
+          if (this.debugMode) {
+            console.log(`[PackageResolver] Found SDK packages at: ${packagePath}`);
+          }
+          return packagePath;
+        }
+      }
+
+      // Fallback: Check /src at project root
+      const projectSrcPath = path.join(current, 'src');
+      if (fs.existsSync(projectSrcPath)) {
+        const contents = fs.readdirSync(projectSrcPath);
+        const hasPackages = contents.some(item => {
+          const itemPath = path.join(projectSrcPath, item);
+          return fs.existsSync(path.join(itemPath, 'package.json'));
+        });
+
+        if (hasPackages) {
+          if (this.debugMode) {
+            console.log(`[PackageResolver] Found SDK packages at: ${projectSrcPath}`);
+          }
+          return projectSrcPath;
+        }
+      }
+
+      // Check node_modules
+      const nodeModulesPath = path.join(current, 'node_modules', '@flutterjs');
+      if (fs.existsSync(nodeModulesPath)) {
+        if (this.debugMode) {
+          console.log(`[PackageResolver] Found SDK at: ${nodeModulesPath}`);
+        }
+        return nodeModulesPath;
+      }
+
       const parent = path.dirname(current);
-      if (parent === current) break; // Reached filesystem root
+      if (parent === current) break;
       current = parent;
     }
 
-    // Fallback to original logic
     return path.join(startPath, 'node_modules', '@flutterjs');
   }
+
 
   /**
    * Resolve package from any source (auto-detect)
@@ -716,7 +752,122 @@ class PackageInstaller {
     await traverse(packagePath);
     return files;
   }
+  async getAllPackageFiles(packagePath) {
+    const files = [];
 
+    // ✅ FIXED: Only skip truly unnecessary directories
+    // Don't skip 'dist', 'src', 'lib' - these contain actual code!
+    const skipDirs = new Set([
+      // Build/version control - skip these
+      '.git',
+      '.github',
+      'coverage',
+      'node_modules',
+      '.next',
+      '.nuxt',
+
+      // Testing - skip these (usually)
+      'test',
+      'tests',
+      '__tests__',
+
+      // Don't skip: dist, src, lib, build - these have real code!
+    ]);
+
+    const skipFiles = new Set([
+      '.DS_Store',
+      'thumbs.db',
+      '.env',
+      '.env.local',
+      '.npmignore',
+      '.gitignore',
+      'package-lock.json',
+      'yarn.lock',
+      'pnpm-lock.yaml',
+      'README.md',
+      'README.txt',
+      'LICENSE',
+      'CHANGELOG.md',
+      'Makefile',
+      '.editorconfig',
+    ]);
+
+    const skipExtensions = new Set([
+      '.map',           // Source maps
+      '.test.js',       // Test files
+      '.spec.js',       // Test files
+      '.test.ts',       // Test files
+      '.spec.ts',       // Test files
+    ]);
+
+    async function traverse(dir, depth = 0) {
+      const indent = '  '.repeat(depth);
+
+      try {
+        if (!fs.existsSync(dir)) {
+          console.warn(chalk.yellow(`${indent}⚠️  Directory doesn't exist: ${dir}`));
+          return;
+        }
+
+        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          const relPath = path.relative(packagePath, fullPath);
+
+          // Skip hidden files and directories (except .npmignore, etc)
+          if (entry.name.startsWith('.')) {
+            if (entry.name === '.npmignore' || entry.name === '.npmrc') {
+              // Include these config files
+            } else {
+              continue;
+            }
+          }
+
+          // Skip specific files
+          if (skipFiles.has(entry.name)) {
+            continue;
+          }
+
+          // Skip specific directories
+          if (entry.isDirectory() && skipDirs.has(entry.name)) {
+            continue;
+          }
+
+          if (entry.isFile()) {
+            // ✅ Include all relevant file types
+            const ext = path.extname(entry.name);
+            const isRelevantFile = /\.(js|mjs|cjs|ts|tsx|jsx|json|css|scss|less|html|svg|png|jpg|jpeg|gif|woff|woff2|ttf|otf|eot|md|txt)$/i.test(entry.name);
+            const isNotSkipped = !skipExtensions.has(ext);
+
+            if (isRelevantFile && isNotSkipped) {
+              files.push(fullPath);
+
+              // Debug logging (optional)
+              if (false) {  // Set to true for debugging
+                console.log(chalk.gray(`${indent}  ✓ ${relPath}`));
+              }
+            }
+          } else if (entry.isDirectory()) {
+            // ✅ RECURSIVELY traverse ALL directories
+            // This will enter src/, dist/, lib/, etc.
+            if (false) {  // Set to true for debugging
+              console.log(chalk.gray(`${indent}  📁 ${relPath}/`));
+            }
+
+            await traverse(fullPath, depth + 1);
+          }
+        }
+      } catch (error) {
+        console.warn(chalk.yellow(`${indent}⚠️  Could not read directory ${dir}: ${error.message}`));
+      }
+    }
+
+    // Start traversal from the root package directory
+    await traverse(packagePath);
+
+    return files;
+  }
   /**
    * Generate installation report
    */

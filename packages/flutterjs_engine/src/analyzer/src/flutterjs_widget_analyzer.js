@@ -8,7 +8,7 @@
  * These are the same thing!
  */
 
-import { getLogger  } from './flutterjs_logger.js';
+import { getLogger } from './flutterjs_logger.js';
 
 class WidgetAnalyzer {
   constructor(ast, options = {}) {
@@ -17,7 +17,7 @@ class WidgetAnalyzer {
       strict: false,
       ...options,
     };
-  this.logger = getLogger().createComponentLogger('WidgetAnalyzer');
+    this.logger = getLogger().createComponentLogger('WidgetAnalyzer');
     this.widgets = new Map();        // key: className, value: Widget object
     this.functions = new Map();      // key: functionName, value: Function object
     this.imports = [];
@@ -302,17 +302,24 @@ class WidgetAnalyzer {
   /**
    * Phase 3: Extract imports
    */
+  // In flutterjs_widget_analyzer.js
   extractImports() {
     if (!this.ast.body) return;
 
     this.ast.body.forEach((node) => {
       if (node.type === 'ImportDeclaration') {
         const source = node.source?.value;
-        const items = node.specifiers?.map((spec) => spec.imported?.name) || [];
+
+        // ✅ Get all imported items (handles multi-line properly)
+        const items = node.specifiers?.map((spec) => {
+          // Use the local name (after 'as')
+          return spec.local?.name || spec.imported?.name;
+        }) || [];
 
         this.imports.push({
           source,
           items,
+          specifiers: node.specifiers, // Keep raw specifiers for later
         });
 
         this.externalDependencies.add(source);

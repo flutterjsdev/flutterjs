@@ -112,38 +112,41 @@ class DependencyResolver {
   }
 
   /**
-   * ✅ NEW: Resolve actual file path for a package
+   * ✅ FIXED: Resolve actual file path for a package
+   * Includes flutterjs_engine/package/ structure
    */
   resolvePackagePath(packageName) {
-    const scopedName = packageName.startsWith('@') 
-      ? packageName.split('/')[1] 
+    const scopedName = packageName.startsWith('@')
+      ? packageName.split('/')[1]
       : packageName;
 
+    // ✅ CORRECTED: packages/flutterjs_engine with both src/ and package/
     const searchPaths = [
-      // SDK structure: /src/runtime, /src/material, etc.
+      // HIGH PRIORITY: Both locations under flutterjs_engine
+      path.join(this.options.projectRoot, 'packages', 'flutterjs_engine', 'src', scopedName),
+      path.join(this.options.projectRoot, 'packages', 'flutterjs_engine', 'package', scopedName),
+
+      // Fallback
       path.join(this.options.projectRoot, 'src', scopedName),
-      // Nested projects
-      path.join(this.options.projectRoot, '..', '..', 'src', scopedName),
-      // packages/ directory
       path.join(this.options.projectRoot, 'packages', `flutterjs-${scopedName}`),
       path.join(this.options.projectRoot, 'packages', scopedName),
-      // node_modules
+
+      // Node modules
       path.join(this.options.projectRoot, 'node_modules', packageName),
-      // Fallback: npm registry path
       path.join(this.options.projectRoot, 'node_modules', '@flutterjs', scopedName),
     ];
 
     for (const searchPath of searchPaths) {
       if (fs.existsSync(searchPath) && fs.existsSync(path.join(searchPath, 'package.json'))) {
         if (this.options.debugMode) {
-          console.log(chalk.gray(`    ✓ Found ${packageName} at: ${searchPath}`));
+          console.log(chalk.green(`✓ Found ${packageName} at: ${searchPath}`));
         }
         return searchPath;
       }
     }
 
     if (this.options.debugMode) {
-      console.log(chalk.yellow(`    ⚠️  Could not find ${packageName}`));
+      console.log(chalk.red(`✗ Package not found: ${packageName}`));
     }
     return null;
   }
@@ -198,7 +201,7 @@ class DependencyResolver {
             type: this.getPackageType(packageName),
             resolved: actualPath !== null
           });
-          
+
           if (actualPath) {
             allFiles.push(actualPath);
           }

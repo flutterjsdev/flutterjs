@@ -5,31 +5,30 @@
  */
 
 export const resolverConfig = {
-  // Framework type
-  frameworkType: 'flutter-js',
-
-  // Project root (usually process.cwd())
-  // projectRoot: '/path/to/project',
-
-  // Fail on unresolved imports?
+  frameworkType: 'flutterjs',
   ignoreUnresolved: false,
-
-  // Enable package cache checking (future feature)
   cacheEnabled: false,
 
-  // Custom package mappings (@package:xyz -> actual path)
+  // ✅ CORRECTED: Specify exact locations for each package
   customPackageMappings: {
-    '@package:ui': './packages/ui',
-    '@package:models': './packages/models',
-    '@package:utils': './packages/utils',
-    '@package:services': './packages/services',
-    '@package:theme': './packages/theme',
-    '@package:constants': './packages/constants',
+    // Under packages/flutterjs_engine/src/
+    '@flutterjs/runtime': './flutterjs_engine/src/runtime',
+    '@flutterjs/vdom': './flutterjs_engine/src/vdom',
+
+    // Under packages/flutterjs_engine/package/
+    '@flutterjs/material': './flutterjs_engine/package/material',
+    '@flutterjs/http': './flutterjs_engine/package/http',
+
+    // Add others as needed
+    '@flutterjs/core': './flutterjs_engine/src/core',
+    '@flutterjs/foundation': './flutterjs_engine/src/foundation',
+    '@flutterjs/widgets': './flutterjs_engine/package/widgets',
   },
 
-  // Local search paths (where to look for local imports)
-  // Order matters - first match wins
+  // ✅ CORRECTED: Search paths
   localSearchPaths: [
+    'packages/flutterjs_engine/src',           // runtime, vdom
+    'packages/flutterjs_engine/package',       // material, http
     'src',
     'lib',
     'packages',
@@ -40,22 +39,15 @@ export const resolverConfig = {
     '.',
   ],
 
-  // Package aliases (alternatives to @package:)
   packageAliases: {
-    'flutter': '@package:flutter',
-    'material': '@package:material',
-    'cupertino': '@package:cupertino',
+    'flutter': '@flutterjs/material',
+    'material': '@flutterjs/material',
+    'http': '@flutterjs/http',
   },
 
-  // Strict mode options
   strict: {
-    // Fail if import doesn't match expected pattern
     enforceNamingConventions: false,
-
-    // Require explicit versions
     requireVersions: false,
-
-    // Warn about circular imports
     detectCircularImports: true,
   },
 };
@@ -128,7 +120,7 @@ export const presets = {
       "@flutterjs/runtime": "file:../../../../runtime",
       "@flutterjs/vdom": "file:../../../../vdom",
       "@flutterjs/analyzer": "file:../../../../analyzer",
-      '@flutterjs:material': 'file:../../../../../package/material',
+      '@flutterjs/material': 'file:../../../../../package/material',
     },
   },
 };

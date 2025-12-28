@@ -205,6 +205,9 @@ class Parser {
     while (!this.isAtEnd()) {
       try {
         const stmt = this.parseTopLevel();
+        if (stmt && stmt.type === 'ImportDeclaration') {
+          console.log('DEBUG - ImportDeclaration:', JSON.stringify(stmt, null, 2));
+        }
         if (stmt) {
           body.push(stmt);
         }
@@ -278,40 +281,202 @@ class Parser {
     return token.type === TokenType.OPERATOR && token.value === value;
   }
 
+  /**
+ * FIXED: parseImportDeclaration() in flutterjs_parser.js
+ * Handles multi-line imports with comments and proper spacing
+ * 
+ * Replace the entire parseImportDeclaration() method with this version
+ */
+
   parseImportDeclaration() {
+    const logger = getLogger().createComponentLogger('Parser.parseImportDeclaration');
+    logger.startSession('parseImportDeclaration');
+
     const startLocation = this.getLocation();
     const specifiers = [];
 
-    if (this.isPunctuation('{')) {
-      this.advance();
-      while (!this.isPunctuation('}') && !this.isAtEnd()) {
-        const name = this.consume(TokenType.IDENTIFIER, 'Expected identifier').value;
-        const imported = new Identifier(name);
-        let local = imported;
+    logger.trace(`  Starting import parse at token: ${this.peek().value}`);
 
-        if (this.isKeyword('as')) {
-          this.advance();
-          const localName = this.consume(TokenType.IDENTIFIER, 'Expected identifier').value;
-          local = new Identifier(localName);
+    // Case 1: Named imports { x, y, z }
+    if (this.isPunctuation('{')) {
+      logger.trace(`  Found opening brace, parsing named imports...`);
+      this.advance();
+
+      // ✅ FIX #1: Skip comments right after opening brace
+      this.skipComments();
+
+      while (!this.isPunctuation('}') && !this.isAtEnd()) {
+        // ✅ FIX #2: Skip comments before checking for closing brace
+        this.skipComments();
+
+        // Check if we hit the closing brace (after skipping comments)
+        if (this.isPunctuation('}')) {
+          logger.trace(`  Found closing brace, exiting loop`);
+          break;
         }
 
+        // Expect an identifier
+        if (!this.check(TokenType.IDENTIFIER)) {
+          logger.warn(`  Expected identifier but got: ${this.peek().value}`);
+          this.advance();
+          continue;
+        }
+
+        // Get the imported name
+        const importedName = this.consume(TokenType.IDENTIFIER, 'Expected identifier').value;
+        const imported = new Identifier(importedName);
+        logger.trace(`    Imported: ${importedName}`);
+
+        let local = imported; // Default: local name = imported name
+
+        // ✅ FIX #3: Skip comments before checking for 'as'
+        this.skipComments();
+
+        // Check for 'as' alias
+        if (this.isKeyword('as')) {
+          logger.trace(`    Found 'as' keyword`);
+          this.advance();
+
+          // ✅ FIX #4: Skip comments after 'as'
+          this.skipComments();
+
+          const localName = this.consume(TokenType.IDENTIFIER, 'Expected identifier after as').value;
+          local = new Identifier(localName);
+          logger.trace(`      Local name: ${localName}`);
+        }
+
+        // Add specifier to list
         specifiers.push(new ImportSpecifier(imported, local));
 
-        if (!this.isPunctuation(',')) break;
-        this.advance();
+        // ✅ FIX #5: Skip comments before checking for comma
+        this.skipComments();
+
+        // Check for comma separator
+        if (this.isPunctuation(',')) {
+          logger.trace(`    Found comma, continuing...`);
+          this.advance();
+
+          // ✅ FIX #6: Skip comments after comma
+          this.skipComments();
+
+          // Continue to next item
+          continue;
+        } else {
+          logger.trace(`    No comma, expected closing brace next`);
+          // No more items, should see closing brace
+          break;
+        }
       }
+
+      logger.trace(`  Parsed ${specifiers.length} named imports`);
+
+      // Consume closing brace
       this.consume(TokenType.PUNCTUATION, 'Expected }');
     }
 
+    // Case 2: Default import or default + named
+    // import MyDefault from 'module'
+    // import MyDefault, { x, y } from 'module'
+    else if (this.check(TokenType.IDENTIFIER) && this.peekAhead(1).value !== 'from') {
+      logger.trace(`  Found identifier without opening brace, parsing default import...`);
+
+      const defaultName = this.consume(TokenType.IDENTIFIER, 'Expected identifier').value;
+      const imported = new Identifier(defaultName);
+      const local = new Identifier(defaultName);
+      specifiers.push(new ImportSpecifier(imported, local));
+
+      logger.trace(`  Default import: ${defaultName}`);
+
+      // Check for comma and additional named imports
+      this.skipComments();
+      if (this.isPunctuation(',')) {
+        logger.trace(`  Found comma after default import, checking for named imports...`);
+        this.advance();
+
+        this.skipComments();
+        if (this.isPunctuation('{')) {
+          logger.trace(`  Found opening brace, parsing additional named imports...`);
+          this.advance();
+
+          this.skipComments();
+          while (!this.isPunctuation('}') && !this.isAtEnd()) {
+            this.skipComments();
+
+            if (this.isPunctuation('}')) break;
+
+            if (!this.check(TokenType.IDENTIFIER)) {
+              this.advance();
+              continue;
+            }
+
+            const name = this.consume(TokenType.IDENTIFIER, 'Expected identifier').value;
+            const imported2 = new Identifier(name);
+            let local2 = imported2;
+
+            this.skipComments();
+
+            if (this.isKeyword('as')) {
+              this.advance();
+              this.skipComments();
+              const localName = this.consume(TokenType.IDENTIFIER, 'Expected identifier after as').value;
+              local2 = new Identifier(localName);
+            }
+
+            specifiers.push(new ImportSpecifier(imported2, local2));
+
+            this.skipComments();
+
+            if (this.isPunctuation(',')) {
+              this.advance();
+              this.skipComments();
+              continue;
+            } else {
+              break;
+            }
+          }
+
+          this.consume(TokenType.PUNCTUATION, 'Expected }');
+        }
+      }
+    }
+
+    // ✅ FIX #7: Skip comments before 'from'
+    this.skipComments();
+
+    // Consume 'from' keyword
     this.consume(TokenType.KEYWORD, 'Expected from');
+
+    // ✅ FIX #8: Skip comments before module path string
+    this.skipComments();
+
+    // Get the module/source path
+    const modulePathToken = this.consume(TokenType.STRING, 'Expected module path string');
     const source = new Literal(
-      this.consume(TokenType.STRING, 'Expected string').value,
-      '',
+      modulePathToken.value,
+      modulePathToken.value,
       'string'
     );
+
+    logger.trace(`  Module path: ${source.value}`);
+    logger.trace(`  Total specifiers: ${specifiers.length}`);
+
+    // ✅ FIX #9: Consume statement end (handles semicolon and trailing comments)
     this.consumeStatementEnd();
 
+    logger.trace(`[parseImportDeclaration] SUCCESS\n`);
     return new ImportDeclaration(specifiers, source, startLocation);
+  }
+
+  /**
+   * Helper method: Check if lookahead token matches (needed for peekAhead)
+   * Add this if not already present
+   */
+  peekAhead(n = 1) {
+    const pos = this.current + n;
+    if (pos >= this.tokens.length) {
+      return this.tokens[this.tokens.length - 1];
+    }
+    return this.tokens[pos];
   }
 
   parseClassDeclaration() {
@@ -1141,14 +1306,7 @@ class Parser {
     return this.tokens[this.current];
   }
 
-  peekAhead(n = 1) {
-    const pos = this.current + n;
-    if (pos >= this.tokens.length) {
-      return this.tokens[this.tokens.length - 1];
-    }
-    return this.tokens[pos];
-  }
-
+ 
   previous() {
     return this.tokens[this.current - 1];
   }

@@ -193,57 +193,46 @@ class Analyzer {
   /**
    * Step 5: Resolve all imports
    */
+  // In analyzer.js analyzeImports()
   analyzeImports() {
     const start = Date.now();
     const logger = this.log;
 
     try {
-      if (!this.results.widgets) {
-        logger.warn('No widgets found, skipping import analysis');
+      if (!this.results.source) {
+        logger.warn('No source code found, skipping import analysis');
         return;
       }
 
-      const imports = this.results.widgets.imports || [];
+      logger.info('Processing imports from AST (parsed in Step 3)...');
 
-      if (imports.length === 0) {
-        logger.info('No imports found in source');
-        this.results.importResolution = {
-          imports: {
-            resolved: [],
-            unresolved: [],
-            errors: [],
-          },
-          summary: {
-            total: 0,
-            resolved: 0,
-            unresolved: 0,
-            errors: 0,
-            resolutionRate: 'N/A',
-            bySource: { framework: 0, local: 0, cache: 0 },
-          },
-        };
-        return;
+      // ✅ Use widget analyzer's already-extracted imports
+      const parsedImports = this.results.widgets?.imports || [];
+
+      if (logger) {
+        logger.info(`Found ${parsedImports.length} import statements`);
+        parsedImports.forEach((imp, idx) => {
+          logger.debug(`  📍 ${imp.source} → [${imp.items.join(', ')}]`);
+        });
       }
 
-      logger.info(`Found ${imports.length} imports to resolve`);
+      // ✅ Now use ImportResolver only for RESOLUTION
+      // (finding where modules actually are)
+      const resolution = this.importResolver.resolveImports(parsedImports);
 
-      // Resolve imports
-      const resolution = this.importResolver.resolveImports(
-        imports.map((imp) => ({
-          source: imp.source,
-          items: imp.items,
-        }))
-      );
+      this.results.importResolution = {
+        imports: resolution.imports,
+        summary: resolution.summary,
+        parsed: parsedImports, // From AST parsing
+      };
 
-      // Store resolution results
-      this.results.importResolution = resolution;
+      // Log statistics
+      logger.info(`Resolved: ${resolution.summary.resolved}`);
+      logger.info(`Unresolved: ${resolution.summary.unresolved}`);
+      logger.debug(`Framework packages: ${resolution.summary.bySource.framework}`);
+      logger.debug(`Local imports: ${resolution.summary.bySource.local}`);
 
-      // Log resolution statistics
-      logger.debug(`Resolved: ${resolution.imports.resolved.length}`);
-      logger.debug(`Unresolved: ${resolution.imports.unresolved.length}`);
-      logger.debug(`Errors: ${resolution.imports.errors.length}`);
-
-      // Check for errors (unless ignoreUnresolvedImports is set)
+      // Check for errors
       if (!this.options.ignoreUnresolvedImports &&
         resolution.imports.errors.length > 0) {
         throw new Error(
@@ -510,6 +499,11 @@ class Analyzer {
   /**
    * Get analysis results - FIXED: Include logger info
    */
+  /**
+  * FIXED: getResults() method in analyzer.js
+  * Now uses importResolution.parsed instead of widgets.imports
+  */
+
   getResults() {
     // Extract widget arrays by type
     const allWidgets = this.results.widgets?.widgets || [];
@@ -539,9 +533,15 @@ class Analyzer {
       }
     });
 
-    // ✅ FIX: Return actual imports array, not summary stats
-    // Get imports from WidgetAnalyzer results (Phase 1)
-    const importsArray = this.results.widgets?.imports || [];
+    // ✅ FIXED: Get imports from importResolution.parsed (multi-line support)
+    // This now correctly parses ALL imports (single & multi-line)
+    const parsedImports = this.results.importResolution?.parsed || [];
+
+    // Build imports object: { source: [items] }
+    const importsObj = {};
+    parsedImports.forEach(imp => {
+      importsObj[imp.source] = imp.items;
+    });
 
     return {
       source: {
@@ -574,19 +574,26 @@ class Analyzer {
           state: stateWidgets.length,
         },
       },
-      // ✅ FIXED: Return the actual imports array from Phase 1 (WidgetAnalyzer)
-      // NOT the summary stats from import resolution
-      imports: this.options.includeImports ? importsArray : null,
 
-      // Optional: Also provide import resolution stats if needed (for reference)
+      // ✅ FIXED: Return ALL imports from source parsing (not just widgets.imports)
+      // Now includes both single-line and multi-line imports
+      imports: this.options.includeImports ? importsObj : null,
+
+      // ✅ FIXED: Return full import resolution details
       importResolution: this.options.includeImports ? {
+        parsed: parsedImports,
         summary: this.results.importResolution?.summary || {
-          total: importsArray.length,
-          resolved: 0,
-          unresolved: importsArray.length,
-          errors: 0,
-          resolutionRate: '0%'
-        }
+          total: parsedImports.length,
+          resolved: this.results.importResolution?.summary?.resolved || 0,
+          unresolved: this.results.importResolution?.summary?.unresolved || 0,
+          errors: this.results.importResolution?.summary?.errors || 0,
+          resolutionRate: this.results.importResolution?.summary?.resolutionRate || 'N/A',
+          bySource: this.results.importResolution?.summary?.bySource || {
+            framework: 0,
+            local: 0,
+            cache: 0,
+          },
+        },
       } : null,
 
       state: {
@@ -597,6 +604,7 @@ class Analyzer {
         eventHandlers: this.results.state?.eventHandlers?.length || 0,
         validationIssues: this.results.state?.validationResults?.length || 0,
       },
+
       context: this.options.includeContext
         ? {
           inheritedWidgets: this.results.context?.inheritedWidgets?.length || 0,
@@ -605,6 +613,7 @@ class Analyzer {
           contextAccessPoints: this.results.context?.contextAccessPoints?.length || 0,
         }
         : null,
+
       ssr: this.options.includeSsr
         ? {
           compatibility: this.results.ssr?.overallCompatibility || 'unknown',
@@ -616,6 +625,7 @@ class Analyzer {
           estimatedEffort: this.results.ssr?.estimatedEffort || 'unknown',
         }
         : null,
+
       timings: this.timings,
       report: this.results.report,
       logger: this.logger.getReport(),
