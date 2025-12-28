@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/horizontal_direction.js"],
+  "sourcesContent": ["/**\r\n * HorizontalDirection - Direction of horizontal axis\r\n * Controls the order in which children are laid out horizontally\r\n */\r\nconst HorizontalDirection = Object.freeze({\r\n  // Children are laid out from left to right (default, LTR)\r\n  ltr: 'ltr',\r\n\r\n  // Children are laid out from right to left (RTL)\r\n  rtl: 'rtl'\r\n});\r\nexport { HorizontalDirection };"],
+  "mappings": "AAIA,MAAMA,EAAsB,OAAO,OAAO,CAExC,IAAK,MAGL,IAAK,KACP,CAAC",
+  "names": ["HorizontalDirection"]
+}

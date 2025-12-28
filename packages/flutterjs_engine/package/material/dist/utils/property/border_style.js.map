@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/border_style.js"],
+  "sourcesContent": ["export class BorderStyle {\r\n  static solid = 'solid';\r\n  static dashed = 'dashed';\r\n  static dotted = 'dotted';\r\n  static double = 'double';\r\n  static none = 'none';\r\n}"],
+  "mappings": "wKAAO,MAAMA,CAAY,CAMzB,CALEC,EADWD,EACJ,QAAQ,SACfC,EAFWD,EAEJ,SAAS,UAChBC,EAHWD,EAGJ,SAAS,UAChBC,EAJWD,EAIJ,SAAS,UAChBC,EALWD,EAKJ,OAAO",
+  "names": ["BorderStyle", "__publicField"]
+}

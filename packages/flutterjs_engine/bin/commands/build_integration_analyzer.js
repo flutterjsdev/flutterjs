@@ -93,6 +93,10 @@ class BuildAnalyzer {
       const analysisResult = await analyzer.analyze();
       const widgets = this.normalizeWidgets(analysisResult.widgets);
 
+      // ✅ IMPORTANT: Always ensure @flutterjs/vdom is in imports
+      // vdom is the core virtual DOM implementation required by all widgets
+      const imports = this.ensureVdomImport(analysisResult.imports || []);
+
       this.integration.analysis = {
         sourcePath,
         sourceCode,
@@ -102,7 +106,7 @@ class BuildAnalyzer {
           count: widgets.stateless.length + widgets.stateful.length,
           all: [...widgets.stateless, ...widgets.stateful],
         },
-        imports: analysisResult.imports || [],
+        imports: imports,  // ✅ Updated with vdom
         metadata: {
           projectName: "FlutterJS App",
           rootWidget: widgets.stateful[0] || widgets.stateless[0] || "MyApp",
@@ -111,18 +115,54 @@ class BuildAnalyzer {
         },
       };
 
-      spinner.succeed(chalk.green("✓ Analysis complete"));
+      spinner.succeed(chalk.green("✔ Analysis complete"));
       if (this.config.debugMode) {
         console.log(chalk.gray(`  Widgets: ${this.integration.analysis.widgets.count}`));
         console.log(chalk.gray(`  Stateless: ${widgets.stateless.length}`));
         console.log(chalk.gray(`  Stateful: ${widgets.stateful.length}`));
         console.log(chalk.gray(`  Imports: ${this.integration.analysis.imports.length}`));
+        console.log(chalk.gray(`  Includes @flutterjs/vdom: YES (automatic)`));
         console.log(chalk.gray(`  Root: ${this.integration.analysis.metadata.rootWidget}\n`));
       }
     } catch (error) {
-      spinner.fail(chalk.red(`✗ Analysis failed: ${error.message}`));
+      spinner.fail(chalk.red(`✖ Analysis failed: ${error.message}`));
       throw error;
     }
+  }
+
+  /**
+   * ✅ NEW: Ensure @flutterjs/vdom is always in imports
+   * vdom is required by all Flutter widgets and must be available
+   */
+  ensureVdomImport(imports) {
+    // Handle different import formats
+    let importObject = {};
+    
+    if (Array.isArray(imports)) {
+      // Format: ['@flutterjs/runtime', '@flutterjs/material', ...]
+      for (const item of imports) {
+        if (typeof item === 'string') {
+          importObject[item] = [];
+        } else if (item && typeof item === 'object' && item.source) {
+          importObject[item.source] = [];
+        }
+      }
+    } else if (typeof imports === 'object' && imports !== null) {
+      // Format: { '@flutterjs/runtime': ['runApp'], '@flutterjs/material': [...] }
+      importObject = { ...imports };
+    }
+
+    // ✅ Always add vdom as a required dependency
+    const vdomImport = '@flutterjs/vdom';
+    if (!importObject[vdomImport]) {
+      importObject[vdomImport] = [];
+      
+      if (this.config.debugMode) {
+        console.log(chalk.yellow(`  ℹ️  Auto-added @flutterjs/vdom to imports (required core dependency)\n`));
+      }
+    }
+
+    return importObject;
   }
 
   /**
@@ -132,11 +172,11 @@ class BuildAnalyzer {
    */
   async phase2_resolveDependencies() {
     const spinner = ora(
-      chalk.blue("🔗— Phase 2: Resolving dependencies...")
+      chalk.blue("🔗 Phase 2: Resolving dependencies...")
     ).start();
 
     try {
-      // âœ… FIXED: Pass analyzer result directly
+      // ✅ FIXED: Pass analyzer result directly
       const resolutionResult = await this.dependencyResolver.resolveAll(
         this.integration.analysis
       );
@@ -146,20 +186,21 @@ class BuildAnalyzer {
       if (this.config.debugMode) {
         console.log(chalk.yellow("\nResolved Packages:"));
         this.integration.resolution.packages.forEach((info, name) => {
-          console.log(chalk.green(`  âœ" ${name}`));
-          console.log(chalk.gray(`     ${info.location}`));
+          console.log(chalk.green(`  ✔ ${name}`));
+          console.log(chalk.gray(`     ${info.location || info.source}`));
         });
         console.log();
       }
 
       spinner.succeed(
-        chalk.green(`âœ" Resolved ${this.integration.resolution.packages.size} packages`)
+        chalk.green(`✔ Resolved ${this.integration.resolution.packages.size} packages`)
       );
     } catch (error) {
-      spinner.fail(chalk.red(`âœ— Resolution failed: ${error.message}`));
+      spinner.fail(chalk.red(`✖ Resolution failed: ${error.message}`));
       throw error;
     }
   }
+
   /**
    * ========================================================================
    * PHASE 3: INSTALL PACKAGES
@@ -200,9 +241,9 @@ class BuildAnalyzer {
         results: installResults,
       };
 
-      spinner.succeed(chalk.green(`✓ Installation complete`));
+      spinner.succeed(chalk.green(`✔ Installation complete`));
     } catch (error) {
-      spinner.fail(chalk.red(`✗ Installation failed: ${error.message}`));
+      spinner.fail(chalk.red(`✖ Installation failed: ${error.message}`));
       throw error;
     }
   }
@@ -231,11 +272,6 @@ class BuildAnalyzer {
       }
 
       // ✅ Use enhanced PackageCollector with new method
-      // This handles:
-      // - Package copying to dist/node_modules/@flutterjs/
-      // - Export map generation
-      // - Index file creation
-      // - Comprehensive reporting
       const session = await this.packageCollector.collectAndCopyPackages(
         this.integration.resolution
       );
@@ -248,7 +284,7 @@ class BuildAnalyzer {
         session: session,
       };
 
-      spinner.succeed(chalk.green(`✓ Collection complete`));
+      spinner.succeed(chalk.green(`✔ Collection complete`));
       if (this.config.debugMode) {
         const stats = session.getReport();
         console.log(chalk.gray(`  Packages: ${stats.successful}/${stats.total}`));
@@ -256,7 +292,7 @@ class BuildAnalyzer {
         console.log(chalk.gray(`  Size: ${stats.size}\n`));
       }
     } catch (error) {
-      spinner.fail(chalk.red(`✗ Collection failed: ${error.message}`));
+      spinner.fail(chalk.red(`✖ Collection failed: ${error.message}`));
       throw error;
     }
   }
@@ -274,8 +310,6 @@ class BuildAnalyzer {
       const sourceCode = this.integration.analysis.sourceCode;
 
       // ✅ NEW: Analyze imports WITH resolution data
-      // This loads package exports from package.json files
-      // Use absolute path /node_modules/@flutterjs for dev server
       const importAnalysisResult = await this.importRewriter.analyzeImportsWithResolution(
         sourceCode,
         this.integration.resolution  // Pass resolution so we can read package.json files
@@ -299,14 +333,13 @@ class BuildAnalyzer {
       this.integration.importAnalysis = importAnalysisResult;
 
       // ✅ NEW: Store the generated import map for HTML generation
-      // Use absolute path /node_modules/@flutterjs for dev server
       const importMapObj = importAnalysisResult.getImportMapObject();
       const importMapScript = importAnalysisResult.getImportMapScript();
 
       this.integration.importMap = importMapObj;
       this.integration.importMapScript = importMapScript;
 
-      spinner.succeed(chalk.green(`✓ Transformation complete`));
+      spinner.succeed(chalk.green(`✔ Transformation complete`));
       if (this.config.debugMode) {
         console.log(chalk.gray(`  Framework imports found: ${importAnalysisResult.stats.framework}`));
         console.log(chalk.gray(`  External imports: ${importAnalysisResult.stats.external}`));
@@ -333,7 +366,7 @@ class BuildAnalyzer {
         console.log(chalk.gray(`  Transformations: ${this.integration.transformed.transformations}\n`));
       }
     } catch (error) {
-      spinner.fail(chalk.red(`✗ Transformation failed: ${error.message}`));
+      spinner.fail(chalk.red(`✖ Transformation failed: ${error.message}`));
       throw error;
     }
   }
@@ -356,14 +389,14 @@ class BuildAnalyzer {
       };
 
       if (this.config.debugMode) {
-        console.log(chalk.green("✓ Runtime stub created"));
+        console.log(chalk.green("✔ Runtime stub created"));
         console.log(chalk.gray("  (Actual runtime will initialize in browser)\n"));
       }
 
-      spinner.succeed(chalk.green("✓ Runtime prepared"));
+      spinner.succeed(chalk.green("✔ Runtime prepared"));
     } catch (error) {
       spinner.fail(
-        chalk.red(`✗ Runtime initialization failed: ${error.message}`)
+        chalk.red(`✖ Runtime initialization failed: ${error.message}`)
       );
       throw error;
     }
@@ -388,13 +421,13 @@ class BuildAnalyzer {
       this.integration.widgetMetadata = widgetMetadata;
 
       if (this.config.debugMode) {
-        console.log(chalk.green("✓ Widget metadata extracted"));
+        console.log(chalk.green("✔ Widget metadata extracted"));
         console.log(chalk.gray(`  Found ${Object.keys(widgetMetadata).length} widgets\n`));
       }
 
-      spinner.succeed(chalk.green("✓ Widget preparation complete"));
+      spinner.succeed(chalk.green("✔ Widget preparation complete"));
     } catch (error) {
-      spinner.fail(chalk.red(`✗ Widget preparation failed: ${error.message}`));
+      spinner.fail(chalk.red(`✖ Widget preparation failed: ${error.message}`));
       throw error;
     }
   }
@@ -405,7 +438,6 @@ class BuildAnalyzer {
 
   /**
    * Normalize widgets from analyzer result
-   * Handles different possible formats
    */
   normalizeWidgets(widgets) {
     if (!widgets) {
@@ -433,7 +465,6 @@ class BuildAnalyzer {
 
   /**
    * Extract state classes from stateful widgets
-   * Maps: MyHomePage -> _MyHomePageState
    */
   extractStateClasses(statefulWidgets) {
     const stateClasses = {};
@@ -451,7 +482,6 @@ class BuildAnalyzer {
 
   /**
    * Normalize dependency resolver output
-   * Handles both Map and Object formats
    */
   normalizeResolution(result) {
     if (!result) {
@@ -487,7 +517,6 @@ class BuildAnalyzer {
 
   /**
    * Extract widget metadata from transformed code
-   * Finds all exported class definitions
    */
   extractWidgetMetadata(transformedCode) {
     const metadata = {};

@@ -1,4 +1,4 @@
-export class Color {
+ class Color {
   constructor(value) {
     if (typeof value === 'string') {
       // Handle hex strings: #RRGGBB or #AARRGGBB

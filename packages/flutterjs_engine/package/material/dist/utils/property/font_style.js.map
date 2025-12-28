@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/font_style.js"],
+  "sourcesContent": ["\r\n/**\r\n * FontStyle - Style of text (italic or normal)\r\n */\r\nconst FontStyle = Object.freeze({\r\n  normal: 'normal',\r\n  italic: 'italic',\r\n  bold: 'bold'\r\n});\r\nexport { FontStyle };"],
+  "mappings": "AAIA,MAAMA,EAAY,OAAO,OAAO,CAC9B,OAAQ,SACR,OAAQ,SACR,KAAM,MACR,CAAC",
+  "names": ["FontStyle"]
+}

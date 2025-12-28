@@ -7,9 +7,6 @@
 import { 
   Offset, 
 
-  BorderRadius, 
-  BoxShadow,
-  LinearGradient,
   Alignment
 } from '../utils/index.js';
 
@@ -199,7 +196,7 @@ export class Radius {
 /**
  * Represents border radius for all four corners
  */
-export class BorderRadius {
+ class BorderRadius {
   constructor(
     topLeft = 0,
     topRight = 0,

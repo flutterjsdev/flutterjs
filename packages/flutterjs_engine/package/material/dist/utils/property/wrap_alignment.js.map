@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/wrap_alignment.js"],
+  "sourcesContent": ["/**\r\n * WrapAlignment - How wraps are aligned if there is empty space\r\n * Used with Wrap widget\r\n */\r\nconst WrapAlignment = Object.freeze({\r\n  start: 'start',\r\n  end: 'end',\r\n  center: 'center',\r\n  spaceBetween: 'spaceBetween',\r\n  spaceAround: 'spaceAround',\r\n  spaceEvenly: 'spaceEvenly'\r\n});\r\nexport { WrapAlignment };"],
+  "mappings": "AAIA,MAAMA,EAAgB,OAAO,OAAO,CAClC,MAAO,QACP,IAAK,MACL,OAAQ,SACR,aAAc,eACd,YAAa,cACb,YAAa,aACf,CAAC",
+  "names": ["WrapAlignment"]
+}

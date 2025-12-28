@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/blend_mode.js"],
+  "sourcesContent": ["/**\r\n * BlendMode - How to blend graphics\r\n */\r\nconst BlendMode = Object.freeze({\r\n  normal: 'normal',\r\n  multiply: 'multiply',\r\n  screen: 'screen',\r\n  overlay: 'overlay',\r\n  darken: 'darken',\r\n  lighten: 'lighten',\r\n  colorDodge: 'colorDodge',\r\n  colorBurn: 'colorBurn',\r\n  hardLight: 'hardLight',\r\n  softLight: 'softLight',\r\n  difference: 'difference',\r\n  exclusion: 'exclusion',\r\n  hue: 'hue',\r\n  saturation: 'saturation',\r\n  color: 'color',\r\n  luminosity: 'luminosity'\r\n});\r\nexport { BlendMode };"],
+  "mappings": "AAGA,MAAMA,EAAY,OAAO,OAAO,CAC9B,OAAQ,SACR,SAAU,WACV,OAAQ,SACR,QAAS,UACT,OAAQ,SACR,QAAS,UACT,WAAY,aACZ,UAAW,YACX,UAAW,YACX,UAAW,YACX,WAAY,aACZ,UAAW,YACX,IAAK,MACL,WAAY,aACZ,MAAO,QACP,WAAY,YACd,CAAC",
+  "names": ["BlendMode"]
+}

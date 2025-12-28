@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/vertical_direction.js"],
+  "sourcesContent": ["/**\r\n * VerticalDirection - Direction of vertical axis\r\n * Controls the order in which children are laid out vertically\r\n */\r\nconst VerticalDirection = Object.freeze({\r\n  // Children are laid out from top to bottom (default)\r\n  down: 'down',\r\n\r\n  // Children are laid out from bottom to top\r\n  up: 'up'\r\n});\r\nexport { VerticalDirection };"],
+  "mappings": "AAIA,MAAMA,EAAoB,OAAO,OAAO,CAEtC,KAAM,OAGN,GAAI,IACN,CAAC",
+  "names": ["VerticalDirection"]
+}

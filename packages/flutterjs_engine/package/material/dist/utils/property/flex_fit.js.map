@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/flex_fit.js"],
+  "sourcesContent": ["/**\r\n * FlexFit - How children fill the available space\r\n * Used with Flexible widget\r\n */\r\nconst FlexFit = Object.freeze({\r\n  // Child is allowed to be smaller than the flex space\r\n  loose: 'loose',\r\n\r\n  // Child is forced to fill the flex space\r\n  tight: 'tight'\r\n});\r\nexport { FlexFit };"],
+  "mappings": "AAIA,MAAMA,EAAU,OAAO,OAAO,CAE5B,MAAO,QAGP,MAAO,OACT,CAAC",
+  "names": ["FlexFit"]
+}

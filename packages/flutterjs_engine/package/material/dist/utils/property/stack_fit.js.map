@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/stack_fit.js"],
+  "sourcesContent": ["/**\r\n * StackFit - How children fit in Stack\r\n */\r\nconst StackFit = Object.freeze({\r\n  // Children are sized to their natural size\r\n  loose: 'loose',\r\n\r\n  // Children are forced to expand to fill the Stack\r\n  expand: 'expand',\r\n\r\n  // Children are sized to the smallest size that fits all of them\r\n  passthrough: 'passthrough'\r\n});\r\nexport { StackFit };"],
+  "mappings": "AAGA,MAAMA,EAAW,OAAO,OAAO,CAE7B,MAAO,QAGP,OAAQ,SAGR,YAAa,aACf,CAAC",
+  "names": ["StackFit"]
+}

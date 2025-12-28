@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/text_overflow.js"],
+  "sourcesContent": ["/**\r\n * TextOverflow - How text overflows container\r\n */\r\nconst TextOverflow = Object.freeze({\r\n  clip: 'clip',           // Cut off text\r\n  fade: 'fade',           // Fade out at end\r\n  ellipsis: 'ellipsis',   // Show \"...\" at end\r\n  visible: 'visible'      // Let text overflow\r\n});\r\nexport { TextOverflow };"],
+  "mappings": "AAGA,MAAMA,EAAe,OAAO,OAAO,CACjC,KAAM,OACN,KAAM,OACN,SAAU,WACV,QAAS,SACX,CAAC",
+  "names": ["TextOverflow"]
+}

@@ -1,59 +1,142 @@
-// build.js
 import esbuild from 'esbuild';
-import { writeFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, writeFileSync, readdirSync, statSync, watch } from 'fs';
+import { join, relative, extname } from 'path';
 
+const srcDir = 'src';
 const outDir = 'dist';
 
 /**
- * Define your entry points
- * Each entry point becomes a separate bundle
+ * ✅ Recursively find ALL .js files in src/
  */
-const entryPoints = {
-  // Main entry - exports everything
-  'index': './src/index.js',
-  
-  // Core widgets
-  'core': './src/core/core.js',
-  
-  // Material widgets
-  'material': './src/material/material.js',
-  
-  // Other components
-  'widgets': './src/widgets/widgets.js',
-};
+function getAllJsFiles(dir) {
+  const files = [];
+  const items = readdirSync(dir);
+
+  for (const item of items) {
+    const fullPath = join(dir, item);
+    const stat = statSync(fullPath);
+
+    if (stat.isDirectory()) {
+      files.push(...getAllJsFiles(fullPath));
+    } else if (extname(item) === '.js') {
+      files.push(fullPath);
+    }
+  }
+
+  return files;
+}
 
 /**
- * Build each entry point
+ * Build each .js file separately
  */
-async function build() {
+async function buildAllFiles() {
   try {
-    console.log('Building @flutterjs/material...\n');
+    console.log('🚀 Building @flutterjs/material...\n');
 
-    for (const [name, entry] of Object.entries(entryPoints)) {
-      console.log(`Building: ${name} (${entry})`);
-      
+    // ✅ Find all .js files
+    const allFiles = getAllJsFiles(srcDir);
+    
+    console.log(`📁 Found ${allFiles.length} files\n`);
+
+    // ✅ Build each file separately
+    for (const srcFile of allFiles) {
+      const relativePath = relative(srcDir, srcFile);
+      const outFile = join(outDir, relativePath);
+
+      console.log(`📦 ${relativePath}`);
+
       await esbuild.build({
-        entryPoints: [entry],
-        outfile: `${outDir}/${name}.js`,
-        bundle: false,              // Keep false - independent files
+        entryPoints: [srcFile],
+        outfile: outFile,
+        bundle: false,
         minify: true,
         platform: 'browser',
         target: ['es2020'],
         format: 'esm',
         sourcemap: true,
       });
-      
-      console.log(`  ✓ ${outDir}/${name}.js\n`);
     }
 
-    console.log('✅ Build successful!');
-    console.log(`Built ${Object.keys(entryPoints).length} bundles to ${outDir}/`);
+    console.log();
+
+    // ✅ Generate exports based on all built files
+    generateExports(allFiles);
+
+    console.log('✅ Build successful!\n');
 
   } catch (error) {
-    console.error('❌ Build failed:', error);
-    process.exit(1);
+    console.error('❌ Build failed:', error.message);
   }
 }
 
-build();
+/**
+ * Auto-generate package.json exports in the exact format requested
+ * "./core/widget_element.js" → "./dist/core/widget_element.js"
+ */
+function generateExports(sourceFiles) {
+  const packageJsonPath = './package.json';
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+
+  const exports = {};
+
+  // Main entry point
+  exports['.'] = './dist/index.js';
+
+  // ✅ Create export for EVERY built file with exact format
+  for (const srcFile of sourceFiles) {
+    const relativePath = relative(srcDir, srcFile);
+    
+    // Skip index.js - it's already the main entry
+    if (relativePath === 'index.js') {
+      continue;
+    }
+
+    // Convert path with .js extension:
+    // core.js → ./core.js
+    // core/widget_element.js → ./core/widget_element.js
+    // material.js → ./material.js
+    // widgets/compoment/multi_child_view.js → ./widgets/compoment/multi_child_view.js
+    
+    // Normalize slashes for Windows
+    const normalizedPath = relativePath.replace(/\\/g, '/');
+    const exportKey = './' + normalizedPath;
+    const exportPath = './dist/' + normalizedPath;
+
+    exports[exportKey] = exportPath;
+  }
+
+  // Update package.json
+  packageJson.exports = exports;
+  packageJson.main = './dist/index.js';
+
+  writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+
+  console.log('📝 Generated exports:\n');
+  Object.entries(exports).forEach(([key, value]) => {
+    console.log(`   "${key}": "${value}"`);
+  });
+  console.log();
+}
+
+/**
+ * Watch mode - rebuild on file changes
+ */
+function watchMode() {
+  console.log('👀 Watching for changes...\n');
+
+  watch(srcDir, { recursive: true }, (eventType, filename) => {
+    if (extname(filename) === '.js') {
+      console.log(`\n⚡ ${filename} changed\n`);
+      buildAllFiles();
+    }
+  });
+}
+
+// ✅ Check for --watch flag
+const isWatchMode = process.argv.includes('--watch');
+
+if (isWatchMode) {
+  buildAllFiles().then(() => watchMode());
+} else {
+  buildAllFiles();
+}

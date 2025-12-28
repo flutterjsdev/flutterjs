@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/text_direction.js"],
+  "sourcesContent": ["/**\r\n * TextDirection - Direction of text\r\n * Used for cross-axis alignment and baseline calculations\r\n */\r\nexport const  TextDirection = Object.freeze({\r\n  // Text flows from left to right\r\n  ltr: 'ltr',\r\n\r\n  // Text flows from right to left\r\n  rtl: 'rtl'\r\n});"],
+  "mappings": "AAIO,MAAOA,EAAgB,OAAO,OAAO,CAE1C,IAAK,MAGL,IAAK,KACP,CAAC",
+  "names": ["TextDirection"]
+}

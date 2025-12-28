@@ -158,42 +158,48 @@ class PackageExportConfig {
   /**
    * Get all export entries for import map
    */
-  getExportEntries(baseDir = '/node_modules/@flutterjs') {
+  getExportEntries(baseDir = '/node_modules') {  // ✅ Changed from /node_modules/@flutterjs
     const entries = new Map();
 
-    // ✅ HELPER: Clean path by removing duplicate slashes and ./
-    const cleanPath = (dirPath, filePath) => {
-      // Remove leading ./ from filePath
-      let cleanedFilePath = filePath.replace(/^\.\//, '');
-      
-      // Combine: /node_modules/@flutterjs + runtime + dist/index.js
-      let combined = `${dirPath}/${this.scopedName}/${cleanedFilePath}`;
-      
-      // Remove any /./ sequences
-      combined = combined.replace(/\/\.\//g, '/');
-      
-      // Remove duplicate slashes
-      combined = combined.replace(/\/+/g, '/');
-      
+    console.log(`[DEBUG] getExportEntries for ${this.packageName}`);
+    console.log(`  baseDir: ${baseDir}`);
+    console.log(`  scopedName: ${this.scopedName}`);
+    console.log(`  mainEntry: ${this.mainEntry}`);
+    console.log(`  exports size: ${this.exports.size}`);
+
+    // ✅ FIXED: Build full path correctly
+    const buildPath = (filePath) => {
+      // Input: "./dist/core.js" or "dist/core.js"
+      let cleaned = filePath.replace(/^\.\//, '');  // Remove leading ./
+
+      // Build: /node_modules/@flutterjs/material/dist/core.js
+      let fullPath = `${baseDir}/@flutterjs/${this.scopedName}/${cleaned}`;
+
+      // Clean up any double slashes
+      fullPath = fullPath.replace(/\/+/g, '/');
+
       // Ensure starts with /
-      if (!combined.startsWith('/')) {
-        combined = '/' + combined;
+      if (!fullPath.startsWith('/')) {
+        fullPath = '/' + fullPath;
       }
-      
-      return combined;
+
+      return fullPath;
     };
 
-    // Main export
-    const mainPath = cleanPath(baseDir, this.mainEntry);
+    // Main export: @flutterjs/material
+    const mainPath = buildPath(this.mainEntry);
     entries.set(this.packageName, mainPath);
+    console.log(`  Main: ${this.packageName} → ${mainPath}`);
 
-    // Named exports (optional - if you want to support them)
+    // Named exports: @flutterjs/material/core, @flutterjs/material/widgets, etc.
     for (const [exportName, filePath] of this.exports) {
       if (exportName === 'default') continue;
 
-      const fullPath = cleanPath(baseDir, filePath);
-      // Named export key: @flutterjs/runtime/build_context
-      entries.set(`${this.packageName}/${exportName}`, fullPath);
+      const fullPath = buildPath(filePath);
+      const entryKey = `${this.packageName}/${exportName}`;
+      entries.set(entryKey, fullPath);
+
+      console.log(`  Export: ${entryKey} → ${fullPath}`);
     }
 
     return entries;
@@ -396,7 +402,7 @@ class ImportRewriter {
       try {
         // ✅ FIX: packageInfo might be an object with different structure
         let sourcePath = packageInfo.source || packageInfo;
-        
+
         if (typeof packageInfo === 'string') {
           sourcePath = packageInfo;
         } else if (packageInfo.path) {
@@ -620,19 +626,16 @@ class ImportRewriter {
    */
   generateDynamicImportMap() {
     if (this.config.debugMode) {
-      console.log(chalk.blue('🗺️  Generating import map from package.json...\n'));
+      console.log(chalk.blue('🗺️ Generating import map from package.json...\n'));
       console.log(chalk.gray(`Base Dir: ${this.config.baseDir}\n`));
     }
 
-    // Add all loaded packages to import map
+    // ✅ FIXED: Pass /node_modules as baseDir (NOT /node_modules/@flutterjs)
+    const baseDir = '/node_modules';
+
     for (const [packageName, exportConfig] of this.result.packageExports) {
       try {
-        // ✅ Make sure baseDir doesn't have /./ in it
-        let baseDir = this.config.baseDir;
-        baseDir = baseDir.replace(/\/\.\//g, '/');
-        baseDir = baseDir.replace(/\/+/g, '/');
-
-        const entries = exportConfig.getExportEntries(baseDir);
+        const entries = exportConfig.getExportEntries(baseDir);  // ✅ Pass /node_modules
 
         for (const [importName, importPath] of entries) {
           this.result.importMap.addImport(importName, importPath);
@@ -646,7 +649,7 @@ class ImportRewriter {
       } catch (error) {
         this.result.addWarning(`Error generating entries for ${packageName}: ${error.message}`);
         if (this.config.debugMode) {
-          console.log(chalk.yellow(`⚠ ${packageName}: ${error.message}`));
+          console.log(chalk.yellow(`⚠  ${packageName}: ${error.message}`));
         }
       }
     }
@@ -699,7 +702,7 @@ class ImportRewriter {
     // ✅ Clean the baseDir before setting
     baseDir = baseDir.replace(/\/\.\//g, '/');
     baseDir = baseDir.replace(/\/+/g, '/');
-    
+
     this.config.baseDir = baseDir;
     this.result.importMap = new ImportMap();
     this.generateDynamicImportMap();

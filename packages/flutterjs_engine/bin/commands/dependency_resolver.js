@@ -1,15 +1,13 @@
 /**
  * ============================================================================
- * FlutterJS Dependency Resolver - FIXED VERSION
+ * FlutterJS Dependency Resolver - FINAL FIXED VERSION
  * ============================================================================
  * 
  * Purpose:
  * - Resolves all imports from analyzer result
- * - Finds packages in src/ or package/ folders
- * - Copies packages to dist/node_modules/@flutterjs/
+ * - Finds packages in packages/flutterjs_engine/src/ folders
+ * - Handles both single and multiple packages
  * - Validates all dependencies are available
- * 
- * Location: cli/build/dependency-resolver.js
  */
 
 import fs from 'fs';
@@ -20,9 +18,6 @@ import chalk from 'chalk';
 // RESOLUTION DATA TYPES
 // ============================================================================
 
-/**
- * Single resolved package metadata
- */
 class ResolvedPackage {
   constructor(name, type, packagePath) {
     this.name = name;
@@ -49,9 +44,6 @@ class ResolvedPackage {
   }
 }
 
-/**
- * Complete resolution result
- */
 class ResolutionResult {
   constructor() {
     this.packages = new Map();
@@ -95,215 +87,289 @@ Resolved ${this.packages.size} packages
 }
 
 // ============================================================================
-// MAIN RESOLVER CLASS - FIXED
+// MAIN RESOLVER CLASS
 // ============================================================================
 class DependencyResolver {
   constructor(options = {}) {
     this.options = {
       projectRoot: options.projectRoot || process.cwd(),
       debugMode: options.debugMode || false,
-      ...options,
+      ...options
     };
 
-    // âœ… FIND THE ACTUAL SDK ROOT by searching upward
-    const sdkRoot = this.findSDKRoot(this.options.projectRoot);
-
-    this.srcRoot = path.join(sdkRoot, 'src');
-    this.packageRoot = path.join(sdkRoot, 'package');
-    this.outputDir = path.join(this.options.projectRoot, options.outputDir || 'dist');
-    this.nodeModulesDir = path.join(this.outputDir, 'node_modules', '@flutterjs');
+    this.projectRoot = this.options.projectRoot;
+    this.resolvedPackages = new Map();
 
     if (this.options.debugMode) {
       console.log(chalk.cyan('\n[DependencyResolver] Initialized'));
-      console.log(chalk.gray(`  Project: ${this.options.projectRoot}`));
-      console.log(chalk.gray(`  SDK Root: ${sdkRoot}`));
-      console.log(chalk.gray(`  Src Root: ${this.srcRoot}`));
-      console.log(chalk.gray(`  Package Root: ${this.packageRoot}`));
-      console.log(chalk.gray(`  Output: ${this.nodeModulesDir}\n`));
+      console.log(chalk.gray(`  Project Root: ${this.projectRoot}\n`));
     }
   }
 
   /**
-   * Search upward to find flutterjs_engine/src and flutterjs_engine/package
+   * ✅ Find the flutterjs project root by walking up directories
    */
-  findSDKRoot(startPath) {
-    let current = startPath;
-    const visited = new Set();
-    const maxLevels = 15;
-
-    for (let i = 0; i < maxLevels; i++) {
-      if (visited.has(current)) break;
-      visited.add(current);
-
-      // Check if this directory has packages/flutterjs_engine
-      const enginePath = path.join(current, 'packages', 'flutterjs_engine');
-      if (fs.existsSync(enginePath)) {
-        const srcPath = path.join(enginePath, 'src');
-        const pkgPath = path.join(enginePath, 'package');
-
-        if (fs.existsSync(srcPath) && fs.existsSync(pkgPath)) {
-          if (this.options.debugMode) {
-            console.log(chalk.gray(`[Found SDK at: ${enginePath}]`));
-          }
-          return enginePath;
-        }
+  findFlutterjsRoot(startPath) {
+    let currentPath = startPath;
+    const maxLevels = 20;
+    let level = 0;
+    
+    while (level < maxLevels && currentPath !== path.dirname(currentPath)) {
+      const enginePath = path.join(currentPath, 'packages', 'flutterjs_engine', 'src');
+      
+      if (this.options.debugMode && level < 5) {
+        console.log(chalk.gray(`    [Level ${level}] Checking: ${enginePath}`));
       }
-
-      // Move up one directory
-      const parent = path.dirname(current);
-      if (parent === current) break; // Reached filesystem root
-      current = parent;
+      
+      if (fs.existsSync(enginePath)) {
+        if (this.options.debugMode) {
+          console.log(chalk.green(`  ✔ Found flutterjs root at: ${currentPath}`));
+        }
+        return currentPath;
+      }
+      
+      currentPath = path.dirname(currentPath);
+      level++;
     }
-
-    // Fallback: return the best guess
-    console.warn(chalk.yellow(`⚠️  Could not find flutterjs_engine, using relative path`));
-    return path.join(startPath, '..', '..', 'packages', 'flutterjs_engine');
+    
+    if (this.options.debugMode) {
+      console.log(chalk.yellow(`  ⚠ Could not find flutterjs root, using projectRoot`));
+    }
+    return this.projectRoot;
   }
 
   /**
-   * Main entry point: Resolve from analyzer imports
+   * Resolve all dependencies from analysis
    */
-  async resolveAll(analyzerResult) {
+  async resolveAll(analysis) {
     console.log(chalk.blue('\n📦 Phase 2: Resolving dependencies...'));
     console.log(chalk.blue('='.repeat(70)));
 
     try {
-      // Extract packages from analyzer result
-      const requiredPackages = this.extractPackages(analyzerResult);
+      // Extract all packages
+      const allPackages = this.extractAllPackages(analysis);
 
-      console.log(chalk.yellow(`\nFound ${requiredPackages.length} packages to resolve:`));
-      requiredPackages.forEach(pkg => {
-        console.log(chalk.gray(`  • ${pkg}`));
-      });
-      console.log();
+      if (this.options.debugMode) {
+        console.log(chalk.yellow(`\nPackages to resolve: ${allPackages.size}`));
+        for (const pkg of allPackages) {
+          console.log(chalk.gray(`  • ${pkg}`));
+        }
+        console.log();
+      }
 
-      if (requiredPackages.length === 0) {
+      if (allPackages.size === 0) {
         console.log(chalk.yellow('⚠️  No @flutterjs/* packages found'));
-        return this.createEmptyResult();
+        return {
+          packages: new Map(),
+          allFiles: [],
+          graph: new Map(),
+          errors: [],
+          warnings: []
+        };
+      }
+
+      // Find SDK root once
+      const sdkRoot = this.findFlutterjsRoot(this.projectRoot);
+      const srcDir = path.join(sdkRoot, 'packages', 'flutterjs_engine', 'src');
+
+      if (this.options.debugMode) {
+        console.log(chalk.cyan(`SDK Root: ${sdkRoot}`));
+        console.log(chalk.cyan(`Src Dir: ${srcDir}\n`));
       }
 
       // Resolve each package
-      const packages = new Map();
-      const errors = [];
-
-      for (const fullPackageName of requiredPackages) {
-        const packageName = fullPackageName.split('/')[1]; // @flutterjs/runtime -> runtime
-
-        const source = this.findPackageSource(packageName);
-
-        if (!source) {
-          errors.push(`Cannot find: ${fullPackageName}`);
-          console.log(chalk.red(`  ✗ ${fullPackageName} NOT FOUND`));
-          continue;
-        }
-
-        packages.set(fullPackageName, {
-          name: fullPackageName,
-          packageName: packageName,
-          source: source.path,
-          location: source.location,
-          type: 'sdk',
-          resolved: true
-        });
-
-        console.log(chalk.green(`  ✓ ${fullPackageName}`));
-        console.log(chalk.gray(`    └─ ${source.location}`));
+      for (const packageName of allPackages) {
+        this.resolvePackage(packageName, srcDir);
       }
 
       console.log(chalk.blue('='.repeat(70)));
-      console.log(chalk.green(`✓ Resolved ${packages.size} packages\n`));
+      console.log(chalk.green(`✔ Resolved ${this.resolvedPackages.size} packages\n`));
 
       return {
-        packages,
-        allFiles: Array.from(packages.values()).map(p => p.source),
+        packages: this.resolvedPackages,
+        allFiles: [],
         graph: new Map(),
-        errors,
-        warnings: errors.length > 0 ? [`${errors.length} packages not found`] : [],
+        errors: [],
+        warnings: []
       };
 
     } catch (error) {
-      console.error(chalk.red(`\n✗ Resolution error: ${error.message}\n`));
+      console.error(chalk.red(`\n✖ Resolution error: ${error.message}\n`));
       throw error;
     }
   }
 
   /**
-   * Extract @flutterjs/* packages from analyzer result
+   * ✅ Extract all packages from analysis result
+   * Handles multiple formats:
+   * - analysis.imports as OBJECT: { '@flutterjs/runtime': [...], '@flutterjs/material': [...] }
+   * - analysis.imports as array of strings: ['@flutterjs/vdom', '@flutterjs/material']
+   * - analysis.imports as array of objects: [{ source: '@flutterjs/runtime' }]
    */
-  extractPackages(analyzerResult) {
+  extractAllPackages(analysis) {
     const packages = new Set();
 
-    if (!analyzerResult) {
-      return Array.from(packages);
+    if (!analysis) {
+      return packages;
     }
 
-    // Check imports object
-    if (analyzerResult.imports && typeof analyzerResult.imports === 'object') {
-      Object.keys(analyzerResult.imports).forEach(pkg => {
-        if (pkg.startsWith('@flutterjs/')) {
-          packages.add(pkg);
+    // ✅ NEW: Handle object format (most common from analyzer)
+    // Format: { '@flutterjs/runtime': ['runApp'], '@flutterjs/material': [...] }
+    if (analysis.imports && typeof analysis.imports === 'object' && !Array.isArray(analysis.imports)) {
+      for (const packageName of Object.keys(analysis.imports)) {
+        if (packageName.startsWith('@flutterjs/')) {
+          packages.add(packageName);
+          if (this.options.debugMode) {
+            console.log(chalk.gray(`  Found import: ${packageName}`));
+          }
         }
+      }
+    }
+
+    // Format: Array of strings
+    if (Array.isArray(analysis.imports)) {
+      for (const item of analysis.imports) {
+        if (typeof item === 'string' && item.startsWith('@flutterjs/')) {
+          packages.add(item);
+          if (this.options.debugMode) {
+            console.log(chalk.gray(`  Found import: ${item}`));
+          }
+        } else if (typeof item === 'object' && item && item.source) {
+          const pkgName = this.extractPackageName(item.source);
+          if (pkgName) {
+            packages.add(pkgName);
+            if (this.options.debugMode) {
+              console.log(chalk.gray(`  Found import: ${pkgName}`));
+            }
+          }
+        }
+      }
+    }
+
+    // Format: analysis.metadata.imports as object
+    if (analysis.metadata && typeof analysis.metadata.imports === 'object') {
+      for (const pkgName of Object.keys(analysis.metadata.imports)) {
+        if (pkgName.startsWith('@flutterjs/')) {
+          packages.add(pkgName);
+          if (this.options.debugMode) {
+            console.log(chalk.gray(`  Found metadata: ${pkgName}`));
+          }
+        }
+      }
+    }
+
+    return packages;
+  }
+
+  /**
+   * Extract package name from import source
+   * @flutterjs/material/core -> @flutterjs/material
+   */
+  extractPackageName(source) {
+    if (!source || typeof source !== 'string') return null;
+
+    // Handle scoped packages
+    if (source.startsWith('@')) {
+      const parts = source.split('/');
+      return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : null;
+    }
+
+    // Handle regular packages
+    const parts = source.split('/');
+    return parts[0];
+  }
+
+  /**
+   * ✅ Resolve a single package
+   * Searches BOTH locations:
+   * 1. packages/flutterjs_engine/src/[packageName]
+   * 2. packages/flutterjs_engine/package/[packageName]
+   */
+  resolvePackage(fullPackageName, srcDir) {
+    // Extract: @flutterjs/vdom -> vdom
+    let packageName = fullPackageName;
+    if (fullPackageName.startsWith('@flutterjs/')) {
+      packageName = fullPackageName.split('/')[1];
+    }
+
+    if (this.options.debugMode) {
+      console.log(chalk.cyan(`Resolving: ${fullPackageName}`));
+    }
+
+    // Get the engine root directory from srcDir
+    // srcDir is: .../packages/flutterjs_engine/src
+    // We need: .../packages/flutterjs_engine
+    const engineRoot = path.dirname(srcDir);
+
+    // ✅ Search paths in priority order
+    const searchPaths = [
+      // First: Check src/ folder
+      path.join(engineRoot, 'src', packageName),
+      // Second: Check package/ folder
+      path.join(engineRoot, 'package', packageName)
+    ];
+
+    let foundPath = null;
+
+    for (let i = 0; i < searchPaths.length; i++) {
+      const searchPath = searchPaths[i];
+      
+      if (this.options.debugMode) {
+        console.log(chalk.gray(`  [${i + 1}/${searchPaths.length}] Checking: ${searchPath}`));
+      }
+
+      if (!fs.existsSync(searchPath)) {
+        if (this.options.debugMode) {
+          console.log(chalk.red(`         ✖ Not found`));
+        }
+        continue;
+      }
+
+      // Verify it's a directory
+      const stat = fs.statSync(searchPath);
+      if (!stat.isDirectory()) {
+        if (this.options.debugMode) {
+          console.log(chalk.red(`         ✖ Not a directory`));
+        }
+        continue;
+      }
+
+      // Found it!
+      foundPath = searchPath;
+      if (this.options.debugMode) {
+        const files = fs.readdirSync(searchPath);
+        console.log(chalk.green(`         ✔ Found (${files.length} items)`));
+      }
+      break;
+    }
+
+    if (!foundPath) {
+      if (this.options.debugMode) {
+        console.log(chalk.red(`  ✖ Not found in any location`));
+      }
+      this.resolvedPackages.set(fullPackageName, {
+        location: null,
+        source: null,
+        path: null,
+        resolved: false,
+        error: `Package not found at any location`
       });
+      return;
     }
 
-    return Array.from(packages).sort();
-  }
+    // Store resolved package
+    this.resolvedPackages.set(fullPackageName, {
+      name: fullPackageName,
+      packageName: packageName,
+      location: foundPath,
+      source: foundPath,
+      path: foundPath,
+      type: 'sdk',
+      resolved: true
+    });
 
-  /**
-   * Find package in src/ or package/ folder
-   * Returns { path, location } or null
-   */
-  findPackageSource(packageName) {
-    console.log(chalk.cyan(`\n  Searching for: ${packageName}`));
-
-    // Try src/ first
-    const srcPath = path.join(this.srcRoot, packageName);
-    console.log(chalk.gray(`    [1/2] Checking src/: ${srcPath}`));
-
-    if (fs.existsSync(srcPath)) {
-      const stat = fs.statSync(srcPath);
-      if (stat.isDirectory()) {
-        const files = fs.readdirSync(srcPath);
-        console.log(chalk.green(`         ✓ FOUND (${files.length} items)`));
-        return {
-          path: srcPath,
-          location: `src/${packageName}`
-        };
-      }
-    }
-    console.log(chalk.red(`         ✗ not found`));
-
-    // Try package/ folder
-    const pkgPath = path.join(this.packageRoot, packageName);
-    console.log(chalk.gray(`    [2/2] Checking package/: ${pkgPath}`));
-
-    if (fs.existsSync(pkgPath)) {
-      const stat = fs.statSync(pkgPath);
-      if (stat.isDirectory()) {
-        const files = fs.readdirSync(pkgPath);
-        console.log(chalk.green(`         ✓ FOUND (${files.length} items)`));
-        return {
-          path: pkgPath,
-          location: `package/${packageName}`
-        };
-      }
-    }
-    console.log(chalk.red(`         ✗ not found`));
-
-    return null;
-  }
-
-  /**
-   * Create empty result
-   */
-  createEmptyResult() {
-    return {
-      packages: new Map(),
-      allFiles: [],
-      graph: new Map(),
-      errors: [],
-      warnings: ['No packages to resolve'],
-    };
+    console.log(chalk.green(`  ✔ ${fullPackageName}`));
+    console.log(chalk.gray(`     └─ ${foundPath}`));
   }
 }
 
