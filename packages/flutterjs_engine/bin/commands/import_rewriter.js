@@ -1,18 +1,22 @@
 /**
  * ============================================================================
- * Enhanced ImportRewriter - Import Analysis & Import Map Generation
+ * Enhanced ImportRewriter - Dynamic Import Map from package.json
  * ============================================================================
  *
- * Responsibilities:
- * 1. Parse and analyze import statements from source code
- * 2. Validate import resolution
- * 3. Generate import maps for @flutterjs/* packages
- * 4. Create import map JSON for <script type="importmap">
- * 5. Track import transformations
+ * ✅ FIXED: Reads import maps directly from package.json exports field
+ * ✅ NO hardcoded entries - everything comes from actual package.json
+ * ✅ Supports both default and named exports
+ * ✅ Validates against actual package structure
  *
- * Location: cli/build/import_rewriter.js
+ * Flow:
+ * 1. For each resolved package, read its package.json
+ * 2. Extract the "exports" field
+ * 3. Map exports to dist/node_modules/@flutterjs/[package]/ paths
+ * 4. Generate import map from real data
  */
 
+import fs from 'fs';
+import path from 'path';
 import chalk from 'chalk';
 
 // ============================================================================
@@ -55,25 +59,147 @@ class ImportStatement {
 }
 
 /**
- * Framework package configuration
+ * ✅ NEW: Package export configuration read from package.json
  */
-class FrameworkPackage {
-  constructor(name, scopedName, mainEntry = 'index.js') {
-    this.name = name;
-    this.scopedName = scopedName;
-    this.mainEntry = mainEntry;  // e.g., 'src/flutterjs_runtime.js'
-    this.path = null;
+class PackageExportConfig {
+  constructor(packageName, packageJsonPath) {
+    this.packageName = packageName;
+    this.scopedName = this.extractScopedName(packageName);
+    this.packageJsonPath = packageJsonPath;
+    this.exports = new Map();      // Export name -> file path
+    this.mainEntry = null;         // Main entry point
+    this.version = null;
+    this.error = null;
   }
 
-  getImportMapEntry(baseDir = '/node_modules/@flutterjs') {
-    const cleanName = this.scopedName.toLowerCase();
+  extractScopedName(packageName) {
+    // @flutterjs/runtime -> runtime
+    if (packageName.startsWith('@')) {
+      return packageName.split('/')[1];
+    }
+    return packageName;
+  }
+
+  /**
+   * Load and parse package.json
+   */
+  async load() {
+    try {
+      if (!fs.existsSync(this.packageJsonPath)) {
+        throw new Error(`package.json not found: ${this.packageJsonPath}`);
+      }
+
+      const content = fs.readFileSync(this.packageJsonPath, 'utf-8');
+      const pkgJson = JSON.parse(content);
+
+      this.version = pkgJson.version || '1.0.0';
+      this.mainEntry = this.cleanPath(pkgJson.main || 'index.js');
+
+      // Parse exports field
+      if (pkgJson.exports && typeof pkgJson.exports === 'object') {
+        for (const [exportPath, filePath] of Object.entries(pkgJson.exports)) {
+          // Skip default export "."
+          if (exportPath === '.') {
+            this.mainEntry = this.cleanPath(filePath);
+            this.exports.set('default', this.cleanPath(filePath));
+            continue;
+          }
+
+          // Extract export name: "./runtime" -> "runtime"
+          const exportName = exportPath
+            .replace(/^\.\//, '')      // Remove leading ./
+            .replace(/\/$/, '');       // Remove trailing /
+
+          this.exports.set(exportName, this.cleanPath(filePath));
+        }
+      }
+
+      return true;
+
+    } catch (error) {
+      this.error = error.message;
+      return false;
+    }
+  }
+
+  /**
+   * ✅ NEW: Clean file paths
+   * - Remove leading ./
+   * - Fix double .js.js
+   * - Normalize slashes
+   */
+  cleanPath(filePath) {
+    if (!filePath) return 'index.js';
+
+    // Remove leading ./
+    filePath = filePath.replace(/^\.\//, '');
+
+    // Fix .js.js -> .js (from package.json typo)
+    filePath = filePath.replace(/\.js\.js$/, '.js');
+
+    // Ensure it doesn't start with /
+    filePath = filePath.replace(/^\//, '');
+
+    return filePath;
+  }
+
+  /**
+   * Get import map entry for this package
+   * Maps: @flutterjs/runtime -> /dist/node_modules/@flutterjs/runtime/dist/flutterjs_runtime.js
+   */
+  getImportMapEntry(baseDir = '/dist/node_modules/@flutterjs') {
     return {
-      packageName: this.name,
-      // FIX: Use this.mainEntry as-is (it includes 'src/' if needed)
-      importPath: `${baseDir}/${cleanName}/${this.mainEntry}`
+      packageName: this.packageName,
+      // Use main entry: could be ./dist/flutterjs_runtime.js
+      mainPath: `${baseDir}/${this.scopedName}/${this.mainEntry}`
     };
   }
+
+  /**
+   * Get all export entries for import map
+   */
+  getExportEntries(baseDir = '/node_modules/@flutterjs') {
+    const entries = new Map();
+
+    // ✅ HELPER: Clean path by removing duplicate slashes and ./
+    const cleanPath = (dirPath, filePath) => {
+      // Remove leading ./ from filePath
+      let cleanedFilePath = filePath.replace(/^\.\//, '');
+      
+      // Combine: /node_modules/@flutterjs + runtime + dist/index.js
+      let combined = `${dirPath}/${this.scopedName}/${cleanedFilePath}`;
+      
+      // Remove any /./ sequences
+      combined = combined.replace(/\/\.\//g, '/');
+      
+      // Remove duplicate slashes
+      combined = combined.replace(/\/+/g, '/');
+      
+      // Ensure starts with /
+      if (!combined.startsWith('/')) {
+        combined = '/' + combined;
+      }
+      
+      return combined;
+    };
+
+    // Main export
+    const mainPath = cleanPath(baseDir, this.mainEntry);
+    entries.set(this.packageName, mainPath);
+
+    // Named exports (optional - if you want to support them)
+    for (const [exportName, filePath] of this.exports) {
+      if (exportName === 'default') continue;
+
+      const fullPath = cleanPath(baseDir, filePath);
+      // Named export key: @flutterjs/runtime/build_context
+      entries.set(`${this.packageName}/${exportName}`, fullPath);
+    }
+
+    return entries;
+  }
 }
+
 /**
  * Import map configuration
  */
@@ -133,6 +259,7 @@ class ImportAnalysisResult {
     this.externalImports = [];
     this.localImports = [];
     this.importMap = new ImportMap();
+    this.packageExports = new Map();    // ✅ NEW: Store package export configs
     this.errors = [];
     this.warnings = [];
     this.stats = {
@@ -173,52 +300,39 @@ class ImportAnalysisResult {
 }
 
 // ============================================================================
-// MAIN IMPORT REWRITER CLASS
+// MAIN IMPORT REWRITER CLASS - ENHANCED
 // ============================================================================
 
 class ImportRewriter {
   constructor(config = {}) {
     this.config = {
       debugMode: config.debugMode || false,
-      baseDir: config.baseDir || './node_modules/@flutterjs',
+      baseDir: config.baseDir || '/node_modules/@flutterjs',
       validateExports: config.validateExports !== false,
       ...config
     };
 
-    // Framework packages configuration
-    this.frameworkPackages = new Map([
-      ['@flutterjs/runtime', new FrameworkPackage('@flutterjs/runtime', 'runtime', 'dist/flutterjs_runtime.js')],
-      ['@flutterjs/analyzer', new FrameworkPackage('@flutterjs/analyzer', 'analyzer', 'dist/analyzer.js')],
-      ['@flutterjs/core', new FrameworkPackage('@flutterjs/core', 'core', 'dist/index.js')],
-      ['@flutterjs/material', new FrameworkPackage('@flutterjs/material', 'material', 'dist/index.js')],
-      ['@flutterjs/widgets', new FrameworkPackage('@flutterjs/widgets', 'widgets', 'dist/index.js')],
-      ['@flutterjs/cupertino', new FrameworkPackage('@flutterjs/cupertino', 'cupertino', 'dist/index.js')],
-      ['@flutterjs/vdom', new FrameworkPackage('@flutterjs/vdom', 'vdom', 'dist/vnode_renderer.js')],
-      ['@flutterjs/rendering', new FrameworkPackage('@flutterjs/rendering', 'dist/rendering', 'index.js')],
-      ['@flutterjs/painting', new FrameworkPackage('@flutterjs/painting', 'dist/painting', 'index.js')],
-      ['@flutterjs/foundation', new FrameworkPackage('@flutterjs/foundation', 'foundation', 'dist/index.js')],
-      ['@flutterjs/animation', new FrameworkPackage('@flutterjs/animation', 'animation', 'dist/index.js')],
-    ]);
-
     this.result = new ImportAnalysisResult();
+    this.resolution = null;  // ✅ NEW: Store resolution data for access to package paths
 
     if (this.config.debugMode) {
       console.log(chalk.gray('[ImportRewriter] Initialized'));
       console.log(chalk.gray(`  Base Dir: ${this.config.baseDir}`));
-      console.log(chalk.gray(`  Framework packages: ${this.frameworkPackages.size}\n`));
+      console.log(chalk.gray(`  Dynamic loading from package.json enabled\n`));
     }
   }
 
   /**
    * ========================================================================
-   * MAIN ENTRY POINT: Analyze Imports
+   * ✅ NEW MAIN ENTRY POINT: Analyze Imports with Package Resolution
    * ========================================================================
    */
-  analyzeImports(sourceCode) {
+  async analyzeImportsWithResolution(sourceCode, resolution) {
     this.result = new ImportAnalysisResult();
+    this.resolution = resolution;
 
     if (this.config.debugMode) {
-      console.log(chalk.blue('\n📖 Import Analysis Started'));
+      console.log(chalk.blue('\n📋 Import Analysis with Package Resolution'));
       console.log(chalk.blue('='.repeat(70) + '\n'));
     }
 
@@ -226,21 +340,125 @@ class ImportRewriter {
       // Step 1: Parse imports
       this.parseImports(sourceCode);
 
-      // Step 2: Validate imports
+      // Step 2: Load package exports from resolution
+      if (this.config.debugMode) {
+        console.log(chalk.cyan('\n[DEBUG] Resolution packages:'));
+        if (this.resolution && this.resolution.packages) {
+          for (const [name, info] of this.resolution.packages) {
+            console.log(chalk.cyan(`  ${name}: ${JSON.stringify(info, null, 2)}`));
+          }
+        } else {
+          console.log(chalk.red('  No resolution packages!'));
+        }
+        console.log();
+      }
+
+      await this.loadPackageExports();
+
+      // Step 3: Validate imports
       this.validateImports();
 
-      // Step 3: Generate import map
-      this.generateImportMap();
+      // Step 4: Generate import map from actual package.json data
+      this.generateDynamicImportMap();
 
       if (this.config.debugMode) {
         this.printAnalysisReport();
       }
 
-      return this.result;
+      // ✅ Return object with methods attached
+      return this.getAnalysisResult();
 
     } catch (error) {
       this.result.addError(`Analysis failed: ${error.message}`);
+      if (this.config.debugMode) {
+        console.error(chalk.red(`Error: ${error.stack}`));
+      }
       throw error;
+    }
+  }
+
+  /**
+   * ========================================================================
+   * ✅ NEW: Load package exports from resolution packages
+   * ========================================================================
+   */
+  async loadPackageExports() {
+    if (!this.resolution || !this.resolution.packages) {
+      console.warn(chalk.yellow('⚠️  No resolution data available'));
+      return;
+    }
+
+    if (this.config.debugMode) {
+      console.log(chalk.blue('📦 Loading package exports...\n'));
+    }
+
+    for (const [packageName, packageInfo] of this.resolution.packages) {
+      try {
+        // ✅ FIX: packageInfo might be an object with different structure
+        let sourcePath = packageInfo.source || packageInfo;
+        
+        if (typeof packageInfo === 'string') {
+          sourcePath = packageInfo;
+        } else if (packageInfo.path) {
+          sourcePath = packageInfo.path;
+        }
+
+        if (!sourcePath || typeof sourcePath !== 'string') {
+          this.result.addWarning(`Invalid package path for ${packageName}`);
+          if (this.config.debugMode) {
+            console.log(chalk.yellow(`  ⚠ ${packageName}: Invalid package path - ${JSON.stringify(packageInfo)}`));
+          }
+          continue;
+        }
+
+        const packageJsonPath = path.join(sourcePath, 'package.json');
+
+        if (this.config.debugMode) {
+          console.log(chalk.gray(`  Reading: ${packageJsonPath}`));
+        }
+
+        // Check if file exists first
+        if (!fs.existsSync(packageJsonPath)) {
+          this.result.addWarning(`package.json not found for ${packageName} at ${packageJsonPath}`);
+          if (this.config.debugMode) {
+            console.log(chalk.yellow(`  ⚠ ${packageName}: package.json not found at ${packageJsonPath}`));
+          }
+          continue;
+        }
+
+        const config = new PackageExportConfig(packageName, packageJsonPath);
+        const loaded = await config.load();
+
+        if (loaded) {
+          this.result.packageExports.set(packageName, config);
+
+          if (this.config.debugMode) {
+            console.log(chalk.green(`  ✓ ${packageName} (v${config.version})`));
+            console.log(chalk.gray(`    Path: ${sourcePath}`));
+            console.log(chalk.gray(`    Main: ${config.mainEntry}`));
+            console.log(chalk.gray(`    Exports: ${config.exports.size}`));
+            for (const [name, filePath] of config.exports) {
+              console.log(chalk.gray(`      - ${name}: ${filePath}`));
+            }
+          }
+        } else {
+          this.result.addWarning(`Could not load ${packageName}: ${config.error}`);
+          if (this.config.debugMode) {
+            console.log(chalk.yellow(`  ⚠ ${packageName}: ${config.error}`));
+          }
+        }
+
+      } catch (error) {
+        this.result.addWarning(`Error loading ${packageName}: ${error.message}`);
+        if (this.config.debugMode) {
+          console.log(chalk.yellow(`  ⚠ ${packageName}: ${error.message}`));
+          console.log(chalk.gray(`     Stack: ${error.stack}`));
+        }
+      }
+    }
+
+    if (this.config.debugMode) {
+      console.log(chalk.gray(`\n✓ Loaded ${this.result.packageExports.size} package exports\n`));
     }
   }
 
@@ -250,12 +468,9 @@ class ImportRewriter {
    * ========================================================================
    */
 
-  /**
-   * Parse all import statements from source code
-   */
   parseImports(sourceCode) {
     if (this.config.debugMode) {
-      console.log(chalk.gray('🔍 Parsing import statements...\n'));
+      console.log(chalk.gray('📋 Parsing import statements...\n'));
     }
 
     const lines = sourceCode.split('\n');
@@ -356,28 +571,28 @@ class ImportRewriter {
    * ========================================================================
    */
 
-  /**
-   * Validate that all imports can be resolved
-   */
   validateImports() {
     if (this.config.debugMode) {
       console.log(chalk.blue('✓ Validating imports...\n'));
     }
 
     for (const importStmt of this.result.imports) {
-      // Framework imports will be resolved via import map
+      // Framework imports - check if loaded
       if (importStmt.isFramework) {
-        if (!this.frameworkPackages.has(importStmt.source)) {
+        if (this.result.packageExports.has(importStmt.source)) {
+          if (this.config.debugMode) {
+            console.log(chalk.green(`✓ ${importStmt.source} (framework - found)`));
+          }
+        } else {
           this.result.addWarning(`Unknown framework package: ${importStmt.source}`);
-        }
-
-        if (this.config.debugMode) {
-          console.log(chalk.green(`✓ ${importStmt.source} (framework)`));
+          if (this.config.debugMode) {
+            console.log(chalk.yellow(`⚠ ${importStmt.source} (not found)`));
+          }
         }
         continue;
       }
 
-      // External packages are expected to be in node_modules
+      // External packages
       if (importStmt.isExternal) {
         if (this.config.debugMode) {
           console.log(chalk.gray(`○ ${importStmt.source} (external)`));
@@ -385,7 +600,7 @@ class ImportRewriter {
         continue;
       }
 
-      // Local imports are validated later at runtime
+      // Local imports
       if (importStmt.isLocal) {
         if (this.config.debugMode) {
           console.log(chalk.gray(`○ ${importStmt.source} (local)`));
@@ -400,27 +615,39 @@ class ImportRewriter {
 
   /**
    * ========================================================================
-   * IMPORT MAP GENERATION
+   * ✅ NEW: Generate import map from package.json exports
    * ========================================================================
    */
-
-  /**
-   * Generate import map for framework packages
-   * Maps @flutterjs/* to their actual locations
-   */
-  generateImportMap() {
+  generateDynamicImportMap() {
     if (this.config.debugMode) {
-      console.log(chalk.blue('🗺️  Generating import map...\n'));
+      console.log(chalk.blue('🗺️  Generating import map from package.json...\n'));
+      console.log(chalk.gray(`Base Dir: ${this.config.baseDir}\n`));
     }
 
-    // Add all framework packages to import map
-    for (const [packageName, pkg] of this.frameworkPackages) {
-      const entry = pkg.getImportMapEntry(this.config.baseDir);
-      this.result.importMap.addImport(entry.packageName, entry.importPath);
+    // Add all loaded packages to import map
+    for (const [packageName, exportConfig] of this.result.packageExports) {
+      try {
+        // ✅ Make sure baseDir doesn't have /./ in it
+        let baseDir = this.config.baseDir;
+        baseDir = baseDir.replace(/\/\.\//g, '/');
+        baseDir = baseDir.replace(/\/+/g, '/');
 
-      if (this.config.debugMode) {
-        console.log(chalk.gray(`${packageName}`));
-        console.log(chalk.gray(`  → ${entry.importPath}`));
+        const entries = exportConfig.getExportEntries(baseDir);
+
+        for (const [importName, importPath] of entries) {
+          this.result.importMap.addImport(importName, importPath);
+
+          if (this.config.debugMode) {
+            console.log(chalk.gray(`${importName}`));
+            console.log(chalk.gray(`  → ${importPath}`));
+          }
+        }
+
+      } catch (error) {
+        this.result.addWarning(`Error generating entries for ${packageName}: ${error.message}`);
+        if (this.config.debugMode) {
+          console.log(chalk.yellow(`⚠ ${packageName}: ${error.message}`));
+        }
       }
     }
 
@@ -445,10 +672,21 @@ class ImportRewriter {
 
   /**
    * Get import map as HTML script tag
-   * Ready to embed in <head>
    */
   getImportMapScript() {
     return this.result.importMap.toScript();
+  }
+
+  /**
+   * Return the analysis result object with access to importMap methods
+   */
+  getAnalysisResult() {
+    return {
+      ...this.result,
+      getImportMapObject: () => this.result.importMap.toJSON(),
+      getImportMapScript: () => this.result.importMap.toScript(),
+      getImportMapJSON: () => JSON.stringify(this.result.importMap.toJSON(), null, 2)
+    };
   }
 
   /**
@@ -457,43 +695,14 @@ class ImportRewriter {
    * ========================================================================
    */
 
-  /**
-   * Update base directory for import map
-   * Useful when packages are in different location
-   */
   setBaseDir(baseDir) {
+    // ✅ Clean the baseDir before setting
+    baseDir = baseDir.replace(/\/\.\//g, '/');
+    baseDir = baseDir.replace(/\/+/g, '/');
+    
     this.config.baseDir = baseDir;
-
-    // Regenerate import map with new base
     this.result.importMap = new ImportMap();
-    this.generateImportMap();
-  }
-
-  /**
-   * Update framework package entry point
-   * E.g., if @flutterjs/runtime uses 'dist/index.js' instead of 'flutterjs_runtime.js'
-   */
-  updateFrameworkPackage(packageName, mainEntry) {
-    if (this.frameworkPackages.has(packageName)) {
-      const pkg = this.frameworkPackages.get(packageName);
-      pkg.mainEntry = mainEntry;
-
-      // Regenerate import map
-      this.result.importMap = new ImportMap();
-      this.generateImportMap();
-    }
-  }
-
-  /**
-   * Add custom framework package
-   */
-  addFrameworkPackage(packageName, scopedName, mainEntry = 'index.js') {
-    const pkg = new FrameworkPackage(packageName, scopedName, mainEntry);
-    this.frameworkPackages.set(packageName, pkg);
-
-    // Regenerate import map
-    this.result.importMap = new ImportMap();
-    this.generateImportMap();
+    this.generateDynamicImportMap();
   }
 
   /**
@@ -502,9 +711,6 @@ class ImportRewriter {
    * ========================================================================
    */
 
-  /**
-   * Print analysis report
-   */
   printAnalysisReport() {
     console.log(chalk.blue('\n' + '='.repeat(70)));
     console.log(chalk.blue('IMPORT ANALYSIS REPORT'));
@@ -518,11 +724,15 @@ class ImportRewriter {
     console.log(chalk.gray(`  External (npm): ${stats.external}`));
     console.log(chalk.gray(`  Local (./...): ${stats.local}`));
 
-    console.log(chalk.gray('\nFramework Packages:'));
-    for (const importStmt of this.result.frameworkImports) {
-      console.log(chalk.gray(`  ✓ ${importStmt.source}`));
-      if (importStmt.specifiers.length > 0) {
-        console.log(chalk.gray(`    • ${importStmt.specifiers.map(s => s.name).join(', ')}`));
+    console.log(chalk.gray('\nPackage Exports Loaded:'));
+    console.log(chalk.gray(`  ${this.result.packageExports.size} packages`));
+
+    console.log(chalk.gray('\nImport Map Entries:'));
+    const importMapObj = this.getImportMapObject();
+    if (importMapObj.imports) {
+      for (const [name, path] of Object.entries(importMapObj.imports)) {
+        console.log(chalk.gray(`  ${name}`));
+        console.log(chalk.gray(`    → ${path}`));
       }
     }
 
@@ -544,9 +754,6 @@ class ImportRewriter {
     console.log(chalk.blue('='.repeat(70) + '\n'));
   }
 
-  /**
-   * Get analysis report
-   */
   getReport() {
     return {
       success: !this.result.hasErrors(),
@@ -566,9 +773,6 @@ class ImportRewriter {
     };
   }
 
-  /**
-   * Get statistics
-   */
   getStats() {
     return this.result.stats;
   }
@@ -582,7 +786,7 @@ export {
   ImportRewriter,
   ImportStatement,
   ImportMap,
-  FrameworkPackage,
+  PackageExportConfig,
   ImportAnalysisResult
 };
 

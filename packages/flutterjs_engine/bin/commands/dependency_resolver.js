@@ -1,14 +1,13 @@
 /**
  * ============================================================================
- * FlutterJS Dependency Resolver - Complete Implementation
+ * FlutterJS Dependency Resolver - FIXED VERSION
  * ============================================================================
  * 
  * Purpose:
- * - Resolves all imports from source code
- * - Finds package files in node_modules
- * - Builds dependency graph with cycles detection
+ * - Resolves all imports from analyzer result
+ * - Finds packages in src/ or package/ folders
+ * - Copies packages to dist/node_modules/@flutterjs/
  * - Validates all dependencies are available
- * - Generates resolution map for code transformation
  * 
  * Location: cli/build/dependency-resolver.js
  */
@@ -16,7 +15,7 @@
 import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
-import { ImportResolver } from './import_resolver.js';
+
 // ============================================================================
 // RESOLUTION DATA TYPES
 // ============================================================================
@@ -26,27 +25,23 @@ import { ImportResolver } from './import_resolver.js';
  */
 class ResolvedPackage {
   constructor(name, type, packagePath) {
-    this.name = name;                    // '@flutterjs/material'
-    this.type = type;                    // 'builtin' | 'npm' | 'local'
-    this.packagePath = packagePath;      // Absolute path to package
-    this.packageJson = null;             // Parsed package.json
-    this.main = null;                    // Main entry file
-    this.exports = new Map();            // Named exports: 'Container' -> 'container.js'
-    this.dependencies = [];              // Direct dependencies
-    this.files = [];                     // All files in package
-    this.errors = [];                    // Validation errors
+    this.name = name;
+    this.type = type;
+    this.packagePath = packagePath;
+    this.packageJson = null;
+    this.main = null;
+    this.exports = new Map();
+    this.dependencies = [];
+    this.files = [];
+    this.errors = [];
   }
 
   isValid() {
-    return this.errors.length === 0 && this.packageJson !== null;
+    return this.errors.length === 0 && this.packagePath !== null;
   }
 
   addError(message) {
     this.errors.push(message);
-  }
-
-  addExport(name, filePath) {
-    this.exports.set(name, filePath);
   }
 
   toString() {
@@ -59,9 +54,9 @@ class ResolvedPackage {
  */
 class ResolutionResult {
   constructor() {
-    this.packages = new Map();           // name -> ResolvedPackage
-    this.graph = new Map();              // Dependency graph
-    this.allFiles = [];                  // All files to include
+    this.packages = new Map();
+    this.graph = new Map();
+    this.allFiles = [];
     this.errors = [];
     this.warnings = [];
     this.resolvedTime = null;
@@ -100,7 +95,7 @@ Resolved ${this.packages.size} packages
 }
 
 // ============================================================================
-// MAIN RESOLVER CLASS
+// MAIN RESOLVER CLASS - FIXED
 // ============================================================================
 class DependencyResolver {
   constructor(options = {}) {
@@ -109,244 +104,191 @@ class DependencyResolver {
       debugMode: options.debugMode || false,
       ...options,
     };
+
+    // âœ… FIND THE ACTUAL SDK ROOT by searching upward
+    const sdkRoot = this.findSDKRoot(this.options.projectRoot);
+
+    this.srcRoot = path.join(sdkRoot, 'src');
+    this.packageRoot = path.join(sdkRoot, 'package');
+    this.outputDir = path.join(this.options.projectRoot, options.outputDir || 'dist');
+    this.nodeModulesDir = path.join(this.outputDir, 'node_modules', '@flutterjs');
+
+    if (this.options.debugMode) {
+      console.log(chalk.cyan('\n[DependencyResolver] Initialized'));
+      console.log(chalk.gray(`  Project: ${this.options.projectRoot}`));
+      console.log(chalk.gray(`  SDK Root: ${sdkRoot}`));
+      console.log(chalk.gray(`  Src Root: ${this.srcRoot}`));
+      console.log(chalk.gray(`  Package Root: ${this.packageRoot}`));
+      console.log(chalk.gray(`  Output: ${this.nodeModulesDir}\n`));
+    }
   }
 
   /**
-   * ✅ FIXED: Resolve actual file path for a package
-   * Includes flutterjs_engine/package/ structure
+   * Search upward to find flutterjs_engine/src and flutterjs_engine/package
    */
-  resolvePackagePath(packageName) {
-    const scopedName = packageName.startsWith('@')
-      ? packageName.split('/')[1]
-      : packageName;
+  findSDKRoot(startPath) {
+    let current = startPath;
+    const visited = new Set();
+    const maxLevels = 15;
 
-    // ✅ CORRECTED: packages/flutterjs_engine with both src/ and package/
-    const searchPaths = [
-      // HIGH PRIORITY: Both locations under flutterjs_engine
-      path.join(this.options.projectRoot, 'packages', 'flutterjs_engine', 'src', scopedName),
-      path.join(this.options.projectRoot, 'packages', 'flutterjs_engine', 'package', scopedName),
+    for (let i = 0; i < maxLevels; i++) {
+      if (visited.has(current)) break;
+      visited.add(current);
 
-      // Fallback
-      path.join(this.options.projectRoot, 'src', scopedName),
-      path.join(this.options.projectRoot, 'packages', `flutterjs-${scopedName}`),
-      path.join(this.options.projectRoot, 'packages', scopedName),
+      // Check if this directory has packages/flutterjs_engine
+      const enginePath = path.join(current, 'packages', 'flutterjs_engine');
+      if (fs.existsSync(enginePath)) {
+        const srcPath = path.join(enginePath, 'src');
+        const pkgPath = path.join(enginePath, 'package');
 
-      // Node modules
-      path.join(this.options.projectRoot, 'node_modules', packageName),
-      path.join(this.options.projectRoot, 'node_modules', '@flutterjs', scopedName),
-    ];
-
-    for (const searchPath of searchPaths) {
-      if (fs.existsSync(searchPath) && fs.existsSync(path.join(searchPath, 'package.json'))) {
-        if (this.options.debugMode) {
-          console.log(chalk.green(`✓ Found ${packageName} at: ${searchPath}`));
+        if (fs.existsSync(srcPath) && fs.existsSync(pkgPath)) {
+          if (this.options.debugMode) {
+            console.log(chalk.gray(`[Found SDK at: ${enginePath}]`));
+          }
+          return enginePath;
         }
-        return searchPath;
       }
+
+      // Move up one directory
+      const parent = path.dirname(current);
+      if (parent === current) break; // Reached filesystem root
+      current = parent;
     }
 
-    if (this.options.debugMode) {
-      console.log(chalk.red(`✗ Package not found: ${packageName}`));
-    }
-    return null;
+    // Fallback: return the best guess
+    console.warn(chalk.yellow(`⚠️  Could not find flutterjs_engine, using relative path`));
+    return path.join(startPath, '..', '..', 'packages', 'flutterjs_engine');
   }
 
   /**
-   * Main entry point - resolve all imports
-   * ✅ UPDATED: Now resolves actual file paths
+   * Main entry point: Resolve from analyzer imports
    */
-  async resolveAll(importStatements = []) {
-    if (this.options.debugMode) {
-      console.log(`\n[DependencyResolver] Starting resolution...\n`);
-    }
+  async resolveAll(analyzerResult) {
+    console.log(chalk.blue('\n📦 Phase 2: Resolving dependencies...'));
+    console.log(chalk.blue('='.repeat(70)));
 
     try {
-      // Normalize input
-      const imports = this.normalizeImports(importStatements);
+      // Extract packages from analyzer result
+      const requiredPackages = this.extractPackages(analyzerResult);
 
-      if (imports.length === 0) {
-        if (this.options.debugMode) {
-          console.log(`[DependencyResolver] No imports to resolve\n`);
-        }
+      console.log(chalk.yellow(`\nFound ${requiredPackages.length} packages to resolve:`));
+      requiredPackages.forEach(pkg => {
+        console.log(chalk.gray(`  • ${pkg}`));
+      });
+      console.log();
+
+      if (requiredPackages.length === 0) {
+        console.log(chalk.yellow('⚠️  No @flutterjs/* packages found'));
         return this.createEmptyResult();
       }
 
-      if (this.options.debugMode) {
-        console.log(`[DependencyResolver] Resolving ${imports.length} imports\n`);
-      }
-
-      // ✅ FIXED: Map imports to packages with ACTUAL PATHS
+      // Resolve each package
       const packages = new Map();
-      const allFiles = [];
       const errors = [];
 
-      imports.forEach((imp) => {
-        const source = this.extractSource(imp);
-        const items = imp.items || [];
+      for (const fullPackageName of requiredPackages) {
+        const packageName = fullPackageName.split('/')[1]; // @flutterjs/runtime -> runtime
 
-        if (!source) return;
+        const source = this.findPackageSource(packageName);
 
-        // Map import source to package
-        const packageName = this.mapSourceToPackage(source);
-
-        if (packageName) {
-          // ✅ NEW: Resolve actual file path
-          const actualPath = this.resolvePackagePath(packageName);
-
-          packages.set(packageName, {
-            source,
-            path: actualPath,           // ✅ Actual file path
-            actualPath: actualPath,     // ✅ For compatibility
-            items,
-            type: this.getPackageType(packageName),
-            resolved: actualPath !== null
-          });
-
-          if (actualPath) {
-            allFiles.push(actualPath);
-          }
-        } else {
-          errors.push(`Cannot resolve: ${source}`);
+        if (!source) {
+          errors.push(`Cannot find: ${fullPackageName}`);
+          console.log(chalk.red(`  ✗ ${fullPackageName} NOT FOUND`));
+          continue;
         }
-      });
 
-      if (this.options.debugMode) {
-        console.log(`[DependencyResolver] Resolved: ${packages.size} packages`);
-        console.log(`[DependencyResolver] Errors: ${errors.length}\n`);
+        packages.set(fullPackageName, {
+          name: fullPackageName,
+          packageName: packageName,
+          source: source.path,
+          location: source.location,
+          type: 'sdk',
+          resolved: true
+        });
+
+        console.log(chalk.green(`  ✓ ${fullPackageName}`));
+        console.log(chalk.gray(`    └─ ${source.location}`));
       }
+
+      console.log(chalk.blue('='.repeat(70)));
+      console.log(chalk.green(`✓ Resolved ${packages.size} packages\n`));
 
       return {
         packages,
-        allFiles,
+        allFiles: Array.from(packages.values()).map(p => p.source),
         graph: new Map(),
         errors,
-        warnings: errors.length > 0
-          ? [`${errors.length} imports could not be resolved`]
-          : [],
+        warnings: errors.length > 0 ? [`${errors.length} packages not found`] : [],
       };
 
     } catch (error) {
-      console.error(`\n[DependencyResolver] Error: ${error.message}\n`);
-      return {
-        packages: new Map(),
-        allFiles: [],
-        graph: new Map(),
-        errors: [error.message],
-        warnings: ['Resolution failed'],
-      };
+      console.error(chalk.red(`\n✗ Resolution error: ${error.message}\n`));
+      throw error;
     }
   }
 
   /**
-   * Map import source to package name
-   * @flutterjs/runtime -> @flutterjs/runtime
-   * @package:flutter -> @flutterjs/material
+   * Extract @flutterjs/* packages from analyzer result
    */
-  mapSourceToPackage(source) {
-    if (!source) return null;
+  extractPackages(analyzerResult) {
+    const packages = new Set();
 
-    // Already a package name
-    if (source.startsWith('@flutterjs/')) {
-      return source;
+    if (!analyzerResult) {
+      return Array.from(packages);
     }
 
-    // @package: notation
-    if (source.startsWith('@package:')) {
-      const pkgName = source.replace('@package:', '');
-
-      // Map common package names
-      const mappings = {
-        'flutter': '@flutterjs/material',
-        'material': '@flutterjs/material',
-        'core': '@flutterjs/core',
-        'foundation': '@flutterjs/foundation',
-        'widgets': '@flutterjs/widgets',
-        'rendering': '@flutterjs/rendering',
-        'painting': '@flutterjs/painting',
-        'animation': '@flutterjs/animation',
-        'cupertino': '@flutterjs/cupertino'
-      };
-
-      return mappings[pkgName] || `@flutterjs/${pkgName}`;
-    }
-
-    // Local imports - not a package
-    if (source.startsWith('.')) {
-      return null;
-    }
-
-    // npm packages
-    return source;
-  }
-
-  /**
-   * Get package type
-   */
-  getPackageType(packageName) {
-    if (packageName.startsWith('@flutterjs/')) {
-      return 'sdk';
-    }
-    if (packageName.startsWith('@')) {
-      return 'scoped';
-    }
-    return 'npm';
-  }
-
-  /**
-   * Normalize imports - handle multiple input formats
-   */
-  normalizeImports(input) {
-    if (!input) {
-      return [];
-    }
-
-    // Already an array
-    if (Array.isArray(input)) {
-      return input.filter(imp => {
-        const source = this.extractSource(imp);
-        return source && typeof source === 'string';
+    // Check imports object
+    if (analyzerResult.imports && typeof analyzerResult.imports === 'object') {
+      Object.keys(analyzerResult.imports).forEach(pkg => {
+        if (pkg.startsWith('@flutterjs/')) {
+          packages.add(pkg);
+        }
       });
     }
 
-    // Object (like summary object)
-    if (typeof input === 'object') {
-      // Check if it's a summary object
-      if (input.total !== undefined || input.resolutionRate !== undefined) {
-        return [];
-      }
-
-      // Try to convert object to array
-      const values = Object.values(input);
-      if (Array.isArray(values) && values.length > 0) {
-        return values.filter(imp => this.extractSource(imp));
-      }
-
-      return [];
-    }
-
-    // Single string
-    if (typeof input === 'string') {
-      return [{ source: input, items: [] }];
-    }
-
-    return [];
+    return Array.from(packages).sort();
   }
 
   /**
-   * Extract source from import object - multiple formats
+   * Find package in src/ or package/ folder
+   * Returns { path, location } or null
    */
-  extractSource(imp) {
-    if (!imp) return null;
+  findPackageSource(packageName) {
+    console.log(chalk.cyan(`\n  Searching for: ${packageName}`));
 
-    // Plain string
-    if (typeof imp === 'string') {
-      return imp;
-    }
+    // Try src/ first
+    const srcPath = path.join(this.srcRoot, packageName);
+    console.log(chalk.gray(`    [1/2] Checking src/: ${srcPath}`));
 
-    // Object with various property names
-    if (typeof imp === 'object') {
-      return imp.source || imp.from || imp.module || imp.name || null;
+    if (fs.existsSync(srcPath)) {
+      const stat = fs.statSync(srcPath);
+      if (stat.isDirectory()) {
+        const files = fs.readdirSync(srcPath);
+        console.log(chalk.green(`         ✓ FOUND (${files.length} items)`));
+        return {
+          path: srcPath,
+          location: `src/${packageName}`
+        };
+      }
     }
+    console.log(chalk.red(`         ✗ not found`));
+
+    // Try package/ folder
+    const pkgPath = path.join(this.packageRoot, packageName);
+    console.log(chalk.gray(`    [2/2] Checking package/: ${pkgPath}`));
+
+    if (fs.existsSync(pkgPath)) {
+      const stat = fs.statSync(pkgPath);
+      if (stat.isDirectory()) {
+        const files = fs.readdirSync(pkgPath);
+        console.log(chalk.green(`         ✓ FOUND (${files.length} items)`));
+        return {
+          path: pkgPath,
+          location: `package/${packageName}`
+        };
+      }
+    }
+    console.log(chalk.red(`         ✗ not found`));
 
     return null;
   }
@@ -360,7 +302,7 @@ class DependencyResolver {
       allFiles: [],
       graph: new Map(),
       errors: [],
-      warnings: ['No imports to resolve'],
+      warnings: ['No packages to resolve'],
     };
   }
 }
