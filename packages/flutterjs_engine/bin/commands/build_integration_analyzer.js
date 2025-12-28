@@ -51,7 +51,7 @@ class BuildAnalyzer {
     });
     this.importRewriter = new ImportRewriter({
       debugMode: this.config.debugMode,
-      baseDir: "./node_modules/@flutterjs",
+      baseDir: '/node_modules/@flutterjs',  // ✅ FIXED: Absolute path without ./
     });
     this.codeTransformer = new CodeTransformer({}, {
       debugMode: this.config.debugMode,
@@ -132,60 +132,34 @@ class BuildAnalyzer {
    */
   async phase2_resolveDependencies() {
     const spinner = ora(
-      chalk.blue("🔗 Phase 2: Resolving dependencies...")
+      chalk.blue("🔗— Phase 2: Resolving dependencies...")
     ).start();
 
     try {
-      let imports = this.integration.analysis.imports || [];
-
-      if (!Array.isArray(imports)) {
-        if (imports.statements && Array.isArray(imports.statements)) {
-          imports = imports.statements;
-        } else {
-          imports = [];
-        }
-      }
-
-      // Add @flutterjs/runtime as automatic dependency
-      const runtimeImport = {
-        source: "@flutterjs/runtime",
-        items: ["FlutterJSRuntime", "runApp"],
-      };
-
-      const allImports = [runtimeImport, ...imports];
-      const uniqueImports = Array.from(
-        new Map(allImports.map((imp) => [imp.source, imp])).values()
+      // âœ… FIXED: Pass analyzer result directly
+      const resolutionResult = await this.dependencyResolver.resolveAll(
+        this.integration.analysis
       );
 
-      if (this.config.debugMode) {
-        console.log(chalk.blue("\n[PHASE 2 DEBUG] Import Resolution"));
-        console.log(chalk.blue("=".repeat(70)));
-        console.log(chalk.yellow("\n1️⃣  IMPORTS TO RESOLVE:"));
-        uniqueImports.forEach((imp, idx) => {
-          console.log(chalk.gray(`  [${idx}] ${imp.source}`));
-        });
-      }
-
-      const resolutionResult = await this.dependencyResolver.resolveAll(uniqueImports);
       this.integration.resolution = this.normalizeResolution(resolutionResult);
 
       if (this.config.debugMode) {
-        console.log(chalk.yellow("\n2️⃣  RESOLVED PACKAGES:"));
+        console.log(chalk.yellow("\nResolved Packages:"));
         this.integration.resolution.packages.forEach((info, name) => {
-          console.log(chalk.green(`  ✓ ${name}`));
+          console.log(chalk.green(`  âœ" ${name}`));
+          console.log(chalk.gray(`     ${info.location}`));
         });
-        console.log(chalk.blue("=".repeat(70) + "\n"));
+        console.log();
       }
 
       spinner.succeed(
-        chalk.green(`✓ Resolved ${this.integration.resolution.packages.size} packages`)
+        chalk.green(`âœ" Resolved ${this.integration.resolution.packages.size} packages`)
       );
     } catch (error) {
-      spinner.fail(chalk.red(`✗ Resolution failed: ${error.message}`));
+      spinner.fail(chalk.red(`âœ— Resolution failed: ${error.message}`));
       throw error;
     }
   }
-
   /**
    * ========================================================================
    * PHASE 3: INSTALL PACKAGES
@@ -299,18 +273,18 @@ class BuildAnalyzer {
     try {
       const sourceCode = this.integration.analysis.sourceCode;
 
-      // ✅ Use enhanced ImportRewriter.analyzeImports()
-      // This handles:
-      // - Import parsing and analysis
-      // - Framework package detection
-      // - Import map generation
-      // - Comprehensive reporting
-      const importAnalysisResult = this.importRewriter.analyzeImports(sourceCode);
+      // ✅ NEW: Analyze imports WITH resolution data
+      // This loads package exports from package.json files
+      // Use absolute path /node_modules/@flutterjs for dev server
+      const importAnalysisResult = await this.importRewriter.analyzeImportsWithResolution(
+        sourceCode,
+        this.integration.resolution  // Pass resolution so we can read package.json files
+      );
 
-      // ✅ Transform code
+      // Transform code
       const transformResult = this.codeTransformer.transform(sourceCode);
 
-      // ✅ Store transformed code
+      // Store transformed code
       this.integration.transformed = {
         originalCode: sourceCode,
         transformedCode: transformResult.transformedCode || sourceCode,
@@ -321,14 +295,41 @@ class BuildAnalyzer {
         warnings: transformResult.warnings || [],
       };
 
-      // ✅ Store import analysis (needed for HTML generation in phase 9)
+      // Store import analysis with import map
       this.integration.importAnalysis = importAnalysisResult;
+
+      // ✅ NEW: Store the generated import map for HTML generation
+      // Use absolute path /node_modules/@flutterjs for dev server
+      const importMapObj = importAnalysisResult.getImportMapObject();
+      const importMapScript = importAnalysisResult.getImportMapScript();
+
+      this.integration.importMap = importMapObj;
+      this.integration.importMapScript = importMapScript;
 
       spinner.succeed(chalk.green(`✓ Transformation complete`));
       if (this.config.debugMode) {
-        console.log(chalk.gray(`  Framework imports: ${importAnalysisResult.stats.framework}`));
+        console.log(chalk.gray(`  Framework imports found: ${importAnalysisResult.stats.framework}`));
         console.log(chalk.gray(`  External imports: ${importAnalysisResult.stats.external}`));
         console.log(chalk.gray(`  Local imports: ${importAnalysisResult.stats.local}`));
+        console.log(chalk.gray(`  Packages loaded: ${importAnalysisResult.packageExports.size}`));
+
+        const importCount = (importMapObj.imports) ? Object.keys(importMapObj.imports).length : 0;
+        console.log(chalk.gray(`  Import map entries: ${importCount}`));
+
+        if (importMapObj.imports && Object.keys(importMapObj.imports).length > 0) {
+          console.log(chalk.gray(`\n  Import Map (first 5):`));
+          let count = 0;
+          for (const [key, value] of Object.entries(importMapObj.imports)) {
+            if (count >= 5) {
+              console.log(chalk.gray(`    ... and ${Object.keys(importMapObj.imports).length - 5} more`));
+              break;
+            }
+            console.log(chalk.gray(`    ${key}`));
+            console.log(chalk.gray(`      → ${value}`));
+            count++;
+          }
+        }
+
         console.log(chalk.gray(`  Transformations: ${this.integration.transformed.transformations}\n`));
       }
     } catch (error) {
