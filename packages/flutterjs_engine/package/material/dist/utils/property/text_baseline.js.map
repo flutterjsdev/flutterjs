@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/text_baseline.js"],
+  "sourcesContent": ["/**\r\n * TextBaseline - Baseline used for aligning text\r\n */\r\nconst TextBaseline = Object.freeze({\r\n  // The horizontal line used for aligning the bottom of glyphs\r\n  alphabetic: 'alphabetic',\r\n\r\n  // The horizontal line used for aligning the bottom of ideographic characters\r\n  ideographic: 'ideographic'\r\n});\r\nexport { TextBaseline };"],
+  "mappings": "AAGA,MAAMA,EAAe,OAAO,OAAO,CAEjC,WAAY,aAGZ,YAAa,aACf,CAAC",
+  "names": ["TextBaseline"]
+}

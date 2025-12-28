@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/text_decoration.js"],
+  "sourcesContent": ["/**\r\n * TextDecoration - Text decoration style\r\n */\r\nconst TextDecoration = Object.freeze({\r\n  none: 'none',\r\n  underline: 'underline',\r\n  overline: 'overline',\r\n  lineThrough: 'lineThrough'\r\n});\r\n\r\nexport { TextDecoration };"],
+  "mappings": "AAGA,MAAMA,EAAiB,OAAO,OAAO,CACnC,KAAM,OACN,UAAW,YACX,SAAU,WACV,YAAa,aACf,CAAC",
+  "names": ["TextDecoration"]
+}

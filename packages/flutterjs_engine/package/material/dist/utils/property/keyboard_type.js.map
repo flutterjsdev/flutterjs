@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/keyboard_type.js"],
+  "sourcesContent": ["\r\n/**\r\n * KeyboardType - Physical keyboard appearance\r\n */\r\nconst KeyboardType = Object.freeze({\r\n  text: 'text',\r\n  asciiCapable: 'asciiCapable',\r\n  numbersAndPunctuation: 'numbersAndPunctuation',\r\n  URL: 'URL',\r\n  numberPad: 'numberPad',\r\n  phonePad: 'phonePad',\r\n  namePhonePad: 'namePhonePad',\r\n  emailAddress: 'emailAddress',\r\n  decimalPad: 'decimalPad',\r\n  twitter: 'twitter',\r\n  webSearch: 'webSearch',\r\n  asciiCapableNumberPad: 'asciiCapableNumberPad'\r\n});\r\nexport { KeyboardType };"],
+  "mappings": "AAIA,MAAMA,EAAe,OAAO,OAAO,CACjC,KAAM,OACN,aAAc,eACd,sBAAuB,wBACvB,IAAK,MACL,UAAW,YACX,SAAU,WACV,aAAc,eACd,aAAc,eACd,WAAY,aACZ,QAAS,UACT,UAAW,YACX,sBAAuB,uBACzB,CAAC",
+  "names": ["KeyboardType"]
+}

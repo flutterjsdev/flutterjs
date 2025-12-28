@@ -318,6 +318,7 @@ export class DevServer {
     this.app.disable('x-powered-by');
     this.app.set('trust proxy', 1);
   }
+  // In the _setupMiddleware() method, update the static files section:
 
   /**
    * Setup Express middleware
@@ -347,14 +348,19 @@ export class DevServer {
       const originalEnd = res.end;
 
       res.end = function (...args) {
-        const statusCode = res.statusCode;
-        const statusColor = statusCode >= 400 ? chalk.red :
-          statusCode >= 300 ? chalk.yellow : chalk.green;
+        try {
+          const statusCode = res.statusCode;
+          const statusColor = statusCode >= 400 ? chalk.red :
+            statusCode >= 300 ? chalk.yellow : chalk.green;
 
-        console.log(
-          `${statusColor(statusCode)}${chalk.reset()} ` +
-          `${chalk.gray(req.method)} ${req.url}`
-        );
+          console.log(
+            `${statusColor(statusCode)}${chalk.reset()} ` +
+            `${chalk.gray(req.method)} ${req.url}`
+          );
+        } catch (error) {
+          // Silently fail logging - don't crash the request
+          console.error(chalk.red('Logging error:'), error.message);
+        }
 
         originalEnd.apply(res, args);
       };
@@ -391,7 +397,19 @@ export class DevServer {
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
 
-    // Static files
+    // ===== FIXED: Serve node_modules from project root =====
+    const nodeModulesPath = path.join(this.projectRoot, 'node_modules');
+    if (fs.existsSync(nodeModulesPath)) {
+      this.app.use('/node_modules', express.static(nodeModulesPath, {
+        maxAge: 0,
+        etag: false,
+      }));
+      console.log(chalk.gray(`ðŸ"¦ Serving node_modules from: ${nodeModulesPath}`));
+    } else {
+      console.warn(chalk.yellow(`âš  node_modules not found at: ${nodeModulesPath}`));
+    }
+
+    // Static files from .dev build directory
     this.app.use(express.static(this.buildDir, {
       maxAge: 0,
       etag: false,

@@ -1,0 +1,2 @@
+var p=Object.defineProperty;var r=(c,e,s)=>e in c?p(c,e,{enumerable:!0,configurable:!0,writable:!0,value:s}):c[e]=s;var t=(c,e,s)=>(r(c,typeof e!="symbol"?e+"":e,s),s);class a{}t(a,"start","flex-start"),t(a,"end","flex-end"),t(a,"center","center"),t(a,"spaceBetween","space-between"),t(a,"spaceAround","space-around"),t(a,"spaceEvenly","space-evenly");export{a as MainAxisAlignment};
+//# sourceMappingURL=main_axis_alignment.js.map

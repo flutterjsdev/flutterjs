@@ -9,7 +9,7 @@ import { VNode } from "@flutterjs/vdom/vnode";
 /**
  * Widget - Abstract base class for all widgets
  */
-export class Widget extends Diagnosticable {
+ class Widget extends Diagnosticable {
   constructor(key = null) {
     super();
     if (new.target === Widget) {
@@ -451,8 +451,6 @@ export {
   Notification,
   NotificationListener,
   ErrorWidget,
-  DiagnosticLevel,
-  DiagnosticsTreeStyle,
   Diagnosticable,
   Widget,
   Element,

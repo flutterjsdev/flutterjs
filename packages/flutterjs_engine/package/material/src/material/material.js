@@ -4,7 +4,7 @@ export {
     MaterialColor,
     MaterialAccentColor,
     Colors
-} from "./widget/color.js";
+} from "./color.js";
 
 export {
     Container,
@@ -23,9 +23,9 @@ export {
     ConstrainedBox,
     LimitedBox,
     Transform
-} from "./widget/container.js";
+} from "./container.js";
 
-export { Icon, IconData, IconThemeData, Icons } from "./widget/icon.js";
+export { Icon, IconData, IconThemeData, Icons } from "./icon.js";
 
 export {
     Scaffold,
@@ -36,11 +36,11 @@ export {
     ScaffoldFeatureController,
     FloatingActionButtonLocation,
     DrawerAlignment
-} from "./widget/scffold_basic.js";
+} from "./scffold_basic.js";
 
 export {
     Text, TextStyle
-} from "./widget/text.js";
+} from "./text.js";
 
 
 

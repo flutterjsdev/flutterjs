@@ -718,21 +718,17 @@ class IgnoreBaselineElement extends ProxyWidget.constructor.prototype.constructo
 }
 
 export {
-    AspectRatio,
+
     RenderAspectRatio,
     IntrinsicWidth,
     RenderIntrinsicWidth,
     IntrinsicHeight,
     RenderIntrinsicHeight,
     AspectRatio,
-    RenderAspectRatio,
-    IntrinsicWidth,
-    RenderIntrinsicWidth,
-    IntrinsicHeight,
-    RenderIntrinsicHeight,
-    Baseline,
-    RenderBaseline,
+
+
+
     IgnoreBaseline,
     RenderIgnoreBaseline,
-    TextBaseline
+
 };

@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/filter_quality.js"],
+  "sourcesContent": ["/**\r\n * FilterQuality - Quality of image filters\r\n */\r\nconst FilterQuality = Object.freeze({\r\n  none: 'none',\r\n  low: 'low',\r\n  medium: 'medium',\r\n  high: 'high'\r\n});\r\n\r\nexport { FilterQuality };"],
+  "mappings": "AAGA,MAAMA,EAAgB,OAAO,OAAO,CAClC,KAAM,OACN,IAAK,MACL,OAAQ,SACR,KAAM,MACR,CAAC",
+  "names": ["FilterQuality"]
+}

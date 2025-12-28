@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/cross_axis_alignment.js"],
+  "sourcesContent": ["export class CrossAxisAlignment {\r\n  static start = 'flex-start';\r\n  static end = 'flex-end';\r\n  static center = 'center';\r\n  static stretch = 'stretch';\r\n  static baseline = 'baseline';\r\n}"],
+  "mappings": "wKAAO,MAAMA,CAAmB,CAMhC,CALEC,EADWD,EACJ,QAAQ,cACfC,EAFWD,EAEJ,MAAM,YACbC,EAHWD,EAGJ,SAAS,UAChBC,EAJWD,EAIJ,UAAU,WACjBC,EALWD,EAKJ,WAAW",
+  "names": ["CrossAxisAlignment", "__publicField"]
+}

@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/box_shape.js"],
+  "sourcesContent": ["/**\r\n * BoxShape - Shape for decoration\r\n */\r\nconst BoxShape = Object.freeze({\r\n  rectangle: 'rectangle',\r\n  circle: 'circle'\r\n});\r\n\r\nexport { BoxShape };"],
+  "mappings": "AAGA,MAAMA,EAAW,OAAO,OAAO,CAC7B,UAAW,YACX,OAAQ,QACV,CAAC",
+  "names": ["BoxShape"]
+}

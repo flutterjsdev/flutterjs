@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/text_align.js"],
+  "sourcesContent": ["/**\r\n * TextAlign - How text is aligned horizontally\r\n */\r\nconst TextAlign = Object.freeze({\r\n  left: 'left',\r\n  right: 'right',\r\n  center: 'center',\r\n  justify: 'justify',\r\n  start: 'start',\r\n  end: 'end'\r\n});\r\nexport { TextAlign };"],
+  "mappings": "AAGA,MAAMA,EAAY,OAAO,OAAO,CAC9B,KAAM,OACN,MAAO,QACP,OAAQ,SACR,QAAS,UACT,MAAO,QACP,IAAK,KACP,CAAC",
+  "names": ["TextAlign"]
+}

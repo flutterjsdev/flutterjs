@@ -1,0 +1,2 @@
+import{Alignment as o}from"./property/alignment.js";class g{constructor({begin:n=o.topLeft,end:i=o.bottomRight,colors:t=[],stops:s=null}={}){this.begin=n,this.end=i,this.colors=t,this.stops=s||t.map((h,e)=>e/(t.length-1||1))}toCSSString(){const n=Math.atan2(this.end.y-this.begin.y,this.end.x-this.begin.x)*(180/Math.PI),i=this.colors.map((t,s)=>`${t} ${this.stops[s]*100}%`).join(", ");return`linear-gradient(${n}deg, ${i})`}toString(){return`LinearGradient(colors: ${this.colors.length})`}}export{g as LinearGradient};
+//# sourceMappingURL=linear_gradient.js.map

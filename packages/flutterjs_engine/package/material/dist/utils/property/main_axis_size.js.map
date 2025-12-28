@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/main_axis_size.js"],
+  "sourcesContent": ["/**\r\n * MainAxisSize - How much space should be occupied along the main axis\r\n */\r\nconst MainAxisSize = Object.freeze({\r\n  // As much space as possible\r\n  max: 'max',\r\n\r\n  // As little space as possible\r\n  min: 'min'\r\n});\r\nexport { MainAxisSize };"],
+  "mappings": "AAGA,MAAMA,EAAe,OAAO,OAAO,CAEjC,IAAK,MAGL,IAAK,KACP,CAAC",
+  "names": ["MainAxisSize"]
+}

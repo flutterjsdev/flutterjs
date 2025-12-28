@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../src/utils/property/decoration_position.js"],
+  "sourcesContent": ["\r\n/**\r\n * DecorationPosition - Where to paint decorations (before or after child)\r\n */\r\nconst DecorationPosition = Object.freeze({\r\n  background: 'background',  // Paint behind child\r\n  foreground: 'foreground'   // Paint in front of child\r\n});\r\n\r\nexport { DecorationPosition };"],
+  "mappings": "AAIA,MAAMA,EAAqB,OAAO,OAAO,CACvC,WAAY,aACZ,WAAY,YACd,CAAC",
+  "names": ["DecorationPosition"]
+}
