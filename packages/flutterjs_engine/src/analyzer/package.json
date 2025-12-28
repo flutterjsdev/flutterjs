@@ -29,6 +29,7 @@
     "test:lexer": "node test/lexer.test.js",
     "test:parser": "node test/parser.test.js",
     "test:analyzer": "node test/widget-analyzer.test.js",
+    "test:import": "node test/import_resolver.test.js",
     "test:all": "npm run test:lexer && npm run test:parser && npm run test:analyzer",
     "test:watch": "node test/runner.js --watch"
   },

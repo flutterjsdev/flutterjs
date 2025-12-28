@@ -1,11 +1,13 @@
 /**
  * Advanced Import Resolver for Flutter.js Framework
+ * ✅ FIXED: Now handles multi-line imports correctly
  * 
  * Resolution Chain:
- * 1. Check framework package mappings (@package:)
- * 2. Check local project code (./src, ./lib, etc.)
- * 3. Check package cache (future: npm_modules, pub_cache, etc.)
- * 4. Return error if not found
+ * 1. Parse imports from source code (single & multi-line)
+ * 2. Check framework package mappings (@flutterjs/*, @package:)
+ * 3. Check local project code (./src, ./lib, etc.)
+ * 4. Check package cache (future: npm_modules, pub_cache, etc.)
+ * 5. Return error if not found
  */
 
 import fs from 'fs';
@@ -16,27 +18,24 @@ class ImportResolver {
     this.options = {
       projectRoot: process.cwd(),
       frameworkType: 'flutter-js',
-      ignoreUnresolved: false,        // Fail on missing imports
-      cacheEnabled: false,            // Enable package cache checking
+      ignoreUnresolved: false,
+      cacheEnabled: false,
       ...options,
     };
 
-    // Framework package mappings
     this.frameworkPackages = {
       "@flutterjs/runtime": "file:../../../../../src/runtime",
       "@flutterjs/vdom": "file:../../../../../src/vdom",
       "@flutterjs/analyzer": "file:../../../../analyzer",
-      '@flutterjs:material': 'file:../../../../../package/material',
+      "@flutterjs/material": "file:../../../../../package/material",
+      "@flutterjs/cupertino": "file:../../../../../package/cupertino",
+      "@flutterjs/foundation": "file:../../../../../package/foundation",
     };
 
-    // User-defined custom package mappings
     this.customPackageMappings = {};
-
-    // Resolution cache
     this.resolvedCache = new Map();
     this.unresolvedCache = new Map();
 
-    // Local search paths (where to look for local code)
     this.localSearchPaths = [
       'src',
       'lib',
@@ -49,6 +48,253 @@ class ImportResolver {
       resolved: [],
       unresolved: [],
       errors: [],
+    };
+  }
+
+  /**
+   * ✅ FINAL FIX: Parse imports directly from source code
+   * Handles both single-line and multi-line imports
+   */
+  parseImportsFromSource(sourceCode, logger = null) {
+    const imports = [];
+
+    if (logger) {
+      logger.info('[ImportResolver] Starting import parsing...');
+      logger.debug(`[ImportResolver] Source code length: ${sourceCode.length} characters`);
+    }
+
+    // Regex: import ... from 'path'
+    // [\s\S]*? matches ANYTHING including newlines (non-greedy)
+    const importRegex = /import\s+([\s\S]*?)\s+from\s+['"`]([^'"`]+)['"`]/g;
+
+    let match;
+    let matchCount = 0;
+
+    while ((match = importRegex.exec(sourceCode)) !== null) {
+      matchCount++;
+      const importClause = match[1];
+      const modulePath = match[2];
+
+      if (logger) {
+        logger.debug(`[ImportResolver] Match #${matchCount} found`);
+        logger.debug(`  Module path: '${modulePath}'`);
+        logger.trace(`  Raw clause length: ${importClause.length} chars`);
+      }
+
+      // Parse the clause (parsing handles cleaning internally)
+      const parsed = this.parseImportClause(importClause, modulePath, logger);
+
+      if (parsed) {
+        if (logger) {
+          logger.debug(`  ✓ Successfully parsed`);
+          logger.debug(`    Items: ${parsed.items.join(', ')}`);
+        }
+        imports.push(parsed);
+      } else {
+        if (logger) {
+          logger.warn(`  ✗ Parse returned null - clause: ${importClause.substring(0, 100)}`);
+        }
+      }
+    }
+
+    if (logger) {
+      logger.info(`[ImportResolver] FINAL RESULT: Found ${matchCount} imports, parsed ${imports.length}`);
+      if (imports.length === 0 && matchCount === 0) {
+        logger.warn('[ImportResolver] ⚠️ NO IMPORTS FOUND - Check regex or source code!');
+        logger.warn(`[ImportResolver] Source starts with: ${sourceCode.substring(0, 200)}`);
+      }
+      imports.forEach((imp, idx) => {
+        logger.info(`[ImportResolver]   [${idx}] ${imp.source} → [${imp.items.join(', ')}]`);
+      });
+    }
+
+    return imports;
+  }
+
+  /**
+   * ✅ FIXED: Parse individual import clause
+   * Handles: { x, y, z }, defaultExport, * as namespace, etc.
+   * 
+   * KEY FIX: Clean the clause COMPLETELY FIRST, then detect type
+   */
+  parseImportClause(clause, modulePath, logger = null) {
+    if (!clause || typeof clause !== 'string') {
+      return null;
+    }
+
+    // ✅ CRITICAL FIX #1: Clean AGGRESSIVELY FIRST
+    // This removes ALL noise (comments, newlines, extra spaces)
+    let cleaned = clause
+      .replace(/\/\/.*$/gm, '')                    // Remove line comments
+      .replace(/\/\*[\s\S]*?\*\//g, '')            // Remove block comments
+      .replace(/\n/g, ' ')                         // Replace newlines with spaces
+      .replace(/\t/g, ' ')                         // Replace tabs with spaces
+      .replace(/\s+/g, ' ')                        // Collapse multiple spaces to one
+      .trim();                                      // Trim leading/trailing
+
+    if (logger) {
+      logger.trace(`[ImportResolver]   Original: ${clause.substring(0, 100).replace(/\n/g, '\\n')}`);
+      logger.trace(`[ImportResolver]   Cleaned: "${cleaned}"`);
+    }
+
+    const result = {
+      source: modulePath,
+      items: [],
+      default: null,
+      namespace: null,
+      raw: clause,
+    };
+
+    // ✅ Case 1: Namespace import: import * as name
+    const namespaceMatch = cleaned.match(/^\*\s+as\s+(\w+)$/);
+    if (namespaceMatch) {
+      result.namespace = namespaceMatch[1];
+      result.items.push(namespaceMatch[1]);
+      if (logger) logger.trace(`[ImportResolver]   → Namespace import: ${namespaceMatch[1]}`);
+      return result;
+    }
+
+    // ✅ Case 2: Named imports with braces: { x, y, z }
+    const namedMatch = cleaned.match(/\{(.+?)\}/);
+    if (namedMatch) {
+      if (logger) logger.trace(`[ImportResolver]   → Found braces, extracting named imports`);
+      
+      const itemsString = namedMatch[1];
+      this.extractNamedItems(itemsString, result, logger);
+      
+      if (result.items.length > 0) {
+        return result;
+      }
+    }
+
+    // ✅ Case 3: NO BRACES - but might be comma-separated list
+    // This happens when clause is just: "Widget, State, StatefulWidget, ..."
+    // (the braces were stripped by the regex that captured this clause)
+    if (!cleaned.includes('{') && cleaned.includes(',')) {
+      if (logger) logger.trace(`[ImportResolver]   → No braces but has commas, treating as named imports`);
+      
+      this.extractNamedItems(cleaned, result, logger);
+      
+      if (result.items.length > 0) {
+        return result;
+      }
+    }
+
+    // ✅ Case 4: Default import (no braces, no commas, single identifier)
+    if (!cleaned.includes('{') && !cleaned.includes(',') && cleaned.length > 0) {
+      // Verify it's a valid identifier
+      if (/^[\w$]+$/.test(cleaned)) {
+        result.default = cleaned;
+        result.items.push(cleaned);
+        if (logger) logger.trace(`[ImportResolver]   → Default import: ${cleaned}`);
+        return result;
+      }
+    }
+
+    // ✅ Case 5: Combined default + named: import defaultExport, { x, y }
+    if (cleaned.includes('{') && cleaned.includes(',')) {
+      const beforeBrace = cleaned.split('{')[0].trim();
+      if (beforeBrace && beforeBrace !== ',' && /^[\w$]+$/.test(beforeBrace)) {
+        result.default = beforeBrace;
+        // Also parse the named imports
+        const namedMatch2 = cleaned.match(/\{(.+?)\}/);
+        if (namedMatch2) {
+          this.extractNamedItems(namedMatch2[1], result, logger);
+        }
+        return result.items.length > 0 ? result : null;
+      }
+    }
+
+    // ✅ Debug: Nothing matched
+    if (logger) {
+      logger.warn(`[ImportResolver]   ⚠️ No valid import pattern detected`);
+      logger.debug(`[ImportResolver]   Cleaned was: "${cleaned}"`);
+    }
+
+    return null;
+  }
+
+  /**
+   * ✅ NEW: Extract named items from a comma-separated string
+   * Handles: "x, y, z" and "x as y, z as w" patterns
+   */
+  extractNamedItems(itemsString, result, logger = null) {
+    const items = itemsString.split(',');
+    
+    if (logger) {
+      logger.trace(`[ImportResolver]     Found ${items.length} comma-separated items`);
+    }
+
+    items.forEach((item) => {
+      const trimmed = item.trim();
+      
+      // Skip empty items
+      if (!trimmed || trimmed.length === 0) return;
+      
+      // Skip if it looks like a comment left over
+      if (trimmed.startsWith('//') || trimmed.startsWith('*')) return;
+
+      // Handle "x as y" syntax - take the alias (the part after 'as')
+      const asMatch = trimmed.match(/^(\w+)\s+as\s+(\w+)$/);
+      let importName;
+      
+      if (asMatch) {
+        // "x as y" → use "y"
+        importName = asMatch[2];
+        if (logger) logger.trace(`[ImportResolver]       "${asMatch[1]} as ${asMatch[2]}" → ${importName}`);
+      } else {
+        // Simple identifier
+        importName = trimmed;
+        if (logger) logger.trace(`[ImportResolver]       "${trimmed}"`);
+      }
+
+      // Validate it's a proper identifier
+      if (/^[\w$]+$/.test(importName) && !result.items.includes(importName)) {
+        result.items.push(importName);
+      }
+    });
+  }
+
+  /**
+   * Resolve imports from source code directly
+   * ✅ NEW METHOD: Accepts sourceCode and parses multi-line imports automatically
+   */
+  resolveFromSource(sourceCode, logger = null) {
+    // Parse imports from source
+    const parsedImports = this.parseImportsFromSource(sourceCode, logger);
+
+    if (logger) {
+      logger.info(`[ImportResolver] Parsed ${parsedImports.length} import statements`);
+      parsedImports.forEach((imp, idx) => {
+        logger.debug(`[ImportResolver]   [${idx}] ${imp.source} → [${imp.items.join(', ')}]`);
+      });
+    }
+
+    // Group by source
+    const groupedBySource = {};
+    parsedImports.forEach(imp => {
+      if (!groupedBySource[imp.source]) {
+        groupedBySource[imp.source] = [];
+      }
+      groupedBySource[imp.source] = groupedBySource[imp.source].concat(imp.items);
+    });
+
+    // ✅ Reset results before resolving
+    this.results = {
+      resolved: [],
+      unresolved: [],
+      errors: [],
+    };
+
+    // Resolve each unique source
+    Object.entries(groupedBySource).forEach(([source, items]) => {
+      this.resolve(source, items);
+    });
+
+    return {
+      imports: this.results,
+      summary: this.getSummary(),
+      parsed: parsedImports,
     };
   }
 
@@ -72,14 +318,14 @@ class ImportResolver {
       resolved: null,
       actualPath: null,
       type: null,
-      source: null,        // Where it was found: 'framework', 'local', 'cache', 'error'
+      source: null,
       isValid: false,
       reason: null,
-      fallbacks: [],       // Track what was tried
+      fallbacks: [],
     };
 
-    // STEP 1: Check if it's a framework package (@package:)
-    if (importPath.startsWith('@package:')) {
+    // STEP 1: Check if it's a framework package
+    if (this.isFrameworkPackage(importPath)) {
       const stepResult = this.resolveFrameworkPackage(importPath, importedItems);
       if (stepResult.isValid) {
         result.resolved = stepResult.resolved;
@@ -101,7 +347,7 @@ class ImportResolver {
     }
 
     // STEP 2: Check local project code
-    if (!importPath.startsWith('@')) {
+    if (!this.isScopedPackage(importPath)) {
       const stepResult = this.resolveLocalImport(importPath, importedItems);
       if (stepResult.isValid) {
         result.resolved = stepResult.resolved;
@@ -123,7 +369,7 @@ class ImportResolver {
       });
     }
 
-    // STEP 3: Check package cache (future feature)
+    // STEP 3: Check package cache
     if (this.options.cacheEnabled) {
       const stepResult = this.resolveFromCache(importPath, importedItems);
       if (stepResult.isValid) {
@@ -145,7 +391,7 @@ class ImportResolver {
       });
     }
 
-    // STEP 4: Not found - return error
+    // STEP 4: Not found
     result.isValid = false;
     result.source = 'error';
     result.reason = this.generateErrorMessage(importPath, result.fallbacks);
@@ -159,11 +405,16 @@ class ImportResolver {
     return result;
   }
 
-  /**
-   * STEP 1: Resolve @package: framework imports
-   */
+  isFrameworkPackage(importPath) {
+    return importPath.startsWith('@flutterjs/') ||
+           importPath.startsWith('@package:');
+  }
+
+  isScopedPackage(importPath) {
+    return importPath.startsWith('@');
+  }
+
   resolveFrameworkPackage(importPath, importedItems) {
-    // Check framework packages
     if (this.frameworkPackages[importPath]) {
       return {
         isValid: true,
@@ -173,7 +424,6 @@ class ImportResolver {
       };
     }
 
-    // Check custom mappings
     if (this.customPackageMappings[importPath]) {
       return {
         isValid: true,
@@ -189,14 +439,9 @@ class ImportResolver {
     };
   }
 
-  /**
-   * STEP 2: Resolve local imports (./src/*, ./lib/*, etc.)
-   * Tries multiple locations in project
-   */
   resolveLocalImport(importPath, importedItems) {
     const searchedLocations = [];
 
-    // For relative imports (./src/components)
     if (importPath.startsWith('./') || importPath.startsWith('../')) {
       const fullPath = path.resolve(this.options.projectRoot, importPath);
       searchedLocations.push(fullPath);
@@ -210,7 +455,6 @@ class ImportResolver {
         };
       }
 
-      // Try with .js extension
       if (this.fileExists(`${fullPath}.js`)) {
         return {
           isValid: true,
@@ -227,8 +471,6 @@ class ImportResolver {
       };
     }
 
-    // For absolute imports (components/Button)
-    // Search in local paths: src/, lib/, packages/, etc.
     for (const searchPath of this.localSearchPaths) {
       const fullPath = path.resolve(
         this.options.projectRoot,
@@ -237,7 +479,6 @@ class ImportResolver {
       );
       searchedLocations.push(fullPath);
 
-      // Try as directory/index.js
       const indexPath = path.join(fullPath, 'index.js');
       if (this.fileExists(indexPath)) {
         return {
@@ -248,7 +489,6 @@ class ImportResolver {
         };
       }
 
-      // Try as file.js
       if (this.fileExists(`${fullPath}.js`)) {
         return {
           isValid: true,
@@ -258,7 +498,6 @@ class ImportResolver {
         };
       }
 
-      // Try as .fjs (Flutter.js file)
       if (this.fileExists(`${fullPath}.fjs`)) {
         return {
           isValid: true,
@@ -276,22 +515,13 @@ class ImportResolver {
     };
   }
 
-  /**
-   * STEP 3: Resolve from package cache (future implementation)
-   * Can check: node_modules/, pub_cache/, etc.
-   */
   resolveFromCache(importPath, importedItems) {
-    // TODO: Implement package cache checking
-    // For now, just return not found
     return {
       isValid: false,
       reason: 'Package cache resolution not yet implemented',
     };
   }
 
-  /**
-   * Check if file exists
-   */
   fileExists(filePath) {
     try {
       return fs.existsSync(filePath);
@@ -300,9 +530,6 @@ class ImportResolver {
     }
   }
 
-  /**
-   * Generate helpful error message showing what was tried
-   */
   generateErrorMessage(importPath, fallbacks) {
     let message = `❌ Import not found: "${importPath}"\n\nResolution chain:\n`;
 
@@ -329,9 +556,6 @@ class ImportResolver {
     return message;
   }
 
-  /**
-   * Resolve multiple imports at once
-   */
   resolveImports(imports) {
     this.results = {
       resolved: [],
@@ -349,31 +573,21 @@ class ImportResolver {
     };
   }
 
-  /**
-   * Add custom package mapping
-   * Example: resolver.addPackageMapping('@package:ui', './packages/ui')
-   */
   addPackageMapping(packageName, actualPath) {
-    if (packageName.startsWith('@package:')) {
+    if (packageName.startsWith('@flutterjs/') || packageName.startsWith('@package:')) {
       this.customPackageMappings[packageName] = actualPath;
       console.log(`✓ Added mapping: ${packageName} → ${actualPath}`);
     } else {
-      console.warn(`⚠ Custom mappings should start with @package:`);
+      console.warn(`⚠ Framework mappings should start with @flutterjs/ or @package:`);
     }
   }
 
-  /**
-   * Add multiple mappings at once
-   */
   addPackageMappings(mappings) {
     Object.entries(mappings).forEach(([pkg, path]) => {
       this.addPackageMapping(pkg, path);
     });
   }
 
-  /**
-   * Get all mappings
-   */
   getPackageMappings() {
     return {
       framework: this.frameworkPackages,
@@ -381,18 +595,11 @@ class ImportResolver {
     };
   }
 
-  /**
-   * Set local search paths
-   * Example: resolver.setLocalSearchPaths(['src', 'lib', 'packages'])
-   */
   setLocalSearchPaths(paths) {
     this.localSearchPaths = paths;
     console.log(`✓ Set local search paths: ${paths.join(', ')}`);
   }
 
-  /**
-   * Get resolution summary
-   */
   getSummary() {
     const total = this.results.resolved.length + this.results.unresolved.length;
     const resolved = this.results.resolved.length;
@@ -412,16 +619,13 @@ class ImportResolver {
     };
   }
 
-  /**
-   * Generate resolution report
-   */
   generateReport() {
     const summary = this.getSummary();
 
     let report = `
-╔════════════════════════════════════════════════════════════╗
-║         IMPORT RESOLUTION REPORT                           ║
-╚════════════════════════════════════════════════════════════╝
+╔═══════════════════════════════════════════════════════════════════════════╗
+║         IMPORT RESOLUTION REPORT                                          ║
+╚═══════════════════════════════════════════════════════════════════════════╝
 
 📊 Summary
 ──────────
@@ -431,18 +635,18 @@ class ImportResolver {
   ⚠ Errors:         ${summary.errors}
 
 📍 Resolution Sources
-──────────────────────
+──────────────────────────────────────
   Framework:        ${summary.bySource.framework}
   Local Code:       ${summary.bySource.local}
   Package Cache:    ${summary.bySource.cache}
 
 ${this.results.unresolved.length > 0 ? `
 ⚠️  UNRESOLVED IMPORTS
-─────────────────────
+──────────────────────────
 ${this.results.unresolved
           .map(
             (imp) =>
-              `  ❌ ${imp.original}
+              `  ✗ ${imp.original}
      Reason: ${imp.reason}`
           )
           .join('\n')}
@@ -450,7 +654,7 @@ ${this.results.unresolved
 
 ${this.results.errors.length > 0 ? `
 🔴 ERRORS
-─────────
+──────────
 ${this.results.errors.map((err) => `  • ${err.reason}`).join('\n')}
 ` : ''}
 `;
@@ -458,9 +662,6 @@ ${this.results.errors.map((err) => `  • ${err.reason}`).join('\n')}
     return report;
   }
 
-  /**
-   * Clear caches
-   */
   clearCache() {
     this.resolvedCache.clear();
     this.unresolvedCache.clear();
