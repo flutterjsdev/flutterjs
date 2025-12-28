@@ -1,164 +1,25 @@
 /**
  * ============================================================================
- * Enhanced PackageCollector - Complete Package Collection & Copying
+ * FlutterJS Package Collector - Clean Implementation
  * ============================================================================
- *
- * ✅ FIXED: Copies packages to correct node_modules/@flutterjs/ structure
- *
- * Responsibilities:
- * 1. Collect resolved packages from DependencyResolver
- * 2. Copy package files to dist/node_modules/@flutterjs/ structure
- * 3. Generate export maps for each package
- * 4. Create index files for easy importing
- * 5. Report collection statistics
+ * 
+ * Purpose:
+ * - Collect resolved packages
+ * - Copy package files to dist/node_modules/@flutterjs/ structure
+ * - Generate collection statistics and reports
+ * - Handle all collection failures gracefully
+ * 
+ * Uses shared utilities to avoid duplication
+ * Location: cli/build/package-collector.js
  */
 
 import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
-
-// ============================================================================
-// DATA TYPES
-// ============================================================================
-
-/**
- * Information about a copied file
- */
-class CopiedFile {
-  constructor(source, dest, packageName, relative) {
-    this.source = source;
-    this.dest = dest;
-    this.package = packageName;
-    this.relative = relative;
-    this.size = 0;
-    this.copied = false;
-    this.error = null;
-  }
-
-  getSizeKB() {
-    return (this.size / 1024).toFixed(2);
-  }
-}
-
-/**
- * Package collection result
- */
-class PackageCollectionResult {
-  constructor(packageName) {
-    this.packageName = packageName;
-    this.source = null;
-    this.version = null;
-    this.destinationPath = null;
-    this.copiedFiles = [];
-    this.failedFiles = [];
-    this.totalSize = 0;
-    this.exportMap = new Map();
-    this.indexFile = null;
-    this.success = false;
-    this.error = null;
-    this.warnings = [];
-  }
-
-  addCopiedFile(file) {
-    this.copiedFiles.push(file);
-    this.totalSize += file.size;
-  }
-
-  addFailedFile(filename, error) {
-    this.failedFiles.push({ filename, error });
-  }
-
-  addWarning(message) {
-    this.warnings.push(message);
-  }
-
-  getTotalSizeMB() {
-    return (this.totalSize / (1024 * 1024)).toFixed(2);
-  }
-
-  toJSON() {
-    return {
-      package: this.packageName,
-      version: this.version,
-      success: this.success,
-      files: this.copiedFiles.length,
-      size: this.getTotalSizeMB() + ' MB',
-      failed: this.failedFiles.length,
-      destination: this.destinationPath,
-      error: this.error,
-      warnings: this.warnings
-    };
-  }
-}
-
-/**
- * Complete collection session result
- */
-class CollectionSession {
-  constructor() {
-    this.results = new Map();
-    this.totalPackages = 0;
-    this.successCount = 0;
-    this.failureCount = 0;
-    this.totalSize = 0;
-    this.totalFiles = 0;
-    this.globalErrors = [];
-    this.warnings = [];
-    this.startTime = Date.now();
-    this.endTime = null;
-  }
-
-  addResult(result) {
-    this.results.set(result.packageName, result);
-    this.totalPackages++;
-
-    if (result.success) {
-      this.successCount++;
-      this.totalSize += result.totalSize;
-      this.totalFiles += result.copiedFiles.length;
-    } else {
-      this.failureCount++;
-    }
-
-    if (result.warnings.length > 0) {
-      this.warnings.push(...result.warnings);
-    }
-  }
-
-  addError(message) {
-    this.globalErrors.push(message);
-  }
-
-  addWarning(message) {
-    this.warnings.push(message);
-  }
-
-  getTotalSizeMB() {
-    return (this.totalSize / (1024 * 1024)).toFixed(2);
-  }
-
-  getDuration() {
-    return this.endTime ? this.endTime - this.startTime : 0;
-  }
-
-  isSuccessful() {
-    return this.failureCount === 0 && this.globalErrors.length === 0;
-  }
-
-  getReport() {
-    return {
-      total: this.totalPackages,
-      successful: this.successCount,
-      failed: this.failureCount,
-      files: this.totalFiles,
-      size: this.getTotalSizeMB() + ' MB',
-      duration: this.getDuration() + 'ms',
-      results: Array.from(this.results.values()).map(r => r.toJSON()),
-      errors: this.globalErrors,
-      warnings: this.warnings
-    };
-  }
-}
+import { PackageResolver } from './shared/package_resolver.js';
+import { FileScanner, FileCopier } from './shared/file_utils.js';
+import { CollectionResult, createCollectionSession } from './shared/types.js';
+import { loadPackageJson } from './shared/utils.js';
 
 // ============================================================================
 // MAIN PACKAGE COLLECTOR CLASS
@@ -173,193 +34,53 @@ class PackageCollector {
       ...options,
     };
 
-    this.projectRoot = this.options.projectRoot;
-    this.outputDir = path.join(this.projectRoot, this.options.outputDir);
+    // Initialize shared utilities
+    this.packageResolver = new PackageResolver(this.options.projectRoot, {
+      debugMode: this.options.debugMode
+    });
 
-    // ✅ FIXED: Correct path to node_modules/@flutterjs
+    this.fileScanner = new FileScanner({
+      debugMode: this.options.debugMode
+    });
+
+    this.fileCopier = new FileCopier({
+      debugMode: this.options.debugMode
+    });
+
+    // Setup output paths
+    this.outputDir = path.join(this.options.projectRoot, this.options.outputDir);
     this.nodeModulesDir = path.join(this.outputDir, 'node_modules', '@flutterjs');
 
-    // ✅ NEW: Source and destination for all node_modules
-    this.sourceNodeModules = path.join(this.projectRoot, 'node_modules');
-    this.destNodeModules = path.join(this.outputDir, 'node_modules');
-
-    // Package mappings: source folder -> @flutterjs package name
-    this.packageMappings = {
-      'flutterjs-runtime': 'runtime',
-      'flutterjs-analyzer': 'analyzer',
-      'flutterjs-core': 'core',
-      'flutterjs-material': 'material',
-      'flutterjs-widgets': 'widgets',
-      'flutterjs-cupertino': 'cupertino',
-      'flutterjs-vdom': 'vdom',
-      'flutterjs-rendering': 'rendering',
-      'flutterjs-painting': 'painting',
-      'flutterjs-foundation': 'foundation',
-      'flutterjs-animation': 'animation',
-    };
-
+    // Session tracking
     this.currentSession = null;
 
     if (this.options.debugMode) {
       console.log(chalk.gray('[PackageCollector] Initialized'));
-      console.log(chalk.gray(`  Project: ${this.projectRoot}`));
+      console.log(chalk.gray(`  Project: ${this.options.projectRoot}`));
       console.log(chalk.gray(`  Output: ${this.outputDir}`));
       console.log(chalk.gray(`  NodeModules: ${this.nodeModulesDir}\n`));
     }
   }
 
   /**
-   * ========================================================================
-   * ✅ NEW: Copy entire node_modules from source
-   * ========================================================================
-   */
-  async copyAllNodeModules() {
-    if (this.options.debugMode) {
-      console.log(chalk.blue('\n📦 Copying all node_modules from source...\n'));
-    }
-
-    try {
-      // Check if source exists
-      if (!fs.existsSync(this.sourceNodeModules)) {
-        console.warn(chalk.yellow(`⚠️  Source node_modules not found at: ${this.sourceNodeModules}`));
-        return;
-      }
-
-      // Create destination directory
-      await fs.promises.mkdir(this.destNodeModules, { recursive: true });
-
-      // Copy entire node_modules
-      const result = await this.copyDirectoryRecursive(
-        this.sourceNodeModules,
-        this.destNodeModules
-      );
-
-      if (this.options.debugMode) {
-        console.log(chalk.green(`✓ node_modules copied`));
-        console.log(chalk.gray(`  Files copied: ${result.filesCount}`));
-        console.log(chalk.gray(`  Size: ${result.totalSize} MB\n`));
-      }
-
-    } catch (error) {
-      console.error(chalk.red(`✗ Failed to copy node_modules: ${error.message}\n`));
-    }
-  }
-
-  /**
-   * ========================================================================
-   * ✅ NEW: Helper function to copy directory recursively
-   * ========================================================================
-   */
-  async copyDirectoryRecursive(sourceDir, destDir, isTopLevel = true) {
-    let filesCount = 0;
-    let totalSize = 0;
-
-    const skipDirs = new Set([
-      '.git',
-      '.github',
-      'coverage'
-    ]);
-
-    const skipFiles = new Set([
-      '.DS_Store',
-      'thumbs.db',
-      '.npmignore',
-      '.gitignore'
-    ]);
-
-    // ✅ RECURSIVE FUNCTION
-    const traverse = async (src, dest) => {
-      try {
-        // Verify source exists
-        if (!fs.existsSync(src)) {
-          console.warn(chalk.yellow(`Source path does not exist: ${src}`));
-          return;
-        }
-
-        // Create destination directory first
-        await fs.promises.mkdir(dest, { recursive: true });
-
-        // Read all entries
-        const entries = await fs.promises.readdir(src, { withFileTypes: true });
-
-        console.log(chalk.gray(`  Scanning: ${src} (${entries.length} items)`));
-
-        for (const entry of entries) {
-          try {
-            // Skip specific files and directories
-            if (skipFiles.has(entry.name) || skipDirs.has(entry.name)) {
-              continue;
-            }
-
-            // Skip hidden files (except specific ones)
-            if (entry.name.startsWith('.') && entry.name !== '.npmignore') {
-              continue;
-            }
-
-            const srcPath = path.join(src, entry.name);
-            const destPath = path.join(dest, entry.name);
-
-            if (entry.isDirectory()) {
-              console.log(chalk.gray(`    → Dir: ${entry.name}`));
-              // Recursively traverse subdirectories
-              await traverse(srcPath, destPath);
-            } else if (entry.isFile()) {
-              try {
-                // Copy the file
-                await fs.promises.copyFile(srcPath, destPath);
-
-                // Get file size
-                const stats = await fs.promises.stat(destPath);
-                totalSize += stats.size;
-                filesCount++;
-              } catch (fileError) {
-                console.warn(chalk.yellow(`    ⚠️  Failed to copy ${entry.name}: ${fileError.message}`));
-              }
-            }
-          } catch (entryError) {
-            console.warn(chalk.yellow(`    ⚠️  Error processing ${entry.name}: ${entryError.message}`));
-          }
-        }
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not traverse ${src}: ${error.message}`));
-      }
-    };
-
-    // Start traversal
-    await traverse(sourceDir, destDir);
-
-    return {
-      filesCount,
-      totalSize: (totalSize / (1024 * 1024)).toFixed(2)
-    };
-  }
-
-  /**
-   * ========================================================================
-   * MAIN ENTRY POINT: Collect and Copy Packages
-   * ========================================================================
+   * Main entry point - collect and copy packages
    */
   async collectAndCopyPackages(resolution) {
-    const session = new CollectionSession();
+    const session = createCollectionSession();
     this.currentSession = session;
 
     if (this.options.debugMode) {
-      console.log(chalk.blue('\n📦 Package Collection & Copying Started'));
+      console.log(chalk.blue('\n' + '='.repeat(70)));
+      console.log(chalk.blue('📦 Package Collection & Copying Started'));
       console.log(chalk.blue('='.repeat(70)));
-      console.log(chalk.gray(`Project Root: ${this.projectRoot}`));
       console.log(chalk.gray(`Destination: ${this.nodeModulesDir}\n`));
     }
 
     try {
-      // ✅ NEW: Copy all node_modules first
-      await this.copyAllNodeModules();
-
-      // ✅ CRITICAL: Ensure node_modules/@flutterjs directory exists FIRST
-      await fs.promises.mkdir(this.nodeModulesDir, { recursive: true });
-
+      // Validate input
       if (!resolution || !resolution.packages || resolution.packages.size === 0) {
         session.addWarning('No packages to collect');
-        session.endTime = Date.now();
+        session.complete();
 
         if (this.options.debugMode) {
           console.log(chalk.yellow('⚠️  No packages to collect\n'));
@@ -368,15 +89,19 @@ class PackageCollector {
         return session;
       }
 
+      // Ensure output directory exists
+      await fs.promises.mkdir(this.nodeModulesDir, { recursive: true });
+
       if (this.options.debugMode) {
-        console.log(chalk.yellow(`Found ${resolution.packages.size} packages to collect:\n`));
+        console.log(chalk.gray(`Found ${resolution.packages.size} packages:\n`));
         let idx = 0;
         for (const [name, info] of resolution.packages) {
-          console.log(chalk.gray(`  [${idx}] ${name}`));
-          if (this.options.debugMode) {
-            console.log(chalk.gray(`       Path: ${info?.path || info?.actualPath || 'NOT SET'}`));
+          console.log(chalk.gray(`  [${++idx}] ${name}`));
+          if (info.resolved) {
+            console.log(chalk.gray(`      ✓ Path: ${info.path}`));
+          } else {
+            console.log(chalk.gray(`      ✗ Not resolved`));
           }
-          idx++;
         }
         console.log();
       }
@@ -388,10 +113,15 @@ class PackageCollector {
           session.addResult(result);
         } catch (error) {
           session.addError(`Failed to collect ${packageName}: ${error.message}`);
+
+          // Continue with next package
+          const failedResult = new CollectionResult(packageName);
+          failedResult.error = error.message;
+          session.addResult(failedResult);
         }
       }
 
-      session.endTime = Date.now();
+      session.complete();
 
       if (this.options.debugMode) {
         this.printCollectionReport(session);
@@ -401,10 +131,10 @@ class PackageCollector {
 
     } catch (error) {
       session.addError(`Collection failed: ${error.message}`);
-      session.endTime = Date.now();
+      session.complete();
 
       if (this.options.debugMode) {
-        console.log(chalk.red(`\n✗ Collection Error: ${error.message}\n`));
+        console.log(chalk.red(`\n❌ Collection Error: ${error.message}\n`));
       }
 
       return session;
@@ -413,156 +143,113 @@ class PackageCollector {
 
   /**
    * Collect and copy a single package
-   * ✅ FIXED: Copies to node_modules/@flutterjs/[scopedName]
-   * ✅ NEW: Also copies nested node_modules dependencies
    */
   async collectPackage(packageName, packageInfo) {
-    const result = new PackageCollectionResult(packageName);
+    const result = new CollectionResult(packageName);
 
     try {
+      // Get source path
       let sourcePath = packageInfo.path || packageInfo.actualPath;
 
       if (this.options.debugMode) {
-        console.log(chalk.cyan(`\n[DEBUG] Processing ${packageName}`));
-        console.log(chalk.cyan(`  packageInfo keys: ${Object.keys(packageInfo).join(', ')}`));
-        console.log(chalk.cyan(`  packageInfo.path: ${packageInfo.path}`));
-        console.log(chalk.cyan(`  packageInfo.actualPath: ${packageInfo.actualPath}`));
-        console.log(chalk.cyan(`  Initial sourcePath: ${sourcePath}`));
+        console.log(chalk.cyan(`\n[Package] ${packageName}`));
       }
 
-      // If not found, search
-      if (!sourcePath || !fs.existsSync(sourcePath) || sourcePath === packageName) {
-        const scopedName = this.getScopedPackageName(packageName);
-        const searchPaths = [
-          path.join(this.projectRoot, 'packages', 'flutterjs_engine', 'src', scopedName),
-          path.join(this.projectRoot, 'packages', 'flutterjs_engine', 'package', scopedName),
-          path.join(this.projectRoot, 'src', scopedName),
-          path.join(this.projectRoot, 'packages', `flutterjs-${scopedName}`),
-          path.join(this.projectRoot, 'packages', scopedName),
-          path.join(this.projectRoot, 'node_modules', packageName),
-          path.join(this.projectRoot, '..', '..', 'packages', 'flutterjs_engine', 'src', scopedName),
-          path.join(this.projectRoot, '..', '..', 'packages', 'flutterjs_engine', 'package', scopedName),
-        ];
-
-        if (this.options.debugMode) {
-          console.log(chalk.yellow(`  Searching for ${packageName}...`));
-          console.log(chalk.yellow(`  Scoped name: ${scopedName}`));
-        }
-
-        for (const searchPath of searchPaths) {
-          const exists = fs.existsSync(searchPath);
-
-          if (this.options.debugMode) {
-            const status = exists ? chalk.green('✓') : chalk.red('✗');
-            console.log(chalk.gray(`  ${status} ${searchPath}`));
-          }
-
-          if (exists) {
-            sourcePath = searchPath;
-            if (this.options.debugMode) {
-              console.log(chalk.green(`  ✓✓ FOUND at: ${searchPath}`));
-            }
-            break;
-          }
-        }
-      }
-
+      // If path not valid, try to resolve it
       if (!sourcePath || !fs.existsSync(sourcePath)) {
-        result.error = 'Package source not found';
+        const resolved = this.packageResolver.resolve(packageName);
+
+        if (!resolved) {
+          result.error = 'Package not found';
+          if (this.options.debugMode) {
+            console.log(chalk.red(`  ✗ Not found\n`));
+          }
+          return result;
+        }
+
+        sourcePath = resolved.path;
+      }
+
+      if (this.options.debugMode) {
+        console.log(chalk.gray(`  Source: ${sourcePath}`));
+      }
+
+      // Load package.json
+      try {
+        const pkgJson = await loadPackageJson(sourcePath);
+        result.version = pkgJson.version || '0.0.0';
+      } catch (error) {
+        result.error = `Invalid package.json: ${error.message}`;
         if (this.options.debugMode) {
-          console.log(chalk.red(`✗✗ FAILED: Package source not found`));
+          console.log(chalk.red(`  ✗ ${result.error}\n`));
         }
         return result;
       }
 
-      // Load package.json
-      const pkgJson = await this.loadPackageJson(sourcePath);
-      result.version = pkgJson.version || '1.0.0';
-      result.source = sourcePath;
-
+      // Determine destination
       const scopedName = this.getScopedPackageName(packageName);
       const destPath = path.join(this.nodeModulesDir, scopedName);
-      result.destinationPath = destPath;
+      result.destPath = destPath;
+      result.sourcePath = sourcePath;
 
       if (this.options.debugMode) {
-        console.log(chalk.cyan(`\n  Copying:`));
-        console.log(chalk.cyan(`    From: ${sourcePath}`));
-        console.log(chalk.cyan(`    To:   ${destPath}`));
+        console.log(chalk.gray(`  Dest: ${destPath}`));
       }
 
       // Create destination directory
       await fs.promises.mkdir(destPath, { recursive: true });
 
-      // ✅ KEY: Get all files with detailed logging
-      const allFiles = await this.getAllPackageFiles(sourcePath);
+      // Scan files
+      const allFiles = await this.fileScanner.getAllPackageFiles(sourcePath);
 
       if (this.options.debugMode) {
-        console.log(chalk.cyan(`    Found ${allFiles.length} files to copy`));
-        if (allFiles.length === 0) {
-          console.log(chalk.red(`    ⚠️  NO FILES FOUND! Check directory structure.`));
-          console.log(chalk.red(`    Contents of ${sourcePath}:`));
-          try {
-            const contents = fs.readdirSync(sourcePath);
-            contents.forEach(f => console.log(chalk.red(`      - ${f}`)));
-          } catch (e) {
-            console.log(chalk.red(`    Could not read directory: ${e.message}`));
-          }
-        }
+        console.log(chalk.gray(`  Files: ${allFiles.length}`));
       }
 
-      // Copy all package files
-      const copyResult = await this.copyPackageFiles(sourcePath, destPath);
+      if (allFiles.length === 0) {
+        result.error = 'No files found in package';
+        if (this.options.debugMode) {
+          console.log(chalk.yellow(`  ⚠️  No files found\n`));
+        }
+        return result;
+      }
+
+      // Copy files
+      const copyResult = await this.fileCopier.copyFiles(sourcePath, destPath, allFiles);
+
       result.copiedFiles = copyResult.files;
       result.failedFiles = copyResult.failedFiles;
       result.totalSize = copyResult.totalSize;
-
-      // Copy nested node_modules
-      const nestedNodeModulesSource = path.join(sourcePath, 'node_modules');
-      if (fs.existsSync(nestedNodeModulesSource)) {
-        // ... copy nested ...
-      }
-
-      result.success = true;
+      result.success = copyResult.isSuccessful();
 
       if (this.options.debugMode) {
-        console.log(chalk.green(`✓ ${packageName} successfully copied`));
-        console.log(chalk.gray(`  Files: ${result.copiedFiles.length}`));
+        console.log(chalk.green(`  ✓ Copied: ${result.copiedFiles.length} files`));
         console.log(chalk.gray(`  Size: ${result.getTotalSizeMB()} MB`));
+
+        if (result.failedFiles.length > 0) {
+          console.log(chalk.yellow(`  ⚠️  Failed: ${result.failedFiles.length} files\n`));
+        } else {
+          console.log();
+        }
       }
 
     } catch (error) {
       result.success = false;
       result.error = error.message;
+
       if (this.options.debugMode) {
-        console.log(chalk.red(`✗ ${packageName}: ${error.message}`));
-        console.log(chalk.red(`  ${error.stack}`));
+        console.log(chalk.red(`  ✗ Error: ${error.message}`));
+        if (error.stack && this.options.debugMode) {
+          console.log(chalk.red(`  ${error.stack}\n`));
+        }
       }
     }
 
     return result;
   }
 
-
   /**
-   * Load and validate package.json
-   */
-  async loadPackageJson(packagePath) {
-    const pkgJsonPath = path.join(packagePath, 'package.json');
-
-    if (!fs.existsSync(pkgJsonPath)) {
-      throw new Error('package.json not found');
-    }
-
-    try {
-      const content = await fs.promises.readFile(pkgJsonPath, 'utf-8');
-      return JSON.parse(content);
-    } catch (error) {
-      throw new Error(`Invalid package.json: ${error.message}`);
-    }
-  }
-
-  /**
-   * Get scoped package name from full package name
+   * Extract scoped package name
    * '@flutterjs/material' -> 'material'
    * 'some-package' -> 'some-package'
    */
@@ -574,269 +261,57 @@ class PackageCollector {
   }
 
   /**
-   * ========================================================================
-   * FILE COPYING
-   * ========================================================================
+   * Copy entire node_modules to output
    */
+  async copyAllNodeModules() {
+    if (this.options.debugMode) {
+      console.log(chalk.blue('\n📦 Copying all node_modules...\n'));
+    }
 
-  /**
-   * Copy all files from package source to destination
-   */
-  async copyPackageFiles(sourcePath, destPath) {
-    const files = [];
-    const failedFiles = [];
-    let totalSize = 0;
+    const sourceNodeModules = path.join(this.options.projectRoot, 'node_modules');
+    const destNodeModules = path.join(this.outputDir, 'node_modules');
 
     try {
-      const allFiles = await this.getAllPackageFiles(sourcePath);
-
-      for (const file of allFiles) {
-        try {
-          const relativePath = path.relative(sourcePath, file);
-          const destFile = path.join(destPath, relativePath);
-          const destFileDir = path.dirname(destFile);
-
-          // Create directory if needed
-          await fs.promises.mkdir(destFileDir, { recursive: true });
-
-          // Copy file
-          await fs.promises.copyFile(file, destFile);
-
-          // Get file size
-          const stats = await fs.promises.stat(destFile);
-          totalSize += stats.size;
-
-          const copiedFile = new CopiedFile(
-            file,
-            destFile,
-            sourcePath,
-            relativePath
-          );
-          copiedFile.size = stats.size;
-          copiedFile.copied = true;
-          files.push(copiedFile);
-
-        } catch (error) {
-          failedFiles.push({
-            file: file,
-            error: error.message
-          });
-        }
+      // Check if source exists
+      if (!fs.existsSync(sourceNodeModules)) {
+        console.warn(chalk.yellow(`⚠️  Source node_modules not found at: ${sourceNodeModules}`));
+        return { filesCount: 0, totalSize: '0' };
       }
+
+      // Copy entire directory
+      const result = await this.fileCopier.copyDirectoryRecursive(
+        sourceNodeModules,
+        destNodeModules
+      );
+
+      if (this.options.debugMode) {
+        console.log(chalk.green(`✓ node_modules copied`));
+        console.log(chalk.gray(`  Files: ${result.filesCount}`));
+        console.log(chalk.gray(`  Size: ${result.totalSize} MB\n`));
+      }
+
+      return result;
 
     } catch (error) {
-      failedFiles.push({
-        step: 'scan',
-        error: error.message
-      });
+      console.error(chalk.red(`✗ Failed to copy node_modules: ${error.message}\n`));
+      return { filesCount: 0, totalSize: '0' };
     }
-
-    return { files, failedFiles, totalSize };
   }
-
-  /**
-   * Get all files from package directory recursively
-   * Filters out common non-essential directories
-   */
-  async getAllPackageFiles(packagePath) {
-    const files = [];
-
-    // ✅ FIXED: Only skip truly unnecessary directories
-    // Don't skip 'dist', 'src', 'lib' - these contain actual code!
-    const skipDirs = new Set([
-      // Build/version control - skip these
-      '.git',
-      '.github',
-      'coverage',
-      'node_modules',
-      '.next',
-      '.nuxt',
-
-      // Testing - skip these (usually)
-      'test',
-      'tests',
-      '__tests__',
-
-      // Don't skip: dist, src, lib, build - these have real code!
-    ]);
-
-    const skipFiles = new Set([
-      '.DS_Store',
-      'thumbs.db',
-      '.env',
-      '.env.local',
-      '.npmignore',
-      '.gitignore',
-      'package-lock.json',
-      'yarn.lock',
-      'pnpm-lock.yaml',
-      'README.md',
-      'README.txt',
-      'LICENSE',
-      'CHANGELOG.md',
-      'Makefile',
-      '.editorconfig',
-    ]);
-
-    const skipExtensions = new Set([
-      '.map',           // Source maps
-      '.test.js',       // Test files
-      '.spec.js',       // Test files
-      '.test.ts',       // Test files
-      '.spec.ts',       // Test files
-    ]);
-
-    async function traverse(dir, depth = 0) {
-      const indent = '  '.repeat(depth);
-
-      try {
-        if (!fs.existsSync(dir)) {
-          console.warn(chalk.yellow(`${indent}⚠️  Directory doesn't exist: ${dir}`));
-          return;
-        }
-
-        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name);
-          const relPath = path.relative(packagePath, fullPath);
-
-          // Skip hidden files and directories (except .npmignore, etc)
-          if (entry.name.startsWith('.')) {
-            if (entry.name === '.npmignore' || entry.name === '.npmrc') {
-              // Include these config files
-            } else {
-              continue;
-            }
-          }
-
-          // Skip specific files
-          if (skipFiles.has(entry.name)) {
-            continue;
-          }
-
-          // Skip specific directories
-          if (entry.isDirectory() && skipDirs.has(entry.name)) {
-            continue;
-          }
-
-          if (entry.isFile()) {
-            // ✅ Include all relevant file types
-            const ext = path.extname(entry.name);
-            const isRelevantFile = /\.(js|mjs|cjs|ts|tsx|jsx|json|css|scss|less|html|svg|png|jpg|jpeg|gif|woff|woff2|ttf|otf|eot|md|txt)$/i.test(entry.name);
-            const isNotSkipped = !skipExtensions.has(ext);
-
-            if (isRelevantFile && isNotSkipped) {
-              files.push(fullPath);
-
-              // Debug logging (optional)
-              if (false) {  // Set to true for debugging
-                console.log(chalk.gray(`${indent}  ✓ ${relPath}`));
-              }
-            }
-          } else if (entry.isDirectory()) {
-            // ✅ RECURSIVELY traverse ALL directories
-            // This will enter src/, dist/, lib/, etc.
-            if (false) {  // Set to true for debugging
-              console.log(chalk.gray(`${indent}  📁 ${relPath}/`));
-            }
-
-            await traverse(fullPath, depth + 1);
-          }
-        }
-      } catch (error) {
-        console.warn(chalk.yellow(`${indent}⚠️  Could not read directory ${dir}: ${error.message}`));
-      }
-    }
-
-    // Start traversal from the root package directory
-    await traverse(packagePath);
-
-    return files;
-  }
-
-  /**
-   * ========================================================================
-   * EXPORT MAPS & INDEX FILES
-   * ========================================================================
-   */
-
-  /**
-   * Generate export map from package.json
-   */
-  generateExportMap(pkgJson, packagePath) {
-    const exports = new Map();
-
-    // Get main entry point
-    const main = pkgJson.main || 'index.js';
-    exports.set('default', main);
-
-    // Get named exports from 'exports' field
-    if (pkgJson.exports && typeof pkgJson.exports === 'object') {
-      for (const [exportName, exportPath] of Object.entries(pkgJson.exports)) {
-        if (exportName === '.') {
-          exports.set('default', exportPath);
-        } else {
-          const cleanName = exportName.replace(/^\.\//, '').split('/')[0];
-          if (cleanName) {
-            exports.set(cleanName, exportPath);
-          }
-        }
-      }
-    }
-
-    return exports;
-  }
-
-  /**
-   * Generate index.js file for package if it doesn't exist
-   */
-  generateIndexFile(pkgJson, exportMap) {
-    let content = `/**
- * Generated index for ${pkgJson.name}
- * Auto-generated by PackageCollector
- */
-
-`;
-
-    const main = pkgJson.main || 'index.js';
-
-    content += `// Main export\n`;
-    content += `export * from './${main.replace(/\.js$/, '')}';\n`;
-    content += `export { default } from './${main.replace(/\.js$/, '')}';\n\n`;
-
-    if (exportMap.size > 1) {
-      content += `// Named exports\n`;
-      for (const [name, filePath] of exportMap) {
-        if (name !== 'default') {
-          const cleanPath = filePath.replace(/\.js$/, '').replace(/^\.\//, '');
-          content += `export * as ${name} from './${cleanPath}';\n`;
-        }
-      }
-    }
-
-    return content;
-  }
-
-  /**
-   * ========================================================================
-   * REPORTING
-   * ========================================================================
-   */
 
   /**
    * Print collection report
    */
   printCollectionReport(session) {
-    console.log(chalk.blue('\n' + '='.repeat(70)));
-    console.log(chalk.blue('PACKAGE COLLECTION REPORT'));
-    console.log(chalk.blue('='.repeat(70)));
-
     const report = session.getReport();
+
+    console.log(chalk.blue('\n' + '='.repeat(70)));
+    console.log(chalk.blue('📊 Collection Report'));
+    console.log(chalk.blue('='.repeat(70)));
 
     console.log(chalk.gray(`\nPackages:`));
     console.log(chalk.gray(`  Total: ${report.total}`));
     console.log(chalk.green(`  Successful: ${report.successful}`));
+
     if (report.failed > 0) {
       console.log(chalk.red(`  Failed: ${report.failed}`));
     }
@@ -847,20 +322,36 @@ class PackageCollector {
 
     console.log(chalk.gray(`\nTime: ${report.duration}`));
 
+    // Detailed package results
+    console.log(chalk.gray(`\nPackage Details:`));
+    for (const result of report.results) {
+      const icon = result.success ? chalk.green('✓') : chalk.red('✗');
+      console.log(`${icon} ${result.packageName}`);
+
+      if (result.success) {
+        console.log(chalk.gray(`    v${result.version} | ${result.files} files | ${result.size}`));
+      } else {
+        console.log(chalk.red(`    Error: ${result.error}`));
+      }
+    }
+
+    // Errors
     if (report.errors.length > 0) {
-      console.log(chalk.red(`\nErrors: ${report.errors.length}`));
+      console.log(chalk.red(`\n❌ Errors: ${report.errors.length}`));
       report.errors.forEach(err => {
         console.log(chalk.red(`  • ${err}`));
       });
     }
 
+    // Warnings
     if (report.warnings.length > 0) {
-      console.log(chalk.yellow(`\nWarnings: ${report.warnings.length}`));
+      console.log(chalk.yellow(`\n⚠️  Warnings: ${report.warnings.length}`));
       report.warnings.forEach(warn => {
         console.log(chalk.yellow(`  • ${warn}`));
       });
     }
 
+    // Summary
     if (session.isSuccessful()) {
       console.log(chalk.green(`\n✓ Collection successful!\n`));
     } else {
@@ -894,16 +385,35 @@ class PackageCollector {
       duration: this.currentSession.getDuration() + 'ms'
     };
   }
+
+  /**
+   * Get list of collected packages
+   */
+  getCollectedPackages() {
+    if (!this.currentSession) {
+      return [];
+    }
+
+    const packages = [];
+    for (const result of this.currentSession.results) {
+      if (result.success) {
+        packages.push({
+          name: result.packageName,
+          version: result.version,
+          path: result.destPath,
+          files: result.copiedFiles.length,
+          size: result.getTotalSizeMB() + ' MB'
+        });
+      }
+    }
+
+    return packages;
+  }
 }
+
 // ============================================================================
 // EXPORTS
 // ============================================================================
 
-export {
-  PackageCollector,
-  PackageCollectionResult,
-  CollectionSession,
-  CopiedFile
-};
-
+export { PackageCollector };
 export default PackageCollector;

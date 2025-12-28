@@ -1,107 +1,98 @@
 /**
  * ============================================================================
- * FlutterJS Dependency Resolver - Complete Implementation
+ * FlutterJS Dependency Resolver - Clean Implementation
  * ============================================================================
  * 
  * Purpose:
- * - Resolves all imports from source code
- * - Finds package files in node_modules
- * - Builds dependency graph with cycles detection
- * - Validates all dependencies are available
- * - Generates resolution map for code transformation
+ * - Parse import statements from source code
+ * - Resolve imports to package locations
+ * - Validate all dependencies are available
+ * - Generate resolution map for code transformation
  * 
+ * Uses shared utilities to avoid duplication
  * Location: cli/build/dependency-resolver.js
  */
 
-import fs from 'fs';
-import path from 'path';
 import chalk from 'chalk';
-import { ImportResolver } from './import_resolver.js';
+import { PackageResolver } from './shared/package_resolver.js';
+import { createEmptyResolution, createResolutionError } from './shared/types.js';
+
 // ============================================================================
-// RESOLUTION DATA TYPES
+// IMPORT PARSING
 // ============================================================================
 
 /**
- * Single resolved package metadata
+ * Parse import statements from source code
+ * Supports: import { x, y } from '@flutterjs/module'
  */
-class ResolvedPackage {
-  constructor(name, type, packagePath) {
-    this.name = name;                    // '@flutterjs/material'
-    this.type = type;                    // 'builtin' | 'npm' | 'local'
-    this.packagePath = packagePath;      // Absolute path to package
-    this.packageJson = null;             // Parsed package.json
-    this.main = null;                    // Main entry file
-    this.exports = new Map();            // Named exports: 'Container' -> 'container.js'
-    this.dependencies = [];              // Direct dependencies
-    this.files = [];                     // All files in package
-    this.errors = [];                    // Validation errors
+function parseImports(sourceCode) {
+  const imports = [];
+  const importRegex = /^import\s+(?:(.+?)\s+)?from\s+['"]([^'"]+)['"]/gm;
+  let match;
+
+  while ((match = importRegex.exec(sourceCode)) !== null) {
+    const specifiersStr = match[1] || '';
+    const source = match[2];
+
+    const items = specifiersStr
+      .replace(/[{}]/g, '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s && !s.includes('*'));
+
+    imports.push({
+      source,
+      items,
+      isFramework: source.startsWith('@flutterjs/'),
+      isLocal: source.startsWith('.'),
+      isExternal: !source.startsWith('@flutterjs/') && !source.startsWith('.')
+    });
   }
 
-  isValid() {
-    return this.errors.length === 0 && this.packageJson !== null;
-  }
-
-  addError(message) {
-    this.errors.push(message);
-  }
-
-  addExport(name, filePath) {
-    this.exports.set(name, filePath);
-  }
-
-  toString() {
-    return `${this.name} (${this.type}) @ ${this.packagePath}`;
-  }
+  return imports;
 }
 
 /**
- * Complete resolution result
+ * Map import source to standard package name
  */
-class ResolutionResult {
-  constructor() {
-    this.packages = new Map();           // name -> ResolvedPackage
-    this.graph = new Map();              // Dependency graph
-    this.allFiles = [];                  // All files to include
-    this.errors = [];
-    this.warnings = [];
-    this.resolvedTime = null;
+function mapSourceToPackage(source) {
+  if (!source) return null;
+
+  // Already a scoped package name
+  if (source.startsWith('@flutterjs/')) {
+    return source;
   }
 
-  addPackage(resolvedPackage) {
-    this.packages.set(resolvedPackage.name, resolvedPackage);
+  // @package: notation (Dart-style)
+  if (source.startsWith('@package:')) {
+    const pkgName = source.replace('@package:', '');
+    const mappings = {
+      'flutter': '@flutterjs/material',
+      'material': '@flutterjs/material',
+      'core': '@flutterjs/core',
+      'foundation': '@flutterjs/foundation',
+      'widgets': '@flutterjs/widgets',
+      'rendering': '@flutterjs/rendering',
+      'painting': '@flutterjs/painting',
+      'animation': '@flutterjs/animation',
+      'cupertino': '@flutterjs/cupertino'
+    };
+    return mappings[pkgName] || `@flutterjs/${pkgName}`;
   }
 
-  getPackage(name) {
-    return this.packages.get(name);
+  // Local imports - not a package
+  if (source.startsWith('.')) {
+    return null;
   }
 
-  addError(message) {
-    this.errors.push(message);
-  }
-
-  addWarning(message) {
-    this.warnings.push(message);
-  }
-
-  hasErrors() {
-    return this.errors.length > 0 ||
-      Array.from(this.packages.values()).some(pkg => !pkg.isValid());
-  }
-
-  toString() {
-    const summary = `
-Resolved ${this.packages.size} packages
-- Errors: ${this.errors.length}
-- Warnings: ${this.warnings.length}
-- Total Files: ${this.allFiles.length}
-    `;
-    return summary.trim();
-  }
+  // Regular npm packages
+  return source;
 }
 
 // ============================================================================
 // MAIN RESOLVER CLASS
 // ============================================================================
+
 class DependencyResolver {
   constructor(options = {}) {
     this.options = {
@@ -109,258 +100,222 @@ class DependencyResolver {
       debugMode: options.debugMode || false,
       ...options,
     };
+
+    // Use shared package resolver
+    this.packageResolver = new PackageResolver(this.options.projectRoot, {
+      debugMode: this.options.debugMode
+    });
+
+    if (this.options.debugMode) {
+      console.log(chalk.gray('[DependencyResolver] Initialized\n'));
+    }
   }
 
   /**
-   * ✅ FIXED: Resolve actual file path for a package
-   * Includes flutterjs_engine/package/ structure
+   * Main entry point - resolve all imports from source code
    */
-  resolvePackagePath(packageName) {
-    const scopedName = packageName.startsWith('@')
-      ? packageName.split('/')[1]
-      : packageName;
-
-    // ✅ CORRECTED: packages/flutterjs_engine with both src/ and package/
-    const searchPaths = [
-      // HIGH PRIORITY: Both locations under flutterjs_engine
-      path.join(this.options.projectRoot, 'packages', 'flutterjs_engine', 'src', scopedName),
-      path.join(this.options.projectRoot, 'packages', 'flutterjs_engine', 'package', scopedName),
-
-      // Fallback
-      path.join(this.options.projectRoot, 'src', scopedName),
-      path.join(this.options.projectRoot, 'packages', `flutterjs-${scopedName}`),
-      path.join(this.options.projectRoot, 'packages', scopedName),
-
-      // Node modules
-      path.join(this.options.projectRoot, 'node_modules', packageName),
-      path.join(this.options.projectRoot, 'node_modules', '@flutterjs', scopedName),
-    ];
-
-    for (const searchPath of searchPaths) {
-      if (fs.existsSync(searchPath) && fs.existsSync(path.join(searchPath, 'package.json'))) {
-        if (this.options.debugMode) {
-          console.log(chalk.green(`✓ Found ${packageName} at: ${searchPath}`));
-        }
-        return searchPath;
-      }
-    }
-
+  async resolveAll(sourceCode = '') {
     if (this.options.debugMode) {
-      console.log(chalk.red(`✗ Package not found: ${packageName}`));
-    }
-    return null;
-  }
-
-  /**
-   * Main entry point - resolve all imports
-   * ✅ UPDATED: Now resolves actual file paths
-   */
-  async resolveAll(importStatements = []) {
-    if (this.options.debugMode) {
-      console.log(`\n[DependencyResolver] Starting resolution...\n`);
+      console.log(chalk.blue('\n' + '='.repeat(70)));
+      console.log(chalk.blue('📋 Dependency Resolution Started'));
+      console.log(chalk.blue('='.repeat(70) + '\n'));
     }
 
     try {
-      // Normalize input
-      const imports = this.normalizeImports(importStatements);
+      // Step 1: Parse imports from source
+      const imports = parseImports(sourceCode);
 
       if (imports.length === 0) {
         if (this.options.debugMode) {
-          console.log(`[DependencyResolver] No imports to resolve\n`);
+          console.log(chalk.yellow('ℹ️  No imports found\n'));
         }
-        return this.createEmptyResult();
+        return createEmptyResolution();
       }
 
       if (this.options.debugMode) {
-        console.log(`[DependencyResolver] Resolving ${imports.length} imports\n`);
+        console.log(chalk.gray(`Found ${imports.length} imports:\n`));
       }
 
-      // ✅ FIXED: Map imports to packages with ACTUAL PATHS
+      // Step 2: Resolve each import to a package
       const packages = new Map();
-      const allFiles = [];
       const errors = [];
+      const warnings = [];
 
-      imports.forEach((imp) => {
-        const source = this.extractSource(imp);
-        const items = imp.items || [];
+      for (const imp of imports) {
+        if (this.options.debugMode) {
+          const icon = imp.isFramework ? '📦' : imp.isLocal ? '📄' : '📨';
+          console.log(chalk.gray(`${icon} ${imp.source}`));
+        }
 
-        if (!source) return;
+        // Local imports don't need package resolution
+        if (imp.isLocal) {
+          if (this.options.debugMode) {
+            console.log(chalk.gray('   (local import - no resolution needed)\n'));
+          }
+          continue;
+        }
 
-        // Map import source to package
-        const packageName = this.mapSourceToPackage(source);
+        // Map source to package name
+        const packageName = mapSourceToPackage(imp.source);
 
-        if (packageName) {
-          // ✅ NEW: Resolve actual file path
-          const actualPath = this.resolvePackagePath(packageName);
+        if (!packageName) {
+          warnings.push(`Cannot map import: ${imp.source}`);
+          continue;
+        }
 
+        // Skip if already resolved
+        if (packages.has(packageName)) {
+          continue;
+        }
+
+        // Try to resolve package path
+        const resolved = this.packageResolver.resolve(packageName);
+
+        if (resolved) {
           packages.set(packageName, {
-            source,
-            path: actualPath,           // ✅ Actual file path
-            actualPath: actualPath,     // ✅ For compatibility
-            items,
-            type: this.getPackageType(packageName),
-            resolved: actualPath !== null
+            name: packageName,
+            source: imp.source,
+            path: resolved.path,
+            type: resolved.source,
+            version: null,
+            items: imp.items,
+            resolved: true
           });
 
-          if (actualPath) {
-            allFiles.push(actualPath);
+          if (this.options.debugMode) {
+            console.log(chalk.green(`   ✓ Resolved: ${resolved.path}`));
+            console.log(chalk.gray(`   Type: ${resolved.source}\n`));
           }
         } else {
-          errors.push(`Cannot resolve: ${source}`);
-        }
-      });
+          packages.set(packageName, {
+            name: packageName,
+            source: imp.source,
+            path: null,
+            type: 'unknown',
+            resolved: false,
+            items: imp.items
+          });
 
-      if (this.options.debugMode) {
-        console.log(`[DependencyResolver] Resolved: ${packages.size} packages`);
-        console.log(`[DependencyResolver] Errors: ${errors.length}\n`);
+          errors.push(`Cannot resolve package: ${packageName} (from ${imp.source})`);
+
+          if (this.options.debugMode) {
+            console.log(chalk.red(`   ✗ Not found\n`));
+          }
+        }
       }
 
-      return {
+      // Step 3: Build resolution result
+      const result = {
+        imports,
         packages,
-        allFiles,
-        graph: new Map(),
+        resolved: packages.size,
         errors,
-        warnings: errors.length > 0
-          ? [`${errors.length} imports could not be resolved`]
-          : [],
+        warnings,
+        hasErrors: errors.length > 0,
+        success: errors.length === 0
       };
+
+      // Log summary
+      if (this.options.debugMode) {
+        this.printResolutionSummary(result);
+      }
+
+      return result;
 
     } catch (error) {
-      console.error(`\n[DependencyResolver] Error: ${error.message}\n`);
-      return {
-        packages: new Map(),
-        allFiles: [],
-        graph: new Map(),
-        errors: [error.message],
-        warnings: ['Resolution failed'],
-      };
+      console.error(chalk.red(`\n❌ Resolution Error: ${error.message}\n`));
+      return createResolutionError(error.message);
     }
   }
 
   /**
-   * Map import source to package name
-   * @flutterjs/runtime -> @flutterjs/runtime
-   * @package:flutter -> @flutterjs/material
+   * Print resolution summary
    */
-  mapSourceToPackage(source) {
-    if (!source) return null;
+  printResolutionSummary(result) {
+    console.log(chalk.blue('\n' + '='.repeat(70)));
+    console.log(chalk.blue('📊 Resolution Summary'));
+    console.log(chalk.blue('='.repeat(70)));
 
-    // Already a package name
-    if (source.startsWith('@flutterjs/')) {
-      return source;
-    }
+    console.log(chalk.gray(`\nImports Found: ${result.imports.length}`));
+    console.log(chalk.gray(`Packages Resolved: ${result.resolved}`));
 
-    // @package: notation
-    if (source.startsWith('@package:')) {
-      const pkgName = source.replace('@package:', '');
-
-      // Map common package names
-      const mappings = {
-        'flutter': '@flutterjs/material',
-        'material': '@flutterjs/material',
-        'core': '@flutterjs/core',
-        'foundation': '@flutterjs/foundation',
-        'widgets': '@flutterjs/widgets',
-        'rendering': '@flutterjs/rendering',
-        'painting': '@flutterjs/painting',
-        'animation': '@flutterjs/animation',
-        'cupertino': '@flutterjs/cupertino'
-      };
-
-      return mappings[pkgName] || `@flutterjs/${pkgName}`;
-    }
-
-    // Local imports - not a package
-    if (source.startsWith('.')) {
-      return null;
-    }
-
-    // npm packages
-    return source;
-  }
-
-  /**
-   * Get package type
-   */
-  getPackageType(packageName) {
-    if (packageName.startsWith('@flutterjs/')) {
-      return 'sdk';
-    }
-    if (packageName.startsWith('@')) {
-      return 'scoped';
-    }
-    return 'npm';
-  }
-
-  /**
-   * Normalize imports - handle multiple input formats
-   */
-  normalizeImports(input) {
-    if (!input) {
-      return [];
-    }
-
-    // Already an array
-    if (Array.isArray(input)) {
-      return input.filter(imp => {
-        const source = this.extractSource(imp);
-        return source && typeof source === 'string';
+    if (result.errors.length > 0) {
+      console.log(chalk.red(`\n❌ Errors: ${result.errors.length}`));
+      result.errors.forEach(err => {
+        console.log(chalk.red(`  • ${err}`));
       });
     }
 
-    // Object (like summary object)
-    if (typeof input === 'object') {
-      // Check if it's a summary object
-      if (input.total !== undefined || input.resolutionRate !== undefined) {
-        return [];
-      }
-
-      // Try to convert object to array
-      const values = Object.values(input);
-      if (Array.isArray(values) && values.length > 0) {
-        return values.filter(imp => this.extractSource(imp));
-      }
-
-      return [];
+    if (result.warnings.length > 0) {
+      console.log(chalk.yellow(`\n⚠️  Warnings: ${result.warnings.length}`));
+      result.warnings.forEach(warn => {
+        console.log(chalk.yellow(`  • ${warn}`));
+      });
     }
 
-    // Single string
-    if (typeof input === 'string') {
-      return [{ source: input, items: [] }];
+    if (result.success) {
+      console.log(chalk.green('\n✓ All dependencies resolved successfully!\n'));
+    } else {
+      console.log(chalk.red('\n✗ Some dependencies could not be resolved\n'));
     }
 
-    return [];
+    console.log(chalk.blue('='.repeat(70) + '\n'));
   }
 
   /**
-   * Extract source from import object - multiple formats
+   * Get all resolved package paths
    */
-  extractSource(imp) {
-    if (!imp) return null;
-
-    // Plain string
-    if (typeof imp === 'string') {
-      return imp;
+  getResolvedPaths(resolution) {
+    const paths = [];
+    for (const [name, info] of resolution.packages) {
+      if (info.resolved && info.path) {
+        paths.push(info.path);
+      }
     }
-
-    // Object with various property names
-    if (typeof imp === 'object') {
-      return imp.source || imp.from || imp.module || imp.name || null;
-    }
-
-    return null;
+    return paths;
   }
 
   /**
-   * Create empty result
+   * Validate that all framework imports can be resolved
    */
-  createEmptyResult() {
+  validateFrameworkImports(resolution) {
+    const errors = [];
+    const warnings = [];
+
+    for (const [name, info] of resolution.packages) {
+      if (!info.isFramework) continue;
+
+      if (!info.resolved) {
+        errors.push(`Cannot resolve framework package: ${name}`);
+      }
+
+      // Check if all requested items are likely exported
+      if (info.items.length > 0) {
+        // Note: Could do more rigorous checking by reading the package
+        warnings.push(`Import items from ${name}: ${info.items.join(', ')} - verify exports exist`);
+      }
+    }
+
+    return { errors, warnings };
+  }
+
+  /**
+   * Get resolution report as JSON
+   */
+  getReport(resolution) {
     return {
-      packages: new Map(),
-      allFiles: [],
-      graph: new Map(),
-      errors: [],
-      warnings: ['No imports to resolve'],
+      success: resolution.success,
+      imports: resolution.imports.length,
+      resolved: resolution.resolved,
+      errors: resolution.errors,
+      warnings: resolution.warnings,
+      packages: Array.from(resolution.packages.values()).map(pkg => ({
+        name: pkg.name,
+        type: pkg.type,
+        path: pkg.path,
+        resolved: pkg.resolved,
+        items: pkg.items
+      }))
     };
   }
 }
@@ -369,8 +324,5 @@ class DependencyResolver {
 // EXPORTS
 // ============================================================================
 
-export {
-  DependencyResolver,
-  ResolvedPackage,
-  ResolutionResult
-};
+export { DependencyResolver };
+export default DependencyResolver;
