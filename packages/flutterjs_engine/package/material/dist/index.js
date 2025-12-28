@@ -1,2 +1,2 @@
-export*from"./core/index.js";export*from"./material/index.js";export*from"./widgets/index.js";
+export*from"./core/code.js";export*from"./material/material.js";export*from"./widgets/widgets.js";
 //# sourceMappingURL=index.js.map
