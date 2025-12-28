@@ -14,13 +14,13 @@ const entryPoints = {
   'index': './src/index.js',
   
   // Core widgets
-  'core': './src/core/index.js',
+  'core': './src/core/core.js',
   
   // Material widgets
-  'material': './src/material/index.js',
+  'material': './src/material/material.js',
   
   // Other components
-  'widgets': './src/widgets/index.js',
+  'widgets': './src/widgets/widgets.js',
 };
 
 /**

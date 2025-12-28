@@ -1,7 +1,7 @@
 {
   "version": 3,
   "sources": ["../src/index.js"],
-  "sourcesContent": ["export * from \"./core/index.js\";\r\nexport * from \"./material/index.js\";\r\nexport * from \"./widgets/index.js\";"],
-  "mappings": "AAAA,WAAc,kBACd,WAAc,sBACd,WAAc",
+  "sourcesContent": ["export * from \"./core/code.js\";\r\nexport * from \"./material/material.js\";\r\nexport * from \"./widgets/widgets.js\";"],
+  "mappings": "AAAA,WAAc,iBACd,WAAc,yBACd,WAAc",
   "names": []
 }
