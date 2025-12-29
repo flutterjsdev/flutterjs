@@ -1,16 +1,14 @@
 /**
  * ============================================================================
- * FlutterJS Development Server - Updated with AppBuilder Support
+ * Integration Points for SourceMapGenerator in DevServer
  * ============================================================================
- * 
- * UPDATED TO:
- * - Run analyzer to get metadata
- * - Pass analysis data to AppBuilder
- * - Rebuild on file changes
- * - Support hot reload
- * - Serve analysis for DevTools
- * 
- * Location: cli/dev/dev.js
+ *
+ * Where to add SourceMapGenerator:
+ * 1. Constructor - Initialize the generator
+ * 2. runBuild() - Generate maps after successful build
+ * 3. _setupRoutes() - Serve maps via API
+ * 4. _setupMiddleware() - Serve map files (.js.map)
+ * 5. _handleFileChange() - Regenerate maps on file changes
  */
 
 import http from "http";
@@ -20,11 +18,12 @@ import fs from "fs";
 import chalk from "chalk";
 import chokidar from "chokidar";
 import { WebSocketServer } from "ws";
-import { execSync } from "child_process";
-import open from "open";
 import compression from "compression";
 import cors from "cors";
 import { createProxyMiddleware } from "http-proxy-middleware";
+
+// ✅ NEW: Import SourceMapGenerator
+import { SourceMapGenerator } from "./source_map_generator.js";
 
 // Import FlutterJS systems
 import { Analyzer } from "@flutterjs/analyzer/analyzer";
@@ -41,6 +40,7 @@ const MIME_TYPES = {
   '.fjs': 'text/javascript',
   '.css': 'text/css',
   '.json': 'application/json',
+  '.map': 'application/json',  // ✅ Source maps are JSON
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -53,7 +53,7 @@ const MIME_TYPES = {
 };
 
 // ============================================================================
-// DEVELOPMENT SERVER CLASS
+// DEVELOPMENT SERVER CLASS - WITH SOURCEMAPS
 // ============================================================================
 
 export class DevServer {
@@ -68,12 +68,15 @@ export class DevServer {
     this.fileWatcher = null;
     this.isRunning = false;
 
-    // ===== NEW: Analysis and build state =====
+    // Analysis and build state
     this.analyzer = null;
     this.buildPipeline = null;
     this.analysisData = null;
     this.lastBuildTime = null;
     this.isBuilding = false;
+
+    // ✅ NEW: Source map generator
+    this.sourceMapGenerator = null;
 
     // Port & host
     this.port = parseInt(config.dev?.server?.port || 3000, 10);
@@ -89,6 +92,7 @@ export class DevServer {
     this.projectRoot = projectContext.projectRoot;
     this.buildDir = path.join(this.projectRoot, '.dev');
     this.sourceDir = path.join(this.projectRoot, config.build?.source || 'lib');
+    this.mapsDir = path.join(this.buildDir, 'maps');  // ✅ Store maps here
     this.entryFile = config.entry?.main || 'lib/main.fjs';
     this.entryPath = path.join(this.projectRoot, this.entryFile);
 
@@ -99,6 +103,7 @@ export class DevServer {
       console.log(chalk.gray('[DevServer] Initialized with:'));
       console.log(chalk.gray(`  Entry: ${this.entryFile}`));
       console.log(chalk.gray(`  Build Dir: ${this.buildDir}`));
+      console.log(chalk.gray(`  Source Maps: ${this.mapsDir}`));
       console.log(chalk.gray(`  Port: ${this.port}\n`));
     }
   }
@@ -110,33 +115,37 @@ export class DevServer {
     try {
       console.log(chalk.blue('\n🚀 Starting development server...\n'));
 
-      // ===== STEP 1: Initial Analysis =====
+      // ✅ STEP 0: Initialize Source Map Generator
+      console.log(chalk.cyan('Step 0: Initializing source map generator...'));
+      this._initializeSourceMaps();
+
+      // STEP 1: Initial Analysis
       console.log(chalk.cyan('Step 1: Running code analysis...'));
       await this.runAnalysis();
 
-      // ===== STEP 2: Initial Build =====
+      // STEP 2: Initial Build
       console.log(chalk.cyan('Step 2: Building application...'));
       await this.runBuild();
 
-      // ===== STEP 3: Initialize Express =====
+      // STEP 3: Initialize Express
       console.log(chalk.cyan('Step 3: Initializing server...'));
       this._initializeApp();
       this._setupMiddleware();
       this._setupRoutes();
 
-      // ===== STEP 4: Create HTTP Server =====
+      // STEP 4: Create HTTP Server
       this.server = http.createServer(this.app);
 
-      // ===== STEP 5: Setup WebSocket for HMR =====
+      // STEP 5: Setup WebSocket for HMR
       this._setupWebSocket();
 
-      // ===== STEP 6: Setup File Watcher =====
+      // STEP 6: Setup File Watcher
       this._setupFileWatcher();
 
-      // ===== STEP 7: Start Listening =====
+      // STEP 7: Start Listening
       await this._listen();
 
-      // ===== STEP 8: Open Browser =====
+      // STEP 8: Open Browser
       if (this.config.dev?.behavior?.open) {
         setTimeout(() => this._openBrowser(), 500);
       }
@@ -157,8 +166,36 @@ export class DevServer {
   }
 
   /**
-   * ===== NEW METHOD: Run analyzer =====
-   * Analyze source code and extract metadata
+   * ✅ NEW METHOD: Initialize Source Map Generator
+   */
+  _initializeSourceMaps() {
+    try {
+      // Create maps directory
+      if (!fs.existsSync(this.mapsDir)) {
+        fs.mkdirSync(this.mapsDir, { recursive: true });
+      }
+
+      // Initialize generator
+      this.sourceMapGenerator = new SourceMapGenerator({
+        projectRoot: this.projectRoot,
+        sourceDir: this.sourceDir,
+        outputDir: this.mapsDir,
+        debugMode: this.config.debugMode || false,
+        generateInline: true  // Generate inline maps for dev
+      });
+
+      console.log(chalk.green(`✔ Source map generator initialized`));
+      console.log(chalk.gray(`  Maps directory: ${this.mapsDir}\n`));
+
+    } catch (error) {
+      console.warn(chalk.yellow(`⚠   Could not initialize source maps: ${error.message}`));
+      // Don't fail - just continue without source maps
+      this.sourceMapGenerator = null;
+    }
+  }
+
+  /**
+   * Run analyzer
    */
   async runAnalysis() {
     try {
@@ -166,13 +203,11 @@ export class DevServer {
         throw new Error(`Entry file not found: ${this.entryPath}`);
       }
 
-      // STEP 1: Read source code
       const sourceCode = fs.readFileSync(this.entryPath, 'utf-8');
 
-      // STEP 2: Create Analyzer with sourceCode in constructor options
       this.analyzer = new Analyzer({
-        sourceCode: sourceCode,        // ← Pass HERE in constructor
-        sourceFile: this.entryPath,    // Also pass file path
+        sourceCode: sourceCode,
+        sourceFile: this.entryPath,
         debugMode: this.config.debugMode,
         verbose: false,
         includeImports: true,
@@ -180,14 +215,12 @@ export class DevServer {
         includeSsr: true
       });
 
-      // STEP 3: Call analyze() with NO parameters
       this.analysisData = await this.analyzer.analyze();
 
-      // STEP 4: Extract widget count safely
       const widgetsObj = this.analysisData?.widgets || {};
       const widgetCount = (widgetsObj.count || 0) + (widgetsObj.stateless || 0) + (widgetsObj.stateful || 0);
 
-      console.log(chalk.green(`âœ" Analysis complete`));
+      console.log(chalk.green(`✔ Analysis complete`));
       console.log(chalk.gray(`  Widgets found: ${widgetCount}`));
       console.log(chalk.gray(`  Imports: ${this.analysisData.imports?.total || 0}`));
       console.log(chalk.gray(`  State classes: ${this.analysisData.state?.stateClasses || 0}\n`));
@@ -195,45 +228,41 @@ export class DevServer {
       return this.analysisData;
 
     } catch (error) {
-      console.error(chalk.red(`âœ— Analysis failed: ${error.message}`));
+      console.error(chalk.red(`✗  Analysis failed: ${error.message}`));
       throw error;
     }
   }
 
   /**
-   * ===== NEW METHOD: Run build =====
-   * Build application with analysis metadata
+   * Run build - ✅ NOW GENERATES SOURCE MAPS
    */
   async runBuild() {
     if (this.isBuilding) {
-      console.log(chalk.yellow('⚠  Build already in progress...'));
+      console.log(chalk.yellow('⚠    Build already in progress...'));
       return;
     }
 
     this.isBuilding = true;
 
     try {
-      // Ensure build directory exists
       if (!fs.existsSync(this.buildDir)) {
         await fs.promises.mkdir(this.buildDir, { recursive: true });
       }
 
       console.log(chalk.cyan('Building application...\n'));
 
-      // Create build pipeline
       const pipeline = new BuildPipeline({
         projectRoot: this.projectRoot,
         mode: 'development',
         target: 'spa',
         entry: {
-          main: this.entryFile  // ← Pass as entry.main like in config
+          main: this.entryFile
         },
         outputDir: '.dev',
         debugMode: this.config.debugMode || false,
         verbose: false
       });
 
-      // Execute build
       const buildResult = await pipeline.run();
 
       if (!buildResult || !buildResult.success) {
@@ -242,15 +271,18 @@ export class DevServer {
 
       this.lastBuildTime = new Date().toISOString();
 
-      // Calculate bundle size safely
       const bundleSize = buildResult.stats?.bundleSize || 0;
       const bundleSizeKB = (bundleSize / 1024).toFixed(2);
 
       console.log(chalk.green(`✔ Build complete`));
       console.log(chalk.gray(`  Bundle size: ${bundleSizeKB} KB`));
-      console.log(chalk.gray(`  Duration: ${buildResult.duration || 0}ms\n`));
+      console.log(chalk.gray(`  Duration: ${buildResult.duration || 0}ms`));
 
-      // Broadcast to clients if WebSocket is ready
+      // ✅ NEW: Generate source maps after build
+      await this._generateSourceMaps();
+
+      console.log(); // New line
+
       if (this.wss && this.clients.size > 0) {
         this._broadcastToClients({
           type: 'build-complete',
@@ -265,13 +297,12 @@ export class DevServer {
       return buildResult;
 
     } catch (error) {
-      console.error(chalk.red(`✗ Build failed: ${error.message}`));
+      console.error(chalk.red(`✗  Build failed: ${error.message}`));
 
       if (this.config.debugMode) {
         console.error(chalk.gray(`Stack: ${error.stack}`));
       }
 
-      // Broadcast error to clients if WebSocket is ready
       if (this.wss && this.clients.size > 0) {
         this._broadcastToClients({
           type: 'build-error',
@@ -290,26 +321,31 @@ export class DevServer {
   }
 
   /**
-   * Helper: Broadcast to clients safely
+   * ✅ NEW METHOD: Generate source maps for all source files
    */
-  _broadcastToClients(message, exclude = null) {
-    if (!this.clients || this.clients.size === 0) {
-      return;
+  async _generateSourceMaps() {
+    if (!this.sourceMapGenerator) {
+      return;  // Source maps disabled
     }
 
-    const data = JSON.stringify(message);
+    try {
+      console.log(chalk.cyan('Generating source maps...'));
 
-    this.clients.forEach((client) => {
-      if (client !== exclude && client.readyState === 1) { // 1 = OPEN
-        try {
-          client.send(data);
-        } catch (error) {
-          console.error(chalk.red('Failed to send to client:'), error.message);
-          this.clients.delete(client);
-        }
-      }
-    });
+      // Generate maps for all source files in the directory
+      await this.sourceMapGenerator.generateForDirectory(this.sourceDir);
+
+      // Write maps to disk
+      await this.sourceMapGenerator.writeMaps(this.mapsDir);
+
+      console.log(chalk.green(`✔ Source maps generated`));
+      console.log(chalk.gray(`  Maps: ${this.sourceMapGenerator.generatedMaps.size}`));
+
+    } catch (error) {
+      console.warn(chalk.yellow(`⚠   Source map generation failed: ${error.message}`));
+      // Don't fail the build - just continue without maps
+    }
   }
+
   /**
    * Initialize Express application
    */
@@ -318,10 +354,9 @@ export class DevServer {
     this.app.disable('x-powered-by');
     this.app.set('trust proxy', 1);
   }
-  // In the _setupMiddleware() method, update the static files section:
 
   /**
-   * Setup Express middleware
+   * Setup Express middleware - ✅ SERVE SOURCE MAPS
    */
   _setupMiddleware() {
     // Compression
@@ -340,6 +375,8 @@ export class DevServer {
     this.app.use((req, res, next) => {
       res.setHeader('X-Dev-Server', 'FlutterJS');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      // ✅ Allow source maps
+      res.setHeader('X-SourceMap', 'true');
       next();
     });
 
@@ -358,7 +395,6 @@ export class DevServer {
             `${chalk.gray(req.method)} ${req.url}`
           );
         } catch (error) {
-          // Silently fail logging - don't crash the request
           console.error(chalk.red('Logging error:'), error.message);
         }
 
@@ -397,7 +433,16 @@ export class DevServer {
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
 
-    // ===== FIXED: Serve node_modules from project root =====
+    // ✅ NEW: Serve source maps
+    if (this.sourceMapGenerator && fs.existsSync(this.mapsDir)) {
+      this.app.use('/maps', express.static(this.mapsDir, {
+        maxAge: 0,
+        etag: false,
+      }));
+      console.log(chalk.gray(`ðŸ—ºï¸ Serving source maps from: /maps`));
+    }
+
+    // Serve node_modules from project root
     const nodeModulesPath = path.join(this.projectRoot, 'node_modules');
     if (fs.existsSync(nodeModulesPath)) {
       this.app.use('/node_modules', express.static(nodeModulesPath, {
@@ -406,7 +451,7 @@ export class DevServer {
       }));
       console.log(chalk.gray(`ðŸ"¦ Serving node_modules from: ${nodeModulesPath}`));
     } else {
-      console.warn(chalk.yellow(`âš  node_modules not found at: ${nodeModulesPath}`));
+      console.warn(chalk.yellow(`⚠   node_modules not found at: ${nodeModulesPath}`));
     }
 
     // Static files from .dev build directory
@@ -417,11 +462,9 @@ export class DevServer {
   }
 
   /**
-   * Setup Express routes
+   * Setup Express routes - ✅ ADD SOURCE MAP ENDPOINTS
    */
   _setupRoutes() {
-    // ===== NEW ROUTES FOR ANALYSIS METADATA =====
-
     // Health check
     this.app.get('/health', (req, res) => {
       res.json({
@@ -429,6 +472,65 @@ export class DevServer {
         uptime: process.uptime(),
         timestamp: new Date().toISOString(),
       });
+    });
+
+    // ✅ NEW: Get source map for a file
+    this.app.get('/api/sourcemap/:file', (req, res) => {
+      try {
+        if (!this.sourceMapGenerator) {
+          return res.status(503).json({
+            error: 'Source maps not available'
+          });
+        }
+
+        const fileName = req.params.file;
+        const mapPath = path.join(this.mapsDir, fileName + '.map');
+
+        if (!fs.existsSync(mapPath)) {
+          return res.status(404).json({
+            error: 'Source map not found',
+            requested: fileName
+          });
+        }
+
+        const mapContent = fs.readFileSync(mapPath, 'utf-8');
+        res.json(JSON.parse(mapContent));
+
+      } catch (error) {
+        res.status(500).json({
+          error: 'Failed to fetch source map',
+          message: error.message
+        });
+      }
+    });
+
+    // ✅ NEW: Get all source maps info
+    this.app.get('/api/sourcemaps', (req, res) => {
+      try {
+        if (!this.sourceMapGenerator) {
+          return res.json({
+            available: false,
+            message: 'Source maps not enabled'
+          });
+        }
+
+        const maps = Array.from(this.sourceMapGenerator.generatedMaps.keys()).map(file => ({
+          file: path.relative(this.projectRoot, file),
+          mapUrl: `/maps/${path.basename(file)}.map`
+        }));
+
+        res.json({
+          available: true,
+          count: maps.length,
+          maps: maps
+        });
+
+      } catch (error) {
+        res.status(500).json({
+          error: 'Failed to list source maps',
+          message: error.message
+        });
+      }
     });
 
     // Get analysis metadata
@@ -468,7 +570,7 @@ export class DevServer {
     // Trigger rebuild
     this.app.post('/api/rebuild', async (req, res) => {
       try {
-        console.log(chalk.cyan('\n📦 Manual rebuild requested...\n'));
+        console.log(chalk.cyan('\nðŸ"¦ Manual rebuild requested...\n'));
         await this.runAnalysis();
         await this.runBuild();
 
@@ -493,6 +595,7 @@ export class DevServer {
         port: this.port,
         host: this.host,
         hmr: this.hmrEnabled,
+        sourceMaps: this.sourceMapGenerator ? true : false,  // ✅ Report sourcemaps
         clients: this.clients.size,
         buildDir: this.buildDir,
       });
@@ -532,7 +635,6 @@ export class DevServer {
         perMessageDeflate: false,
       });
 
-      // Handle upgrade requests
       this.server.on('upgrade', (request, socket, head) => {
         try {
           const origin = request.headers.origin;
@@ -552,7 +654,6 @@ export class DevServer {
         }
       });
 
-      // Handle connections
       this.wss.on('connection', (ws, request) => {
         try {
           const clientId = this._generateClientId();
@@ -562,16 +663,15 @@ export class DevServer {
 
           this.clients.add(ws);
 
-          // Send initial state with analysis data
           ws.send(JSON.stringify({
             type: 'connected',
             clientId,
             hmrEnabled: this.hmrEnabled,
+            sourceMaps: this.sourceMapGenerator ? true : false,  // ✅ Tell client about sourcemaps
             analysisData: this.analysisData,
             timestamp: new Date().toISOString(),
           }));
 
-          // Handle client messages
           ws.on('message', (data) => {
             try {
               const message = JSON.parse(data.toString());
@@ -581,13 +681,11 @@ export class DevServer {
             }
           });
 
-          // Handle disconnection
           ws.on('close', (code, reason) => {
             this.clients.delete(ws);
             console.log(chalk.cyan(`HMR client disconnected: ${clientId}`));
           });
 
-          // Handle errors
           ws.on('error', (error) => {
             console.error(chalk.red(`WebSocket error (${clientId}):`, error.message));
           });
@@ -617,7 +715,6 @@ export class DevServer {
 
       case 'ready':
         console.log(chalk.cyan(`Client ${clientId} ready for HMR`));
-        // Send current analysis
         ws.send(JSON.stringify({
           type: 'analysis-update',
           data: this.analysisData,
@@ -666,7 +763,6 @@ export class DevServer {
         },
       });
 
-      // File changed - trigger rebuild
       this.fileWatcher.on('change', (filePath) => {
         this._handleFileChange(filePath, 'change');
       });
@@ -702,7 +798,6 @@ export class DevServer {
       chalk.gray(relativePath)
     );
 
-    // Broadcast to clients
     this._broadcastToClients({
       type: 'file-changed',
       data: {
@@ -713,7 +808,6 @@ export class DevServer {
       },
     });
 
-    // Trigger rebuild if main files changed
     if (
       filePath.includes('flutterjs.config.js') ||
       filePath.includes('package.json') ||
@@ -724,7 +818,6 @@ export class DevServer {
         await this.runAnalysis();
         await this.runBuild();
 
-        // Broadcast rebuild complete
         this._broadcastToClients({
           type: 'rebuild-complete',
           data: {
@@ -736,7 +829,6 @@ export class DevServer {
       } catch (error) {
         console.error(chalk.red('Rebuild failed:'), error.message);
 
-        // Broadcast rebuild error
         this._broadcastToClients({
           type: 'rebuild-error',
           data: {
@@ -757,10 +849,16 @@ export class DevServer {
         const protocol = this.https ? 'https' : 'http';
         const url = `${protocol}://${this.host}:${this.port}`;
 
-        console.log(chalk.green('\n✅ Development server running!\n'));
-        console.log(chalk.blue('🌐 URLs:\n'));
+        console.log(chalk.green('\nâœ… Development server running!\n'));
+        console.log(chalk.blue('ðŸŒ URLs:\n'));
         console.log(chalk.cyan(`  Local:   ${url}`));
         console.log(chalk.cyan(`  Network: ${protocol}://127.0.0.1:${this.port}`));
+        
+        // ✅ Show source maps info
+        if (this.sourceMapGenerator) {
+          console.log(chalk.cyan(`  ðŸ—ºï¸ Source Maps: ${url}/api/sourcemaps`));
+        }
+        
         console.log(chalk.gray(`\n  Press Ctrl+C to stop\n`));
 
         resolve();
@@ -771,8 +869,8 @@ export class DevServer {
           reject(new Error(
             `Port ${this.port} is already in use!\n\n` +
             `Try:\n` +
-            `  • Kill the process using port ${this.port}\n` +
-            `  • Use a different port: flutterjs dev --port ${this.port + 1}\n`
+            `  â€¢ Kill the process using port ${this.port}\n` +
+            `  â€¢ Use a different port: flutterjs dev --port ${this.port + 1}\n`
           ));
         } else {
           reject(error);
@@ -787,10 +885,10 @@ export class DevServer {
   async _openBrowser() {
     try {
       const url = `http://${this.host}:${this.port}`;
-      console.log(chalk.blue(`🌐 Opening browser at ${url}\n`));
+      console.log(chalk.blue(`ðŸŌ Opening browser at ${url}\n`));
       await open(url);
     } catch (error) {
-      console.warn(chalk.yellow('⚠ Could not open browser automatically'));
+      console.warn(chalk.yellow('⚠   Could not open browser automatically'));
     }
   }
 
@@ -801,7 +899,7 @@ export class DevServer {
     const data = JSON.stringify(message);
 
     this.clients.forEach((client) => {
-      if (client !== exclude && client.readyState === WebSocket.OPEN) {
+      if (client !== exclude && client.readyState === 1) { // 1 = OPEN
         try {
           client.send(data);
         } catch (error) {
@@ -845,7 +943,7 @@ export class DevServer {
       // Close HTTP server
       if (this.server) {
         this.server.close(() => {
-          console.log(chalk.green('✅ Development server stopped\n'));
+          console.log(chalk.green('âœ… Development server stopped\n'));
           resolve();
         });
 
@@ -870,6 +968,7 @@ export class DevServer {
       host: this.host,
       url: `http://${this.host}:${this.port}`,
       hmrEnabled: this.hmrEnabled,
+      sourceMaps: this.sourceMapGenerator ? this.sourceMapGenerator.generatedMaps.size : 0,
       connectedClients: this.clients.size,
       buildDir: this.buildDir,
       isBuilding: this.isBuilding,
@@ -890,10 +989,11 @@ export class DevServer {
   printInfo() {
     const stats = this.getStats();
 
-    console.log(chalk.blue('\n📊 Development Server Info\n'));
+    console.log(chalk.blue('\nðŸ"Š Development Server Info\n'));
     console.log(chalk.gray(`Status: ${stats.running ? chalk.green('Running') : chalk.red('Stopped')}`));
     console.log(chalk.gray(`URL: ${stats.url}`));
     console.log(chalk.gray(`HMR: ${stats.hmrEnabled ? chalk.green('Enabled') : chalk.red('Disabled')}`));
+    console.log(chalk.gray(`Source Maps: ${stats.sourceMaps > 0 ? chalk.green(`${stats.sourceMaps} maps`) : chalk.red('None')}`));
     console.log(chalk.gray(`Connected Clients: ${stats.connectedClients}`));
     console.log(chalk.gray(`Building: ${stats.isBuilding ? chalk.yellow('Yes') : chalk.green('No')}`));
     console.log(chalk.gray(`Last Build: ${stats.lastBuildTime || 'N/A'}`));

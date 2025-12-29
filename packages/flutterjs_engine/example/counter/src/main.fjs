@@ -11,11 +11,10 @@
  * 5. Arrow function syntax issues
  * 6. Proper exports
  */
-import { runApp,BuildContext} from '@flutterjs/runtime';
+import { runApp,BuildContext, State,} from '@flutterjs/runtime';
 import {
   // Core Framework
   Widget,
-  State,
   StatefulWidget,
   StatelessWidget,
   Key,
@@ -24,12 +23,10 @@ import {
   AppBar,
   Text,
   Container,
-  Card,
   Column,
   Row,
   Icon,
   Padding,
-  Divider,
   FloatingActionButton,
   Icons,
 } from '@flutterjs/material';
@@ -184,32 +181,6 @@ class _MyHomePageState extends State {
 
 // ===== HELPER FUNCTIONS =====
 
-/**
- * Build a user card widget
- * @param {string} name - User name
- * @param {number} age - User age
- * @returns {Widget} Card widget
- */
-function buildUserCard(name = undefined, age = undefined) {
-  return new Card({
-    margin: { all: 12 },
-    child: new Padding({
-      padding: { all: 16 },
-      child: new Column({
-        crossAxisAlignment: "start",
-        children: [
-          new Text(
-            `Name: ${name}`,
-            {
-              style: { fontSize: 18 }
-            }
-          ),
-          new Text(`Age: ${age}`)
-        ]
-      })
-    })
-  });
-}
 
 /**
  * Build a price widget with GST calculation
@@ -232,7 +203,6 @@ function buildPriceWidget(amount = undefined) {
         new Text(`Amount: ₹${amount}`),
         new Text(`GST (18%): ₹${gst.toFixed(2)}`),
         new Text("jaypal"),
-        new Divider(),
         new Text(
           `Total: ₹${total.toFixed(2)}`,
           {
@@ -284,7 +254,6 @@ export {
   
   // Functions
   main,
-  buildUserCard,
   buildPriceWidget,
   appTest,
   ex,

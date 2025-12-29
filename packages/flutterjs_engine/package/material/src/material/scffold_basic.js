@@ -1,4 +1,4 @@
-import { StatefulWidget,Element } from '../core/widget_element.js';
+import { StatefulWidget,Element,StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 
 // ============================================================================

@@ -1,15 +1,14 @@
-
 import { Diagnosticable, Element } from "@flutterjs/runtime/element";
 import { VNode } from "@flutterjs/vdom/vnode";
 
 // ============================================================================
-// 4. WIDGET CLASS - With Diagnosticable
+// 1. WIDGET CLASS - With Diagnosticable
 // ============================================================================
 
 /**
  * Widget - Abstract base class for all widgets
  */
- class Widget extends Diagnosticable {
+class Widget extends Diagnosticable {
   constructor(key = null) {
     super();
     if (new.target === Widget) {
@@ -45,7 +44,147 @@ import { VNode } from "@flutterjs/vdom/vnode";
   }
 }
 
+// ============================================================================
+// 2. PROXY WIDGET - Base for wrapping widgets
+// ============================================================================
 
+class ProxyWidget extends Widget {
+  constructor({ key = null, child = null } = {}) {
+    super(key);
+    if (new.target === ProxyWidget) {
+      throw new Error('ProxyWidget is abstract');
+    }
+    this.child = child;
+  }
+
+  createElement() {
+    return new ProxyElement(this);
+  }
+}
+
+// ============================================================================
+// 3. INHERITED WIDGET - Ambient state propagation
+// ============================================================================
+
+class InheritedWidget extends ProxyWidget {
+  constructor({ key = null, child = null } = {}) {
+    super({ key, child });
+  }
+
+  /**
+   * Override to return true when dependent widgets should rebuild
+   */
+  updateShouldNotify(oldWidget) {
+    throw new Error(
+      `${this.constructor.name}.updateShouldNotify() must be implemented`
+    );
+  }
+
+  createElement() {
+    return new InheritedElement(this);
+  }
+
+  static of(context, widgetType) {
+    return context.dependOnInheritedWidgetOfExactType(widgetType);
+  }
+}
+
+// ============================================================================
+// 4. KEY CLASSES
+// ============================================================================
+
+class Key {
+  constructor() {
+    if (new.target === Key) {
+      throw new Error('Key is abstract');
+    }
+  }
+}
+
+class ValueKey extends Key {
+  constructor(value) {
+    super();
+    this.value = value;
+  }
+
+  equals(other) {
+    return other instanceof ValueKey && this.value === other.value;
+  }
+
+  toString() {
+    return `ValueKey(${this.value})`;
+  }
+}
+
+class ObjectKey extends Key {
+  constructor(value) {
+    super();
+    this.value = value;
+  }
+
+  equals(other) {
+    return other instanceof ObjectKey && this.value === other.value;
+  }
+
+  toString() {
+    return `ObjectKey(${this.value})`;
+  }
+}
+
+class GlobalKey extends Key {
+  constructor(debugLabel = null) {
+    super();
+    this.debugLabel = debugLabel;
+    this._currentElement = null;
+  }
+
+  get currentContext() {
+    return this._currentElement?.context || null;
+  }
+
+  get currentWidget() {
+    return this._currentElement?.widget || null;
+  }
+
+  get currentState() {
+    return this._currentElement?.state || null;
+  }
+
+  equals(other) {
+    return other instanceof GlobalKey && this === other;
+  }
+
+  toString() {
+    return `GlobalKey${this.debugLabel ? `(${this.debugLabel})` : ''}`;
+  }
+}
+
+// ============================================================================
+// 5. NOTIFICATION CLASSES
+// ============================================================================
+
+class Notification {
+  constructor() {
+    if (new.target === Notification) {
+      throw new Error('Notification is abstract');
+    }
+  }
+
+  dispatch(context) {
+    context.dispatchNotification(this);
+  }
+}
+
+class NotificationListener extends ProxyWidget {
+  constructor({ key = null, child = null, onNotification = null } = {}) {
+    super({ key, child });
+    this.onNotification = onNotification;
+  }
+
+  createElement() {
+    return new NotificationListenerElement(this);
+  }
+}
 
 // ============================================================================
 // 6. STATELESS WIDGET & ELEMENT
@@ -128,8 +267,6 @@ class StatefulWidget extends Widget {
     throw new Error(`${this.constructor.name}.createState() must be implemented`);
   }
 
-
-
   /**
    * Create element for this widget
    */
@@ -137,8 +274,7 @@ class StatefulWidget extends Widget {
     return new StatefulElement(this);
   }
 
-
-  // New: Called during hot reload
+  // Called during hot reload
   reassemble() { }
 }
 
@@ -156,33 +292,10 @@ class StatefulElement extends Element {
   /**
    * Mount the element
    */
-
   mount(parent = null) {
-    super.mount(parent);        // sets _parent, _depth, creates BuildContext, …
-    this.state._mount(this);    // <-- ONE LINE DOES IT ALL
+    super.mount(parent);        // sets _parent, _depth, creates BuildContext, etc
+    this.state._mount(this);    // Initialize state and call initState + didChangeDependencies
   }
-  // mount(parent = null) {
-  //   super.mount(parent);
-  //   this.state._mount(this);
-  //   this.state._mounted = true;
-
-  //   // Initialize state (call only once)
-  //   if (!this.state._didInitState) {
-  //     this.state._didInitState = true;
-  //     try {
-  //       this.state.initState();
-  //     } catch (error) {
-  //       console.error(`initState error in ${this._debugLabel}:`, error);
-  //     }
-  //   }
-
-  //   // Notify of dependencies
-  //   try {
-  //     this.state.didChangeDependencies();
-  //   } catch (error) {
-  //     console.error(`didChangeDependencies error in ${this._debugLabel}:`, error);
-  //   }
-  // }
 
   /**
    * Unmount the element
@@ -272,7 +385,9 @@ class StatefulElement extends Element {
   }
 }
 
-
+// ============================================================================
+// 8. ERROR WIDGET
+// ============================================================================
 
 class ErrorWidget extends StatelessWidget {
   constructor({ message = 'Error', error = null } = {}) {
@@ -301,139 +416,73 @@ class ErrorWidget extends StatelessWidget {
   }
 }
 
+// ============================================================================
+// 9. PROXY ELEMENT (for ProxyWidget)
+// ============================================================================
 
-class Notification {
-  constructor() {
-    if (new.target === Notification) {
-      throw new Error('Notification is abstract');
+class ProxyElement extends Element {
+  constructor(widget) {
+    super(widget);
+  }
+
+  mount(parent = null) {
+    super.mount(parent);
+  }
+
+  performRebuild() {
+    // ProxyWidget typically renders child directly
+    if (this.widget.child) {
+      const childElement = this.widget.child.createElement?.();
+      if (childElement && childElement.mount) {
+        childElement.mount(this);
+      }
+      return childElement?.performRebuild?.() || null;
     }
-  }
-
-  dispatch(context) {
-    context.dispatchNotification(this);
+    return null;
   }
 }
 
-class NotificationListener extends ProxyWidget {
-  constructor({ key = null, child = null, onNotification = null } = {}) {
-    super({ key, child });
-    this.onNotification = onNotification;
+// ============================================================================
+// 10. INHERITED ELEMENT (for InheritedWidget)
+// ============================================================================
+
+class InheritedElement extends ProxyElement {
+  constructor(widget) {
+    super(widget);
+    this._dependents = new Set();
   }
 
-  createElement() {
-    return new NotificationListenerElement(this);
-  }
-}
-
-
-class Key {
-  constructor() {
-    if (new.target === Key) {
-      throw new Error('Key is abstract');
+  performRebuild() {
+    // Render child
+    if (this.widget.child) {
+      const childElement = this.widget.child.createElement?.();
+      if (childElement && childElement.mount) {
+        childElement.mount(this);
+      }
+      return childElement?.performRebuild?.() || null;
     }
-  }
-}
-
-class ValueKey extends Key {
-  constructor(value) {
-    super();
-    this.value = value;
-  }
-
-  equals(other) {
-    return other instanceof ValueKey && this.value === other.value;
-  }
-
-  toString() {
-    return `ValueKey(${this.value})`;
-  }
-}
-
-class ObjectKey extends Key {
-  constructor(value) {
-    super();
-    this.value = value;
-  }
-
-  equals(other) {
-    return other instanceof ObjectKey && this.value === other.value;
-  }
-
-  toString() {
-    return `ObjectKey(${this.value})`;
-  }
-}
-
-class GlobalKey extends Key {
-  constructor(debugLabel = null) {
-    super();
-    this.debugLabel = debugLabel;
-    this._currentElement = null;
-  }
-
-  get currentContext() {
-    return this._currentElement?.context || null;
-  }
-
-  get currentWidget() {
-    return this._currentElement?.widget || null;
-  }
-
-  get currentState() {
-    return this._currentElement?.state || null;
-  }
-
-  equals(other) {
-    return other instanceof GlobalKey && this === other;
-  }
-
-  toString() {
-    return `GlobalKey${this.debugLabel ? `(${this.debugLabel})` : ''}`;
+    return null;
   }
 }
 
 // ============================================================================
-// 2. PROXY WIDGET - Base for wrapping widgets
+// 11. NOTIFICATION LISTENER ELEMENT
 // ============================================================================
 
-class ProxyWidget extends Widget {
-  constructor({ key = null, child = null } = {}) {
-    super(key);
-    if (new.target === ProxyWidget) {
-      throw new Error('ProxyWidget is abstract');
+class NotificationListenerElement extends ProxyElement {
+  constructor(widget) {
+    super(widget);
+  }
+
+  performRebuild() {
+    if (this.widget.child) {
+      const childElement = this.widget.child.createElement?.();
+      if (childElement && childElement.mount) {
+        childElement.mount(this);
+      }
+      return childElement?.performRebuild?.() || null;
     }
-    this.child = child;
-  }
-
-  createElement() {
-    return new ProxyElement(this);
-  }
-}
-
-// ============================================================================
-// 3. INHERITED WIDGET - Ambient state propagation
-// ============================================================================
-
-class InheritedWidget extends ProxyWidget {
-  constructor({ key = null, child = null } = {}) {
-    super({ key, child });
-  }
-
-  /**
-   * Override to return true when dependent widgets should rebuild
-   */
-  updateShouldNotify(oldWidget) {
-    throw new Error(
-      `${this.constructor.name}.updateShouldNotify() must be implemented`
-    );
-  }
-
-  createElement() {
-    return new InheritedElement(this);
-  }
-
-  static of(context, widgetType) {
-    return context.dependOnInheritedWidgetOfExactType(widgetType);
+    return null;
   }
 }
 
@@ -447,9 +496,12 @@ export {
   ObjectKey,
   Key,
   ProxyWidget,
+  ProxyElement,
   InheritedWidget,
+  InheritedElement,
   Notification,
   NotificationListener,
+  NotificationListenerElement,
   ErrorWidget,
   Diagnosticable,
   Widget,
