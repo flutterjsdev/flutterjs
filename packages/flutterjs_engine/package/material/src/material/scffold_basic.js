@@ -669,6 +669,33 @@ class ScaffoldElement extends ScaffoldState {
   }
 }
 
+ class AppBar extends StatelessWidget {
+  constructor({ title, backgroundColor } = {}) {
+    super({ title, backgroundColor });
+    this.title = title;
+    this.backgroundColor = backgroundColor;
+  }
+
+  build(context) {
+    return new VNode(
+      'div',
+      {
+        className: 'flutter-appbar',
+        style: {
+          backgroundColor: this.backgroundColor || 'var(--md-sys-color-primary)',
+          color: '#FFFFFF',
+          padding: '16px',
+          fontSize: '20px',
+          fontWeight: 'bold',
+        },
+      },
+      [this.title]
+    );
+  }
+}
+
+
+
 // ============================================================================
 // EXPORTS
 // ============================================================================
@@ -681,5 +708,6 @@ export {
   SnackBarClosedReason,
   ScaffoldFeatureController,
   FloatingActionButtonLocation,
-  DrawerAlignment
+  DrawerAlignment,
+  AppBar
 };

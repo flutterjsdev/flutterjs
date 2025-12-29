@@ -1,6 +1,6 @@
-import { InheritedWidget } from '../../framework/inherited_widget.js';
-import { InheritedElement } from '../../framework/inherited_element.js';
-import { BlendMode } from '../painting/opacity.js';
+import { InheritedWidget } from '../../core/widget_element.js';
+import { InheritedElement } from '@flutterjs/runtime/element';
+import { BlendMode } from './opacity.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 
 

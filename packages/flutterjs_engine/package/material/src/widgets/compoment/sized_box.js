@@ -1,6 +1,6 @@
 import { ProxyWidget } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
-import { Alignment } from './transform_widget.js';
+import { Alignment } from '../../utils/utils.js';
 import { Clip } from './clip_widgets.js';
 
 // ============================================================================

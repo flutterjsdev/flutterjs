@@ -8,9 +8,9 @@ import {
   Offset, 
 
   Alignment
-} from '../utils/index.js';
+} from '../utils.js';
 
-import { Colors, } from '../constants/index.js';
+import { Colors, } from '../../material/color.js';
 
 // ============================================================================
 // 1. BORDER.JS - Border styling configuration

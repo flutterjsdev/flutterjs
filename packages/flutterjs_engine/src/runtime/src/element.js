@@ -879,5 +879,6 @@ export {
     StatelessElement,
     StatefulElement,
     InheritedElement,
-    ComponentElement
+    ComponentElement,
+    DiagnosticLevel
 };

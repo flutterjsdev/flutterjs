@@ -1,4 +1,4 @@
-import { Color } from './color.js';
+import { Color } from '../material/color.js';
 
 /**
  * Material Design 3 Color Theme System

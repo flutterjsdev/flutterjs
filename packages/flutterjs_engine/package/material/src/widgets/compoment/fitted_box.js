@@ -1,6 +1,6 @@
 import { ProxyWidget } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
-import { Alignment,Clip ,BoxFit} from '../../utils.js';
+import { Alignment,Clip ,BoxFit} from '../../utils/utils.js';
 
 
 

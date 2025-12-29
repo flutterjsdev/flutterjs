@@ -2,7 +2,7 @@
 import { ProxyWidget } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { CustomClipper } from './clip.js';
-import {Clip,BoxShape,Color } from '../../utils.js';
+import {Clip,BoxShape,Color } from '../../utils/utils.js';
 
 
 // ============================================================================

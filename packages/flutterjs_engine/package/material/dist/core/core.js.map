@@ -1,7 +1,7 @@
 {
   "version": 3,
   "sources": ["../../src/core/core.js"],
-  "sourcesContent": ["// src/core/index.js\r\n// Core widget and element classes\r\n\r\nexport {\r\n    GlobalKey,\r\n    ValueKey,\r\n    ObjectKey,\r\n    Key,\r\n    ProxyWidget,\r\n    InheritedWidget,\r\n    Notification,\r\n    NotificationListener,\r\n    ErrorWidget,\r\n    DiagnosticLevel,\r\n    DiagnosticsTreeStyle,\r\n    Diagnosticable,\r\n    Widget,\r\n    Element,\r\n    StatelessWidget,\r\n    StatelessElement,\r\n    StatefulWidget,\r\n    StatefulElement\r\n} from \"./widget_element.js\";"],
-  "mappings": "AAGA,OACI,aAAAA,EACA,YAAAC,EACA,aAAAC,EACA,OAAAC,EACA,eAAAC,EACA,mBAAAC,EACA,gBAAAC,EACA,wBAAAC,EACA,eAAAC,EACA,mBAAAC,EACA,wBAAAC,EACA,kBAAAC,EACA,UAAAC,EACA,WAAAC,EACA,mBAAAC,EACA,oBAAAC,EACA,kBAAAC,EACA,mBAAAC,MACG",
-  "names": ["GlobalKey", "ValueKey", "ObjectKey", "Key", "ProxyWidget", "InheritedWidget", "Notification", "NotificationListener", "ErrorWidget", "DiagnosticLevel", "DiagnosticsTreeStyle", "Diagnosticable", "Widget", "Element", "StatelessWidget", "StatelessElement", "StatefulWidget", "StatefulElement"]
+  "sourcesContent": ["// src/core/index.js\r\n// Core widget and element classes\r\n\r\nexport {\r\n    GlobalKey,\r\n    ValueKey,\r\n    ObjectKey,\r\n    Key,\r\n    ProxyWidget,\r\n    InheritedWidget,\r\n    Notification,\r\n    NotificationListener,\r\n    ErrorWidget,\r\n    Diagnosticable,\r\n    Widget,\r\n    Element,\r\n    StatelessWidget,\r\n    StatelessElement,\r\n    StatefulWidget,\r\n    StatefulElement\r\n} from \"./widget_element.js\";"],
+  "mappings": "AAGA,OACI,aAAAA,EACA,YAAAC,EACA,aAAAC,EACA,OAAAC,EACA,eAAAC,EACA,mBAAAC,EACA,gBAAAC,EACA,wBAAAC,EACA,eAAAC,EACA,kBAAAC,EACA,UAAAC,EACA,WAAAC,EACA,mBAAAC,EACA,oBAAAC,EACA,kBAAAC,EACA,mBAAAC,MACG",
+  "names": ["GlobalKey", "ValueKey", "ObjectKey", "Key", "ProxyWidget", "InheritedWidget", "Notification", "NotificationListener", "ErrorWidget", "Diagnosticable", "Widget", "Element", "StatelessWidget", "StatelessElement", "StatefulWidget", "StatefulElement"]
 }
