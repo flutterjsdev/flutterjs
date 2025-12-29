@@ -42,5 +42,24 @@ export {
     Text, TextStyle
 } from "./text.js";
 
+export {
+    MaterialApp,
+    MaterialAppElement,
+    ThemeData,
+    Navigator,
+    Route
+} from "./material_app.js";
+
+export {
+    FloatingActionButton,
+    FloatingActionButtonElement,
+    FloatingActionButtonExtended
+} from "./floating_action_button.js";
+
+export {
+  GestureDetector,
+  GestureDetectorElement
+} from "./gesture_detector.js";
+
 
 

@@ -16,7 +16,6 @@
     "./gesture_recognizer": "./dist/gesture_recognizer.js",
     "./inherited_element": "./dist/inherited_element.js",
     "./memory_manager": "./dist/memory_manager.js",
-    "./runtime": "./dist/runtime.js",
     "./runtime_engine": "./dist/runtime_engine.js",
     "./service_registry": "./dist/service_registry.js",
     "./state": "./dist/state.js",

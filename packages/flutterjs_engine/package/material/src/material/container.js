@@ -1,6 +1,7 @@
 import { Widget, StatelessWidget, Element } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Clip, TextDirection, Alignment } from '../utils/utils.js';
+import { Padding } from '../widgets/widgets.js';
 
 // ============================================================================
 // ENUMS
@@ -656,32 +657,7 @@ class Align extends StatelessWidget {
   }
 }
 
-class Padding extends StatelessWidget {
-  constructor({ key = null, padding = null, child = null } = {}) {
-    super(key);
-    this.padding = padding;
-    this.child = child;
-  }
 
-  build(context) {
-    const childElement = this.child?.createElement();
-    const paddingCSS = this.padding?.toCSSPadding?.() || '0';
-
-    if (childElement) {
-      childElement.mount(context.element);
-      const childVNode = childElement.performRebuild();
-
-      return new VNode({
-        tag: 'div',
-        props: {
-          style: { padding: paddingCSS }
-        },
-        children: [childVNode]
-      });
-    }
-    return new VNode({ tag: 'div', children: [] });
-  }
-}
 
 class ClipPath extends StatelessWidget {
   constructor({ key = null, clipBehavior = Clip.hardEdge, child = null } = {}) {
