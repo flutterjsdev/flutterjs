@@ -18,9 +18,11 @@ import {
   Element,
   StatelessElement,
   StatefulElement,
-  InheritedElement,
+
   ComponentElement
 } from "../src/element.js";
+
+import {  InheritedElement,} from "../src/inherited_element.js";
 
 class RuntimeEngine {
   constructor() {

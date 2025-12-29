@@ -115,40 +115,42 @@ export class FlutterJSRuntime {
         console.log('[Runtime] Initializing...');
       }
 
-      // Store root element
       this.rootElement = options.rootElement;
 
       if (this.config.isBrowser && !this.rootElement) {
         throw new Error('[Runtime] rootElement required in browser mode');
       }
 
-      // ✅ INITIALIZE VNODE BUILDER
+      // ✅ CREATE VNODE BUILDER WITH RUNTIME REFERENCE
       if (this.config.debugMode) {
-        console.log('[Runtime] 🟣 Creating VNodeBuilder...');
+        console.log('[Runtime] 🟢 Creating VNodeBuilder...');
       }
       this.vNodeBuilder = new VNodeBuilder({
-        debugMode: this.config.debugMode
+        debugMode: this.config.debugMode,
+        runtime: this  // ✅ PASS RUNTIME HERE
       });
 
-      // ✅ INITIALIZE VNODE RENDERER
+      // ✅ CREATE VNODE RENDERER WITH RUNTIME REFERENCE
       if (this.config.isBrowser) {
         if (this.config.debugMode) {
-          console.log('[Runtime] 🟠 Creating VNodeRenderer...');
+          console.log('[Runtime] 🟢 Creating VNodeRenderer...');
         }
         this.vNodeRenderer = new VNodeRenderer({
           rootElement: this.rootElement,
-          debugMode: this.config.debugMode
+          debugMode: this.config.debugMode,
+          runtime: this  // ✅ PASS RUNTIME HERE
         });
       }
 
-      // ✅ INITIALIZE HYDRATOR
+      // ✅ CREATE HYDRATOR WITH RUNTIME REFERENCE
       if (this.config.mode === 'hydrate' || options.hydrateFromSSR) {
         if (this.config.debugMode) {
-          console.log('[Runtime] 💧 Creating Hydrator...');
+          console.log('[Runtime] 🧊 Creating Hydrator...');
         }
         this.hydrator = new Hydrator({
           rootElement: this.rootElement,
-          debugMode: this.config.debugMode
+          debugMode: this.config.debugMode,
+          runtime: this  // ✅ PASS RUNTIME HERE
         });
       }
 
@@ -209,7 +211,10 @@ export class FlutterJSRuntime {
 
         // ✅ USE VNODE BUILDER TO CONVERT WIDGET TO VNODE
         if (!this.vNodeBuilder) {
-          this.vNodeBuilder = new VNodeBuilder({ debugMode: this.config.debugMode });
+          this.vNodeBuilder = new VNodeBuilder({
+            debugMode: this.config.debugMode,
+            runtime: this  // ✅ ADD THIS LINE
+          });
         }
 
         this.rootVNode = this.vNodeBuilder.build(widgetOrVNode, {
@@ -373,7 +378,7 @@ export class FlutterJSRuntime {
 
         // Get new VNode from AppBuilder
         const newVNode = this.appBuilder.build();
-        
+
         // ✅ USE VNODE RENDERER FOR RECONCILIATION
         if (this.config.isBrowser && this.vNodeRenderer && this.currentDOMElement) {
           if (this.config.debugMode) {
@@ -586,12 +591,28 @@ export class FlutterJSRuntime {
   setupErrorHandling() {
     if (!this.config.isBrowser) return;
 
+    let isHandlingError = false;
+
     window.addEventListener('error', (event) => {
-      this.handleError('uncaught', event.error);
+      if (isHandlingError) return; // Prevent recursive error handling
+
+      isHandlingError = true;
+      try {
+        this.handleError('uncaught', event.error);
+      } finally {
+        isHandlingError = false;
+      }
     });
 
     window.addEventListener('unhandledrejection', (event) => {
-      this.handleError('promise', event.reason);
+      if (isHandlingError) return;
+
+      isHandlingError = true;
+      try {
+        this.handleError('promise', event.reason);
+      } finally {
+        isHandlingError = false;
+      }
     });
   }
 
@@ -599,35 +620,55 @@ export class FlutterJSRuntime {
    * Handle error
    */
   handleError(source, error) {
-    console.error(`[Runtime] ❌ Error in ${source}:`, error);
+    // Get the actual error message, don't stringify the whole object
+    const errorMessage = error instanceof Error
+      ? error.message
+      : String(error);
 
+    console.error(`[Runtime] ❌ Error in ${source}:`, errorMessage);
+
+    // Log stack trace safely
+    if (error instanceof Error && error.stack && this.config.debugMode) {
+      console.error('[Runtime] Stack trace:', error.stack);
+    }
+
+    // Run user error handlers safely
     this.errorHandlers.forEach(handler => {
       try {
         handler(source, error);
       } catch (e) {
-        console.error('[Runtime] Error handler failed:', e);
+        console.error('[Runtime] Error handler failed:', e.message);
       }
     });
 
+    // Debug overlay only if explicitly enabled
     if (this.config.debugMode && this.config.isBrowser) {
-      this.showErrorOverlay(source, error);
+      try {
+        this.showErrorOverlay(source, errorMessage);
+      } catch (e) {
+        console.error('[Runtime] Could not show error overlay:', e.message);
+      }
     }
   }
+
 
   /**
    * Show error overlay
    */
-  showErrorOverlay(source, error) {
-    if (typeof document === 'undefined') return;
+  showErrorOverlay(source, errorMessage) {
+    try {
+      if (typeof document === 'undefined') return;
 
-    const overlay = document.getElementById('__flutterjs_error_overlay__');
-    if (overlay) {
-      overlay.remove();
-    }
+      // Remove old overlay safely
+      const overlay = document.getElementById('__flutterjs_error_overlay__');
+      if (overlay) {
+        overlay.remove();
+      }
 
-    const div = document.createElement('div');
-    div.id = '__flutterjs_error_overlay__';
-    div.style.cssText = `
+      // Create new overlay
+      const div = document.createElement('div');
+      div.id = '__flutterjs_error_overlay__';
+      div.style.cssText = `
       position: fixed;
       top: 0;
       left: 0;
@@ -641,34 +682,52 @@ export class FlutterJSRuntime {
       font-family: monospace;
     `;
 
-    const box = document.createElement('div');
-    box.style.cssText = `
+      const box = document.createElement('div');
+      box.style.cssText = `
       background: white;
       padding: 30px;
       border-radius: 8px;
       max-width: 600px;
       max-height: 80vh;
       overflow-y: auto;
+      border-left: 4px solid #d32f2f;
     `;
 
-    box.innerHTML = `
-      <h2 style="color: #d32f2f; margin: 0 0 20px 0;">⚠️ Runtime Error</h2>
-      <p style="color: #666; margin: 0 0 10px 0;">
-        <strong>Source:</strong> ${source}
-      </p>
-      <pre style="
+      // Format error safely
+      const errorMsg = errorMessage
+        ? String(errorMessage).split('\n')[0]
+        : 'Unknown error';
+
+      box.innerHTML = `
+      <h2 style="margin: 0 0 15px 0; color: #d32f2f; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto;">
+        ❌ ${source.charAt(0).toUpperCase() + source.slice(1)} Error
+      </h2>
+      <div style="
         background: #f5f5f5;
         padding: 15px;
         border-radius: 4px;
         margin: 0;
         color: #c62828;
         overflow-x: auto;
-      ">${error.message}</pre>
+        font-size: 13px;
+        line-height: 1.6;
+        word-break: break-word;
+        white-space: pre-wrap;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      ">${escapeHtml(errorMsg)}</div>
+      <p style="color: #666; margin-top: 20px; font-size: 12px; margin-bottom: 0;">
+        💡 Check the browser console for more details.
+      </p>
     `;
 
-    div.appendChild(box);
-    document.body.appendChild(div);
+      div.appendChild(box);
+      document.body.appendChild(div);
+    } catch (e) {
+      console.error('[Runtime] Overlay creation failed:', e.message);
+    }
   }
+
+
 
   /**
    * Register lifecycle hook
@@ -713,13 +772,14 @@ export class FlutterJSRuntime {
       initialized: this.initialized,
       mounted: this.mounted,
       environment: this.config.isBrowser ? 'browser' : 'server',
-      vnodeSize: this.rootVNode ? JSON.stringify(this.rootVNode).length : 0
+      vnodeSize: 0  // Don't try to stringify - VNode has circular refs
     };
   }
 
   /**
    * Log statistics
    */
+
   logStats() {
     if (!this.config.debugMode) return;
 
@@ -751,6 +811,18 @@ export class FlutterJSRuntime {
   }
 }
 
+
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
+
 // ============================================================================
 // GLOBAL API
 // ============================================================================
@@ -770,9 +842,9 @@ export function runApp(rootWidgetOrVNode, options = {}) {
     });
   }
 
-  const container = options.container || 
-                   options.rootElement ||
-                   (isBrowser() ? document.getElementById('root') : null);
+  const container = options.container ||
+    options.rootElement ||
+    (isBrowser() ? document.getElementById('root') : null);
 
   globalRuntime.initialize({ rootElement: container });
   globalRuntime.runApp(rootWidgetOrVNode, options);
@@ -823,6 +895,8 @@ export function dispose() {
     globalRuntime = null;
   }
 }
+
+
 
 // ============================================================================
 // EXPORTS

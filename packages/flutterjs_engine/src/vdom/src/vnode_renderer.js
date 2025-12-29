@@ -18,7 +18,7 @@ class VNodeRenderer {
    * @param {Object} options - Rendering options
    * @returns {HTMLElement} Root DOM element
    */
-  static render(vnode, targetElement, options = {}) {
+   render(vnode, targetElement, options = {}) {
     if (!targetElement) {
       throw new Error('Target element is required');
     }
@@ -49,7 +49,7 @@ class VNodeRenderer {
    * @param {VNode|string|Array} vnode - VNode to convert
    * @returns {HTMLElement|Text|Array|null} DOM node(s)
    */
-  static createDOMNode(vnode) {
+   createDOMNode(vnode) {
     // Handle null/undefined
     if (vnode === null || vnode === undefined) {
       return document.createTextNode('');
@@ -115,7 +115,7 @@ class VNodeRenderer {
    * Render children into parent element
    * @private
    */
-  static renderChildren(parent, children) {
+   renderChildren(parent, children) {
     children.forEach((child, index) => {
       const childNode = this.createDOMNode(child);
       
@@ -140,7 +140,7 @@ class VNodeRenderer {
    * Apply HTML attributes to element
    * @private
    */
-  static applyProps(element, props) {
+   applyProps(element, props) {
     Object.entries(props).forEach(([key, value]) => {
       if (value === null || value === undefined) {
         return;
@@ -216,7 +216,7 @@ class VNodeRenderer {
    * Apply CSS styles to element
    * @private
    */
-  static applyStyles(element, styles) {
+   applyStyles(element, styles) {
     Object.entries(styles).forEach(([key, value]) => {
       if (value !== null && value !== undefined) {
         try {
@@ -237,7 +237,7 @@ class VNodeRenderer {
    * Attach event listeners to element
    * @private
    */
-  static applyEvents(element, events) {
+   applyEvents(element, events) {
     Object.entries(events).forEach(([eventName, handler]) => {
       if (typeof handler !== 'function') {
         console.warn(`Event handler for ${eventName} is not a function`);
@@ -277,7 +277,7 @@ class VNodeRenderer {
    * Clear element contents and remove event listeners
    * @private
    */
-  static clearElement(element) {
+   clearElement(element) {
     // Remove event listeners from all descendants
     this.cleanupEventListeners(element);
 
@@ -289,7 +289,7 @@ class VNodeRenderer {
    * Recursively remove event listeners
    * @private
    */
-  static cleanupEventListeners(element) {
+   cleanupEventListeners(element) {
     if (!element) return;
 
     // Remove listeners from this element
@@ -318,7 +318,7 @@ class VNodeRenderer {
    * @param {Object} oldProps - Previous props
    * @param {Object} newProps - New props
    */
-  static updateProps(element, oldProps = {}, newProps = {}) {
+   updateProps(element, oldProps = {}, newProps = {}) {
     // Remove old props that don't exist in new props
     Object.keys(oldProps).forEach(key => {
       if (!(key in newProps)) {
@@ -346,7 +346,7 @@ class VNodeRenderer {
    * @param {Object} oldStyles - Previous styles
    * @param {Object} newStyles - New styles
    */
-  static updateStyles(element, oldStyles = {}, newStyles = {}) {
+   updateStyles(element, oldStyles = {}, newStyles = {}) {
     // Remove old styles that don't exist in new styles
     Object.keys(oldStyles).forEach(key => {
       if (!(key in newStyles)) {
@@ -364,7 +364,7 @@ class VNodeRenderer {
    * @param {Object} oldEvents - Previous events
    * @param {Object} newEvents - New events
    */
-  static updateEvents(element, oldEvents = {}, newEvents = {}) {
+   updateEvents(element, oldEvents = {}, newEvents = {}) {
     // Remove old event listeners
     Object.keys(oldEvents).forEach(eventName => {
       if (!(eventName in newEvents)) {
@@ -389,7 +389,7 @@ class VNodeRenderer {
    * @param {VNode} newVNode - New VNode to render
    * @returns {HTMLElement} New element
    */
-  static replaceElement(oldElement, newVNode) {
+   replaceElement(oldElement, newVNode) {
     const newElement = this.createDOMNode(newVNode);
     
     if (oldElement.parentNode && newElement) {
@@ -407,7 +407,7 @@ class VNodeRenderer {
    * Remove element from DOM
    * @param {HTMLElement} element - Element to remove
    */
-  static removeElement(element) {
+   removeElement(element) {
     if (!element || !element.parentNode) return;
 
     // Cleanup event listeners
@@ -424,7 +424,7 @@ class VNodeRenderer {
    * @param {number} index - Position to insert at
    * @returns {HTMLElement} Inserted element
    */
-  static insertAt(parent, vnode, index) {
+   insertAt(parent, vnode, index) {
     const element = this.createDOMNode(vnode);
     
     if (!element) return null;
@@ -446,7 +446,7 @@ class VNodeRenderer {
    * @param {string} indexPath - Dot-separated index path (e.g., "0.1.2")
    * @returns {HTMLElement|null} Found element
    */
-  static findElementByPath(root, indexPath) {
+   findElementByPath(root, indexPath) {
     if (!indexPath) return root;
 
     const indices = indexPath.split('.').map(Number);
@@ -466,7 +466,7 @@ class VNodeRenderer {
    * @param {HTMLElement} element - Element to get path for
    * @returns {string} Dot-separated index path
    */
-  static getElementPath(element) {
+   getElementPath(element) {
     const indices = [];
     let current = element;
 
@@ -485,7 +485,7 @@ class VNodeRenderer {
    * @param {Array} vnodes - Array of VNodes
    * @param {HTMLElement} container - Container element
    */
-  static batchRender(vnodes, container) {
+   batchRender(vnodes, container) {
     // Use DocumentFragment for better performance
     const fragment = document.createDocumentFragment();
 
@@ -511,7 +511,7 @@ class VNodeRenderer {
    * @param {VNode} vnode - New VNode
    * @returns {boolean} True if update needed
    */
-  static needsUpdate(element, vnode) {
+   needsUpdate(element, vnode) {
     if (!element._vnode) return true;
     
     const oldVNode = element._vnode;
