@@ -409,25 +409,31 @@ html, body {
    * Generate app.js bootstrap code
    * Entry point for the application
    */
+  /**
+     * Generate app.js bootstrap code
+     * Entry point for the application
+     * ✅ IMPROVED: Actually calls main() instead of trying to instantiate widgets directly
+     */
   generateAppBootstrap() {
     const stateless = this.integration.analysis?.widgets?.stateless || [];
     const stateful = this.integration.analysis?.widgets?.stateful || [];
     const allWidgets = [...stateless, ...stateful].filter(Boolean);
-    const rootWidget = this.integration.analysis?.metadata?.rootWidget || "MyApp";
+    const projectName = this.integration.analysis?.metadata?.projectName || "FlutterJS App";
 
-    const widgetImports =
-      allWidgets.length > 0
-        ? `import { ${allWidgets.join(", ")} } from './main.js';`
-        : `// No widgets to import`;
+    // ✅ Always import main, plus all discovered widgets
+    const widgetImports = allWidgets.length > 0
+      ? `import { ${allWidgets.join(", ")}, main } from './main.js';`
+      : `import { main } from './main.js';`;
 
     return `/**
  * FlutterJS Application Bootstrap
  * Generated at: ${new Date().toISOString()}
+ * Project: ${projectName}
  * 
  * This file:
- * 1. Imports user-defined widgets from main.fjs
+ * 1. Imports user-defined widgets and main entry point from main.fjs
  * 2. Imports runtime from @flutterjs/runtime package
- * 3. Initializes and runs the app
+ * 3. Initializes and runs the app using main() as entry point
  */
 
 // ============================================================================
@@ -456,24 +462,36 @@ const analysisMetadata = ${JSON.stringify(
     )};
 
 const widgetExports = {
+  main,
   ${allWidgets.map((w) => `${w}`).join(",\n  ")}
 };
+
+const BUILD_MODE = '${this.config.mode}';  // 'development' or 'production'
 
 // ============================================================================
 // APPLICATION INITIALIZATION
 // ============================================================================
 
 async function bootApp() {
-  console.log('🚀 FlutterJS App Starting...');
-  console.log('Root widget: ${rootWidget}');
+  console.log('🚀 FlutterJS App Bootstrapping...');
+  console.log('Project:', '${projectName}');
   
   try {
     const rootElement = document.getElementById('root');
     if (!rootElement) {
-      throw new Error('Root element #root not found in DOM');
+      throw new Error('Fatal: Root element #root not found in DOM');
     }
 
-    // ✅ Create runtime instance with configuration
+    // ✅ Create runtime instance with build-time configuration
+    if (${this.config.debugMode}) {
+      console.log('📋 Creating runtime with config:', {
+        debugMode: ${this.config.debugMode},
+        enableHotReload: ${this.config.mode === "development"},
+        mode: 'csr',
+        target: '${this.config.target}'
+      });
+    }
+
     const runtime = new FlutterJSRuntime({
       debugMode: ${this.config.debugMode},
       enableHotReload: ${this.config.mode === "development"},
@@ -483,65 +501,95 @@ async function bootApp() {
       target: '${this.config.target}'
     });
 
-    // ✅ Initialize runtime
+    // ✅ Initialize runtime (creates VNodeBuilder, VNodeRenderer, etc.)
     runtime.initialize({ rootElement });
-
-    // ✅ Get the root widget class
-    ${
-      allWidgets.length > 0
-        ? `const RootWidget = ${rootWidget};
-    
-    if (!RootWidget) {
-      throw new Error('Root widget ${rootWidget} not found');
+    if (${this.config.debugMode}) {
+      console.log('✓ Runtime initialized');
     }
 
-    // ✅ Run the app with the root widget
-    runtime.runApp(new RootWidget(), {
+    // ✅ Call main() to get the root widget instance
+    if (${this.config.debugMode}) {
+      console.log('🔧 Calling main() entry point...');
+    }
+
+    let rootWidgetInstance;
+    try {
+      rootWidgetInstance = main();
+    } catch (e) {
+      throw new Error('Failed to call main(): ' + e.message);
+    }
+
+    if (!rootWidgetInstance) {
+      throw new Error('main() returned null or undefined - check main.js exports');
+    }
+
+    if (typeof rootWidgetInstance.build !== 'function') {
+      throw new Error('Invalid widget: main() did not return a valid Widget instance (missing build method)');
+    }
+
+    if (${this.config.debugMode}) {
+      console.log('✓ Root widget obtained:', rootWidgetInstance.constructor.name);
+    }
+
+    // ✅ Run the app with the root widget instance
+    runtime.runApp(rootWidgetInstance, {
       buildContext: {},
-      appBuilder: null // Can integrate AppBuilder later if needed
-    });`
-        : `// No widgets found - nothing to render
-    console.warn('⚠️  No widgets found in analysis');
-    console.warn('Make sure to export widget classes from main.fjs');`
+      appBuilder: null
+    });
+
+    if (${this.config.debugMode}) {
+      console.log('✓ App running on DOM');
     }
 
-    console.log('✓ App initialized successfully');
-    
     // ✅ Log runtime statistics
     const stats = runtime.getStats?.();
     if (stats) {
-      console.log('Statistics:');
-      console.log('  Environment:', stats.environment);
-      console.log('  Mount Time:', stats.mountTime?.toFixed(2) + 'ms');
-      console.log('  Render Time:', stats.renderTime?.toFixed(2) + 'ms');
+      console.log('📊 Runtime Statistics:');
+      console.log('   Environment:', stats.environment);
+      console.log('   Mount Time:', stats.mountTime?.toFixed(2) + 'ms');
+      console.log('   Render Time:', stats.renderTime?.toFixed(2) + 'ms');
+      console.log('   VNode Size:', stats.vnodeSize + ' bytes');
     }
     
     // ✅ Store for debugging and external access
     window.__flutterjs_runtime__ = runtime;
     window.__flutterjs_widgets__ = widgetExports;
     window.__flutterjs_metadata__ = analysisMetadata;
+
+    if (${this.config.debugMode}) {
+      console.log('✓ Global references stored:');
+      console.log('   window.__flutterjs_runtime__');
+      console.log('   window.__flutterjs_widgets__');
+      console.log('   window.__flutterjs_metadata__');
+    }
     
     // ✅ Setup hot reload in development mode
-    if (${this.config.mode === "development"}) {
-      setupHotReload(runtime);
+      if (BUILD_MODE === 'development') {
+      setupHotReload(runtime, BUILD_MODE);
     }
 
-  } catch (error) {
-    console.error('✗ App initialization failed:', error.message);
-    if (${this.config.debugMode}) {
+
+    console.log('✅ App initialized successfully!\\n');
+
+ } catch (error) {
+  const errorMsg = error instanceof Error ? error.message : String(error);
+  console.error('❌ App initialization failed:', errorMsg);
+  if (${this.config.debugMode}) {
+    if (error instanceof Error && error.stack) {
       console.error('Stack:', error.stack);
     }
-    showErrorOverlay(error.message);
-    throw error;
   }
+  showErrorOverlay(errorMsg);
+  throw error;
+}
 }
 
 // ============================================================================
 // HOT RELOAD (Development Mode)
 // ============================================================================
 
-function setupHotReload(runtime) {
-  if (!${this.config.mode === "development"}) return;
+function setupHotReload(runtime,mode) {
+  if (mode !== 'development') return;
 
   console.log('🔥 Hot reload enabled');
 
@@ -556,7 +604,7 @@ function setupHotReload(runtime) {
         
         console.log('✓ Hot reload complete');
       } catch (error) {
-        console.error('✗ Hot reload failed:', error);
+        console.error('❌ Hot reload failed:', error.message);
       }
     });
   }
@@ -569,41 +617,44 @@ function setupHotReload(runtime) {
 function showErrorOverlay(message) {
   if (typeof document === 'undefined') return;
 
-  // Remove existing overlay if any
-  const existing = document.getElementById('__flutterjs_error_overlay__');
-  if (existing) {
-    existing.remove();
-  }
+  try {
+    // Remove existing overlay if any
+    const existing = document.getElementById('__flutterjs_error_overlay__');
+    if (existing) {
+      existing.remove();
+    }
 
-  const overlay = document.createElement('div');
-  overlay.id = '__flutterjs_error_overlay__';
-  overlay.style.cssText = \`
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.9);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 999999;
-    font-family: monospace;
-  \`;
+    const overlay = document.createElement('div');
+    overlay.id = '__flutterjs_error_overlay__';
+    overlay.style.cssText = \`
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.95);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999999;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+    \`;
 
-  const errorBox = document.createElement('div');
-  errorBox.style.cssText = \`
-    background: white;
-    padding: 30px;
-    border-radius: 8px;
-    max-width: 600px;
-    max-height: 80vh;
-    overflow-y: auto;
-    color: #d32f2f;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
-  \`;
+    const errorBox = document.createElement('div');
+    errorBox.style.cssText = \`
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      max-width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+      color: #d32f2f;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    \`;
 
-  errorBox.innerHTML = \`
-    <h2 style="margin: 0 0 15px 0; color: #d32f2f;">✗ Application Error</h2>
-    <pre style="
+    const titleEl = document.createElement('h2');
+    titleEl.style.cssText = 'margin: 0 0 15px 0; color: #d32f2f; font-size: 18px;';
+    titleEl.textContent = '❌ Application Error';
+
+    const msgEl = document.createElement('pre');
+    msgEl.style.cssText = \`
       background: #f5f5f5;
       padding: 15px;
       border-radius: 4px;
@@ -612,14 +663,25 @@ function showErrorOverlay(message) {
       overflow-x: auto;
       font-size: 13px;
       line-height: 1.4;
-    ">\${message}</pre>
-    <p style="color: #666; margin-top: 20px; font-size: 12px;">
-      Check the browser console for more details.
-    </p>
-  \`;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    \`;
+    msgEl.textContent = message;
 
-  overlay.appendChild(errorBox);
-  document.body.appendChild(overlay);
+    const noteEl = document.createElement('p');
+    noteEl.style.cssText = 'color: #666; margin-top: 20px; font-size: 12px; margin-bottom: 0;';
+    noteEl.textContent = '💡 Check the browser console for more details.';
+
+    errorBox.appendChild(titleEl);
+    errorBox.appendChild(msgEl);
+    errorBox.appendChild(noteEl);
+
+    overlay.appendChild(errorBox);
+    document.body.appendChild(overlay);
+  } catch (e) {
+    // Silently fail if overlay creation fails
+    console.error('Failed to show error overlay:', e);
+  }
 }
 
 // ============================================================================
@@ -647,7 +709,6 @@ export {
 };
 `;
   }
-
   // ========================================================================
   // METADATA & MANIFEST BUILDERS
   // ========================================================================

@@ -217,10 +217,11 @@ class StatelessWidget extends Widget {
 
 /**
  * StatelessElement - Element for stateless widget
+ * ✅ FIXED: Now accepts parent and runtime parameters
  */
 class StatelessElement extends Element {
-  constructor(widget) {
-    super(widget);
+  constructor(widget, parent = null, runtime = null) {
+    super(widget, parent, runtime);
   }
 
   /**
@@ -280,10 +281,11 @@ class StatefulWidget extends Widget {
 
 /**
  * StatefulElement - Element for stateful widget
+ * ✅ FIXED: Now accepts parent and runtime parameters
  */
 class StatefulElement extends Element {
-  constructor(widget) {
-    super(widget);
+  constructor(widget, parent = null, runtime = null) {
+    super(widget, parent, runtime);
     this.state = widget.createState();
     this.state._element = this;
     this.state.widget = widget;
@@ -421,8 +423,8 @@ class ErrorWidget extends StatelessWidget {
 // ============================================================================
 
 class ProxyElement extends Element {
-  constructor(widget) {
-    super(widget);
+  constructor(widget, parent = null, runtime = null) {
+    super(widget, parent, runtime);
   }
 
   mount(parent = null) {
@@ -447,8 +449,8 @@ class ProxyElement extends Element {
 // ============================================================================
 
 class InheritedElement extends ProxyElement {
-  constructor(widget) {
-    super(widget);
+  constructor(widget, parent = null, runtime = null) {
+    super(widget, parent, runtime);
     this._dependents = new Set();
   }
 
@@ -470,8 +472,8 @@ class InheritedElement extends ProxyElement {
 // ============================================================================
 
 class NotificationListenerElement extends ProxyElement {
-  constructor(widget) {
-    super(widget);
+  constructor(widget, parent = null, runtime = null) {
+    super(widget, parent, runtime);
   }
 
   performRebuild() {

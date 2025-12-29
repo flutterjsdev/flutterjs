@@ -9,22 +9,33 @@
 
 import { VNode } from './vnode.js';
 import { StyleConverter } from './style_converter.js';
+import { StatelessElement, StatefulElement } from '@flutterjs/runtime/element';
+import { InheritedElement } from '@flutterjs/runtime/inherited_element';
 
- class VNodeBuilder {
+class VNodeBuilder {
+
+
+  constructor(options = {}) {
+    this.debugMode = options.debugMode || false;
+    this.runtime = options.runtime;  // ✅ ACCEPT RUNTIME
+
+    if (this.debugMode && !this.runtime) {
+      console.warn('[VNodeBuilder] No runtime provided - Element creation may fail');
+    }
+  }
+
   /**
    * Build VNode tree from widget
    * @param {Widget} widget - Flutter widget instance
    * @param {BuildContext} context - Build context
    * @returns {VNode|string|null} VNode tree or text content
    */
-  static build(widget, context = {}) {
+  build(widget, context = {}) {
     // Handle null/undefined
     if (!widget) {
       return null;
     }
 
-
-    // ⭐ ADD THIS BLOCK ⭐
     // If already a VNode, return as-is
     if (widget && typeof widget === 'object' && widget.tag) {
       return widget;
@@ -38,6 +49,88 @@ import { StyleConverter } from './style_converter.js';
     // Handle numbers
     if (typeof widget === 'number') {
       return String(widget);
+    }
+
+    // ✅ HANDLE WIDGET WITH BUILD METHOD (StatelessWidget)
+    if (typeof widget.build === 'function' && !widget.createState) {
+      // This is a StatelessWidget
+      if (this.debugMode) {
+        console.log('[VNodeBuilder] 📦 Building StatelessWidget...');
+      }
+
+      // Create StatelessElement to manage the widget
+      const element = new StatelessElement(
+        widget,
+        context.parentElement || null,
+        this.runtime  // ✅ PASS RUNTIME
+      );
+
+      // Build the element
+      const builtVNode = element.build();
+
+      if (builtVNode) {
+        return this.build(builtVNode, context);
+      }
+
+      return null;
+    }
+
+    // ✅ HANDLE STATEFULWIDGET
+    if (typeof widget.createState === 'function') {
+      if (this.debugMode) {
+        console.log('[VNodeBuilder] 📦 Building StatefulWidget...');
+      }
+
+      // Create StatefulElement to manage state
+      const element = new StatefulElement(
+        widget,
+        context.parentElement || null,
+        this.runtime  // ✅ PASS RUNTIME
+      );
+
+      // Mount the element (initializes state)
+      element.mount();
+
+      // Build the element
+      const builtVNode = element.build();
+
+      if (builtVNode) {
+        return this.build(builtVNode, {
+          ...context,
+          parentElement: element
+        });
+      }
+
+      return null;
+    }
+
+    // ✅ HANDLE INHERITED WIDGET
+    if (widget.updateShouldNotify && typeof widget.updateShouldNotify === 'function') {
+      if (this.debugMode) {
+        console.log('[VNodeBuilder] 📦 Building InheritedWidget...');
+      }
+
+      const element = new InheritedElement(
+        widget,
+        context.parentElement || null,
+        this.runtime  // ✅ PASS RUNTIME
+      );
+
+      const builtVNode = element.build();
+
+      if (builtVNode && widget.child) {
+        // Recursively build the child
+        const childVNode = this.build(widget.child, {
+          ...context,
+          parentElement: element
+        });
+
+        if (childVNode) {
+          return this.build(childVNode, context);
+        }
+      }
+
+      return builtVNode;
     }
 
     // Detect widget type and dispatch to appropriate builder
@@ -131,11 +224,30 @@ import { StyleConverter } from './style_converter.js';
     }
   }
 
+
+  /**
+ * Build children array
+ * ✅ NOW PASSES CONTEXT WITH PARENT
+ */
+  buildChildren(children, context) {
+    if (!children) return [];
+    if (!Array.isArray(children)) children = [children];
+
+    return children
+      .map((child, index) => {
+        return this.build(child, {
+          ...context,
+          childIndex: index
+        });
+      })
+      .filter(vnode => vnode !== null && vnode !== undefined);
+  }
+
   /**
    * Get widget type name
    * @private
    */
-  static getWidgetType(widget) {
+  getWidgetType(widget) {
     if (!widget) return 'Unknown';
 
     // Check constructor name
@@ -156,24 +268,13 @@ import { StyleConverter } from './style_converter.js';
     return 'Unknown';
   }
 
-  /**
-   * Build children array
-   * @private
-   */
-  static buildChildren(children, context) {
-    if (!children) return [];
-    if (!Array.isArray(children)) children = [children];
 
-    return children
-      .map(child => this.build(child, context))
-      .filter(vnode => vnode !== null && vnode !== undefined);
-  }
 
   /**
    * Extract common props from widget
    * @private
    */
-  static extractCommonProps(widget) {
+  extractCommonProps(widget) {
     const props = {};
 
     // Key
@@ -193,7 +294,7 @@ import { StyleConverter } from './style_converter.js';
   // TEXT WIDGETS
   // ============================================================================
 
-  static buildText(widget, context) {
+  buildText(widget, context) {
     const style = widget.style || {};
     const data = widget.data || '';
 
@@ -212,7 +313,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildRichText(widget, context) {
+  buildRichText(widget, context) {
     // For now, render as plain text
     // TODO: Support TextSpan tree
     return new VNode({
@@ -227,7 +328,7 @@ import { StyleConverter } from './style_converter.js';
   // LAYOUT WIDGETS
   // ============================================================================
 
-  static buildContainer(widget, context) {
+  buildContainer(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
     const decoration = widget.decoration || {};
     const padding = widget.padding;
@@ -271,7 +372,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildColumn(widget, context) {
+  buildColumn(widget, context) {
     const children = this.buildChildren(widget.children, context);
     const mainAxisAlignment = widget.mainAxisAlignment || 'start';
     const crossAxisAlignment = widget.crossAxisAlignment || 'center';
@@ -303,7 +404,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildRow(widget, context) {
+  buildRow(widget, context) {
     const children = this.buildChildren(widget.children, context);
     const mainAxisAlignment = widget.mainAxisAlignment || 'start';
     const crossAxisAlignment = widget.crossAxisAlignment || 'center';
@@ -335,7 +436,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildStack(widget, context) {
+  buildStack(widget, context) {
     const children = this.buildChildren(widget.children, context);
     const alignment = widget.alignment || 'topLeft';
 
@@ -361,7 +462,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildCenter(widget, context) {
+  buildCenter(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
 
     return new VNode({
@@ -380,7 +481,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildAlign(widget, context) {
+  buildAlign(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
     const alignment = widget.alignment || 'center';
 
@@ -399,7 +500,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildPadding(widget, context) {
+  buildPadding(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
     const padding = widget.padding;
 
@@ -415,7 +516,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildSizedBox(widget, context) {
+  buildSizedBox(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
     const width = widget.width;
     const height = widget.height;
@@ -440,7 +541,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildExpanded(widget, context) {
+  buildExpanded(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
     const flex = widget.flex || 1;
 
@@ -458,7 +559,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildFlexible(widget, context) {
+  buildFlexible(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
     const flex = widget.flex || 1;
     const fit = widget.fit || 'loose';
@@ -483,7 +584,7 @@ import { StyleConverter } from './style_converter.js';
   // SCAFFOLD & STRUCTURE
   // ============================================================================
 
-  static buildScaffold(widget, context) {
+  buildScaffold(widget, context) {
     const appBar = widget.appBar ? this.build(widget.appBar, context) : null;
     const body = widget.body ? this.build(widget.body, context) : null;
     const fab = widget.floatingActionButton
@@ -528,7 +629,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildAppBar(widget, context) {
+  buildAppBar(widget, context) {
     const title = widget.title ? this.build(widget.title, context) : null;
     const leading = widget.leading ? this.build(widget.leading, context) : null;
     const actions = widget.actions ? this.buildChildren(widget.actions, context) : [];
@@ -580,7 +681,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildFloatingActionButton(widget, context) {
+  buildFloatingActionButton(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
     const onPressed = widget.onPressed;
     const backgroundColor = widget.backgroundColor;
@@ -626,7 +727,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildDrawer(widget, context) {
+  buildDrawer(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
 
     return new VNode({
@@ -655,7 +756,7 @@ import { StyleConverter } from './style_converter.js';
   // BUTTON WIDGETS
   // ============================================================================
 
-  static buildButton(widget, context) {
+  buildButton(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
     const onPressed = widget.onPressed;
     const widgetType = this.getWidgetType(widget);
@@ -716,7 +817,7 @@ import { StyleConverter } from './style_converter.js';
   // INPUT WIDGETS
   // ============================================================================
 
-  static buildTextField(widget, context) {
+  buildTextField(widget, context) {
     const controller = widget.controller;
     const decoration = widget.decoration || {};
     const onChanged = widget.onChanged;
@@ -762,7 +863,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildCheckbox(widget, context) {
+  buildCheckbox(widget, context) {
     const value = widget.value || false;
     const onChanged = widget.onChanged;
 
@@ -789,7 +890,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildRadio(widget, context) {
+  buildRadio(widget, context) {
     const value = widget.value;
     const groupValue = widget.groupValue;
     const onChanged = widget.onChanged;
@@ -818,7 +919,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildSwitch(widget, context) {
+  buildSwitch(widget, context) {
     const value = widget.value || false;
     const onChanged = widget.onChanged;
 
@@ -871,7 +972,7 @@ import { StyleConverter } from './style_converter.js';
   // LIST WIDGETS
   // ============================================================================
 
-  static buildListView(widget, context) {
+  buildListView(widget, context) {
     const children = this.buildChildren(widget.children, context);
 
     return new VNode({
@@ -890,7 +991,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildGridView(widget, context) {
+  buildGridView(widget, context) {
     const children = this.buildChildren(widget.children, context);
     const crossAxisCount = widget.crossAxisCount || 2;
 
@@ -910,7 +1011,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildListTile(widget, context) {
+  buildListTile(widget, context) {
     const leading = widget.leading ? this.build(widget.leading, context) : null;
     const title = widget.title ? this.build(widget.title, context) : null;
     const subtitle = widget.subtitle ? this.build(widget.subtitle, context) : null;
@@ -976,7 +1077,7 @@ import { StyleConverter } from './style_converter.js';
   // VISUAL WIDGETS
   // ============================================================================
 
-  static buildCard(widget, context) {
+  buildCard(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
     const elevation = widget.elevation || 1;
     const color = widget.color;
@@ -1005,7 +1106,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildDivider(widget, context) {
+  buildDivider(widget, context) {
     const height = widget.height || 1;
     const thickness = widget.thickness || 1;
     const color = widget.color;
@@ -1027,7 +1128,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildIcon(widget, context) {
+  buildIcon(widget, context) {
     const icon = widget.icon;
     const size = widget.size || 24;
     const color = widget.color;
@@ -1057,7 +1158,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildImage(widget, context) {
+  buildImage(widget, context) {
     const src = widget.image?.src || widget.src || '';
     const width = widget.width;
     const height = widget.height;
@@ -1093,7 +1194,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildCircleAvatar(widget, context) {
+  buildCircleAvatar(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
     const radius = widget.radius || 20;
     const backgroundColor = widget.backgroundColor;
@@ -1130,7 +1231,7 @@ import { StyleConverter } from './style_converter.js';
   // NAVIGATION
   // ============================================================================
 
-  static buildMaterialApp(widget, context) {
+  buildMaterialApp(widget, context) {
     const home = widget.home ? this.build(widget.home, context) : null;
     const title = widget.title || '';
 
@@ -1150,7 +1251,7 @@ import { StyleConverter } from './style_converter.js';
     });
   }
 
-  static buildNavigator(widget, context) {
+  buildNavigator(widget, context) {
     // Navigator is complex - for now just render children
     const children = this.buildChildren(widget.pages || [], context);
 
@@ -1169,7 +1270,7 @@ import { StyleConverter } from './style_converter.js';
   // GENERIC FALLBACK
   // ============================================================================
 
-  static buildGeneric(widget, context) {
+  buildGeneric(widget, context) {
     // Try to find child/children and render them
     let children = [];
 
@@ -1199,4 +1300,4 @@ import { StyleConverter } from './style_converter.js';
 }
 
 
-export {VNodeBuilder};
+export { VNodeBuilder };
