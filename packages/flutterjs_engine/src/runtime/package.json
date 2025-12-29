@@ -5,23 +5,24 @@
   "directories": {
     "test": "test"
   },
- "main": "./dist/flutterjs_runtime.js.js",
+  "main": "./dist/runtime.js",
   "exports": {
-    "./flutterjs_runtime": "./dist/flutterjs_runtime.js",
+    ".": "./dist/index.js",
     "./build_context": "./dist/build_context.js",
     "./element": "./dist/element.js",
     "./event_system": "./dist/event_system.js",
+    "./flutterjs_runtime": "./dist/flutterjs_runtime.js",
     "./focus_manager": "./dist/focus_manager.js",
     "./gesture_recognizer": "./dist/gesture_recognizer.js",
     "./inherited_element": "./dist/inherited_element.js",
     "./memory_manager": "./dist/memory_manager.js",
+    "./runtime": "./dist/runtime.js",
     "./runtime_engine": "./dist/runtime_engine.js",
     "./service_registry": "./dist/service_registry.js",
     "./state": "./dist/state.js",
     "./state_tracker": "./dist/state_tracker.js",
     "./update_batcher": "./dist/update_batcher.js"
   },
-
   "scripts": {
     "build": "node build.js",
     "test:buildContext": "node ./test/build_context.test.js",
@@ -46,7 +47,7 @@
   "dependencies": {
     "jest": "^29.7.0",
     "jsdom": "^22.1.0",
-     "@flutterjs/vdom": "file:../vdom"
+    "@flutterjs/vdom": "file:../vdom"
   },
   "author": "Jayprakash Pal",
   "license": "ISC",

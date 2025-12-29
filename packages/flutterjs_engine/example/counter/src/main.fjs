@@ -11,14 +11,13 @@
  * 5. Arrow function syntax issues
  * 6. Proper exports
  */
-import { runApp } from '@flutterjs/runtime';
+import { runApp,BuildContext} from '@flutterjs/runtime';
 import {
   // Core Framework
   Widget,
   State,
   StatefulWidget,
   StatelessWidget,
-  BuildContext,
   Key,
   MaterialApp,
   Scaffold,

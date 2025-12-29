@@ -1,7 +1,7 @@
 import { Widget, StatefulWidget } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 
-import { Alignment } from '../utils/utils.js';
+import { Alignment } from '../../utils/utils.js';
 
 class Align extends StatelessWidget {
   constructor({

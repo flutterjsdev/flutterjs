@@ -17,7 +17,6 @@ export {
     BoxDecoration,
     Decoration,
     DecorationPosition,
-    Align,
     Padding,
     ClipPath,
     ConstrainedBox,
@@ -35,7 +34,8 @@ export {
     SnackBarClosedReason,
     ScaffoldFeatureController,
     FloatingActionButtonLocation,
-    DrawerAlignment
+    DrawerAlignment,
+    AppBar
 } from "./scffold_basic.js";
 
 export {

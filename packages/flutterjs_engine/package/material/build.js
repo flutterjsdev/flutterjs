@@ -35,7 +35,7 @@ async function buildAllFiles() {
 
     // ✅ Find all .js files
     const allFiles = getAllJsFiles(srcDir);
-    
+
     console.log(`📁 Found ${allFiles.length} files\n`);
 
     // ✅ Build each file separately
@@ -85,7 +85,7 @@ function generateExports(sourceFiles) {
   // ✅ Create export for EVERY built file with exact format
   for (const srcFile of sourceFiles) {
     const relativePath = relative(srcDir, srcFile);
-    
+
     // Skip index.js - it's already the main entry
     if (relativePath === 'index.js') {
       continue;
@@ -96,10 +96,10 @@ function generateExports(sourceFiles) {
     // core/widget_element.js → ./core/widget_element.js
     // material.js → ./material.js
     // widgets/compoment/multi_child_view.js → ./widgets/compoment/multi_child_view.js
-    
+
     // Normalize slashes for Windows
     const normalizedPath = relativePath.replace(/\\/g, '/');
-    const exportKey = './' + normalizedPath;
+    const exportKey = './' + normalizedPath.replaceAll(".js", "");
     const exportPath = './dist/' + normalizedPath;
 
     exports[exportKey] = exportPath;

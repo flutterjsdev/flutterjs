@@ -11,8 +11,6 @@ export {
     Notification,
     NotificationListener,
     ErrorWidget,
-    DiagnosticLevel,
-    DiagnosticsTreeStyle,
     Diagnosticable,
     Widget,
     Element,

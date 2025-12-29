@@ -1,6 +1,6 @@
 import { ProxyWidget } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
-import { ImageFilter } from '../painting/image_filter_provider.js';
+import { ImageFilter } from './image_filter.js';
 
 // ============================================================================
 // BACKDROP FILTER WIDGET
