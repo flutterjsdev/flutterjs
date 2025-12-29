@@ -125,7 +125,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   // =========================================================================
 
   void _initializeComponentSystem() {
-    print('ðŸ"Š [ComponentSystem] Initializing for: $filePath');
+    print('🔧 [ComponentSystem] Initializing for: $filePath');
 
     // Create registry
     componentRegistry = EnhancedComponentRegistry();

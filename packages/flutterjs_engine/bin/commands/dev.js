@@ -439,7 +439,7 @@ export class DevServer {
         maxAge: 0,
         etag: false,
       }));
-      console.log(chalk.gray(`ðŸ—ºï¸ Serving source maps from: /maps`));
+      console.log(chalk.gray(`🗺️ Serving source maps from: /maps`));
     }
 
     // Serve node_modules from project root
@@ -449,7 +449,7 @@ export class DevServer {
         maxAge: 0,
         etag: false,
       }));
-      console.log(chalk.gray(`ðŸ"¦ Serving node_modules from: ${nodeModulesPath}`));
+      console.log(chalk.gray(`🔧 Serving node_modules from: ${nodeModulesPath}`));
     } else {
       console.warn(chalk.yellow(`⚠   node_modules not found at: ${nodeModulesPath}`));
     }
@@ -570,7 +570,7 @@ export class DevServer {
     // Trigger rebuild
     this.app.post('/api/rebuild', async (req, res) => {
       try {
-        console.log(chalk.cyan('\nðŸ"¦ Manual rebuild requested...\n'));
+        console.log(chalk.cyan('\n🔧 Manual rebuild requested...\n'));
         await this.runAnalysis();
         await this.runBuild();
 
@@ -849,14 +849,14 @@ export class DevServer {
         const protocol = this.https ? 'https' : 'http';
         const url = `${protocol}://${this.host}:${this.port}`;
 
-        console.log(chalk.green('\nâœ… Development server running!\n'));
-        console.log(chalk.blue('ðŸŒ URLs:\n'));
+        console.log(chalk.green('\n✅ Development server running!\n'));
+        console.log(chalk.blue('🌐 URLs:\n'));
         console.log(chalk.cyan(`  Local:   ${url}`));
         console.log(chalk.cyan(`  Network: ${protocol}://127.0.0.1:${this.port}`));
         
         // ✅ Show source maps info
         if (this.sourceMapGenerator) {
-          console.log(chalk.cyan(`  ðŸ—ºï¸ Source Maps: ${url}/api/sourcemaps`));
+          console.log(chalk.cyan(`  🗺️ Source Maps: ${url}/api/sourcemaps`));
         }
         
         console.log(chalk.gray(`\n  Press Ctrl+C to stop\n`));
@@ -885,7 +885,7 @@ export class DevServer {
   async _openBrowser() {
     try {
       const url = `http://${this.host}:${this.port}`;
-      console.log(chalk.blue(`ðŸŌ Opening browser at ${url}\n`));
+      console.log(chalk.blue(`🦜 Opening browser at ${url}\n`));
       await open(url);
     } catch (error) {
       console.warn(chalk.yellow('⚠   Could not open browser automatically'));
@@ -943,7 +943,7 @@ export class DevServer {
       // Close HTTP server
       if (this.server) {
         this.server.close(() => {
-          console.log(chalk.green('âœ… Development server stopped\n'));
+          console.log(chalk.green('✅ Development server stopped\n'));
           resolve();
         });
 
@@ -989,7 +989,7 @@ export class DevServer {
   printInfo() {
     const stats = this.getStats();
 
-    console.log(chalk.blue('\nðŸ"Š Development Server Info\n'));
+    console.log(chalk.blue('\n🔧 Development Server Info\n'));
     console.log(chalk.gray(`Status: ${stats.running ? chalk.green('Running') : chalk.red('Stopped')}`));
     console.log(chalk.gray(`URL: ${stats.url}`));
     console.log(chalk.gray(`HMR: ${stats.hmrEnabled ? chalk.green('Enabled') : chalk.red('Disabled')}`));
