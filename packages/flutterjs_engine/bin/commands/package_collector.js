@@ -3,7 +3,7 @@
  * Enhanced PackageCollector - FIXED VERSION
  * ============================================================================
  *
- * âœ… FIXED: Copies packages to correct node_modules/@flutterjs/ structure
+ * ✅ FIXED: Copies packages to correct node_modules/@flutterjs/ structure
  *
  * Responsibilities:
  * 1. Collect resolved packages from DependencyResolver
@@ -360,7 +360,7 @@ class PackageCollector {
 
 
   /**
-   * âœ… NEW: Copy nested dependencies from each package
+   * ✅ NEW: Copy nested dependencies from each package
    */
   async copyNestedDependencies(packages, nodeModulesDir) {
     const copiedDeps = new Set();
