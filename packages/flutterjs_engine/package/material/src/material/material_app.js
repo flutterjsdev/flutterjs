@@ -322,8 +322,8 @@ class MaterialApp extends StatelessWidget {
     });
   }
 
-  createElement() {
-    return new MaterialAppElement(this);
+  createElement(parent, runtime) {
+    return new MaterialAppElement(this,parent, runtime);
   }
 }
 

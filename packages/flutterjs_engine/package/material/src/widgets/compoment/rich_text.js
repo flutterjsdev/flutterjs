@@ -637,8 +637,8 @@ class RichText extends Widget {
     properties.push({ name: 'text', value: this.text.toPlainText?.() || 'N/A' });
   }
 
-  createElement() {
-    return new RichTextElement(this);
+  createElement(parent, runtime) {
+    return new RichTextElement(this,parent, runtime);
   }
 }
 

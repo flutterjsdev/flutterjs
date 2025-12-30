@@ -82,7 +82,7 @@ class PhysicalModel extends ProxyWidget {
 
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement();
+            const childElement = this.child.createElement(context.element, context.element.runtime);
             childElement.mount(context.element);
             childVNode = childElement.performRebuild();
         }
@@ -203,8 +203,8 @@ class PhysicalModel extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new PhysicalModelElement(this);
+    createElement(parent, runtime) {
+        return new PhysicalModelElement(this,parent, runtime);
     }
 }
 
@@ -341,7 +341,7 @@ class PhysicalShape extends ProxyWidget {
 
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement();
+            const childElement = this.child.createElement(context.element, context.element.runtime);
             childElement.mount(context.element);
             childVNode = childElement.performRebuild();
         }
@@ -457,8 +457,8 @@ class PhysicalShape extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new PhysicalShapeElement(this);
+    createElement(parent, runtime) {
+        return new PhysicalShapeElement(this,parent, runtime);
     }
 }
 

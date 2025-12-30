@@ -386,8 +386,8 @@ class Positioned extends Widget {
   /**
    * Create element
    */
-  createElement() {
-    return new PositionedElement(this);
+  createElement(parent, runtime) {
+    return new PositionedElement(this,parent, runtime);
   }
 }
 

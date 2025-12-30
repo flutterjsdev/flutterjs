@@ -92,7 +92,7 @@ class Opacity extends ProxyWidget {
         let childVNode = null;
         if (this.child) {
             if (this.child.createElement) {
-                const childElement = this.child.createElement();
+                const childElement = this.child.createElement(context.element, context.element.runtime);
                 childElement.mount(context.element);
                 childVNode = childElement.performRebuild();
             } else {
@@ -146,8 +146,8 @@ class Opacity extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new OpacityElement(this);
+    createElement(parent, runtime) {
+        return new OpacityElement(this,parent, runtime);
     }
 }
 

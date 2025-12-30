@@ -74,7 +74,7 @@ class FittedBox extends ProxyWidget {
 
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement();
+            const childElement = this.child.createElement(context.element, context.element.runtime);
             childElement.mount(context.element);
             childVNode = childElement.performRebuild();
         }
@@ -287,8 +287,8 @@ class FittedBox extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new FittedBoxElement(this);
+    createElement(parent, runtime) {
+        return new FittedBoxElement(this,parent, runtime);
     }
 }
 

@@ -259,7 +259,7 @@ class Flex extends Widget {
 
     // Build child VNodes
     const childVNodes = this.children.map((childWidget) => {
-      const childElement = childWidget.createElement();
+      const childElement = childWidget.createElement(context.element, context.element.runtime);
       childElement.mount(context.element);
       const childVNode = childElement.performRebuild();
 
@@ -347,8 +347,8 @@ class Flex extends Widget {
     properties.push({ name: 'childCount', value: this.children.length });
   }
 
-  createElement() {
-    return new FlexElement(this);
+  createElement(parent, runtime) {
+    return new FlexElement(this,parent, runtime);
   }
 }
 
@@ -442,8 +442,8 @@ class Flexible extends Widget {
     properties.push({ name: 'fit', value: this.fit });
   }
 
-  createElement() {
-    return new FlexibleElement(this);
+  createElement(parent, runtime) {
+    return new FlexibleElement(this,parent, runtime);
   }
 }
 
@@ -555,7 +555,7 @@ class Wrap extends Widget {
     };
 
     const childVNodes = this.children.map((childWidget) => {
-      const childElement = childWidget.createElement();
+      const childElement = childWidget.createElement(context.element, context.element.runtime);
       childElement.mount(context.element);
       return childElement.performRebuild();
     });
@@ -586,8 +586,8 @@ class Wrap extends Widget {
     properties.push({ name: 'childCount', value: this.children.length });
   }
 
-  createElement() {
-    return new WrapElement(this);
+  createElement(parent, runtime) {
+    return new WrapElement(this,parent, runtime);
   }
 }
 
@@ -677,7 +677,7 @@ class Flow extends Widget {
 
     // Build child VNodes with absolute positioning
     const childVNodes = this.children.map((childWidget, index) => {
-      const childElement = childWidget.createElement();
+      const childElement = childWidget.createElement(context.element, context.element.runtime);
       childElement.mount(context.element);
       const childVNode = childElement.performRebuild();
 
@@ -717,8 +717,8 @@ class Flow extends Widget {
     properties.push({ name: 'childCount', value: this.children.length });
   }
 
-  createElement() {
-    return new FlowElement(this);
+  createElement(parent, runtime) {
+    return new FlowElement(this,parent, runtime);
   }
 }
 

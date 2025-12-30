@@ -63,7 +63,7 @@ class FractionalTranslation extends ProxyWidget {
 
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement();
+            const childElement = this.child.createElement(context.element, context.element.runtime);
             childElement.mount(context.element);
             childVNode = childElement.performRebuild();
         }
@@ -157,8 +157,8 @@ class FractionalTranslation extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new FractionalTranslationElement(this);
+    createElement(parent, runtime) {
+        return new FractionalTranslationElement(this,parent, runtime);
     }
 }
 
@@ -255,7 +255,7 @@ class RotatedBox extends ProxyWidget {
 
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement();
+            const childElement = this.child.createElement(context.element, context.element.runtime);
             childElement.mount(context.element);
             childVNode = childElement.performRebuild();
         }
@@ -323,8 +323,8 @@ class RotatedBox extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new RotatedBoxElement(this);
+    createElement(parent, runtime) {
+        return new RotatedBoxElement(this,parent, runtime);
     }
 }
 

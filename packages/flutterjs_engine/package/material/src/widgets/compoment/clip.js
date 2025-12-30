@@ -99,7 +99,7 @@ class ClipRect extends ProxyWidget {
 
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement();
+            const childElement = this.child.createElement(context.element, context.element.runtime);
             childElement.mount(context.element);
             childVNode = childElement.performRebuild();
         }
@@ -217,8 +217,8 @@ class ClipRect extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new ClipRectElement(this);
+    createElement(parent, runtime) {
+        return new ClipRectElement(this,parent, runtime);
     }
 }
 
@@ -334,7 +334,7 @@ class ClipRRect extends ProxyWidget {
 
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement();
+            const childElement = this.child.createElement(context.element, context.element.runtime);
             childElement.mount(context.element);
             childVNode = childElement.performRebuild();
         }
@@ -480,8 +480,8 @@ class ClipRRect extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new ClipRRectElement(this);
+    createElement(parent, runtime) {
+        return new ClipRRectElement(this,parent, runtime);
     }
 }
 
@@ -597,7 +597,7 @@ class ClipRSuperellipse extends ProxyWidget {
 
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement();
+            const childElement = this.child.createElement(context.element, context.element.runtime);
             childElement.mount(context.element);
             childVNode = childElement.performRebuild();
         }
@@ -708,8 +708,8 @@ class ClipRSuperellipse extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new ClipRSuperellipseElement(this);
+    createElement(parent, runtime) {
+        return new ClipRSuperellipseElement(this,parent, runtime);
     }
 }
 
@@ -816,7 +816,7 @@ class ClipOval extends ProxyWidget {
 
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement();
+            const childElement = this.child.createElement(context.element, context.element.runtime);
             childElement.mount(context.element);
             childVNode = childElement.performRebuild();
         }
@@ -901,8 +901,8 @@ class ClipOval extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new ClipOvalElement(this);
+    createElement(parent, runtime) {
+        return new ClipOvalElement(this,parent, runtime);
     }
 }
 
@@ -1003,7 +1003,7 @@ class ClipPath extends ProxyWidget {
 
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement();
+            const childElement = this.child.createElement(context.element, context.element.runtime);
             childElement.mount(context.element);
             childVNode = childElement.performRebuild();
         }
@@ -1087,8 +1087,8 @@ class ClipPath extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new ClipPathElement(this);
+    createElement(parent, runtime) {
+        return new ClipPathElement(this,parent, runtime);
     }
 }
 

@@ -326,8 +326,8 @@ class Positioned extends Widget {
     if (this.height !== null) properties.push({ name: 'height', value: this.height });
   }
 
-  createElement() {
-    return new PositionedElement(this);
+  createElement(parent, runtime) {
+    return new PositionedElement(this,parent, runtime);
   }
 }
 
@@ -443,7 +443,7 @@ class Stack extends Widget {
 
     // Build child VNodes with positioning
     const childVNodes = this.children.map((childWidget, index) => {
-      const childElement = childWidget.createElement();
+      const childElement = childWidget.createElement(context.element, context.element.runtime);
       childElement.mount(context.element);
       const childVNode = childElement.performRebuild();
 
@@ -513,8 +513,8 @@ class Stack extends Widget {
   /**
    * Create element
    */
-  createElement() {
-    return new StackElement(this);
+  createElement(parent, runtime) {
+    return new StackElement(this,parent, runtime);
   }
 }
 

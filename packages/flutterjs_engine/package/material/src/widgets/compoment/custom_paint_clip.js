@@ -109,7 +109,7 @@ class BackdropFilter extends ProxyWidget {
 
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement();
+            const childElement = this.child.createElement(context.element, context.element.runtime);
             childElement.mount(context.element);
             childVNode = childElement.performRebuild();
         }
@@ -154,8 +154,8 @@ class BackdropFilter extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new BackdropFilterElement(this);
+    createElement(parent, runtime) {
+        return new BackdropFilterElement(this,parent, runtime);
     }
 }
 
@@ -263,7 +263,7 @@ class CustomPaint extends ProxyWidget {
 
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement();
+            const childElement = this.child.createElement(context.element, context.element.runtime);
             childElement.mount(context.element);
             childVNode = childElement.performRebuild();
         }
@@ -463,8 +463,8 @@ class CustomPaint extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new CustomPaintElement(this);
+    createElement(parent, runtime) {
+        return new CustomPaintElement(this,parent, runtime);
     }
 }
 

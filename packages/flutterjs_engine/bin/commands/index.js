@@ -378,7 +378,7 @@ export async function run(options, projectContext) {
     // ===== Create pipeline with FULL config =====
     const pipeline = new BuildPipeline({
       projectRoot: projectContext.projectRoot,
-      mode: 'production',
+      mode: 'development',
       target: options.target || 'spa',
       outputDir: options.output || 'dist',
       debugMode: options.debug || false,
