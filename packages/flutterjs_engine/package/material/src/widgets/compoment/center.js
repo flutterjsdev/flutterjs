@@ -80,7 +80,7 @@ class Align extends StatelessWidget {
     if (!child) return null;
 
     if (child instanceof Widget) {
-      const childElement = child.createElement();
+      const childElement = child.createElement(context.element, context.element.runtime);
       childElement.mount(context.element);
       return childElement.performRebuild();
     }

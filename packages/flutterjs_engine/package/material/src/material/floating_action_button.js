@@ -316,8 +316,8 @@ class FloatingActionButton extends StatelessWidget {
     return fabVNode;
   }
 
-  createElement() {
-    return new FloatingActionButtonElement(this);
+  createElement(parent, runtime) {
+    return new FloatingActionButtonElement(this,parent, runtime);
   }
 
   debugFillProperties(properties) {
@@ -486,8 +486,8 @@ class FloatingActionButtonExtended extends StatelessWidget {
     return fabElement?.performRebuild?.() || null;
   }
 
-  createElement() {
-    return new FloatingActionButtonElement(this);
+  createElement(parent, runtime) {
+    return new FloatingActionButtonElement(this,parent, runtime);
   }
 }
 

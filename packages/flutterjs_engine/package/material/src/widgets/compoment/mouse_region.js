@@ -286,7 +286,7 @@ class MouseRegion extends Widget {
     // Build child
     let childVNode = null;
     if (this.child) {
-      const childElement = this.child.createElement();
+      const childElement = this.child.createElement(context.element, context.element.runtime);
       childElement.mount(context.element);
       childVNode = childElement.performRebuild();
     }
@@ -394,8 +394,8 @@ class MouseRegion extends Widget {
     properties.push({ name: 'hitTestBehavior', value: this.hitTestBehavior });
   }
 
-  createElement() {
-    return new MouseRegionElement(this);
+  createElement(parent, runtime) {
+    return new MouseRegionElement(this,parent, runtime);
   }
 }
 

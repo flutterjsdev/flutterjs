@@ -118,7 +118,7 @@ class SnackBar {
     }
 
     const contentVNode = this.content?.createElement?.()
-      ? this.content.createElement().performRebuild()
+      ? this.content.createElement(context.element, context.element.runtime).performRebuild()
       : new VNode({ tag: 'span', children: [String(this.content)] });
 
     const children = [contentVNode];
@@ -385,7 +385,7 @@ class Scaffold extends StatefulWidget {
     // Build app bar
     let appBarVNode = null;
     if (this.appBar) {
-      const appBarElement = this.appBar.createElement();
+      const appBarElement = this.appBar.createElement(context.element, context.element.runtime);
       appBarElement.mount(context.element);
       appBarVNode = appBarElement.performRebuild();
     }
@@ -393,7 +393,7 @@ class Scaffold extends StatefulWidget {
     // Build body
     let bodyVNode = null;
     if (this.body) {
-      const bodyElement = this.body.createElement();
+      const bodyElement = this.body.createElement(context.element, context.element.runtime);
       bodyElement.mount(context.element);
       bodyVNode = bodyElement.performRebuild();
     }
@@ -401,7 +401,7 @@ class Scaffold extends StatefulWidget {
     // Build bottom navigation bar
     let bottomNavVNode = null;
     if (this.bottomNavigationBar) {
-      const bottomNavElement = this.bottomNavigationBar.createElement();
+      const bottomNavElement = this.bottomNavigationBar.createElement(context.element, context.element.runtime);
       bottomNavElement.mount(context.element);
       bottomNavVNode = bottomNavElement.performRebuild();
     }
@@ -409,7 +409,7 @@ class Scaffold extends StatefulWidget {
     // Build floating action button
     let fabVNode = null;
     if (this.floatingActionButton) {
-      const fabElement = this.floatingActionButton.createElement();
+      const fabElement = this.floatingActionButton.createElement(context.element, context.element.runtime);
       fabElement.mount(context.element);
       fabVNode = fabElement.performRebuild();
     }
@@ -417,7 +417,7 @@ class Scaffold extends StatefulWidget {
     // Build drawer
     let drawerVNode = null;
     if (this.drawer) {
-      const drawerElement = this.drawer.createElement();
+      const drawerElement = this.drawer.createElement(context.element, context.element.runtime);
       drawerElement.mount(context.element);
       drawerVNode = drawerElement.performRebuild();
     }
@@ -425,7 +425,7 @@ class Scaffold extends StatefulWidget {
     // Build end drawer
     let endDrawerVNode = null;
     if (this.endDrawer) {
-      const endDrawerElement = this.endDrawer.createElement();
+      const endDrawerElement = this.endDrawer.createElement(context.element, context.element.runtime);
       endDrawerElement.mount(context.element);
       endDrawerVNode = endDrawerElement.performRebuild();
     }
@@ -650,8 +650,8 @@ class Scaffold extends StatefulWidget {
     properties.push({ name: 'bottomNavigationBar', value: this.bottomNavigationBar ? 'BottomNav' : 'null' });
   }
 
-  createElement() {
-    return new ScaffoldElement(this);
+  createElement(parent, runtime) {
+    return new ScaffoldElement(this,parent, runtime);
   }
 }
 

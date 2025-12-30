@@ -64,19 +64,10 @@ class VNodeBuilder {
         throw new Error('[VNodeBuilder] Runtime required to build StatelessWidget');
       }
 
-      const element = new StatelessElement(
-        widget,
-        context.parentElement || null,
-        this.runtime  // ✅ PASS RUNTIME
-      );
+      // ✅ CORRECT - Just build, don't mount
+      const element = new StatelessElement(widget, context.parentElement || null, this.runtime);
 
-      // ✅ Mount element first (initializes lifecycle)
-      if (!element.mounted) {
-        element.mount();
-      }
-
-      // ✅ Build element - returns widget or VNode
-      const builtWidget = element.build();
+      const builtWidget = element.build();  // Only call build once
 
       if (!builtWidget) {
         return null;
@@ -165,7 +156,11 @@ class VNodeBuilder {
           builtWidget.children.push(childVNode);
         }
 
-        return builtWidget ? this.build(builtWidget, context) : childVNode;
+        // ✅ CORRECT - Pass runtime
+        return builtWidget ? this.build(builtWidget, {
+          ...context,
+          runtime: this.runtime
+        }) : childVNode;
       }
 
       return builtWidget ? this.build(builtWidget, context) : null;
@@ -180,7 +175,7 @@ class VNodeBuilder {
 
     // Dispatch to appropriate builder
     const vnode = this.buildWidgetByType(widget, widgetType, context);
-    
+
     return vnode;
   }
 

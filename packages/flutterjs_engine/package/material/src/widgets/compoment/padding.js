@@ -183,7 +183,7 @@ class Padding extends ProxyWidget {
 
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement();
+            const childElement = this.child.createElement(context.element, context.element.runtime);
             childElement.mount(context.element);
             childVNode = childElement.performRebuild();
         }
@@ -240,8 +240,8 @@ class Padding extends ProxyWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new PaddingElement(this);
+    createElement(parent, runtime) {
+        return new PaddingElement(this,parent, runtime);
     }
 }
 

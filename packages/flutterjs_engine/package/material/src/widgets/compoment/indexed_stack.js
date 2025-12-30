@@ -79,8 +79,8 @@ class Visibility extends Widget {
     properties.push({ name: 'maintainInteractivity', value: this.maintainInteractivity });
   }
 
-  createElement() {
-    return new VisibilityElement(this);
+  createElement(parent, runtime) {
+    return new VisibilityElement(this,parent, runtime);
   }
 }
 
@@ -341,7 +341,7 @@ class RawIndexedStack extends Stack {
     const childVNodes = this.children.map((childWidget, index) => {
       const isVisible = index === this.index;
 
-      const childElement = childWidget.createElement();
+      const childElement = childWidget.createElement(context.element, context.element.runtime);
       childElement.mount(context.element);
       const childVNode = childElement.performRebuild();
 
@@ -395,8 +395,8 @@ class RawIndexedStack extends Stack {
   /**
    * Create element
    */
-  createElement() {
-    return new RawIndexedStackElement(this);
+  createElement(parent, runtime) {
+    return new RawIndexedStackElement(this,parent, runtime);
   }
 }
 

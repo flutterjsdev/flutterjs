@@ -566,8 +566,8 @@ class RawImage extends Widget {
     properties.push({ name: 'filterQuality', value: this.filterQuality });
   }
 
-  createElement() {
-    return new RawImageElement(this);
+  createElement(parent, runtime) {
+    return new RawImageElement(this,parent, runtime);
   }
 }
 
@@ -680,8 +680,8 @@ class DefaultAssetBundle extends InheritedWidget {
     properties.push({ name: 'bundle', value: this.bundle.constructor.name });
   }
 
-  createElement() {
-    return new DefaultAssetBundleElement(this);
+  createElement(parent, runtime) {
+    return new DefaultAssetBundleElement(this,parent, runtime);
   }
 }
 

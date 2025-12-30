@@ -403,7 +403,7 @@ class DecoratedBox extends Widget {
 
     let childVNode = null;
     if (this.child) {
-      const childElement = this.child.createElement();
+      const childElement = this.child.createElement(context.element, context.element.runtime);
       childElement.mount(context.element);
       childVNode = childElement.performRebuild();
     }
@@ -435,8 +435,8 @@ class DecoratedBox extends Widget {
     properties.push({ name: label, value: this.decoration });
   }
 
-  createElement() {
-    return new DecoratedBoxElement(this);
+  createElement(parent, runtime) {
+    return new DecoratedBoxElement(this,parent, runtime);
   }
 }
 
@@ -636,7 +636,7 @@ class Align extends StatelessWidget {
   }
 
   build(context) {
-    const childElement = this.child?.createElement();
+    const childElement = this.child?.createElement(context.element, context.element.runtime);
     if (childElement) {
       childElement.mount(context.element);
       const childVNode = childElement.performRebuild();
@@ -667,7 +667,7 @@ class ClipPath extends StatelessWidget {
   }
 
   build(context) {
-    const childElement = this.child?.createElement();
+    const childElement = this.child?.createElement(context.element, context.element.runtime);
     if (childElement) {
       childElement.mount(context.element);
       return childElement.performRebuild();
@@ -684,7 +684,7 @@ class ConstrainedBox extends StatelessWidget {
   }
 
   build(context) {
-    const childElement = this.child?.createElement();
+    const childElement = this.child?.createElement(context.element, context.element.runtime);
     if (childElement) {
       childElement.mount(context.element);
       return childElement.performRebuild();
@@ -702,7 +702,7 @@ class LimitedBox extends StatelessWidget {
   }
 
   build(context) {
-    const childElement = this.child?.createElement();
+    const childElement = this.child?.createElement(context.element, context.element.runtime);
     if (childElement) {
       childElement.mount(context.element);
       return childElement.performRebuild();
@@ -720,7 +720,7 @@ class Transform extends StatelessWidget {
   }
 
   build(context) {
-    const childElement = this.child?.createElement();
+    const childElement = this.child?.createElement(context.element, context.element.runtime);
     if (childElement) {
       childElement.mount(context.element);
       return childElement.performRebuild();

@@ -352,8 +352,8 @@ class GestureDetector extends StatelessWidget {
     this.recognizers = [];
   }
 
-  createElement() {
-    return new GestureDetectorElement(this);
+  createElement(parent, runtime) {
+    return new GestureDetectorElement(this,parent, runtime);
   }
 
   debugFillProperties(properties) {

@@ -245,7 +245,7 @@ class ListBody extends Widget {
 
     // Build child VNodes
     const childVNodes = this.children.map((childWidget) => {
-      const childElement = childWidget.createElement();
+      const childElement = childWidget.createElement(context.element, context.element.runtime);
       childElement.mount(context.element);
       const childVNode = childElement.performRebuild();
 
@@ -339,8 +339,8 @@ class ListBody extends Widget {
   /**
    * Create element
    */
-  createElement() {
-    return new ListBodyElement(this);
+  createElement(parent, runtime) {
+    return new ListBodyElement(this,parent, runtime);
   }
 }
 

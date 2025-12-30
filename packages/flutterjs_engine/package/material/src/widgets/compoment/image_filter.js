@@ -120,7 +120,7 @@ class ImageFilterProvider extends UbiquitousInheritedWidget {
         let childVNode = null;
         if (this.child) {
             if (this.child.createElement) {
-                const childElement = this.child.createElement();
+                const childElement = this.child.createElement(context.element, context.element.runtime);
                 childElement.mount(context.element);
                 childVNode = childElement.performRebuild();
             } else {
@@ -176,8 +176,8 @@ class ImageFilterProvider extends UbiquitousInheritedWidget {
     /**
      * Create element
      */
-    createElement() {
-        return new UbiquitousInheritedElement(this);
+    createElement(parent, runtime) {
+        return new UbiquitousInheritedElement(this,parent, runtime);
     }
 }
 

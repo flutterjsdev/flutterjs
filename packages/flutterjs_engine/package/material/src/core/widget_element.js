@@ -21,7 +21,7 @@ class Widget extends Diagnosticable {
    * Create an Element for this widget
    * Must be implemented in subclasses
    */
-  createElement() {
+  createElement(parent, runtime) {
     throw new Error(
       `${this.constructor.name}.createElement() must be implemented`
     );
@@ -57,8 +57,8 @@ class ProxyWidget extends Widget {
     this.child = child;
   }
 
-  createElement() {
-    return new ProxyElement(this);
+  createElement(parent, runtime) {
+    return new ProxyElement(this, parent, runtime);
   }
 }
 
@@ -80,8 +80,8 @@ class InheritedWidget extends ProxyWidget {
     );
   }
 
-  createElement() {
-    return new InheritedElement(this);
+  createElement(parent, runtime) {
+    return new InheritedElement(this, parent, runtime);
   }
 
   static of(context, widgetType) {
@@ -181,8 +181,8 @@ class NotificationListener extends ProxyWidget {
     this.onNotification = onNotification;
   }
 
-  createElement() {
-    return new NotificationListenerElement(this);
+  createElement(parent, runtime) {
+    return new NotificationListenerElement(this, parent, runtime);
   }
 }
 
@@ -208,8 +208,8 @@ class StatelessWidget extends Widget {
   /**
    * Create element for this widget
    */
-  createElement() {
-    return new StatelessElement(this);
+  createElement(parent, runtime) {
+    return new StatelessElement(this, parent, runtime);
   }
 
   reassemble() { }
@@ -271,8 +271,8 @@ class StatefulWidget extends Widget {
   /**
    * Create element for this widget
    */
-  createElement() {
-    return new StatefulElement(this);
+  createElement(parent, runtime) {
+    return new StatefulElement(this, parent, runtime);
   }
 
   // Called during hot reload

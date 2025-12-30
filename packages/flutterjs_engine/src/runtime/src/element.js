@@ -116,17 +116,35 @@ export class Diagnosticable {
 class Element extends Diagnosticable {
   constructor(widget, parent, runtime) {
     super(); // ✅ CALL SUPER FIRST (before any this usage)
+
+    console.log('❌ Element constructor called:', {
+      widgetType: widget?.constructor.name,
+      hasParent: !!parent,
+      runtimeType: runtime?.constructor.name,
+      runtimeDefined: runtime !== undefined,
+      runtimeArg: runtime
+    });
+
     if (!widget) {
       throw new Error('Widget is required for Element creation');
     }
 
     if (!runtime) {
-      throw new Error('Runtime is required for Element creation');
+      console.error('❌ RUNTIME IS UNDEFINED!');
+      console.error('   Widget type:', widget.constructor.name);
+      console.error('   Parent:', parent?.constructor.name);
+      console.error('   Called from:', new Error().stack);
+      throw new Error('RUNTIME IS UNDEFINED! Runtime is required for Element creation');
     }
 
-    this.widget = widget;              // Widget configuration (immutable)
-    this.parent = parent;              // Parent element
-    this.runtime = runtime;            // Runtime engine reference
+    this.widget = widget;
+    this.parent = parent;
+    this.runtime = runtime;
+
+    console.log('✓ Element created:', {
+      type: this.constructor.name,
+      runtime: this.runtime.constructor.name
+    });          // Runtime engine reference
 
     // Element tree structure
     this.children = [];                // Child elements
@@ -544,6 +562,11 @@ class StatelessElement extends Element {
   }
 
   build() {
+    console.log('🔍 StatelessElement.build() - checking this.runtime:', {
+      exists: !!this.runtime,
+      type: this.runtime?.constructor.name,
+      isUndefined: this.runtime === undefined
+    });
     const context = this.buildContext();
 
     try {
