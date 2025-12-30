@@ -540,33 +540,45 @@ Element._counter = 0;
  */
 class StatelessElement extends Element {
   constructor(widget, parent, runtime) {
-    super(widget, parent, runtime); // ✅ CALL SUPER WITH ALL PARAMS
+    super(widget, parent, runtime);
   }
 
   build() {
-    // Call widget's build method
     const context = this.buildContext();
 
     try {
+      // Call widget's build method
       const result = this.widget.build(context);
 
       if (!result) {
         throw new Error('StatelessWidget.build() returned null');
       }
 
+      // ✅ FIX: If result is a widget (not a VNode), convert to element and build
+      if (result && typeof result === 'object' && result.constructor.name && !result.tag) {
+        // This is a widget, not a VNode
+        const childElement = this.runtime.createElement(result, this);
+
+        if (!childElement) {
+          throw new Error('Failed to create element from child widget');
+        }
+
+        // Recursively build the child element
+        return childElement.build();
+      }
+
+      // Otherwise it's already a VNode or primitive
       return result;
     } catch (error) {
       throw new Error(`StatelessWidget build failed: ${error.message}`);
     }
   }
 
-  /**
-   * Create BuildContext for this element
-   */
   buildContext() {
     return new BuildContext(this, this.runtime);
   }
 }
+
 
 /**
  * StatefulElement
@@ -576,9 +588,8 @@ class StatelessElement extends Element {
  */
 class StatefulElement extends Element {
   constructor(widget, parent, runtime) {
-     super(widget, parent, runtime); // ✅ CALL SUPER FIRST
+    super(widget, parent, runtime);
 
-    // Create state instance
     if (!widget.createState || typeof widget.createState !== 'function') {
       throw new Error('StatefulWidget must implement createState()');
     }
@@ -589,14 +600,12 @@ class StatefulElement extends Element {
       throw new Error('createState() returned null or undefined');
     }
 
-    // Link state to element and widget
     this.state._element = this;
     this.state._widget = widget;
     this.state._mounted = false;
   }
 
   build() {
-    // Call state's build method
     const context = this.buildContext();
 
     try {
@@ -610,6 +619,19 @@ class StatefulElement extends Element {
         throw new Error('State.build() returned null');
       }
 
+      // ✅ FIX: If result is a widget (not a VNode), convert to element and build
+      if (result && typeof result === 'object' && result.constructor.name && !result.tag) {
+        // This is a widget, not a VNode
+        const childElement = this.runtime.createElement(result, this);
+
+        if (!childElement) {
+          throw new Error('Failed to create element from child widget');
+        }
+
+        // Recursively build the child element
+        return childElement.build();
+      }
+
       return result;
     } catch (error) {
       throw new Error(`StatefulWidget build failed: ${error.message}`);
@@ -617,7 +639,6 @@ class StatefulElement extends Element {
   }
 
   mount() {
-    // Call state's initState
     if (this.state.initState && typeof this.state.initState === 'function') {
       try {
         this.state.initState();
@@ -626,21 +647,16 @@ class StatefulElement extends Element {
       }
     }
 
-    // Mark state as mounted
     this.state._mounted = true;
-
-    // Call parent mount
     super.mount();
   }
 
   update(newWidget) {
     const oldWidget = this.widget;
 
-    // Update widget reference
     this.widget = newWidget;
     this.state._widget = newWidget;
 
-    // Call state's didUpdateWidget
     if (this.state.didUpdateWidget && typeof this.state.didUpdateWidget === 'function') {
       try {
         this.state.didUpdateWidget(oldWidget);
@@ -649,14 +665,12 @@ class StatefulElement extends Element {
       }
     }
 
-    // Check if rebuild needed
     if (this.shouldRebuild(oldWidget, newWidget)) {
       this.markNeedsBuild();
     }
   }
 
   unmount() {
-    // Call state's dispose
     if (this.state.dispose && typeof this.state.dispose === 'function') {
       try {
         this.state.dispose();
@@ -665,23 +679,14 @@ class StatefulElement extends Element {
       }
     }
 
-    // Mark state as unmounted
     this.state._mounted = false;
-
-    // Call parent unmount
     super.unmount();
   }
 
-  /**
-   * Create BuildContext for this element
-   */
   buildContext() {
     return new BuildContext(this, this.runtime, this.state);
   }
 
-  /**
-   * Get state statistics
-   */
   getStats() {
     const stats = super.getStats();
     return {
@@ -702,12 +707,10 @@ class StatefulElement extends Element {
 class ComponentElement extends Element {
   constructor(widget, parent, runtime) {
     super(widget, parent, runtime);
-
     this.componentState = {};
   }
 
   build() {
-    // Call widget's render or build method
     const method = this.widget.render || this.widget.build;
 
     if (!method || typeof method !== 'function') {
@@ -717,7 +720,20 @@ class ComponentElement extends Element {
     const context = this.buildContext();
 
     try {
-      return method.call(this.widget, context);
+      const result = method.call(this.widget, context);
+
+      // ✅ FIX: If result is a widget (not a VNode), convert to element and build
+      if (result && typeof result === 'object' && result.constructor.name && !result.tag) {
+        const childElement = this.runtime.createElement(result, this);
+
+        if (!childElement) {
+          throw new Error('Failed to create element from child widget');
+        }
+
+        return childElement.build();
+      }
+
+      return result;
     } catch (error) {
       throw new Error(`Component build failed: ${error.message}`);
     }

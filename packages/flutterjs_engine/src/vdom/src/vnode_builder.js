@@ -1,10 +1,9 @@
 /**
- * VNodeBuilder - Convert Flutter Widgets to VNodes
+ * VNodeBuilder - FIXED VERSION
+ * Properly converts Widget → Element → VNode
  * 
- * This builder converts any Flutter widget into a VNode tree that can be:
- * 1. Rendered to DOM (CSR)
- * 2. Serialized to HTML string (SSR)
- * 3. Hydrated on the client
+ * The key fix: Pass runtime through the entire chain so elements can
+ * create child elements when needed.
  */
 
 import { VNode } from './vnode.js';
@@ -13,21 +12,19 @@ import { StatelessElement, StatefulElement } from '@flutterjs/runtime/element';
 import { InheritedElement } from '@flutterjs/runtime/inherited_element';
 
 class VNodeBuilder {
-
-
   constructor(options = {}) {
     this.debugMode = options.debugMode || false;
-    this.runtime = options.runtime;  // ✅ ACCEPT RUNTIME
+    this.runtime = options.runtime;  // ✅ CRITICAL: Must have runtime
 
     if (this.debugMode && !this.runtime) {
-      console.warn('[VNodeBuilder] No runtime provided - Element creation may fail');
+      console.warn('[VNodeBuilder] ⚠️ No runtime provided - Element creation will fail');
     }
   }
 
   /**
    * Build VNode tree from widget
    * @param {Widget} widget - Flutter widget instance
-   * @param {BuildContext} context - Build context
+   * @param {BuildContext} context - Build context with runtime
    * @returns {VNode|string|null} VNode tree or text content
    */
   build(widget, context = {}) {
@@ -51,63 +48,92 @@ class VNodeBuilder {
       return String(widget);
     }
 
-    // ✅ HANDLE WIDGET WITH BUILD METHOD (StatelessWidget)
+    // ✅ FIX: Ensure runtime is in context
+    if (!context.runtime && this.runtime) {
+      context.runtime = this.runtime;
+    }
+
+    // ✅ HANDLE STATELESS WIDGET
     if (typeof widget.build === 'function' && !widget.createState) {
-      // This is a StatelessWidget
       if (this.debugMode) {
-        console.log('[VNodeBuilder] 📦 Building StatelessWidget...');
+        console.log('[VNodeBuilder] 📦 Building StatelessWidget:', widget.constructor.name);
       }
 
-      // Create StatelessElement to manage the widget
+      // ✅ Create element with runtime
+      if (!this.runtime) {
+        throw new Error('[VNodeBuilder] Runtime required to build StatelessWidget');
+      }
+
       const element = new StatelessElement(
         widget,
         context.parentElement || null,
         this.runtime  // ✅ PASS RUNTIME
       );
 
-      // Build the element
-      const builtVNode = element.build();
-
-      if (builtVNode) {
-        return this.build(builtVNode, context);
+      // ✅ Mount element first (initializes lifecycle)
+      if (!element.mounted) {
+        element.mount();
       }
 
-      return null;
+      // ✅ Build element - returns widget or VNode
+      const builtWidget = element.build();
+
+      if (!builtWidget) {
+        return null;
+      }
+
+      // ✅ Recursively build result (might be another widget)
+      return this.build(builtWidget, {
+        ...context,
+        parentElement: element,
+        runtime: this.runtime
+      });
     }
 
-    // ✅ HANDLE STATEFULWIDGET
+    // ✅ HANDLE STATEFUL WIDGET
     if (typeof widget.createState === 'function') {
       if (this.debugMode) {
-        console.log('[VNodeBuilder] 📦 Building StatefulWidget...');
+        console.log('[VNodeBuilder] 📦 Building StatefulWidget:', widget.constructor.name);
       }
 
-      // Create StatefulElement to manage state
+      if (!this.runtime) {
+        throw new Error('[VNodeBuilder] Runtime required to build StatefulWidget');
+      }
+
       const element = new StatefulElement(
         widget,
         context.parentElement || null,
         this.runtime  // ✅ PASS RUNTIME
       );
 
-      // Mount the element (initializes state)
-      element.mount();
-
-      // Build the element
-      const builtVNode = element.build();
-
-      if (builtVNode) {
-        return this.build(builtVNode, {
-          ...context,
-          parentElement: element
-        });
+      // ✅ Mount to initialize state
+      if (!element.mounted) {
+        element.mount();
       }
 
-      return null;
+      // Build element
+      const builtWidget = element.build();
+
+      if (!builtWidget) {
+        return null;
+      }
+
+      // ✅ Recursively build result
+      return this.build(builtWidget, {
+        ...context,
+        parentElement: element,
+        runtime: this.runtime
+      });
     }
 
     // ✅ HANDLE INHERITED WIDGET
     if (widget.updateShouldNotify && typeof widget.updateShouldNotify === 'function') {
       if (this.debugMode) {
-        console.log('[VNodeBuilder] 📦 Building InheritedWidget...');
+        console.log('[VNodeBuilder] 📦 Building InheritedWidget:', widget.constructor.name);
+      }
+
+      if (!this.runtime) {
+        throw new Error('[VNodeBuilder] Runtime required to build InheritedWidget');
       }
 
       const element = new InheritedElement(
@@ -116,26 +142,53 @@ class VNodeBuilder {
         this.runtime  // ✅ PASS RUNTIME
       );
 
-      const builtVNode = element.build();
-
-      if (builtVNode && widget.child) {
-        // Recursively build the child
-        const childVNode = this.build(widget.child, {
-          ...context,
-          parentElement: element
-        });
-
-        if (childVNode) {
-          return this.build(childVNode, context);
-        }
+      if (!element.mounted) {
+        element.mount();
       }
 
-      return builtVNode;
+      // Build the inherited widget wrapper
+      const builtWidget = element.build();
+
+      // ✅ Also build the child widget
+      if (widget.child) {
+        const childVNode = this.build(widget.child, {
+          ...context,
+          parentElement: element,
+          runtime: this.runtime
+        });
+
+        // If built widget is a container, insert child
+        if (builtWidget && childVNode) {
+          if (!builtWidget.children) {
+            builtWidget.children = [];
+          }
+          builtWidget.children.push(childVNode);
+        }
+
+        return builtWidget ? this.build(builtWidget, context) : childVNode;
+      }
+
+      return builtWidget ? this.build(builtWidget, context) : null;
     }
 
-    // Detect widget type and dispatch to appropriate builder
+    // ✅ Detect widget type and dispatch
     const widgetType = this.getWidgetType(widget);
 
+    if (this.debugMode && widgetType !== 'Unknown') {
+      console.log('[VNodeBuilder] 📝 Building widget type:', widgetType);
+    }
+
+    // Dispatch to appropriate builder
+    const vnode = this.buildWidgetByType(widget, widgetType, context);
+    
+    return vnode;
+  }
+
+  /**
+   * Build widget by type
+   * @private
+   */
+  buildWidgetByType(widget, widgetType, context) {
     switch (widgetType) {
       // Text widgets
       case 'Text':
@@ -224,20 +277,21 @@ class VNodeBuilder {
     }
   }
 
-
   /**
- * Build children array
- * ✅ NOW PASSES CONTEXT WITH PARENT
- */
+   * Build children array
+   * ✅ NOW PROPERLY PASSES CONTEXT WITH RUNTIME
+   */
   buildChildren(children, context) {
     if (!children) return [];
     if (!Array.isArray(children)) children = [children];
 
     return children
       .map((child, index) => {
+        // ✅ Ensure runtime is passed to all children
         return this.build(child, {
           ...context,
-          childIndex: index
+          childIndex: index,
+          runtime: this.runtime  // ✅ CRITICAL
         });
       })
       .filter(vnode => vnode !== null && vnode !== undefined);
@@ -250,25 +304,20 @@ class VNodeBuilder {
   getWidgetType(widget) {
     if (!widget) return 'Unknown';
 
-    // Check constructor name
     if (widget.constructor && widget.constructor.name) {
       return widget.constructor.name;
     }
 
-    // Check runtimeType property
     if (widget.runtimeType) {
       return widget.runtimeType;
     }
 
-    // Check widget property
     if (widget.widget && widget.widget.constructor) {
       return widget.widget.constructor.name;
     }
 
     return 'Unknown';
   }
-
-
 
   /**
    * Extract common props from widget
@@ -277,12 +326,10 @@ class VNodeBuilder {
   extractCommonProps(widget) {
     const props = {};
 
-    // Key
     if (widget.key) {
       props.key = widget.key;
     }
 
-    // Data attributes for debugging
     if (widget._debugLabel) {
       props['data-debug-label'] = widget._debugLabel;
     }
@@ -314,8 +361,6 @@ class VNodeBuilder {
   }
 
   buildRichText(widget, context) {
-    // For now, render as plain text
-    // TODO: Support TextSpan tree
     return new VNode({
       tag: 'span',
       props: { className: 'fjs-rich-text' },
@@ -451,7 +496,6 @@ class VNodeBuilder {
         ...StyleConverter.alignmentToCss(alignment)
       },
       children: children.map(child => {
-        // Wrap each child in positioned container
         return new VNode({
           tag: 'div',
           style: { position: 'absolute' },
@@ -579,10 +623,6 @@ class VNodeBuilder {
       metadata: { widgetType: 'Flexible', flutterProps: { flex, fit } }
     });
   }
-
-  // ============================================================================
-  // SCAFFOLD & STRUCTURE
-  // ============================================================================
 
   buildScaffold(widget, context) {
     const appBar = widget.appBar ? this.build(widget.appBar, context) : null;
@@ -752,10 +792,6 @@ class VNodeBuilder {
     });
   }
 
-  // ============================================================================
-  // BUTTON WIDGETS
-  // ============================================================================
-
   buildButton(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
     const onPressed = widget.onPressed;
@@ -771,7 +807,6 @@ class VNodeBuilder {
       transition: 'all 0.2s'
     };
 
-    // Style based on button type
     if (widgetType === 'ElevatedButton') {
       style.backgroundColor = 'var(--md-sys-color-primary, #6750a4)';
       style.color = 'var(--md-sys-color-on-primary, #ffffff)';
@@ -812,10 +847,6 @@ class VNodeBuilder {
       metadata: { widgetType }
     });
   }
-
-  // ============================================================================
-  // INPUT WIDGETS
-  // ============================================================================
 
   buildTextField(widget, context) {
     const controller = widget.controller;
@@ -928,7 +959,6 @@ class VNodeBuilder {
       events.change = (e) => onChanged(e.target.checked);
     }
 
-    // Create custom switch UI using checkbox
     return new VNode({
       tag: 'label',
       props: { className: 'fjs-switch' },
@@ -967,10 +997,6 @@ class VNodeBuilder {
       metadata: { widgetType: 'Switch' }
     });
   }
-
-  // ============================================================================
-  // LIST WIDGETS
-  // ============================================================================
 
   buildListView(widget, context) {
     const children = this.buildChildren(widget.children, context);
@@ -1073,10 +1099,6 @@ class VNodeBuilder {
     });
   }
 
-  // ============================================================================
-  // VISUAL WIDGETS
-  // ============================================================================
-
   buildCard(widget, context) {
     const child = widget.child ? this.build(widget.child, context) : null;
     const elevation = widget.elevation || 1;
@@ -1143,8 +1165,6 @@ class VNodeBuilder {
       style.color = StyleConverter.colorToCss(color);
     }
 
-    // For now, use text representation
-    // TODO: Support icon fonts or SVG
     return new VNode({
       tag: 'span',
       props: {
@@ -1153,7 +1173,7 @@ class VNodeBuilder {
         ...this.extractCommonProps(widget)
       },
       style,
-      children: ['⬤'], // Placeholder
+      children: ['⬤'],
       metadata: { widgetType: 'Icon', flutterProps: { icon, size } }
     });
   }
@@ -1169,7 +1189,6 @@ class VNodeBuilder {
     if (width) style.width = typeof width === 'number' ? `${width}px` : width;
     if (height) style.height = typeof height === 'number' ? `${height}px` : height;
 
-    // Map Flutter BoxFit to CSS object-fit
     const fitMap = {
       fill: 'fill',
       contain: 'contain',
@@ -1227,10 +1246,6 @@ class VNodeBuilder {
     });
   }
 
-  // ============================================================================
-  // NAVIGATION
-  // ============================================================================
-
   buildMaterialApp(widget, context) {
     const home = widget.home ? this.build(widget.home, context) : null;
     const title = widget.title || '';
@@ -1252,7 +1267,6 @@ class VNodeBuilder {
   }
 
   buildNavigator(widget, context) {
-    // Navigator is complex - for now just render children
     const children = this.buildChildren(widget.pages || [], context);
 
     return new VNode({
@@ -1266,12 +1280,7 @@ class VNodeBuilder {
     });
   }
 
-  // ============================================================================
-  // GENERIC FALLBACK
-  // ============================================================================
-
   buildGeneric(widget, context) {
-    // Try to find child/children and render them
     let children = [];
 
     if (widget.child) {
@@ -1298,6 +1307,5 @@ class VNodeBuilder {
     });
   }
 }
-
 
 export { VNodeBuilder };

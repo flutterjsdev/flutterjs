@@ -72,8 +72,65 @@ class InheritedElement extends Element {
       throw new Error('InheritedWidget must have a child widget');
     }
 
-    // InheritedWidget is transparent - just build the child
-    // The child will receive this context when its build is called
+    // ✅ FIX: Convert child widget to element and build it
+    const childWidget = this.widget.child;
+
+    // Check if child is already a VNode
+    if (childWidget && typeof childWidget === 'object' && childWidget.tag) {
+      // Already a VNode
+      return {
+        tag: 'div',
+        props: {
+          'data-widget': this.widget.constructor.name,
+          'data-element-id': this.id,
+          class: 'fjs-inherited-widget-wrapper'
+        },
+        children: [childWidget],
+        metadata: {
+          isInheritedWidget: true,
+          widgetType: this.widget.constructor.name
+        }
+      };
+    }
+
+    // ✅ CRITICAL: If it's a widget, convert to element and build
+    if (childWidget && typeof childWidget === 'object' &&
+      (childWidget.build || childWidget.createState || childWidget.render)) {
+
+      const childElement = this.runtime.createElement(childWidget, this);
+
+      if (!childElement) {
+        throw new Error('Failed to create element from child widget');
+      }
+
+      // Mount the child element
+      if (!childElement.mounted) {
+        childElement.mount();
+      }
+
+      // Build it to get VNode
+      const childVNode = childElement.build();
+
+      if (!childVNode) {
+        throw new Error('Child element build returned null');
+      }
+
+      return {
+        tag: 'div',
+        props: {
+          'data-widget': this.widget.constructor.name,
+          'data-element-id': this.id,
+          class: 'fjs-inherited-widget-wrapper'
+        },
+        children: [childVNode],
+        metadata: {
+          isInheritedWidget: true,
+          widgetType: this.widget.constructor.name
+        }
+      };
+    }
+
+    // String or primitive
     return {
       tag: 'div',
       props: {
@@ -81,7 +138,7 @@ class InheritedElement extends Element {
         'data-element-id': this.id,
         class: 'fjs-inherited-widget-wrapper'
       },
-      children: [this.widget.child],
+      children: [childWidget],
       metadata: {
         isInheritedWidget: true,
         widgetType: this.widget.constructor.name
@@ -594,8 +651,10 @@ class Provider extends InheritedWidget {
 }
 
 
-export {InheritedElement,
-    InheritedWidget,
-    ChangeNotifier,
-    ValueNotifier,
-    Provider};
+export {
+  InheritedElement,
+  InheritedWidget,
+  ChangeNotifier,
+  ValueNotifier,
+  Provider
+};
