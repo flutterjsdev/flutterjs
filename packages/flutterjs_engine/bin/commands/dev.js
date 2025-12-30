@@ -281,6 +281,9 @@ export class DevServer {
       // ✅ NEW: Generate source maps after build
       await this._generateSourceMaps();
 
+
+      await this._addSourceMapURLs();
+
       console.log(); // New line
 
       if (this.wss && this.clients.size > 0) {
@@ -320,30 +323,114 @@ export class DevServer {
     }
   }
 
+
+  async _addSourceMapURLs() {
+    if (!this.sourceMapGenerator) return;
+
+    try {
+      // Get all generated JS files
+      const files = fs.readdirSync(this.buildDir).filter(f => f.endsWith('.js'));
+
+      for (const file of files) {
+        const filePath = path.join(this.buildDir, file);
+        let content = fs.readFileSync(filePath, 'utf-8');
+
+        // Check if sourceMappingURL already exists
+        if (!content.includes('//# sourceMappingURL=')) {
+          // Add source map URL comment
+          content += `\n//# sourceMappingURL=/maps/${file}.map\n`;
+          fs.writeFileSync(filePath, content, 'utf-8');
+
+          if (this.config.debugMode) {
+            console.log(chalk.gray(`  Added source map URL to ${file}`));
+          }
+        }
+      }
+
+      console.log(chalk.green(`✓ Added source map URLs to ${files.length} files`));
+
+    } catch (error) {
+      console.warn(chalk.yellow(`⚠ Could not add source map URLs: ${error.message}`));
+    }
+  }
+
+
+
   /**
    * ✅ NEW METHOD: Generate source maps for all source files
    */
   async _generateSourceMaps() {
     if (!this.sourceMapGenerator) {
-      return;  // Source maps disabled
+      return;
     }
 
     try {
       console.log(chalk.cyan('Generating source maps...'));
 
-      // Generate maps for all source files in the directory
-      await this.sourceMapGenerator.generateForDirectory(this.sourceDir);
+      // Get all source files
+      const sourceFiles = this._getAllSourceFiles(this.sourceDir);
 
-      // Write maps to disk
+      // Get all generated JS files
+      const generatedFiles = fs.readdirSync(this.buildDir)
+        .filter(f => f.endsWith('.js') && !f.endsWith('.map'));
+
+      console.log(chalk.gray(`  Found ${sourceFiles.length} source files`));
+      console.log(chalk.gray(`  Found ${generatedFiles.length} generated files`));
+
+      // Generate maps for each source file
+      for (const sourceFile of sourceFiles) {
+        const baseName = path.basename(sourceFile, path.extname(sourceFile));
+        const generatedFile = path.join(this.buildDir, baseName + '.js');
+
+        await this.sourceMapGenerator.generateForFile(
+          sourceFile,
+          fs.existsSync(generatedFile) ? generatedFile : null
+        );
+      }
+
+      // Write all maps to disk
       await this.sourceMapGenerator.writeMaps(this.mapsDir);
 
-      console.log(chalk.green(`✔ Source maps generated`));
-      console.log(chalk.gray(`  Maps: ${this.sourceMapGenerator.generatedMaps.size}`));
+      console.log(chalk.green(`✓ Generated ${this.sourceMapGenerator.generatedMaps.size} source maps`));
 
     } catch (error) {
-      console.warn(chalk.yellow(`⚠   Source map generation failed: ${error.message}`));
-      // Don't fail the build - just continue without maps
+      console.warn(chalk.yellow(`⚠ Source map generation failed: ${error.message}`));
     }
+  }
+
+  // ADD THIS HELPER METHOD to dev.js:
+
+  _getAllSourceFiles(dir, files = []) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+
+      if (entry.isDirectory()) {
+        this._getAllSourceFiles(fullPath, files);
+      } else if (entry.isFile() && /\.(fjs|js|jsx|ts|tsx)$/.test(entry.name)) {
+        files.push(fullPath);
+      }
+    }
+
+    return files;
+  }
+
+
+  _getAllSourceFiles(dir, files = []) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+
+      if (entry.isDirectory()) {
+        this._getAllSourceFiles(fullPath, files);
+      } else if (entry.isFile() && /\.(fjs|js|jsx|ts|tsx)$/.test(entry.name)) {
+        files.push(fullPath);
+      }
+    }
+
+    return files;
   }
 
   /**
@@ -435,12 +522,20 @@ export class DevServer {
 
     // ✅ NEW: Serve source maps
     if (this.sourceMapGenerator && fs.existsSync(this.mapsDir)) {
-      this.app.use('/maps', express.static(this.mapsDir, {
+      this.app.use('/maps', (req, res, next) => {
+        // Add CORS headers for source maps
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET');
+        res.setHeader('Content-Type', 'application/json');
+        next();
+      }, express.static(this.mapsDir, {
         maxAge: 0,
         etag: false,
       }));
+
       console.log(chalk.gray(`🗺️ Serving source maps from: /maps`));
     }
+
 
     // Serve node_modules from project root
     const nodeModulesPath = path.join(this.projectRoot, 'node_modules');
@@ -501,6 +596,24 @@ export class DevServer {
           error: 'Failed to fetch source map',
           message: error.message
         });
+      }
+    });
+
+
+    this.app.get('/api/test-sourcemap', (req, res) => {
+      try {
+        // Create a test error
+        const error = new Error('Test error for source map verification');
+
+        res.json({
+          error: error.message,
+          stack: error.stack,
+          sourceMapsEnabled: this.sourceMapGenerator ? true : false,
+          mapsGenerated: this.sourceMapGenerator ? this.sourceMapGenerator.generatedMaps.size : 0,
+          tip: 'Check if browser DevTools shows original source file locations'
+        });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
       }
     });
 
@@ -853,12 +966,12 @@ export class DevServer {
         console.log(chalk.blue('🌐 URLs:\n'));
         console.log(chalk.cyan(`  Local:   ${url}`));
         console.log(chalk.cyan(`  Network: ${protocol}://127.0.0.1:${this.port}`));
-        
+
         // ✅ Show source maps info
         if (this.sourceMapGenerator) {
           console.log(chalk.cyan(`  🗺️ Source Maps: ${url}/api/sourcemaps`));
         }
-        
+
         console.log(chalk.gray(`\n  Press Ctrl+C to stop\n`));
 
         resolve();

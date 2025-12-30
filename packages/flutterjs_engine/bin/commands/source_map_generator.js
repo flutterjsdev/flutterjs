@@ -290,43 +290,41 @@ class SourceMapGenerator {
   /**
    * Generate source map for a single file
    */
-  async generateForFile(sourceFile, generatedCode = null) {
+  async generateForFile(sourceFile, generatedFile = null) {
     try {
       if (!fs.existsSync(sourceFile)) {
-        if (this.options.debugMode) {
-          console.warn(chalk.yellow(`Source file not found: ${sourceFile}`));
-        }
         return null;
       }
 
       const sourceCode = fs.readFileSync(sourceFile, 'utf-8');
       const relativePath = path.relative(this.projectRoot, sourceFile);
-      const mapFileName = sourceFile.replace(/\.[^.]+$/, '.js.map');
+
+      // Find the corresponding generated file
+      let generatedCode = null;
+      if (generatedFile && fs.existsSync(generatedFile)) {
+        generatedCode = fs.readFileSync(generatedFile, 'utf-8');
+      } else {
+        // Try to find it in output dir
+        const baseName = path.basename(sourceFile, path.extname(sourceFile));
+        const possibleGenerated = path.join(this.outputDir, baseName + '.js');
+        if (fs.existsSync(possibleGenerated)) {
+          generatedCode = fs.readFileSync(possibleGenerated, 'utf-8');
+        }
+      }
 
       // Create source map
       const sourceMap = new SourceMap(
-        path.basename(sourceFile) + '.map',
+        path.basename(sourceFile).replace(/\.fjs$/, '.js'),
         relativePath
       );
 
       sourceMap.addSource(relativePath, sourceCode);
 
-      // If we have generated code, try to match definitions
       if (generatedCode) {
-        const matches = SourceAnalyzer.matchDefinitions(sourceCode, generatedCode);
-
-        for (const match of matches) {
-          sourceMap.addMapping(
-            match.generated.line,
-            match.generated.column,
-            match.source.line,
-            match.source.column,
-            relativePath,
-            match.source.name
-          );
-        }
+        // Create detailed mappings
+        this._createDetailedMappings(sourceMap, sourceCode, generatedCode, relativePath);
       } else {
-        // Simple 1:1 mapping
+        // Fallback: 1:1 mapping
         const lines = sourceCode.split('\n');
         for (let i = 0; i < lines.length; i++) {
           sourceMap.addMapping(i + 1, 0, i + 1, 0, relativePath);
@@ -334,7 +332,6 @@ class SourceMapGenerator {
       }
 
       this.generatedMaps.set(sourceFile, sourceMap);
-
       return sourceMap;
 
     } catch (error) {
@@ -342,6 +339,50 @@ class SourceMapGenerator {
       return null;
     }
   }
+
+
+
+  _createDetailedMappings(sourceMap, sourceCode, generatedCode, sourcePath) {
+    const sourceLines = sourceCode.split('\n');
+    const generatedLines = generatedCode.split('\n');
+
+    // Track important patterns
+    const patterns = [
+      /class\s+(\w+)/g,           // class declarations
+      /function\s+(\w+)/g,        // function declarations
+      /const\s+(\w+)/g,           // const declarations
+      /\.(\w+)\s*\(/g,            // method calls
+      /new\s+(\w+)/g,             // constructor calls
+      /throw\s+new\s+Error/g,     // error throws
+    ];
+
+    // For each source line with important code
+    sourceLines.forEach((sourceLine, sourceLineNum) => {
+      patterns.forEach(pattern => {
+        let match;
+        while ((match = pattern.exec(sourceLine)) !== null) {
+          const identifier = match[1] || match[0];
+          const sourceCol = match.index;
+
+          // Try to find this identifier in generated code
+          generatedLines.forEach((genLine, genLineNum) => {
+            const genCol = genLine.indexOf(identifier);
+            if (genCol !== -1) {
+              sourceMap.addMapping(
+                genLineNum + 1,
+                genCol,
+                sourceLineNum + 1,
+                sourceCol,
+                sourcePath,
+                identifier
+              );
+            }
+          });
+        }
+      });
+    });
+  }
+
 
   /**
    * Generate maps for all source files

@@ -151,6 +151,19 @@ class BuildGenerator {
         size: JSON.stringify(manifest).length,
       });
 
+      const errorMap = path.join(outputDir, "error_remapper.js");
+      const errorFile = this.errorMapBuilder();
+      await fs.promises.writeFile(
+        errorMap,
+        errorFile,
+        "utf-8"
+      );
+
+      files.push({
+        name: "error_remapper.js",
+        size: errorFile.length
+      })
+
       this.integration.buildOutput.files = files;
       this.integration.buildOutput.manifest = manifest;
 
@@ -284,6 +297,7 @@ class BuildGenerator {
   <meta name="description" content="Built with FlutterJS">
   <meta name="theme-color" content="#6750a4">
   <title>${metadata.projectName}</title>
+  <script src="./error_remapper.js"></script>
   <link rel="stylesheet" href="./styles.css">
   
   <!-- ✅ Import Map from ImportRewriter -->
@@ -306,6 +320,363 @@ class BuildGenerator {
   <script src="./app.js" type="module" defer></script>
 </body>
 </html>`;
+  }
+
+
+  errorMapBuilder() {
+    return `(function() {
+  'use strict';
+
+  // Cache for loaded source maps
+  const sourceMapCache = new Map();
+  const loadedFiles = [];
+
+  /**
+   * Load all available source maps
+   */
+  async function loadSourceMaps() {
+    try {
+      console.log('[ErrorRemapper] Fetching source map list from /api/sourcemaps...');
+      
+      const response = await fetch('/api/sourcemaps');
+      const data = await response.json();
+
+      console.log('[ErrorRemapper] API Response:', data);
+
+      if (!data.available || !data.maps || data.maps.length === 0) {
+        console.warn('[ErrorRemapper] ❌ No source maps available from API');
+        console.warn('[ErrorRemapper] Response:', data);
+        return;
+      }
+
+      console.log(\`[ErrorRemapper] Found \${data.maps.length} source maps to load\`);
+
+      // Load each source map
+      for (const mapInfo of data.maps) {
+        try {
+          console.log(\`[ErrorRemapper] Loading: \${mapInfo.mapUrl}\`);
+          
+          const mapResponse = await fetch(mapInfo.mapUrl);
+          if (!mapResponse.ok) {
+            console.warn(\`[ErrorRemapper] ❌ Failed to fetch \${mapInfo.mapUrl}: \${mapResponse.status}\`);
+            continue;
+          }
+
+          const sourceMap = await mapResponse.json();
+          
+          if (!sourceMap.mappings) {
+            console.warn(\`[ErrorRemapper] ❌ Invalid source map (no mappings): \${mapInfo.mapUrl}\`);
+            continue;
+          }
+
+          // Try multiple storage keys for this map
+          const baseFile = mapInfo.file || mapInfo.mapUrl.split('/').pop().replace('.map', '');
+          const jsFile = baseFile.replace(/\.fjs$/, '.js');
+          const withoutExt = baseFile.replace(/\.\w+$/, '');
+
+          // Store under all variations
+          sourceMapCache.set(baseFile, sourceMap);
+          sourceMapCache.set(jsFile, sourceMap);
+          sourceMapCache.set(withoutExt, sourceMap);
+          
+          loadedFiles.push({
+            file: mapInfo.file,
+            keys: [baseFile, jsFile, withoutExt],
+            sources: sourceMap.sources,
+            mappings: sourceMap.mappings.substring(0, 50) + '...'
+          });
+          
+          console.log(\`[ErrorRemapper] ✓ Loaded: \${baseFile} (stored under \${[baseFile, jsFile, withoutExt].join(', ')})\`);
+          console.log(\`[ErrorRemapper]   Sources: \${sourceMap.sources.join(', ')}\`);
+
+        } catch (err) {
+          console.warn(\`[ErrorRemapper] ❌ Failed to load \${mapInfo.mapUrl}:\`, err.message);
+        }
+      }
+
+      console.log(\`[ErrorRemapper] ✓ Successfully loaded \${sourceMapCache.size} source map entries\`);
+      console.log('[ErrorRemapper] Cache keys:', Array.from(sourceMapCache.keys()));
+
+    } catch (error) {
+      console.error('[ErrorRemapper] ❌ Failed to load source maps:', error.message);
+    }
+  }
+
+  /**
+   * Simple VLQ decoder for source maps
+   */
+  function decodeVLQ(str) {
+    const result = [];
+    let index = 0;
+
+    while (index < str.length) {
+      let vlq = 0;
+      let shift = 0;
+      let continuation;
+
+      do {
+        const char = str[index++];
+        const digit = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'.indexOf(char);
+        
+        if (digit === -1) {
+          console.warn(\`[ErrorRemapper] Invalid VLQ character: \${char}\`);
+          return result;
+        }
+
+        continuation = digit & 32;
+        vlq += (digit & 31) << shift;
+        shift += 5;
+      } while (continuation);
+
+      result.push(vlq & 1 ? -(vlq >> 1) : vlq >> 1);
+    }
+
+    return result;
+  }
+
+  /**
+   * Find original source position using source map
+   */
+  function findOriginalPosition(sourceMap, generatedLine, generatedColumn) {
+    if (!sourceMap || !sourceMap.mappings) {
+      return null;
+    }
+
+    try {
+      const mappings = sourceMap.mappings.split(';');
+      
+      // Get line (0-indexed)
+      if (generatedLine - 1 >= mappings.length) {
+        return null;
+      }
+
+      const lineMapping = mappings[generatedLine - 1];
+      if (!lineMapping || lineMapping.length === 0) {
+        return null;
+      }
+
+      // Decode VLQ
+      const decoded = decodeVLQ(lineMapping);
+      
+      let genCol = 0;
+      let srcIndex = 0;
+      let srcLine = 0;
+      let srcCol = 0;
+      let nameIndex = 0;
+      let bestMatch = null;
+
+      // Process segments (each segment is 1, 4, or 5 values)
+      for (let i = 0; i < decoded.length; i += 5) {
+        // Generated column (always present)
+        genCol += decoded[i] || 0;
+
+        // Source index, line, column, name index (may not all be present)
+        if (i + 1 < decoded.length) {
+          srcIndex += decoded[i + 1] || 0;
+        }
+        if (i + 2 < decoded.length) {
+          srcLine += decoded[i + 2] || 0;
+        }
+        if (i + 3 < decoded.length) {
+          srcCol += decoded[i + 3] || 0;
+        }
+        if (i + 4 < decoded.length) {
+          nameIndex += decoded[i + 4] || 0;
+        }
+
+        // Store if we have valid source info and haven't passed the column yet
+        if (genCol <= generatedColumn && srcIndex < sourceMap.sources.length) {
+          bestMatch = {
+            source: sourceMap.sources[srcIndex],
+            line: srcLine + 1,
+            column: srcCol,
+            name: sourceMap.names && nameIndex < sourceMap.names.length ? sourceMap.names[nameIndex] : null
+          };
+        }
+
+        // Stop if we've passed the column and have a match
+        if (genCol > generatedColumn && bestMatch) {
+          break;
+        }
+      }
+
+      return bestMatch;
+
+    } catch (err) {
+      console.warn(\`[ErrorRemapper] Error finding original position:\`, err.message);
+      return null;
+    }
+  }
+
+  /**
+   * Parse a stack trace line to extract file, line, column
+   */
+  function parseStackLine(line) {
+    const patterns = [
+      /at\s+(.+?)\s+\((.+?):(\d+):(\d+)\)/,  // at func (file:line:col)
+      /at\s+(.+?):(\d+):(\d+)/,              // at file:line:col
+      /@(.+?):(\d+):(\d+)/,                   // @file:line:col (Firefox)
+    ];
+
+    for (const pattern of patterns) {
+      const match = line.match(pattern);
+      if (match) {
+        if (match.length === 5) {
+          return {
+            functionName: match[1],
+            file: match[2],
+            line: parseInt(match[3]),
+            column: parseInt(match[4]),
+            original: line
+          };
+        } else if (match.length === 4) {
+          return {
+            functionName: null,
+            file: match[1],
+            line: parseInt(match[2]),
+            column: parseInt(match[3]),
+            original: line
+          };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Remap a single stack line using source maps
+   */
+  function remapStackLine(line) {
+    const parsed = parseStackLine(line);
+    if (!parsed) {
+      return line;
+    }
+
+    // Extract just the filename from the full path
+    const fullPath = parsed.file;
+    const fileName = fullPath.split('/').pop();
+    const fileWithoutExt = fileName.replace(/\.\w+$/, '');
+
+    // Try different file name variations
+    const fileVariations = [
+      fileName,           // element.js
+      fileWithoutExt,     // element
+      fullPath,           // full/path/element.js
+    ];
+
+    let sourceMap = null;
+    let mapKey = null;
+
+    for (const variation of fileVariations) {
+      sourceMap = sourceMapCache.get(variation);
+      if (sourceMap) {
+        mapKey = variation;
+        break;
+      }
+    }
+
+    if (!sourceMap) {
+      // Uncomment for debugging: console.log(\`[ErrorRemapper] No map for: \${fileName} (tried: \${fileVariations.join(', ')})\`);
+      return line;
+    }
+
+    const original = findOriginalPosition(sourceMap, parsed.line, parsed.column);
+    if (!original || !original.source) {
+      return line;
+    }
+
+    // Reconstruct the stack line with original source
+    const sourcePath = original.source.replace(/\\\\/g, '/');
+    const displayName = original.name || parsed.functionName || '';
+    
+    if (displayName) {
+      return \`    at \${displayName} (\${sourcePath}:\${original.line}:\${original.column})\`;
+    } else {
+      return \`    at \${sourcePath}:\${original.line}:\${original.column}\`;
+    }
+  }
+
+  /**
+   * Remap entire error stack
+   */
+  function remapErrorStack(error) {
+    if (!error || !error.stack) {
+      return error;
+    }
+
+    const lines = error.stack.split('\\n');
+    const remappedLines = lines.map((line, index) => {
+      if (index === 0) {
+        return line;
+      }
+      return remapStackLine(line);
+    });
+
+    error.stack = remappedLines.join('\\n');
+    return error;
+  }
+
+  /**
+   * Override console.error to remap stacks
+   */
+  const originalConsoleError = console.error;
+  console.error = function(...args) {
+    const remappedArgs = args.map(arg => {
+      if (arg instanceof Error) {
+        return remapErrorStack(arg);
+      }
+      return arg;
+    });
+
+    originalConsoleError.apply(console, remappedArgs);
+  };
+
+  /**
+   * Override window.onerror to remap uncaught errors
+   */
+  const originalOnError = window.onerror;
+  window.onerror = function(message, source, lineno, colno, error) {
+    if (error instanceof Error) {
+      remapErrorStack(error);
+      console.error('[UNCAUGHT ERROR]', error);
+    }
+
+    if (originalOnError) {
+      return originalOnError.apply(window, arguments);
+    }
+    return false;
+  };
+
+  /**
+   * Override unhandledrejection to remap promise errors
+   */
+  window.addEventListener('unhandledrejection', function(event) {
+    if (event.reason instanceof Error) {
+      remapErrorStack(event.reason);
+      console.error('[UNHANDLED REJECTION]', event.reason);
+    }
+  });
+
+  // Load source maps when ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadSourceMaps);
+  } else {
+    loadSourceMaps();
+  }
+
+  // Expose debug info
+  window.__errorRemapperDebug = {
+    cacheSize: () => sourceMapCache.size,
+    cacheKeys: () => Array.from(sourceMapCache.keys()),
+    loadedFiles: () => loadedFiles,
+    testRemap: (line) => remapStackLine(line)
+  };
+
+  console.log('[ErrorRemapper] ✓ Initialized');
+  console.log('[ErrorRemapper] Debug: window.__errorRemapperDebug');
+
+})();`;
   }
 
   /**
