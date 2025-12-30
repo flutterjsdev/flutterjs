@@ -1,20 +1,22 @@
 /**
- * ============================================================================
- * FlutterJS Complete Runtime Integration (FIXED - ACTUALLY USING IMPORTS)
- * ============================================================================
+ * FIXED: flutterjs_runtime.js - Add createElement bridge
  * 
- * NOW PROPERLY USES:
- * - VNodeRenderer: To render VNode to actual DOM elements
- * - VNodeBuilder: To build VNode tree and manage rendering
- * - Hydrator: To hydrate SSR content to CSR
+ * The issue: VNodeBuilder calls this.runtime.createElement(), but FlutterJSRuntime
+ * doesn't have this method (it's on RuntimeEngine).
  * 
- * Location: cli/runtime/flutterjs_runtime.js
+ * Solution: Add createElement() to FlutterJSRuntime that delegates to
+ * appropriate element class based on widget type.
  */
 
 import { VNodeRenderer } from '@flutterjs/vdom/vnode_renderer';
 import { Hydrator } from '@flutterjs/vdom/hydrator';
 import { VNodeBuilder } from '@flutterjs/vdom/vnode_builder';
-
+import { 
+  StatelessElement, 
+  StatefulElement, 
+  ComponentElement 
+} from '@flutterjs/runtime/element';
+import { InheritedElement } from '@flutterjs/runtime/inherited_element';
 
 // ============================================================================
 // UTILITIES
@@ -57,9 +59,9 @@ export class FlutterJSRuntime {
 
     // Component instances
     this.appBuilder = null;
-    this.vNodeBuilder = null;      // ✅ ADD: VNodeBuilder instance
-    this.vNodeRenderer = null;     // ✅ ADD: VNodeRenderer instance
-    this.hydrator = null;          // ✅ ADD: Hydrator instance
+    this.vNodeBuilder = null;
+    this.vNodeRenderer = null;
+    this.hydrator = null;
 
     // Performance metrics
     this.stats = {
@@ -97,8 +99,123 @@ export class FlutterJSRuntime {
   }
 
   /**
+   * ✅ NEW: createElement - Bridge to create elements from widgets
+   * 
+   * Called by VNodeBuilder when it needs to create an element from a widget.
+   * This is the critical method that was missing!
+   * 
+   * @param {Widget} widget - Widget to create element for
+   * @param {Element|null} parent - Parent element
+   * @returns {Element} Created element instance
+   */
+  createElement(widget, parent = null) {
+    if (!widget) {
+      throw new Error('[Runtime.createElement] Widget is required');
+    }
+
+    if (this.config.debugMode) {
+      console.log('[Runtime.createElement] Creating element for:', widget.constructor.name);
+    }
+
+    // Determine widget type and create appropriate element
+    
+    // Check for StatelessWidget
+    if (this.isStatelessWidget(widget)) {
+      if (this.config.debugMode) {
+        console.log('[Runtime.createElement] → StatelessElement');
+      }
+      return new StatelessElement(widget, parent, this);
+    }
+
+    // Check for StatefulWidget
+    if (this.isStatefulWidget(widget)) {
+      if (this.config.debugMode) {
+        console.log('[Runtime.createElement] → StatefulElement');
+      }
+      return new StatefulElement(widget, parent, this);
+    }
+
+    // Check for InheritedWidget
+    if (this.isInheritedWidget(widget)) {
+      if (this.config.debugMode) {
+        console.log('[Runtime.createElement] → InheritedElement');
+      }
+      return new InheritedElement(widget, parent, this);
+    }
+
+    // Check for custom component
+    if (this.isComponentWidget(widget)) {
+      if (this.config.debugMode) {
+        console.log('[Runtime.createElement] → ComponentElement');
+      }
+      return new ComponentElement(widget, parent, this);
+    }
+
+    // If widget has custom createElement method, use it
+    if (typeof widget.createElement === 'function') {
+      if (this.config.debugMode) {
+        console.log('[Runtime.createElement] → Custom createElement');
+      }
+      return widget.createElement(parent, this);
+    }
+
+    throw new Error(`[Runtime.createElement] Unknown widget type: ${widget.constructor.name}`);
+  }
+
+  /**
+   * ✅ Check if widget is StatelessWidget
+   */
+  isStatelessWidget(widget) {
+    if (!widget) return false;
+    
+    return widget.constructor.name === 'StatelessWidget' || 
+           (widget.constructor.prototype && 
+            widget.constructor.prototype.constructor.name === 'StatelessWidget') ||
+           (typeof widget.build === 'function' && 
+            !widget.createState && 
+            !widget.child &&
+            !widget.updateShouldNotify);
+  }
+
+  /**
+   * ✅ Check if widget is StatefulWidget
+   */
+  isStatefulWidget(widget) {
+    if (!widget) return false;
+    
+    return widget.constructor.name === 'StatefulWidget' ||
+           (widget.constructor.prototype && 
+            widget.constructor.prototype.constructor.name === 'StatefulWidget') ||
+           (typeof widget.createState === 'function');
+  }
+
+  /**
+   * ✅ Check if widget is InheritedWidget
+   */
+  isInheritedWidget(widget) {
+    if (!widget) return false;
+    
+    return widget.constructor.name === 'InheritedWidget' ||
+           (widget.constructor.prototype && 
+            widget.constructor.prototype.constructor.name === 'InheritedWidget') ||
+           (widget.child !== undefined && 
+            typeof widget.updateShouldNotify === 'function');
+  }
+
+  /**
+   * ✅ Check if widget is a custom component
+   */
+  isComponentWidget(widget) {
+    if (!widget) return false;
+    
+    return typeof widget.render === 'function' || 
+           (typeof widget.build === 'function' && 
+            typeof widget.createState !== 'function' &&
+            !widget.updateShouldNotify);
+  }
+
+  /**
    * Initialize runtime
-   * ✅ NOW CREATES VNodeBuilder, VNodeRenderer instances
    */
   initialize(options = {}) {
     if (this.initialized) {
@@ -127,7 +244,7 @@ export class FlutterJSRuntime {
       }
       this.vNodeBuilder = new VNodeBuilder({
         debugMode: this.config.debugMode,
-        runtime: this  // ✅ PASS RUNTIME HERE
+        runtime: this  // ✅ PASS RUNTIME (NOW HAS createElement!)
       });
 
       // ✅ CREATE VNODE RENDERER WITH RUNTIME REFERENCE
@@ -138,7 +255,7 @@ export class FlutterJSRuntime {
         this.vNodeRenderer = new VNodeRenderer({
           rootElement: this.rootElement,
           debugMode: this.config.debugMode,
-          runtime: this  // ✅ PASS RUNTIME HERE
+          runtime: this
         });
       }
 
@@ -150,7 +267,7 @@ export class FlutterJSRuntime {
         this.hydrator = new Hydrator({
           rootElement: this.rootElement,
           debugMode: this.config.debugMode,
-          runtime: this  // ✅ PASS RUNTIME HERE
+          runtime: this
         });
       }
 
@@ -177,7 +294,6 @@ export class FlutterJSRuntime {
 
   /**
    * MAIN METHOD: Run application
-   * ✅ NOW USES VNodeBuilder + VNodeRenderer
    */
   runApp(widgetOrVNode, options = {}) {
     if (!this.initialized) {
@@ -206,14 +322,13 @@ export class FlutterJSRuntime {
       } else if (isWidget) {
         // Need to build VNode from widget using VNodeBuilder
         if (this.config.debugMode) {
-          console.log('[Runtime] 🏗️  Building VNode from Widget class...');
+          console.log('[Runtime] 🗝️  Building VNode from Widget class...');
         }
 
-        // ✅ USE VNODE BUILDER TO CONVERT WIDGET TO VNODE
         if (!this.vNodeBuilder) {
           this.vNodeBuilder = new VNodeBuilder({
             debugMode: this.config.debugMode,
-            runtime: this  // ✅ ADD THIS LINE
+            runtime: this  // ✅ PASS RUNTIME (NOW HAS createElement!)
           });
         }
 
@@ -233,7 +348,7 @@ export class FlutterJSRuntime {
         this.appBuilder = options.appBuilder;
       }
 
-      // ✅ RENDER TO APPROPRIATE TARGET
+      // Render to appropriate target
       if (this.config.isBrowser && this.rootElement) {
         this.renderToDOM();
       } else if (this.config.isSSR) {
@@ -259,7 +374,6 @@ export class FlutterJSRuntime {
 
   /**
    * Render VNode to DOM
-   * ✅ NOW USES VNodeRenderer
    */
   renderToDOM() {
     if (!this.config.isBrowser) {
@@ -279,10 +393,8 @@ export class FlutterJSRuntime {
 
       if (this.config.debugMode) {
         console.log('[Runtime] 🎨 Rendering VNode to DOM...');
-        console.log('[Runtime] 📦 VNode structure:', JSON.stringify(this.rootVNode, null, 2).substring(0, 200) + '...');
       }
 
-      // ✅ USE VNODE RENDERER TO CREATE ACTUAL DOM
       if (!this.vNodeRenderer) {
         this.vNodeRenderer = new VNodeRenderer({
           rootElement: this.rootElement,
@@ -310,7 +422,6 @@ export class FlutterJSRuntime {
 
   /**
    * Render VNode to HTML string (SSR)
-   * ✅ NOW USES VNodeRenderer
    */
   renderToString() {
     if (!this.config.isSSR) {
@@ -329,7 +440,6 @@ export class FlutterJSRuntime {
         console.log('[Runtime] 📝 Rendering VNode to HTML string (SSR)...');
       }
 
-      // ✅ USE VNODE RENDERER TO CREATE HTML STRING
       if (!this.vNodeRenderer) {
         this.vNodeRenderer = new VNodeRenderer({
           debugMode: this.config.debugMode
@@ -353,7 +463,6 @@ export class FlutterJSRuntime {
 
   /**
    * Update application (after state change)
-   * ✅ NOW USES VNodeRenderer FOR RECONCILIATION
    */
   update(options = {}) {
     if (!this.mounted) {
@@ -367,25 +476,21 @@ export class FlutterJSRuntime {
       this.runHooks('beforeUpdate');
 
       if (this.config.debugMode) {
-        console.log('[Runtime] 🔄 Updating application...');
+        console.log('[Runtime] 📄 Updating application...');
       }
 
-      // If AppBuilder is available, rebuild VNode tree
       if (this.appBuilder && options.rebuild !== false) {
         if (this.config.debugMode) {
-          console.log('[Runtime] 🏗️  Rebuilding widget tree with AppBuilder...');
+          console.log('[Runtime] 🗝️  Rebuilding widget tree with AppBuilder...');
         }
 
-        // Get new VNode from AppBuilder
         const newVNode = this.appBuilder.build();
 
-        // ✅ USE VNODE RENDERER FOR RECONCILIATION
         if (this.config.isBrowser && this.vNodeRenderer && this.currentDOMElement) {
           if (this.config.debugMode) {
-            console.log('[Runtime] 🔍 Running VNode reconciliation...');
+            console.log('[Runtime] 📍 Running VNode reconciliation...');
           }
 
-          // Use renderer to update/reconcile DOM
           this.currentDOMElement = this.vNodeRenderer.reconcile(
             this.currentDOMElement,
             this.rootVNode,
@@ -395,7 +500,6 @@ export class FlutterJSRuntime {
           this.rootVNode = newVNode;
         }
       } else if (this.config.isBrowser && this.rootVNode && options.forceRender) {
-        // Force full re-render
         if (this.config.debugMode) {
           console.log('[Runtime] 💥 Force rendering...');
         }
@@ -428,7 +532,6 @@ export class FlutterJSRuntime {
 
   /**
    * Hot reload (development mode)
-   * ✅ NOW USES VNodeRenderer
    */
   hotReload(newVNode) {
     if (!this.config.enableHotReload) {
@@ -446,7 +549,6 @@ export class FlutterJSRuntime {
         console.log('[Runtime] 🔥 Hot reloading...');
       }
 
-      // ✅ USE VNODE RENDERER FOR HOT RELOAD
       if (this.vNodeRenderer && this.currentDOMElement) {
         this.currentDOMElement = this.vNodeRenderer.reconcile(
           this.currentDOMElement,
@@ -470,7 +572,6 @@ export class FlutterJSRuntime {
 
   /**
    * Hydrate (SSR → CSR bridge)
-   * ✅ NOW USES HYDRATOR
    */
   hydrate(hydrationData, options = {}) {
     if (!this.config.isBrowser) {
@@ -483,7 +584,6 @@ export class FlutterJSRuntime {
         console.log('[Runtime] 💧 Hydrating SSR content...');
       }
 
-      // ✅ USE HYDRATOR TO ATTACH LISTENERS TO SSR HTML
       if (!this.hydrator) {
         this.hydrator = new Hydrator({
           rootElement: this.rootElement,
@@ -512,7 +612,6 @@ export class FlutterJSRuntime {
 
   /**
    * Unmount application
-   * ✅ NOW USES VNodeRenderer FOR CLEANUP
    */
   unmount() {
     if (!this.mounted) {
@@ -527,17 +626,14 @@ export class FlutterJSRuntime {
         console.log('[Runtime] 🗑️  Unmounting...');
       }
 
-      // ✅ USE VNODE RENDERER FOR CLEANUP
       if (this.vNodeRenderer && this.currentDOMElement) {
         this.vNodeRenderer.cleanup(this.currentDOMElement);
       }
 
-      // Clear DOM
       if (this.rootElement) {
         this.rootElement.innerHTML = '';
       }
 
-      // Clear references
       this.currentDOMElement = null;
       this.rootVNode = null;
       this.appBuilder = null;
@@ -565,15 +661,12 @@ export class FlutterJSRuntime {
       this.unmount();
     }
 
-    // Clear hooks
     for (const hookName in this.hooks) {
       this.hooks[hookName] = [];
     }
 
-    // Clear error handlers
     this.errorHandlers = [];
 
-    // Clear component instances
     this.vNodeBuilder = null;
     this.vNodeRenderer = null;
     this.hydrator = null;
@@ -594,7 +687,7 @@ export class FlutterJSRuntime {
     let isHandlingError = false;
 
     window.addEventListener('error', (event) => {
-      if (isHandlingError) return; // Prevent recursive error handling
+      if (isHandlingError) return;
 
       isHandlingError = true;
       try {
@@ -620,19 +713,16 @@ export class FlutterJSRuntime {
    * Handle error
    */
   handleError(source, error) {
-    // Get the actual error message, don't stringify the whole object
     const errorMessage = error instanceof Error
       ? error.message
       : String(error);
 
     console.error(`[Runtime] ❌ Error in ${source}:`, errorMessage);
 
-    // Log stack trace safely
     if (error instanceof Error && error.stack && this.config.debugMode) {
       console.error('[Runtime] Stack trace:', error.stack);
     }
 
-    // Run user error handlers safely
     this.errorHandlers.forEach(handler => {
       try {
         handler(source, error);
@@ -641,7 +731,6 @@ export class FlutterJSRuntime {
       }
     });
 
-    // Debug overlay only if explicitly enabled
     if (this.config.debugMode && this.config.isBrowser) {
       try {
         this.showErrorOverlay(source, errorMessage);
@@ -651,7 +740,6 @@ export class FlutterJSRuntime {
     }
   }
 
-
   /**
    * Show error overlay
    */
@@ -659,13 +747,11 @@ export class FlutterJSRuntime {
     try {
       if (typeof document === 'undefined') return;
 
-      // Remove old overlay safely
       const overlay = document.getElementById('__flutterjs_error_overlay__');
       if (overlay) {
         overlay.remove();
       }
 
-      // Create new overlay
       const div = document.createElement('div');
       div.id = '__flutterjs_error_overlay__';
       div.style.cssText = `
@@ -693,7 +779,6 @@ export class FlutterJSRuntime {
       border-left: 4px solid #d32f2f;
     `;
 
-      // Format error safely
       const errorMsg = errorMessage
         ? String(errorMessage).split('\n')[0]
         : 'Unknown error';
@@ -726,8 +811,6 @@ export class FlutterJSRuntime {
       console.error('[Runtime] Overlay creation failed:', e.message);
     }
   }
-
-
 
   /**
    * Register lifecycle hook
@@ -772,14 +855,13 @@ export class FlutterJSRuntime {
       initialized: this.initialized,
       mounted: this.mounted,
       environment: this.config.isBrowser ? 'browser' : 'server',
-      vnodeSize: 0  // Don't try to stringify - VNode has circular refs
+      vnodeSize: 0
     };
   }
 
   /**
    * Log statistics
    */
-
   logStats() {
     if (!this.config.debugMode) return;
 
@@ -809,18 +891,6 @@ export class FlutterJSRuntime {
   isMounted() {
     return this.mounted;
   }
-}
-
-
-function escapeHtml(text) {
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
-  return text.replace(/[&<>"']/g, m => map[m]);
 }
 
 // ============================================================================
@@ -896,7 +966,16 @@ export function dispose() {
   }
 }
 
-
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
 
 // ============================================================================
 // EXPORTS
