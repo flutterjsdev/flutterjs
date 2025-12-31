@@ -1,26 +1,11 @@
 /**
- * FlutterJS Element System
+ * FlutterJS Element System - FIXED VERSION
  * 
  * Elements are the live instances that bridge widgets and DOM.
  * They manage the lifecycle, state, and rendering of widgets.
- * 
- * Element Hierarchy:
- * - Element (base class)
- *   - StatelessElement (for StatelessWidget)
- *   - StatefulElement (for StatefulWidget)
- *   - InheritedElement (for InheritedWidget)
- *   - ComponentElement (for custom components)
- * 
- * Key Concepts:
- * - Widgets are immutable configuration objects
- * - Elements are mutable live instances
- * - Elements own the DOM references and state
  */
 
-// Import BuildContext
 import { BuildContext } from './build_context.js';
-
-
 
 // ============================================================================
 // DIAGNOSTIC LEVELS - Mirror Dart's DiagnosticLevel
@@ -105,8 +90,6 @@ export class Diagnosticable {
   }
 }
 
-
-
 /**
  * Base Element Class
  * 
@@ -114,199 +97,204 @@ export class Diagnosticable {
  * and manage the actual rendering and lifecycle.
  */
 class Element extends Diagnosticable {
-  constructor(widget, parent, runtime) {
-    super(); // ✅ CALL SUPER FIRST (before any this usage)
-
-    console.log('❌ Element constructor called:', {
-      widgetType: widget?.constructor.name,
-      hasParent: !!parent,
-      runtimeType: runtime?.constructor.name,
-      runtimeDefined: runtime !== undefined,
-      runtimeArg: runtime
-    });
+  constructor(widget, parent = null, runtime = null) {
+    super();
 
     if (!widget) {
       throw new Error('Widget is required for Element creation');
     }
 
     if (!runtime) {
-      console.error('❌ RUNTIME IS UNDEFINED!');
-      console.error('   Widget type:', widget.constructor.name);
-      console.error('   Parent:', parent?.constructor.name);
-      console.error('   Called from:', new Error().stack);
       throw new Error('RUNTIME IS UNDEFINED! Runtime is required for Element creation');
     }
 
-    this.widget = widget;
-    this.parent = parent;
+    // ✅ Use private property for widget storage
+    this._widget = widget;
+    this._parent = parent;
     this.runtime = runtime;
 
-    console.log('✓ Element created:', {
-      type: this.constructor.name,
-      runtime: this.runtime.constructor.name
-    });          // Runtime engine reference
-
     // Element tree structure
-    this.children = [];                // Child elements
-    this.childMap = new Map();         // key → child element mapping
+    this._children = [];
+    this._childMap = new Map();
 
     // Rendering state
-    this.vnode = null;                 // Current virtual node
-    this.domNode = null;               // DOM reference
+    this._vnode = null;
+    this._domNode = null;
 
     // Lifecycle state
-    this.mounted = false;              // Is element mounted?
-    this.dirty = false;                // Needs rebuild?
-    this.building = false;             // Currently building?
+    this._mounted = false;
+    this._dirty = false;
+    this._building = false;
 
     // Tree position
-    this.depth = parent ? parent.depth + 1 : 0;
+    this._depth = parent ? (parent._depth || 0) + 1 : 0;
 
     // Identity
-    this.key = widget.key;             // For reconciliation
-    this.id = Element.generateId();    // Unique ID
+    this.key = widget.key;
+    this._id = Element.generateId();
 
     // Metadata
-    this.buildCount = 0;               // Number of times built
-    this.lastBuildTime = 0;            // Last build timestamp
-    this.lastBuildDuration = 0;        // Last build duration (ms)
+    this._buildCount = 0;
+    this._lastBuildTime = 0;
+    this._lastBuildDuration = 0;
+
+    // Build context
+    this._context = null;
   }
 
+  // ============================================================================
+  // PROPERTIES - Getter/Setter pattern
+  // ============================================================================
+
+  get widget() {
+    return this._widget;
+  }
+
+  set widget(newWidget) {
+    this._widget = newWidget;
+  }
+
+  get parent() {
+    return this._parent;
+  }
+
+  set parent(p) {
+    this._parent = p;
+  }
+
+  get children() {
+    return this._children;
+  }
+
+  get depth() {
+    return this._depth;
+  }
+
+  get id() {
+    return this._id;
+  }
+
+  get mounted() {
+    return this._mounted;
+  }
+
+  get dirty() {
+    return this._dirty;
+  }
+
+  get building() {
+    return this._building;
+  }
+
+  get vnode() {
+    return this._vnode;
+  }
+
+  set vnode(v) {
+    this._vnode = v;
+  }
+
+  get domNode() {
+    return this._domNode;
+  }
+
+  set domNode(d) {
+    this._domNode = d;
+  }
+
+  get context() {
+    if (!this._context) {
+      this._context = new BuildContext(this, this.runtime);
+    }
+    return this._context;
+  }
+
+  // ============================================================================
+  // CORE METHODS
+  // ============================================================================
+
   /**
-   * Build VNode from widget
-   * Subclasses must override this method
+   * Perform rebuild - must be overridden by subclasses
    */
-  build() {
-    throw new Error(`${this.constructor.name}.build() must be implemented by subclass`);
+  performRebuild() {
+    throw new Error(`${this.constructor.name}.performRebuild() must be implemented by subclass`);
   }
 
   /**
    * Mount element (first time attachment to tree)
-   * Called when element is first added to the tree
    */
-  mount() {
-    if (this.mounted) {
-      console.warn(`[Element] ${this.id} already mounted`);
+  mount(parent = null) {
+    if (this._mounted) {
+      console.warn(`[Element] ${this._id} already mounted`);
       return;
     }
 
     try {
-      // Mark as mounted
-      this.mounted = true;
+      this._mounted = true;
 
-      // Build initial VNode
-      this.vnode = this.performBuild();
+      // Update parent if provided
+      if (parent) {
+        this._parent = parent;
+        this._depth = (parent._depth || 0) + 1;
+      }
+
+      // Perform initial rebuild
+      this._vnode = this.performRebuild();
 
       // Mount children
-      this.children.forEach(child => {
-        if (!child.mounted) {
-          child.mount();
+      this._children.forEach(child => {
+        if (!child._mounted) {
+          child.mount(this);
         }
       });
 
-      // Call didMount lifecycle hook
       this.didMount();
     } catch (error) {
-      this.mounted = false;
+      this._mounted = false;
       throw new Error(`Failed to mount ${this.constructor.name}: ${error.message}`);
     }
   }
 
   /**
-   * Update element with new widget
-   * Called when parent rebuilds with new widget configuration
-   */
-  update(newWidget) {
-    if (!newWidget) {
-      throw new Error('New widget is required for update');
-    }
-
-    const oldWidget = this.widget;
-
-    // Update widget reference
-    this.widget = newWidget;
-
-    // Check if rebuild needed
-    if (this.shouldRebuild(oldWidget, newWidget)) {
-      this.markNeedsBuild();
-    }
-
-    // Call lifecycle hook
-    this.didUpdateWidget(oldWidget, newWidget);
-  }
-
-  /**
-   * Rebuild element
-   * Called when element is marked dirty
+   * Rebuild element when dirty
    */
   rebuild() {
-    if (!this.mounted) {
-      console.warn(`[Element] Cannot rebuild unmounted element ${this.id}`);
+    if (!this._mounted) {
+      console.warn(`[Element] Cannot rebuild unmounted element ${this._id}`);
       return;
     }
 
-    if (this.building) {
-      console.warn(`[Element] Recursive rebuild detected for ${this.id}`);
+    if (this._building) {
+      console.warn(`[Element] Recursive rebuild detected for ${this._id}`);
       return;
     }
 
     try {
-      this.building = true;
+      this._building = true;
 
-      const oldVNode = this.vnode;
+      const oldVNode = this._vnode;
 
-      // Perform build
-      this.vnode = this.performBuild();
+      // Perform rebuild
+      this._vnode = this.performRebuild();
 
-      // Apply changes (diffing happens here in full implementation)
-      this.applyChanges(oldVNode, this.vnode);
+      // Apply changes
+      this.applyChanges(oldVNode, this._vnode);
 
-      // Clear dirty flag
-      this.dirty = false;
+      this._dirty = false;
     } catch (error) {
-      console.error(`[Element] Rebuild failed for ${this.id}:`, error);
+      console.error(`[Element] Rebuild failed for ${this._id}:`, error);
       throw error;
     } finally {
-      this.building = false;
-    }
-  }
-
-  /**
-   * Perform build with timing and error handling
-   */
-  performBuild() {
-    const startTime = performance.now();
-
-    try {
-      const vnode = this.build();
-
-      if (!vnode) {
-        throw new Error('build() returned null or undefined');
-      }
-
-      this.buildCount++;
-      this.lastBuildTime = Date.now();
-      this.lastBuildDuration = performance.now() - startTime;
-
-      return vnode;
-    } catch (error) {
-      throw new Error(`Build failed: ${error.message}`);
+      this._building = false;
     }
   }
 
   /**
    * Apply changes from VNode diff
-   * (Simplified for now, full diffing in Phase 5.2)
    */
   applyChanges(oldVNode, newVNode) {
-    // In full implementation, this would:
-    // 1. Diff oldVNode vs newVNode
-    // 2. Generate patches
-    // 3. Apply patches to DOM
-
-    // For now, just track the change
     if (this.runtime.config && this.runtime.config.debugMode) {
-      console.log(`[Element] Applied changes to ${this.id}`);
+      console.log(`[Element] Applied changes to ${this._id}`);
     }
   }
 
@@ -314,18 +302,18 @@ class Element extends Diagnosticable {
    * Mark element as needing rebuild
    */
   markNeedsBuild() {
-    if (this.dirty) {
-      return; // Already marked
-    }
-
-    if (!this.mounted) {
-      console.warn(`[Element] Cannot mark unmounted element ${this.id} dirty`);
+    if (this._dirty) {
       return;
     }
 
-    this.dirty = true;
+    if (!this._mounted) {
+      console.warn(`[Element] Cannot mark unmounted element ${this._id} dirty`);
+      return;
+    }
 
-    // Notify runtime
+    this._dirty = true;
+
+    // Notify runtime if available
     if (this.runtime && this.runtime.markNeedsBuild) {
       this.runtime.markNeedsBuild(this);
     }
@@ -333,56 +321,67 @@ class Element extends Diagnosticable {
 
   /**
    * Unmount element
-   * Called when element is removed from tree
    */
   unmount() {
-    if (!this.mounted) {
+    if (!this._mounted) {
       return;
     }
 
     try {
-      // Call lifecycle hook
       this.willUnmount();
 
       // Unmount children first
-      this.children.forEach(child => {
-        if (child.mounted) {
+      this._children.forEach(child => {
+        if (child._mounted) {
           child.unmount();
         }
       });
 
       // Clear references
-      this.children = [];
-      this.childMap.clear();
-      this.vnode = null;
-      this.domNode = null;
+      this._children = [];
+      this._childMap.clear();
+      this._vnode = null;
+      this._domNode = null;
 
-      // Mark as unmounted
-      this.mounted = false;
-      this.dirty = false;
+      this._mounted = false;
+      this._dirty = false;
 
-      // Call lifecycle hook
       this.didUnmount();
     } catch (error) {
-      console.error(`[Element] Unmount failed for ${this.id}:`, error);
+      console.error(`[Element] Unmount failed for ${this._id}:`, error);
     }
   }
 
   /**
-   * Determine if widget update should trigger rebuild
+   * Update element with new widget
+   */
+  updateWidget(newWidget) {
+    if (!newWidget) {
+      throw new Error('New widget is required for update');
+    }
+
+    const oldWidget = this._widget;
+    this.widget = newWidget;
+
+    if (this.shouldRebuild(oldWidget, newWidget)) {
+      this.markNeedsBuild();
+    }
+
+    this.didUpdateWidget(oldWidget, newWidget);
+  }
+
+  /**
+   * Determine if rebuild is needed
    */
   shouldRebuild(oldWidget, newWidget) {
-    // If same reference, no rebuild needed
     if (oldWidget === newWidget) {
       return false;
     }
 
-    // If different types, rebuild needed
     if (oldWidget.constructor !== newWidget.constructor) {
       return true;
     }
 
-    // Deep comparison of widget properties
     return !this.areWidgetsEqual(oldWidget, newWidget);
   }
 
@@ -390,36 +389,33 @@ class Element extends Diagnosticable {
    * Compare two widgets for equality
    */
   areWidgetsEqual(w1, w2) {
-    // Check constructor
     if (w1.constructor !== w2.constructor) {
       return false;
     }
 
-    // Get all enumerable properties
     const keys1 = Object.keys(w1);
     const keys2 = Object.keys(w2);
 
-    // Check property count
     if (keys1.length !== keys2.length) {
       return false;
     }
 
-    // Compare each property
     return keys1.every(key => {
       const val1 = w1[key];
       const val2 = w2[key];
 
-      // Skip functions (they're usually event handlers)
       if (typeof val1 === 'function' && typeof val2 === 'function') {
         return true;
       }
 
-      // Deep comparison for objects
       if (typeof val1 === 'object' && typeof val2 === 'object') {
-        return JSON.stringify(val1) === JSON.stringify(val2);
+        try {
+          return JSON.stringify(val1) === JSON.stringify(val2);
+        } catch {
+          return false;
+        }
       }
 
-      // Primitive comparison
       return val1 === val2;
     });
   }
@@ -432,11 +428,10 @@ class Element extends Diagnosticable {
       throw new Error('Child element is required');
     }
 
-    this.children.push(child);
+    this._children.push(child);
 
-    // Track by key if available
     if (child.key) {
-      this.childMap.set(child.key, child);
+      this._childMap.set(child.key, child);
     }
 
     child.parent = this;
@@ -446,14 +441,14 @@ class Element extends Diagnosticable {
    * Remove child element
    */
   removeChild(child) {
-    const index = this.children.indexOf(child);
+    const index = this._children.indexOf(child);
 
     if (index !== -1) {
-      this.children.splice(index, 1);
+      this._children.splice(index, 1);
     }
 
     if (child.key) {
-      this.childMap.delete(child.key);
+      this._childMap.delete(child.key);
     }
 
     child.parent = null;
@@ -463,20 +458,20 @@ class Element extends Diagnosticable {
    * Find child by key
    */
   findChildByKey(key) {
-    return this.childMap.get(key);
+    return this._childMap.get(key);
   }
 
   /**
-   * Get ancestor element of specific type
+   * Find ancestor of type
    */
   findAncestorOfType(ElementType) {
-    let current = this.parent;
+    let current = this._parent;
 
     while (current) {
       if (current instanceof ElementType) {
         return current;
       }
-      current = current.parent;
+      current = current._parent;
     }
 
     return null;
@@ -486,66 +481,82 @@ class Element extends Diagnosticable {
    * Visit all ancestors
    */
   visitAncestors(visitor) {
-    let current = this.parent;
+    let current = this._parent;
 
     while (current) {
       const shouldContinue = visitor(current);
       if (shouldContinue === false) {
         break;
       }
-      current = current.parent;
+      current = current._parent;
     }
   }
 
-  // Lifecycle Hooks (override in subclasses)
+  // ============================================================================
+  // LIFECYCLE HOOKS
+  // ============================================================================
 
   didMount() {
-    // Called after first mount
+    // Override in subclasses
   }
 
   didUpdateWidget(oldWidget, newWidget) {
-    // Called after widget update
+    // Override in subclasses
   }
 
   willUnmount() {
-    // Called before unmount
+    // Override in subclasses
   }
 
   didUnmount() {
-    // Called after unmount
+    // Override in subclasses
   }
 
-  /**
-   * Get element statistics
-   */
+  reassemble() {
+    // Override in subclasses
+  }
+
+  activate() {
+    // Override in subclasses
+  }
+
+  deactivate() {
+    // Override in subclasses
+  }
+
+  didChangeDependencies() {
+    // Override in subclasses
+  }
+
+  // ============================================================================
+  // UTILITIES
+  // ============================================================================
+
   getStats() {
     return {
-      id: this.id,
+      id: this._id,
       type: this.constructor.name,
-      mounted: this.mounted,
-      dirty: this.dirty,
-      depth: this.depth,
-      childCount: this.children.length,
-      buildCount: this.buildCount,
-      lastBuildDuration: this.lastBuildDuration,
+      mounted: this._mounted,
+      dirty: this._dirty,
+      depth: this._depth,
+      childCount: this._children.length,
+      buildCount: this._buildCount,
+      lastBuildDuration: this._lastBuildDuration,
       hasKey: !!this.key
     };
   }
 
-  /**
-   * Generate unique element ID
-   */
   static generateId() {
     return `el_${++Element._counter}`;
   }
 
-  /**
-   * Reset ID counter (for testing)
-   */
   static resetCounter() {
     Element._counter = 0;
   }
 }
+
+
+
 
 // Initialize counter
 Element._counter = 0;
@@ -562,37 +573,84 @@ class StatelessElement extends Element {
   }
 
   build() {
-    console.log('🔍 StatelessElement.build() - checking this.runtime:', {
-      exists: !!this.runtime,
-      type: this.runtime?.constructor.name,
-      isUndefined: this.runtime === undefined
+    console.log('📦 StatelessElement.build() START', {
+      widgetType: this.widget?.constructor.name,
+      widgetInstance: this.widget,
+      hasBuildMethod: typeof this.widget?.build === 'function'
     });
+
     const context = this.buildContext();
 
     try {
-      // Call widget's build method
+      // STEP 1: Call widget's build method
+      console.log('📝 Calling widget.build(context)...');
       const result = this.widget.build(context);
 
+      console.log('✓ widget.build() returned:', {
+        resultType: typeof result,
+        resultConstructor: result?.constructor?.name,
+        resultKeys: result ? Object.keys(result).slice(0, 5) : null,
+        isVNode: result?.tag !== undefined,
+        isString: typeof result === 'string',
+        isNull: result === null,
+        result: result
+      });
+
       if (!result) {
+        console.warn('⚠️ Result is null/undefined');
         throw new Error('StatelessWidget.build() returned null');
       }
 
-      // ✅ FIX: If result is a widget (not a VNode), convert to element and build
-      if (result && typeof result === 'object' && result.constructor.name && !result.tag) {
-        // This is a widget, not a VNode
+      // STEP 2: Check if result is a DOM element (the culprit!)
+      if (result instanceof HTMLElement) {
+        console.error('❌ FOUND THE ISSUE!');
+        console.error('   Widget returned an HTMLElement instead of a Widget/VNode');
+        console.error('   Element type:', result.tagName);
+        console.error('   Element:', result);
+        console.error('   Widget class:', this.widget.constructor.name);
+        console.error('   This means widget.build() is directly manipulating the DOM');
+        throw new Error(
+          `❌ CRITICAL: ${this.widget.constructor.name}.build() returned an HTMLElement (${result.tagName}). ` +
+          `build() must return a Widget or VNode, not a DOM element!`
+        );
+      }
+
+      // STEP 3: Check if result is a widget (not a VNode)
+      const isWidget = result &&
+        typeof result === 'object' &&
+        result.constructor.name &&
+        !result.tag;
+
+      if (isWidget) {
+        console.log('🔄 Result is a Widget, recursively building...');
         const childElement = this.runtime.createElement(result, this);
 
         if (!childElement) {
           throw new Error('Failed to create element from child widget');
         }
 
-        // Recursively build the child element
         return childElement.build();
       }
 
-      // Otherwise it's already a VNode or primitive
+      // STEP 4: Check if it's a VNode
+      if (result?.tag) {
+        console.log('✓ Result is a VNode');
+        return result;
+      }
+
+      // STEP 5: Check if it's a string/primitive
+      if (typeof result === 'string' || typeof result === 'number') {
+        console.log('✓ Result is a primitive:', result);
+        return result;
+      }
+
+      console.warn('⚠️ Unknown result type:', result);
       return result;
+
     } catch (error) {
+      console.error('❌ Build error:', error);
+      console.error('   Widget:', this.widget?.constructor.name);
+      console.error('   Error message:', error.message);
       throw new Error(`StatelessWidget build failed: ${error.message}`);
     }
   }
@@ -677,6 +735,7 @@ class StatefulElement extends Element {
   update(newWidget) {
     const oldWidget = this.widget;
 
+    // ✅ FIX: Use setter
     this.widget = newWidget;
     this.state._widget = newWidget;
 
@@ -719,7 +778,6 @@ class StatefulElement extends Element {
     };
   }
 }
-
 
 /**
  * ComponentElement
@@ -777,13 +835,10 @@ class ComponentElement extends Element {
   }
 }
 
-
-
 export {
   Element,
   StatelessElement,
   StatefulElement,
-
   ComponentElement,
   DiagnosticLevel
 };
