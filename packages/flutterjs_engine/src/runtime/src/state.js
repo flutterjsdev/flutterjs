@@ -1,29 +1,10 @@
 /**
- * FlutterJS State Management System
+ * FlutterJS State Management System - FIXED
  * 
  * Provides reactive state management for StatefulWidget.
- * 
- * Key Components:
- * - State: Base class for widget state
- * - StateManager: Coordinates state updates and rebuilds
- * - StateTracker: Tracks dependencies and reactivity
- * - UpdateBatcher: Batches multiple setState calls
- * 
- * Lifecycle:
- * 1. initState() - Called once on creation
- * 2. didChangeDependencies() - When inherited values change
- * 3. build() - Build widget tree
- * 4. didUpdateWidget() - When parent widget changes
- * 5. setState() - Trigger rebuild
- * 6. dispose() - Cleanup
+ * Added missing lifecycle methods: _mount, _unmount, _reactivate, _deactivate, _updateWidget
  */
 
-/**
- * State Base Class
- * 
- * Base class for all stateful widget state.
- * Subclasses must implement build() method.
- */
 import { UpdateBatcher } from "./update_batcher.js";
 import { StateTracker } from "./state_tracker.js";
 
@@ -39,6 +20,9 @@ class State {
     // Lifecycle tracking
     this._initStateCalled = false;
     this._disposeCalled = false;
+    this._didInitState = false;
+    this._didMount = false;
+    this._isActive = false;
 
     // Performance tracking
     this._buildCount = 0;
@@ -97,6 +81,27 @@ class State {
   }
 
   /**
+   * Called when state is reactivated (after deactivate)
+   */
+  activate() {
+    // Override in subclass
+  }
+
+  /**
+   * Called when state is deactivated (but not disposed)
+   */
+  deactivate() {
+    // Override in subclass
+  }
+
+  /**
+   * Called during hot reload
+   */
+  reassemble() {
+    // Override in subclass
+  }
+
+  /**
    * Update state and schedule rebuild
    * @param {Function|Object} updateFn - Update function or object
    */
@@ -138,7 +143,7 @@ class State {
    * @returns {BuildContext|null}
    */
   get context() {
-    return this._element ? this._element.buildContext() : null;
+    return this._element ? this._element.context : null;
   }
 
   /**
@@ -146,7 +151,7 @@ class State {
    * @returns {boolean}
    */
   get mounted() {
-    return this._mounted && this._element && this._element.mounted;
+    return this._mounted && this._element && this._element._mounted;
   }
 
   /**
@@ -162,6 +167,112 @@ class State {
    */
   _markBuilding(building) {
     this._building = building;
+  }
+
+  // ============================================================================
+  // INTERNAL LIFECYCLE METHODS
+  // ============================================================================
+
+  /**
+   * Internal: Mount the state
+   * Called by StatefulElement.mount()
+   */
+  _mount(element) {
+    if (this._mounted) {
+      return;
+    }
+
+    this._element = element;
+    this._widget = element.widget;
+    this._mounted = true;
+    this._isActive = true;
+
+    // Call initState
+    if (!this._didInitState) {
+      this._didInitState = true;
+      try {
+        this.initState();
+      } catch (error) {
+        console.error(`[State] initState failed:`, error);
+        throw error;
+      }
+    }
+
+    // Call didChangeDependencies
+    try {
+      this.didChangeDependencies();
+    } catch (error) {
+      console.error(`[State] didChangeDependencies failed:`, error);
+    }
+
+    // Call didMount
+    if (!this._didMount) {
+      this._didMount = true;
+      try {
+        this.didMount();
+      } catch (error) {
+        console.error(`[State] didMount failed:`, error);
+      }
+    }
+  }
+
+  /**
+   * Internal: Unmount the state
+   * Called by StatefulElement.unmount()
+   */
+  _unmount() {
+    if (!this._mounted) {
+      return;
+    }
+
+    this._isActive = false;
+    this._mounted = false;
+
+    // Dispose is called separately, so don't call it here
+  }
+
+  /**
+   * Internal: Reactivate the state
+   * Called by StatefulElement.activate()
+   */
+  _reactivate() {
+    if (this._isActive) {
+      return;
+    }
+
+    this._isActive = true;
+
+    try {
+      this.activate();
+    } catch (error) {
+      console.error(`[State] activate failed:`, error);
+    }
+  }
+
+  /**
+   * Internal: Deactivate the state
+   * Called by StatefulElement.deactivate()
+   */
+  _deactivate() {
+    if (!this._isActive) {
+      return;
+    }
+
+    this._isActive = false;
+
+    try {
+      this.deactivate();
+    } catch (error) {
+      console.error(`[State] deactivate failed:`, error);
+    }
+  }
+
+  /**
+   * Internal: Update widget reference
+   * Called by StatefulElement.updateWidget()
+   */
+  _updateWidget(newWidget) {
+    this._widget = newWidget;
   }
 
   /**
@@ -193,6 +304,7 @@ class State {
 
     this._disposeCalled = true;
     this._mounted = false;
+    this._isActive = false;
 
     try {
       this.dispose();
@@ -210,7 +322,8 @@ class State {
       buildCount: this._buildCount,
       lastBuildTime: this._lastBuildTime,
       initStateCalled: this._initStateCalled,
-      disposeCalled: this._disposeCalled
+      disposeCalled: this._disposeCalled,
+      isActive: this._isActive
     };
   }
 }
@@ -381,9 +494,6 @@ class StateManager {
 
 StateManager._stateIdCounter = 0;
 
-
-
-
 /**
  * ReactiveState
  * 
@@ -430,7 +540,7 @@ class ReactiveState extends State {
             if (stateManager) {
               const dependents = stateManager.stateTracker.getDependents(this, property);
               dependents.forEach(el => {
-                if (el.mounted) {
+                if (el._mounted) {
                   el.markNeedsBuild();
                 }
               });
@@ -542,11 +652,9 @@ class StateObserver {
   }
 }
 
-
 export {
   State,
   StateManager,
-
   ReactiveState,
   StateObserver
 };

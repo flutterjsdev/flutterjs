@@ -1,22 +1,28 @@
 /**
- * FIXED: flutterjs_runtime.js - Add createElement bridge
+ * FlutterJS Runtime - Complete Production Version
  * 
- * The issue: VNodeBuilder calls this.runtime.createElement(), but FlutterJSRuntime
- * doesn't have this method (it's on RuntimeEngine).
- * 
- * Solution: Add createElement() to FlutterJSRuntime that delegates to
- * appropriate element class based on widget type.
+ * FIXED: Handles both Widget and VNode inputs correctly
  */
 
-import { VNodeRenderer } from '@flutterjs/vdom/vnode_renderer';
-import { Hydrator } from '@flutterjs/vdom/hydrator';
-import { VNodeBuilder } from '@flutterjs/vdom/vnode_builder';
-import { 
-  StatelessElement, 
-  StatefulElement, 
-  ComponentElement 
+import {
+  VNodeRuntime,
+  runApp as coreRunApp,
+  getRuntime as coreGetRuntime,
+  updateApp as coreUpdateApp,
+  getMetrics as coreGetMetrics,
+  hotReload as coreHotReload,
+  renderToString as coreRenderToString,
+  hydrate as coreHydrate
+} from '@flutterjs/vdom/runtime_index';
+
+import {
+  StatelessElement,
+  StatefulElement,
+  ComponentElement
 } from '@flutterjs/runtime/element';
 import { InheritedElement } from '@flutterjs/runtime/inherited_element';
+import { VNodeBuilder } from '@flutterjs/vdom/vnode_builder';
+import { VNodeRenderer } from '@flutterjs/vdom/vnode_renderer';
 
 // ============================================================================
 // UTILITIES
@@ -30,858 +36,755 @@ function isSSR() {
   return typeof window === 'undefined';
 }
 
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+
+function generateId() {
+  return `fjs-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+function deepMerge(target, ...sources) {
+  if (!sources.length) return target;
+  const source = sources.shift();
+
+  if (isObject(target) && isObject(source)) {
+    for (const key in source) {
+      if (isObject(source[key])) {
+        if (!target[key]) Object.assign(target, { [key]: {} });
+        deepMerge(target[key], source[key]);
+      } else {
+        Object.assign(target, { [key]: source[key] });
+      }
+    }
+  }
+
+  return deepMerge(target, ...sources);
+}
+
+function isObject(item) {
+  return item && typeof item === 'object' && !Array.isArray(item);
+}
+
+/**
+ * Check if input is a VNode (already built)
+ */
+function isVNode(obj) {
+  return obj && (
+    // Must have a tag property (HTML element name)
+    obj.tag !== undefined &&
+    // Should have props and/or children (VNode structure)
+    (obj.props !== undefined || obj.children !== undefined) &&
+    // Should NOT have widget-specific properties
+    obj.build === undefined &&
+    obj.createState === undefined &&
+    obj.createElement === undefined
+  );
+}
+
+/**
+ * Check if input is a Widget (needs building)
+ */
+function isWidget(obj) {
+  return obj && (
+    typeof obj.build === 'function' ||
+    typeof obj.createState === 'function' ||
+    typeof obj.render === 'function' ||
+    typeof obj.createElement === 'function'
+  );
+}
+
 // ============================================================================
-// MAIN RUNTIME CLASS
+// ENHANCED RUNTIME CLASS
 // ============================================================================
 
-export class FlutterJSRuntime {
+export class FlutterJSRuntime extends VNodeRuntime {
   constructor(options = {}) {
-    // Configuration
-    this.config = {
+    super();
+
+    // Additional Flutter-specific configuration
+    this.flutterConfig = {
       debugMode: options.debugMode || false,
       enableHotReload: options.enableHotReload !== false,
       enableStateTracking: options.enableStateTracking !== false,
       enablePerformanceTracking: options.enablePerformanceTracking !== false,
-      mode: options.mode || 'csr',
+      enableErrorBoundaries: options.enableErrorBoundaries !== false,
       target: options.target || 'web',
       isBrowser: isBrowser(),
       isSSR: isSSR(),
+      strictMode: options.strictMode || false,
       ...options
     };
 
-    // State
+    // Track initialization state
     this.initialized = false;
     this.mounted = false;
-    this.rootElement = null;
-    this.rootWidget = null;
-    this.rootVNode = null;
-    this.currentDOMElement = null;
 
-    // Component instances
-    this.appBuilder = null;
-    this.vNodeBuilder = null;
-    this.vNodeRenderer = null;
-    this.hydrator = null;
+    // Store original input for rebuilds
+    this.originalInput = null;
+    this.inputType = null; // 'widget' or 'vnode'
 
-    // Performance metrics
-    this.stats = {
-      initTime: 0,
-      mountTime: 0,
-      renderTime: 0,
-      updateCount: 0,
-      totalUpdateTime: 0,
-      averageUpdateTime: 0,
-      lastUpdateTime: 0
+    // Element registry for tracking all created elements
+    this.elementRegistry = new Map();
+
+    // Widget instance cache
+    this.widgetCache = new WeakMap();
+
+    // Error boundary stack
+    this.errorBoundaries = [];
+
+    // Lifecycle callbacks
+    this.lifecycleCallbacks = {
+      onElementCreated: [],
+      onElementMounted: [],
+      onElementUpdated: [],
+      onElementUnmounted: [],
+      onError: [],
+      onStateChange: []
     };
 
-    // Lifecycle hooks
-    this.hooks = {
-      beforeInit: [],
-      afterInit: [],
-      beforeMount: [],
-      afterMount: [],
-      beforeUpdate: [],
-      afterUpdate: [],
-      beforeUnmount: [],
-      afterUnmount: []
-    };
+    // Performance tracking
+    this.performanceMarks = new Map();
 
-    // Error handlers
-    this.errorHandlers = [];
+    // Setup error handling
     this.setupErrorHandling();
 
-    if (this.config.debugMode) {
-      console.log('[Runtime] ✅ Instance created', {
-        environment: this.config.isBrowser ? 'browser' : 'server',
-        mode: this.config.mode
+    if (this.flutterConfig.debugMode) {
+      console.log('[FlutterJSRuntime] ✅ Enhanced runtime created', {
+        environment: this.flutterConfig.isBrowser ? 'browser' : 'server',
+        hotReload: this.flutterConfig.enableHotReload,
+        strictMode: this.flutterConfig.strictMode
       });
     }
   }
 
-  /**
-   * ✅ NEW: createElement - Bridge to create elements from widgets
-   * 
-   * Called by VNodeBuilder when it needs to create an element from a widget.
-   * This is the critical method that was missing!
-   * 
-   * @param {Widget} widget - Widget to create element for
-   * @param {Element|null} parent - Parent element
-   * @returns {Element} Created element instance
-   */
-  createElement(widget, parent = null) {
-    if (!widget) {
-      throw new Error('[Runtime.createElement] Widget is required');
-    }
+  // ============================================================================
+  // INITIALIZE METHOD
+  // ============================================================================
 
-    if (this.config.debugMode) {
-      console.log('[Runtime.createElement] Creating element for:', widget.constructor.name);
-    }
-
-    // Determine widget type and create appropriate element
-    
-    // Check for StatelessWidget
-    if (this.isStatelessWidget(widget)) {
-      if (this.config.debugMode) {
-        console.log('[Runtime.createElement] → StatelessElement');
-      }
-      return new StatelessElement(widget, parent, this);
-    }
-
-    // Check for StatefulWidget
-    if (this.isStatefulWidget(widget)) {
-      if (this.config.debugMode) {
-        console.log('[Runtime.createElement] → StatefulElement');
-      }
-      return new StatefulElement(widget, parent, this);
-    }
-
-    // Check for InheritedWidget
-    if (this.isInheritedWidget(widget)) {
-      if (this.config.debugMode) {
-        console.log('[Runtime.createElement] → InheritedElement');
-      }
-      return new InheritedElement(widget, parent, this);
-    }
-
-    // Check for custom component
-    if (this.isComponentWidget(widget)) {
-      if (this.config.debugMode) {
-        console.log('[Runtime.createElement] → ComponentElement');
-      }
-      return new ComponentElement(widget, parent, this);
-    }
-
-    // If widget has custom createElement method, use it
-    if (typeof widget.createElement === 'function') {
-      if (this.config.debugMode) {
-        console.log('[Runtime.createElement] → Custom createElement');
-      }
-      return widget.createElement(parent, this);
-    }
-
-    throw new Error(`[Runtime.createElement] Unknown widget type: ${widget.constructor.name}`);
-  }
-
-  /**
-   * ✅ Check if widget is StatelessWidget
-   */
-  isStatelessWidget(widget) {
-    if (!widget) return false;
-    
-    return widget.constructor.name === 'StatelessWidget' || 
-           (widget.constructor.prototype && 
-            widget.constructor.prototype.constructor.name === 'StatelessWidget') ||
-           (typeof widget.build === 'function' && 
-            !widget.createState && 
-            !widget.child &&
-            !widget.updateShouldNotify);
-  }
-
-  /**
-   * ✅ Check if widget is StatefulWidget
-   */
-  isStatefulWidget(widget) {
-    if (!widget) return false;
-    
-    return widget.constructor.name === 'StatefulWidget' ||
-           (widget.constructor.prototype && 
-            widget.constructor.prototype.constructor.name === 'StatefulWidget') ||
-           (typeof widget.createState === 'function');
-  }
-
-  /**
-   * ✅ Check if widget is InheritedWidget
-   */
-  isInheritedWidget(widget) {
-    if (!widget) return false;
-    
-    return widget.constructor.name === 'InheritedWidget' ||
-           (widget.constructor.prototype && 
-            widget.constructor.prototype.constructor.name === 'InheritedWidget') ||
-           (widget.child !== undefined && 
-            typeof widget.updateShouldNotify === 'function');
-  }
-
-  /**
-   * ✅ Check if widget is a custom component
-   */
-  isComponentWidget(widget) {
-    if (!widget) return false;
-    
-    return typeof widget.render === 'function' || 
-           (typeof widget.build === 'function' && 
-            typeof widget.createState !== 'function' &&
-            !widget.updateShouldNotify);
-  }
-
-  /**
-   * Initialize runtime
-   */
   initialize(options = {}) {
     if (this.initialized) {
-      console.warn('[Runtime] Already initialized');
+      if (this.flutterConfig.debugMode) {
+        console.log('[FlutterJSRuntime] ⚠️  Already initialized, skipping');
+      }
       return this;
     }
 
     const startTime = performance.now();
 
     try {
-      this.runHooks('beforeInit');
-
-      if (this.config.debugMode) {
-        console.log('[Runtime] Initializing...');
+      if (this.flutterConfig.debugMode) {
+        console.log('[FlutterJSRuntime] 🔧 Initializing runtime...');
       }
 
-      this.rootElement = options.rootElement;
+      // Store root element if provided
+      if (options.rootElement) {
+        this.rootElement = options.rootElement;
 
-      if (this.config.isBrowser && !this.rootElement) {
-        throw new Error('[Runtime] rootElement required in browser mode');
-      }
-
-      // ✅ CREATE VNODE BUILDER WITH RUNTIME REFERENCE
-      if (this.config.debugMode) {
-        console.log('[Runtime] 🟢 Creating VNodeBuilder...');
-      }
-      this.vNodeBuilder = new VNodeBuilder({
-        debugMode: this.config.debugMode,
-        runtime: this  // ✅ PASS RUNTIME (NOW HAS createElement!)
-      });
-
-      // ✅ CREATE VNODE RENDERER WITH RUNTIME REFERENCE
-      if (this.config.isBrowser) {
-        if (this.config.debugMode) {
-          console.log('[Runtime] 🟢 Creating VNodeRenderer...');
+        if (this.flutterConfig.debugMode) {
+          console.log('[FlutterJSRuntime] 📍 Root element set:', this.rootElement.id || this.rootElement.tagName);
         }
-        this.vNodeRenderer = new VNodeRenderer({
-          rootElement: this.rootElement,
-          debugMode: this.config.debugMode,
-          runtime: this
-        });
       }
 
-      // ✅ CREATE HYDRATOR WITH RUNTIME REFERENCE
-      if (this.config.mode === 'hydrate' || options.hydrateFromSSR) {
-        if (this.config.debugMode) {
-          console.log('[Runtime] 🧊 Creating Hydrator...');
-        }
-        this.hydrator = new Hydrator({
-          rootElement: this.rootElement,
-          debugMode: this.config.debugMode,
-          runtime: this
-        });
+      // Validate browser environment if root element expected
+      if (this.flutterConfig.isBrowser && !this.rootElement) {
+        console.warn('[FlutterJSRuntime] ⚠️  No root element provided in browser mode');
       }
 
+      // Mark as initialized
       this.initialized = true;
-      this.stats.initTime = performance.now() - startTime;
 
-      this.runHooks('afterInit');
+      const initTime = performance.now() - startTime;
 
-      if (this.config.debugMode) {
-        console.log('[Runtime] ✅ Initialized in', this.stats.initTime.toFixed(2), 'ms');
-        console.log('[Runtime] 📊 Components ready:', {
-          vNodeBuilder: !!this.vNodeBuilder,
-          vNodeRenderer: !!this.vNodeRenderer,
-          hydrator: !!this.hydrator
-        });
+      if (this.flutterConfig.debugMode) {
+        console.log(`[FlutterJSRuntime] ✅ Initialized in ${initTime.toFixed(2)}ms`);
       }
 
       return this;
+
     } catch (error) {
-      this.handleError('initialization', error);
+      this.handleError('initialize', error, { options });
       throw error;
     }
   }
 
-  /**
-   * MAIN METHOD: Run application
-   */
-  runApp(widgetOrVNode, options = {}) {
-    if (!this.initialized) {
-      throw new Error('[Runtime] Must call initialize() first');
+  // ============================================================================
+  // CORE FLUTTER WIDGET SYSTEM METHODS
+  // ============================================================================
+
+  createElement(widget, parent = null) {
+    if (!widget) {
+      throw new Error('[FlutterJSRuntime.createElement] Widget is required');
     }
 
-    const startTime = performance.now();
+    const startTime = this.flutterConfig.enablePerformanceTracking
+      ? performance.now()
+      : 0;
 
     try {
-      this.runHooks('beforeMount');
-
-      if (this.config.debugMode) {
-        console.log('[Runtime] Mounting application...');
+      if (this.flutterConfig.debugMode) {
+        console.log('[FlutterJSRuntime.createElement] Creating element for:', widget.constructor.name);
       }
 
-      // Determine input type
-      const isVNode = widgetOrVNode && widgetOrVNode.tag !== undefined;
-      const isWidget = widgetOrVNode && typeof widgetOrVNode.build === 'function';
+      let element = null;
 
-      if (isVNode) {
-        // Already a VNode from AppBuilder
-        this.rootVNode = widgetOrVNode;
-        if (this.config.debugMode) {
-          console.log('[Runtime] 📦 Using VNode from AppBuilder');
-        }
-      } else if (isWidget) {
-        // Need to build VNode from widget using VNodeBuilder
-        if (this.config.debugMode) {
-          console.log('[Runtime] 🗝️  Building VNode from Widget class...');
-        }
-
-        if (!this.vNodeBuilder) {
-          this.vNodeBuilder = new VNodeBuilder({
-            debugMode: this.config.debugMode,
-            runtime: this  // ✅ PASS RUNTIME (NOW HAS createElement!)
-          });
-        }
-
-        this.rootVNode = this.vNodeBuilder.build(widgetOrVNode, {
-          context: options.buildContext || {}
-        });
-
-        if (this.config.debugMode) {
-          console.log('[Runtime] ✅ VNode built successfully');
-        }
-      } else {
-        throw new Error('[Runtime] Invalid input: expected VNode or Widget');
-      }
-
-      // Store AppBuilder reference if provided
-      if (options.appBuilder) {
-        this.appBuilder = options.appBuilder;
-      }
-
-      // Render to appropriate target
-      if (this.config.isBrowser && this.rootElement) {
-        this.renderToDOM();
-      } else if (this.config.isSSR) {
-        this.renderToString();
-      }
-
-      this.mounted = true;
-      this.stats.mountTime = performance.now() - startTime;
-
-      this.runHooks('afterMount');
-
-      if (this.config.debugMode) {
-        console.log('[Runtime] ✅ Mounted in', this.stats.mountTime.toFixed(2), 'ms');
-        this.logStats();
-      }
-
-      return this;
-    } catch (error) {
-      this.handleError('mount', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Render VNode to DOM
-   */
-  renderToDOM() {
-    if (!this.config.isBrowser) {
-      throw new Error('[Runtime] Cannot render to DOM in SSR mode');
-    }
-
-    if (!this.rootElement) {
-      throw new Error('[Runtime] No root element');
-    }
-
-    if (!this.rootVNode) {
-      throw new Error('[Runtime] No VNode tree to render');
-    }
-
-    try {
-      const startTime = performance.now();
-
-      if (this.config.debugMode) {
-        console.log('[Runtime] 🎨 Rendering VNode to DOM...');
-      }
-
-      if (!this.vNodeRenderer) {
-        this.vNodeRenderer = new VNodeRenderer({
-          rootElement: this.rootElement,
-          debugMode: this.config.debugMode
-        });
-      }
-
-      this.currentDOMElement = this.vNodeRenderer.render(
-        this.rootVNode,
-        this.rootElement,
-        { clear: true }
-      );
-
-      this.stats.renderTime = performance.now() - startTime;
-
-      if (this.config.debugMode) {
-        console.log('[Runtime] ✅ Rendered to DOM in', this.stats.renderTime.toFixed(2), 'ms');
-        console.log('[Runtime] 🌳 DOM Element:', this.currentDOMElement.tagName || 'Fragment');
-      }
-    } catch (error) {
-      console.error('[Runtime] ❌ DOM rendering failed:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Render VNode to HTML string (SSR)
-   */
-  renderToString() {
-    if (!this.config.isSSR) {
-      console.warn('[Runtime] renderToString called in browser mode');
-      return '';
-    }
-
-    if (!this.rootVNode) {
-      throw new Error('[Runtime] No VNode tree to render');
-    }
-
-    try {
-      const startTime = performance.now();
-
-      if (this.config.debugMode) {
-        console.log('[Runtime] 📝 Rendering VNode to HTML string (SSR)...');
-      }
-
-      if (!this.vNodeRenderer) {
-        this.vNodeRenderer = new VNodeRenderer({
-          debugMode: this.config.debugMode
-        });
-      }
-
-      const html = this.vNodeRenderer.renderToString(this.rootVNode);
-
-      this.stats.renderTime = performance.now() - startTime;
-
-      if (this.config.debugMode) {
-        console.log('[Runtime] ✅ Generated SSR HTML:', html.length, 'bytes in', this.stats.renderTime.toFixed(2), 'ms');
-      }
-
-      return html;
-    } catch (error) {
-      console.error('[Runtime] ❌ SSR rendering failed:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Update application (after state change)
-   */
-  update(options = {}) {
-    if (!this.mounted) {
-      console.warn('[Runtime] ❌ Cannot update: app not mounted');
-      return this;
-    }
-
-    const startTime = performance.now();
-
-    try {
-      this.runHooks('beforeUpdate');
-
-      if (this.config.debugMode) {
-        console.log('[Runtime] 📄 Updating application...');
-      }
-
-      if (this.appBuilder && options.rebuild !== false) {
-        if (this.config.debugMode) {
-          console.log('[Runtime] 🗝️  Rebuilding widget tree with AppBuilder...');
-        }
-
-        const newVNode = this.appBuilder.build();
-
-        if (this.config.isBrowser && this.vNodeRenderer && this.currentDOMElement) {
-          if (this.config.debugMode) {
-            console.log('[Runtime] 📍 Running VNode reconciliation...');
+      // Check widget cache first
+      if (this.widgetCache.has(widget)) {
+        const cachedElement = this.widgetCache.get(widget);
+        if (cachedElement && !cachedElement.unmounted) {
+          if (this.flutterConfig.debugMode) {
+            console.log('[FlutterJSRuntime.createElement] Using cached element');
           }
-
-          this.currentDOMElement = this.vNodeRenderer.reconcile(
-            this.currentDOMElement,
-            this.rootVNode,
-            newVNode
-          );
-
-          this.rootVNode = newVNode;
+          return cachedElement;
         }
-      } else if (this.config.isBrowser && this.rootVNode && options.forceRender) {
-        if (this.config.debugMode) {
-          console.log('[Runtime] 💥 Force rendering...');
-        }
-
-        if (this.currentDOMElement) {
-          this.vNodeRenderer.cleanup(this.currentDOMElement);
-        }
-
-        this.renderToDOM();
       }
 
-      const updateTime = performance.now() - startTime;
-      this.stats.updateCount++;
-      this.stats.totalUpdateTime += updateTime;
-      this.stats.averageUpdateTime = this.stats.totalUpdateTime / this.stats.updateCount;
-      this.stats.lastUpdateTime = updateTime;
+      // Determine widget type and create appropriate element
 
-      this.runHooks('afterUpdate');
-
-      if (this.config.debugMode) {
-        console.log('[Runtime] ✅ Updated in', updateTime.toFixed(2), 'ms');
+      if (this.isStatelessWidget(widget)) {
+        if (this.flutterConfig.debugMode) {
+          console.log('[FlutterJSRuntime.createElement] → StatelessElement');
+        }
+        element = new StatelessElement(widget, parent, this);
       }
-
-      return this;
-    } catch (error) {
-      this.handleError('update', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Hot reload (development mode)
-   */
-  hotReload(newVNode) {
-    if (!this.config.enableHotReload) {
-      console.warn('[Runtime] Hot reload disabled');
-      return this;
-    }
-
-    if (!this.config.isBrowser) {
-      console.warn('[Runtime] Hot reload not supported in SSR mode');
-      return this;
-    }
-
-    try {
-      if (this.config.debugMode) {
-        console.log('[Runtime] 🔥 Hot reloading...');
+      else if (this.isStatefulWidget(widget)) {
+        if (this.flutterConfig.debugMode) {
+          console.log('[FlutterJSRuntime.createElement] → StatefulElement');
+        }
+        element = new StatefulElement(widget, parent, this);
       }
-
-      if (this.vNodeRenderer && this.currentDOMElement) {
-        this.currentDOMElement = this.vNodeRenderer.reconcile(
-          this.currentDOMElement,
-          this.rootVNode,
-          newVNode
+      else if (this.isInheritedWidget(widget)) {
+        if (this.flutterConfig.debugMode) {
+          console.log('[FlutterJSRuntime.createElement] → InheritedElement');
+        }
+        element = new InheritedElement(widget, parent, this);
+      }
+      else if (this.isComponentWidget(widget)) {
+        if (this.flutterConfig.debugMode) {
+          console.log('[FlutterJSRuntime.createElement] → ComponentElement');
+        }
+        element = new ComponentElement(widget, parent, this);
+      }
+      else if (typeof widget.createElement === 'function') {
+        if (this.flutterConfig.debugMode) {
+          console.log('[FlutterJSRuntime.createElement] → Custom createElement');
+        }
+        element = widget.createElement(parent, this);
+      }
+      else {
+        throw new Error(
+          `[FlutterJSRuntime.createElement] Unknown widget type: ${widget.constructor.name}. ` +
+          `Widget must be StatelessWidget, StatefulWidget, InheritedWidget, or implement createElement().`
         );
       }
 
-      this.rootVNode = newVNode;
+      // Register element
+      if (element) {
+        const elementId = generateId();
+        element._id = elementId;
+        this.elementRegistry.set(elementId, element);
 
-      if (this.config.debugMode) {
-        console.log('[Runtime] ✅ Hot reload complete');
+        // Cache element
+        this.widgetCache.set(widget, element);
+
+        // Trigger lifecycle callback
+        this.triggerLifecycleCallback('onElementCreated', element);
       }
 
-      return this;
+      // Performance tracking
+      if (this.flutterConfig.enablePerformanceTracking) {
+        const duration = performance.now() - startTime;
+        this.recordPerformance('createElement', widget.constructor.name, duration);
+      }
+
+      return element;
+
     } catch (error) {
-      this.handleError('hotReload', error);
+      this.handleError('createElement', error, { widget, parent });
       throw error;
     }
   }
 
-  /**
-   * Hydrate (SSR → CSR bridge)
-   */
-  hydrate(hydrationData, options = {}) {
-    if (!this.config.isBrowser) {
-      console.warn('[Runtime] Cannot hydrate in SSR mode');
-      return this;
+  isStatelessWidget(widget) {
+    if (!widget) return false;
+    if (widget.constructor.name === 'StatelessWidget') return true;
+    if (widget.constructor.prototype &&
+      widget.constructor.prototype.constructor.name === 'StatelessWidget') {
+      return true;
     }
+    return typeof widget.build === 'function' &&
+      !widget.createState &&
+      !widget.child &&
+      !widget.updateShouldNotify;
+  }
 
+  isStatefulWidget(widget) {
+    if (!widget) return false;
+    if (widget.constructor.name === 'StatefulWidget') return true;
+    if (widget.constructor.prototype &&
+      widget.constructor.prototype.constructor.name === 'StatefulWidget') {
+      return true;
+    }
+    return typeof widget.createState === 'function';
+  }
+
+  isInheritedWidget(widget) {
+    if (!widget) return false;
+    if (widget.constructor.name === 'InheritedWidget') return true;
+    if (widget.constructor.prototype &&
+      widget.constructor.prototype.constructor.name === 'InheritedWidget') {
+      return true;
+    }
+    return widget.child !== undefined &&
+      typeof widget.updateShouldNotify === 'function';
+  }
+
+  isComponentWidget(widget) {
+    if (!widget) return false;
+    if (typeof widget.render === 'function') return true;
+    return typeof widget.build === 'function' &&
+      typeof widget.createState !== 'function' &&
+      !widget.updateShouldNotify;
+  }
+
+  // ============================================================================
+  // ENHANCED RUNTIME METHODS - KEY FIX HERE
+  // ============================================================================
+
+  /**
+   * ✅ FIXED: runApp now handles both Widget and VNode inputs
+   */
+  runApp(input, options = {}) {
     try {
-      if (this.config.debugMode) {
-        console.log('[Runtime] 💧 Hydrating SSR content...');
+      // Ensure we're initialized first
+      if (!this.initialized) {
+        if (this.flutterConfig.debugMode) {
+          console.log('[FlutterJSRuntime] Auto-initializing before runApp');
+        }
+        this.initialize({ rootElement: this.rootElement || options.rootElement });
       }
 
-      if (!this.hydrator) {
-        this.hydrator = new Hydrator({
-          rootElement: this.rootElement,
-          debugMode: this.config.debugMode
+      if (this.flutterConfig.debugMode) {
+        console.log('[FlutterJSRuntime] 🚀 Starting Flutter app...');
+      }
+
+      // Store original input for rebuilds
+      this.originalInput = input;
+
+      // Detect input type
+      const inputIsVNode = isVNode(input);
+      const inputIsWidget = isWidget(input);
+
+      if (this.flutterConfig.debugMode) {
+        console.log('[FlutterJSRuntime] Input type:', {
+          isVNode: inputIsVNode,
+          isWidget: inputIsWidget,
+          constructorName: input?.constructor?.name,
+          hasTag: input?.tag !== undefined,
+          hasBuild: typeof input?.build === 'function'
         });
       }
 
-      this.hydrator.hydrate(
-        this.rootElement,
-        this.rootVNode,
-        hydrationData || {}
-      );
+      if (inputIsVNode) {
+        // ✅ CASE 1: Already a VNode - render directly
+        this.inputType = 'vnode';
 
-      this.mounted = true;
+        if (this.flutterConfig.debugMode) {
+          console.log('[FlutterJSRuntime] 📦 Input is VNode, rendering directly');
+        }
 
-      if (this.config.debugMode) {
-        console.log('[Runtime] ✅ Hydration complete');
+        // ✅ FIX: Set this.app so getMetrics() works
+        this.app = input;
+        this.rootVNode = input;
+
+        // Render to DOM if in browser
+        if (this.flutterConfig.isBrowser && this.rootElement) {
+          if (!this.renderer) {
+            this.renderer = new VNodeRenderer({ debugMode: this.flutterConfig.debugMode });
+          }
+          this.renderer.render(this.rootVNode, this.rootElement, { clear: true });
+        }
+
+        this.mounted = true;
+
+        if (this.flutterConfig.debugMode) {
+          console.log('[FlutterJSRuntime] ✅ VNode rendered directly');
+        }
+
+        return this;
+
+      } else if (inputIsWidget) {
+        // ✅ CASE 2: Widget - build to VNode first, then render
+        this.inputType = 'widget';
+
+        if (this.flutterConfig.debugMode) {
+          console.log('[FlutterJSRuntime] 🔧 Input is Widget, building VNode...');
+        }
+
+        // ✅ FIX: Set this.app so getMetrics() works
+        this.app = input;
+
+        // Create enhanced context with runtime
+        const context = this.createBuildContext({
+          ...options,
+          runtime: this,
+          flutterConfig: this.flutterConfig
+        });
+
+        // Build widget to VNode
+        const vNodeBuilder = new VNodeBuilder({
+          debugMode: this.flutterConfig.debugMode,
+          runtime: this
+        });
+
+        this.rootVNode = vNodeBuilder.build(input, context);
+
+        if (this.flutterConfig.debugMode) {
+          console.log('[FlutterJSRuntime] ✅ VNode built from Widget');
+        }
+
+        // Render to DOM if in browser
+        if (this.flutterConfig.isBrowser && this.rootElement) {
+          if (!this.renderer) {
+            this.renderer = new VNodeRenderer({ debugMode: this.flutterConfig.debugMode });
+          }
+          this.renderer.render(this.rootVNode, this.rootElement, { clear: true });
+        }
+
+        this.mounted = true;
+
+        if (this.flutterConfig.debugMode) {
+          console.log('[FlutterJSRuntime] ✅ Widget rendered to DOM');
+        }
+
+        return this;
+
+      } else {
+        // ✅ CASE 3: Unknown type - error
+        throw new Error(
+          `[FlutterJSRuntime] Invalid input type. Expected Widget or VNode, got: ${typeof input}. ` +
+          `Constructor: ${input?.constructor?.name || 'unknown'}`
+        );
       }
 
-      return this;
     } catch (error) {
-      this.handleError('hydrate', error);
+      this.handleError('runApp', error, { input, options });
       throw error;
     }
   }
 
   /**
-   * Unmount application
+   * Override update to handle both Widget and VNode rebuilds
    */
-  unmount() {
-    if (!this.mounted) {
-      console.warn('[Runtime] ❌ Not mounted');
-      return this;
-    }
-
+  update(updateFn) {
     try {
-      this.runHooks('beforeUnmount');
-
-      if (this.config.debugMode) {
-        console.log('[Runtime] 🗑️  Unmounting...');
+      if (this.flutterConfig.debugMode) {
+        console.log('[FlutterJSRuntime] 🔄 Updating application...');
       }
 
-      if (this.vNodeRenderer && this.currentDOMElement) {
-        this.vNodeRenderer.cleanup(this.currentDOMElement);
+      // Execute update function if provided
+      if (updateFn && typeof updateFn === 'function') {
+        updateFn();
       }
 
-      if (this.rootElement) {
-        this.rootElement.innerHTML = '';
+      // Rebuild based on input type
+      if (this.inputType === 'widget' && this.originalInput) {
+        // Rebuild from widget
+        const context = this.createBuildContext({
+          runtime: this,
+          flutterConfig: this.flutterConfig
+        });
+
+        const vNodeBuilder = new VNodeBuilder({
+          debugMode: this.flutterConfig.debugMode,
+          runtime: this
+        });
+
+        const newVNode = vNodeBuilder.build(this.originalInput, context);
+
+        if (this.renderer && this.rootElement) {
+          this.renderer.render(newVNode, this.rootElement, { clear: true });
+        }
+
+        this.rootVNode = newVNode;
+
+      } else if (this.inputType === 'vnode') {
+        // For VNode input, user must provide new VNode
+        console.warn('[FlutterJSRuntime] Cannot auto-rebuild from VNode. Provide new VNode to update().');
       }
 
-      this.currentDOMElement = null;
-      this.rootVNode = null;
-      this.appBuilder = null;
+      this.triggerLifecycleCallback('onStateChange', {
+        timestamp: Date.now(),
+        updateFn: updateFn ? updateFn.name : 'anonymous'
+      });
 
-      this.mounted = false;
-
-      this.runHooks('afterUnmount');
-
-      if (this.config.debugMode) {
-        console.log('[Runtime] ✅ Unmounted');
+      if (this.flutterConfig.debugMode) {
+        console.log('[FlutterJSRuntime] ✅ Update complete');
       }
 
-      return this;
     } catch (error) {
-      this.handleError('unmount', error);
+      this.handleError('update', error, { updateFn });
       throw error;
     }
   }
 
-  /**
-   * Dispose and cleanup completely
-   */
-  dispose() {
-    if (this.mounted) {
-      this.unmount();
+  onElementMounted(element) {
+    if (!element) return;
+    if (this.flutterConfig.debugMode) {
+      console.log('[FlutterJSRuntime] 🔌 Element mounted:', element.widget?.constructor.name);
     }
-
-    for (const hookName in this.hooks) {
-      this.hooks[hookName] = [];
-    }
-
-    this.errorHandlers = [];
-
-    this.vNodeBuilder = null;
-    this.vNodeRenderer = null;
-    this.hydrator = null;
-
-    this.initialized = false;
-
-    if (this.config.debugMode) {
-      console.log('[Runtime] ✅ Disposed');
-    }
+    this.triggerLifecycleCallback('onElementMounted', element);
   }
 
-  /**
-   * Setup error handling
-   */
+  onElementUpdated(element) {
+    if (!element) return;
+    if (this.flutterConfig.debugMode) {
+      console.log('[FlutterJSRuntime] 🔄 Element updated:', element.widget?.constructor.name);
+    }
+    this.triggerLifecycleCallback('onElementUpdated', element);
+  }
+
+  onElementUnmounted(element) {
+    if (!element) return;
+    if (this.flutterConfig.debugMode) {
+      console.log('[FlutterJSRuntime] 🗑️ Element unmounted:', element.widget?.constructor.name);
+    }
+    if (element._id) {
+      this.elementRegistry.delete(element._id);
+    }
+    if (element.widget) {
+      this.widgetCache.delete(element.widget);
+    }
+    this.triggerLifecycleCallback('onElementUnmounted', element);
+  }
+
+  // ============================================================================
+  // LIFECYCLE CALLBACKS
+  // ============================================================================
+
+  on(eventName, callback) {
+    if (this.lifecycleCallbacks[eventName] && typeof callback === 'function') {
+      this.lifecycleCallbacks[eventName].push(callback);
+      if (this.flutterConfig.debugMode) {
+        console.log(`[FlutterJSRuntime] 📝 Registered callback for: ${eventName}`);
+      }
+    } else {
+      console.warn(`[FlutterJSRuntime] Unknown event: ${eventName}`);
+    }
+    return this;
+  }
+
+  off(eventName, callback) {
+    if (this.lifecycleCallbacks[eventName]) {
+      const index = this.lifecycleCallbacks[eventName].indexOf(callback);
+      if (index > -1) {
+        this.lifecycleCallbacks[eventName].splice(index, 1);
+      }
+    }
+    return this;
+  }
+
+  triggerLifecycleCallback(eventName, data) {
+    const callbacks = this.lifecycleCallbacks[eventName] || [];
+    callbacks.forEach(callback => {
+      try {
+        callback(data, this);
+      } catch (error) {
+        console.error(`[FlutterJSRuntime] Callback error (${eventName}):`, error);
+      }
+    });
+  }
+
+  // ============================================================================
+  // ERROR HANDLING
+  // ============================================================================
+
   setupErrorHandling() {
-    if (!this.config.isBrowser) return;
+    if (!this.flutterConfig.isBrowser) return;
+    if (this._errorHandlingSetup) return;
+    this._errorHandlingSetup = true;
 
-    let isHandlingError = false;
+    const errorHandler = (event) => {
+      this.handleError('uncaught', event.error || event.message, {
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno
+      });
+    };
 
-    window.addEventListener('error', (event) => {
-      if (isHandlingError) return;
+    const rejectionHandler = (event) => {
+      this.handleError('promise', event.reason, {
+        promise: event.promise
+      });
+    };
 
-      isHandlingError = true;
-      try {
-        this.handleError('uncaught', event.error);
-      } finally {
-        isHandlingError = false;
-      }
-    });
-
-    window.addEventListener('unhandledrejection', (event) => {
-      if (isHandlingError) return;
-
-      isHandlingError = true;
-      try {
-        this.handleError('promise', event.reason);
-      } finally {
-        isHandlingError = false;
-      }
-    });
+    window.addEventListener('error', errorHandler);
+    window.addEventListener('unhandledrejection', rejectionHandler);
+    this._errorHandlers = { errorHandler, rejectionHandler };
   }
 
-  /**
-   * Handle error
-   */
-  handleError(source, error) {
-    const errorMessage = error instanceof Error
-      ? error.message
-      : String(error);
+  handleError(source, error, context = {}) {
+    const errorInfo = {
+      source,
+      error,
+      context,
+      timestamp: Date.now(),
+      stack: error instanceof Error ? error.stack : null
+    };
 
-    console.error(`[Runtime] ❌ Error in ${source}:`, errorMessage);
+    console.error(`[FlutterJSRuntime] ❌ Error in ${source}:`, error);
 
-    if (error instanceof Error && error.stack && this.config.debugMode) {
-      console.error('[Runtime] Stack trace:', error.stack);
+    if (this.flutterConfig.debugMode && error instanceof Error && error.stack) {
+      console.error('[FlutterJSRuntime] Stack trace:', error.stack);
     }
 
-    this.errorHandlers.forEach(handler => {
-      try {
-        handler(source, error);
-      } catch (e) {
-        console.error('[Runtime] Error handler failed:', e.message);
-      }
-    });
+    this.triggerLifecycleCallback('onError', errorInfo);
 
-    if (this.config.debugMode && this.config.isBrowser) {
-      try {
-        this.showErrorOverlay(source, errorMessage);
-      } catch (e) {
-        console.error('[Runtime] Could not show error overlay:', e.message);
-      }
+    if (this.flutterConfig.debugMode && this.flutterConfig.isBrowser) {
+      this.showErrorOverlay(source, error, context);
     }
   }
 
-  /**
-   * Show error overlay
-   */
-  showErrorOverlay(source, errorMessage) {
+  showErrorOverlay(source, error, context) {
     try {
       if (typeof document === 'undefined') return;
 
-      const overlay = document.getElementById('__flutterjs_error_overlay__');
-      if (overlay) {
-        overlay.remove();
-      }
+      const existing = document.getElementById('__flutterjs_error_overlay__');
+      if (existing) existing.remove();
 
-      const div = document.createElement('div');
-      div.id = '__flutterjs_error_overlay__';
-      div.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.8);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 999999;
-      font-family: monospace;
-    `;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error && error.stack
+        ? error.stack.split('\n').slice(0, 10).join('\n')
+        : 'No stack trace available';
 
-      const box = document.createElement('div');
-      box.style.cssText = `
-      background: white;
-      padding: 30px;
-      border-radius: 8px;
-      max-width: 600px;
-      max-height: 80vh;
-      overflow-y: auto;
-      border-left: 4px solid #d32f2f;
-    `;
+      const overlay = document.createElement('div');
+      overlay.id = '__flutterjs_error_overlay__';
+      overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.9); color: white; z-index: 999999;
+        overflow-y: auto; font-family: 'Monaco', 'Menlo', monospace;
+        font-size: 13px; padding: 20px;
+      `;
 
-      const errorMsg = errorMessage
-        ? String(errorMessage).split('\n')[0]
-        : 'Unknown error';
+      overlay.innerHTML = `
+        <div style="max-width: 900px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
+            padding: 20px; border-radius: 8px 8px 0 0; display: flex;
+            align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="width: 48px; height: 48px; background: rgba(255,255,255,0.2);
+                border-radius: 50%; display: flex; align-items: center;
+                justify-content: center; font-size: 24px;">⚠</div>
+              <div>
+                <h2 style="margin: 0; font-size: 20px; font-weight: 600;">
+                  ${escapeHtml(source.charAt(0).toUpperCase() + source.slice(1))} Error
+                </h2>
+                <p style="margin: 4px 0 0 0; opacity: 0.9; font-size: 12px;">
+                  FlutterJS Runtime Error
+                </p>
+              </div>
+            </div>
+            <button onclick="this.parentElement.parentElement.parentElement.remove()"
+              style="background: rgba(255,255,255,0.2); border: none; color: white;
+              width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+              font-size: 18px;">×</button>
+          </div>
+          <div style="background: #1e1e1e; padding: 20px; border-radius: 0 0 8px 8px;">
+            <div style="margin-bottom: 20px;">
+              <h3 style="color: #ff6b6b; margin: 0 0 12px 0; font-size: 14px;
+                font-weight: 600; text-transform: uppercase;">Error Message</h3>
+              <pre style="background: #2d2d2d; padding: 16px; border-radius: 6px;
+                border-left: 4px solid #d32f2f; margin: 0; overflow-x: auto;
+                color: #ff8a80; line-height: 1.5;">${escapeHtml(errorMessage)}</pre>
+            </div>
+            ${errorStack && errorStack !== 'No stack trace available' ? `
+              <div style="margin-bottom: 20px;">
+                <h3 style="color: #64b5f6; margin: 0 0 12px 0; font-size: 14px;
+                  font-weight: 600; text-transform: uppercase;">Stack Trace</h3>
+                <pre style="background: #2d2d2d; padding: 16px; border-radius: 6px;
+                  border-left: 4px solid #1976d2; margin: 0; overflow-x: auto;
+                  color: #90caf9; line-height: 1.6; font-size: 12px;">${escapeHtml(errorStack)}</pre>
+              </div>
+            ` : ''}
+            ${Object.keys(context).length > 0 ? `
+              <div>
+                <h3 style="color: #81c784; margin: 0 0 12px 0; font-size: 14px;
+                  font-weight: 600; text-transform: uppercase;">Context</h3>
+                <pre style="background: #2d2d2d; padding: 16px; border-radius: 6px;
+                  border-left: 4px solid #388e3c; margin: 0; overflow-x: auto;
+                  color: #a5d6a7; line-height: 1.6; font-size: 12px;">${escapeHtml(JSON.stringify(context, null, 2))}</pre>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
 
-      box.innerHTML = `
-      <h2 style="margin: 0 0 15px 0; color: #d32f2f; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto;">
-        ❌ ${source.charAt(0).toUpperCase() + source.slice(1)} Error
-      </h2>
-      <div style="
-        background: #f5f5f5;
-        padding: 15px;
-        border-radius: 4px;
-        margin: 0;
-        color: #c62828;
-        overflow-x: auto;
-        font-size: 13px;
-        line-height: 1.6;
-        word-break: break-word;
-        white-space: pre-wrap;
-        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-      ">${escapeHtml(errorMsg)}</div>
-      <p style="color: #666; margin-top: 20px; font-size: 12px; margin-bottom: 0;">
-        💡 Check the browser console for more details.
-      </p>
-    `;
-
-      div.appendChild(box);
-      document.body.appendChild(div);
+      document.body.appendChild(overlay);
     } catch (e) {
-      console.error('[Runtime] Overlay creation failed:', e.message);
+      console.error('[FlutterJSRuntime] Failed to show error overlay:', e);
     }
   }
 
-  /**
-   * Register lifecycle hook
-   */
-  on(hookName, callback) {
-    if (this.hooks[hookName] && typeof callback === 'function') {
-      this.hooks[hookName].push(callback);
+  // ============================================================================
+  // PERFORMANCE & UTILITIES
+  // ============================================================================
+
+  recordPerformance(operation, identifier, duration) {
+    if (!this.flutterConfig.enablePerformanceTracking) return;
+    const key = `${operation}:${identifier}`;
+    if (!this.performanceMarks.has(key)) {
+      this.performanceMarks.set(key, {
+        count: 0, totalTime: 0, avgTime: 0,
+        minTime: Infinity, maxTime: 0
+      });
     }
-    return this;
+    const mark = this.performanceMarks.get(key);
+    mark.count++;
+    mark.totalTime += duration;
+    mark.avgTime = mark.totalTime / mark.count;
+    mark.minTime = Math.min(mark.minTime, duration);
+    mark.maxTime = Math.max(mark.maxTime, duration);
   }
 
-  /**
-   * Run lifecycle hooks
-   */
-  runHooks(hookName) {
-    const hooks = this.hooks[hookName] || [];
-    hooks.forEach(hook => {
-      try {
-        hook(this);
-      } catch (error) {
-        console.error(`[Runtime] Hook ${hookName} failed:`, error);
-      }
+  getPerformanceReport() {
+    const report = {};
+    this.performanceMarks.forEach((data, key) => {
+      report[key] = {
+        calls: data.count,
+        total: `${data.totalTime.toFixed(2)}ms`,
+        average: `${data.avgTime.toFixed(2)}ms`,
+        min: `${data.minTime.toFixed(2)}ms`,
+        max: `${data.maxTime.toFixed(2)}ms`
+      };
     });
+    return report;
   }
 
-  /**
-   * Register error handler
-   */
-  onError(handler) {
-    if (typeof handler === 'function') {
-      this.errorHandlers.push(handler);
-    }
-    return this;
+  clearPerformanceMarks() {
+    this.performanceMarks.clear();
   }
 
-  /**
-   * Get statistics
-   */
-  getStats() {
-    return {
-      ...this.stats,
-      initialized: this.initialized,
-      mounted: this.mounted,
-      environment: this.config.isBrowser ? 'browser' : 'server',
-      vnodeSize: 0
-    };
+  getFlutterConfig() {
+    return { ...this.flutterConfig };
   }
 
-  /**
-   * Log statistics
-   */
-  logStats() {
-    if (!this.config.debugMode) return;
-
-    const stats = this.getStats();
-
-    console.group('[Runtime] 📊 Statistics');
-    console.log('Environment:', stats.environment);
-    console.log('Mount Time:', `${stats.mountTime.toFixed(2)}ms`);
-    console.log('Render Time:', `${stats.renderTime.toFixed(2)}ms`);
-    console.log('Updates:', stats.updateCount);
-    console.log('Avg Update Time:', `${stats.averageUpdateTime.toFixed(2)}ms`);
-    console.log('VNode Size:', `${stats.vnodeSize} bytes`);
-    console.groupEnd();
+  getElementById(elementId) {
+    return this.elementRegistry.get(elementId);
   }
 
-  /**
-   * Get configuration
-   */
-  getConfig() {
-    return { ...this.config };
+  getAllElements() {
+    return Array.from(this.elementRegistry.values());
+  }
+
+  getElementCount() {
+    return this.elementRegistry.size;
   }
 
   isInitialized() {
@@ -891,90 +794,347 @@ export class FlutterJSRuntime {
   isMounted() {
     return this.mounted;
   }
+
+  getStats() {
+    const baseMetrics = this.getMetrics();
+
+    // ✅ FIX: Handle null baseMetrics
+    if (!baseMetrics) {
+      return {
+        flutter: {
+          elements: this.elementRegistry.size,
+          cachedWidgets: this.widgetCache ? 'enabled' : 'disabled',
+          inputType: this.inputType,
+          initialized: this.initialized,
+          mounted: this.mounted,
+          hasApp: this.app !== null,
+          lifecycleCallbacks: Object.keys(this.lifecycleCallbacks).reduce((acc, key) => {
+            acc[key] = this.lifecycleCallbacks[key].length;
+            return acc;
+          }, {})
+        }
+      };
+    }
+
+    return {
+      ...baseMetrics,
+      flutter: {
+        elements: this.elementRegistry.size,
+        cachedWidgets: this.widgetCache ? 'enabled' : 'disabled',
+        inputType: this.inputType,
+        lifecycleCallbacks: Object.keys(this.lifecycleCallbacks).reduce((acc, key) => {
+          acc[key] = this.lifecycleCallbacks[key].length;
+          return acc;
+        }, {})
+      }
+    };
+  }
+
+  destroy() {
+    if (this.flutterConfig.debugMode) {
+      console.log('[FlutterJSRuntime] 🗑️ Destroying...');
+    }
+    if (this._errorHandlers && this.flutterConfig.isBrowser) {
+      window.removeEventListener('error', this._errorHandlers.errorHandler);
+      window.removeEventListener('unhandledrejection', this._errorHandlers.rejectionHandler);
+    }
+    this.elementRegistry.clear();
+    this.widgetCache = new WeakMap();
+    Object.keys(this.lifecycleCallbacks).forEach(key => {
+      this.lifecycleCallbacks[key] = [];
+    });
+    this.performanceMarks.clear();
+    super.destroy();
+    this.initialized = false;
+    this.mounted = false;
+    if (this.flutterConfig.debugMode) {
+      console.log('[FlutterJSRuntime] ✅ Destroyed');
+    }
+  }
 }
 
 // ============================================================================
 // GLOBAL API
 // ============================================================================
 
-let globalRuntime = null;
 
-/**
- * Create and start runtime
- */
+let globalFlutterRuntime = null;
+
 export function runApp(rootWidgetOrVNode, options = {}) {
-  if (!globalRuntime) {
-    globalRuntime = new FlutterJSRuntime({
-      debugMode: options.debugMode || false,
-      enableHotReload: true,
-      enablePerformanceTracking: true,
-      mode: options.mode || 'csr'
-    });
+  try {
+    if (globalFlutterRuntime) {
+      if (options.debugMode) {
+        console.log('[FlutterJS] ♻️ Reusing existing runtime');
+      }
+    } else {
+      if (options.debugMode) {
+        console.log('[FlutterJS] 🆕 Creating new Flutter runtime');
+      }
+      globalFlutterRuntime = new FlutterJSRuntime({
+        debugMode: options.debugMode || false,
+        enableHotReload: options.enableHotReload !== false,
+        enablePerformanceTracking: options.enablePerformanceTracking !== false,
+        enableStateTracking: options.enableStateTracking !== false,
+        enableErrorBoundaries: options.enableErrorBoundaries !== false,
+        strictMode: options.strictMode || false,
+        mode: options.mode || 'csr'
+      });
+    }
+
+    const enhancedOptions = {
+      ...options,
+      context: {
+        ...options.context,
+        runtime: globalFlutterRuntime
+      }
+    };
+
+    return globalFlutterRuntime.runApp(rootWidgetOrVNode, enhancedOptions);
+
+  } catch (error) {
+    console.error('[FlutterJS] ❌ Failed to run app:', error);
+    throw error;
   }
-
-  const container = options.container ||
-    options.rootElement ||
-    (isBrowser() ? document.getElementById('root') : null);
-
-  globalRuntime.initialize({ rootElement: container });
-  globalRuntime.runApp(rootWidgetOrVNode, options);
-
-  return globalRuntime;
 }
 
-/**
- * Get global runtime instance
- */
 export function getRuntime() {
-  return globalRuntime;
+  return globalFlutterRuntime;
 }
 
-/**
- * Trigger update
- */
 export function updateApp(updateFn) {
-  if (!globalRuntime) {
-    throw new Error('No runtime instance');
+  if (!globalFlutterRuntime) {
+    throw new Error('[FlutterJS] No runtime instance. Call runApp() first.');
   }
 
   if (updateFn && typeof updateFn === 'function') {
     updateFn();
   }
 
-  globalRuntime.update({ rebuild: true, forceRender: false });
+  globalFlutterRuntime.update();
 }
 
-/**
- * Hot reload
- */
-export function hotReload(newVNode) {
-  if (!globalRuntime) {
-    console.warn('No runtime instance');
+export function hotReload() {
+  if (!globalFlutterRuntime) {
+    console.warn('[FlutterJS] No runtime instance');
     return;
   }
 
-  globalRuntime.hotReload(newVNode);
+  globalFlutterRuntime.hotReload();
 }
 
 /**
- * Dispose
+ * Server-side render to HTML string
+ * 
+ * This renders a Flutter app to an HTML string for server-side rendering.
+ * The resulting HTML can be sent to the client and hydrated.
+ * 
+ * @param {Widget} app - Root widget
+ * @param {Object} options - SSR options
+ * @param {string} options.title - Page title
+ * @param {Object} options.meta - Meta tags
+ * @param {Array} options.styles - External stylesheets
+ * @param {Array} options.scripts - External scripts
+ * @param {boolean} options.includeHydration - Include hydration data (default: true)
+ * @param {boolean} options.includeCriticalCSS - Include critical CSS (default: true)
+ * @param {boolean} options.includeRuntime - Include runtime script (default: true)
+ * @returns {string} HTML string
  */
-export function dispose() {
-  if (globalRuntime) {
-    globalRuntime.dispose();
-    globalRuntime = null;
+export function renderToString(app, options = {}) {
+  try {
+    if (options.debugMode) {
+      console.log('[FlutterJS] ðŸ“„ SSR: Creating temporary runtime for rendering');
+    }
+
+    // Create temporary Flutter runtime for SSR
+    const ssrRuntime = new FlutterJSRuntime({
+      debugMode: options.debugMode || false,
+      mode: 'ssr'
+    });
+
+    // Enhanced context with Flutter runtime
+    const enhancedOptions = {
+      ...options,
+      context: {
+        ...options.context,
+        runtime: ssrRuntime // âœ… Pass Flutter runtime with createElement
+      }
+    };
+
+    // Use core renderToString with enhanced context
+    const html = coreRenderToString(app, enhancedOptions);
+
+    // Cleanup SSR runtime
+    ssrRuntime.destroy();
+
+    return html;
+
+  } catch (error) {
+    console.error('[FlutterJS] âŒ SSR failed:', error);
+    throw error;
   }
 }
 
-function escapeHtml(text) {
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
-  return text.replace(/[&<>"']/g, m => map[m]);
+/**
+ * Hydrate server-rendered content
+ * 
+ * This attaches event listeners and makes a server-rendered app interactive.
+ * Should be called on the client after receiving SSR HTML.
+ * 
+ * @param {Widget} app - Root widget (must match SSR widget)
+ * @param {Object} options - Hydration options
+ * @param {string} options.target - CSS selector for root element (default: '#root')
+ * @param {boolean} options.debugMode - Enable debug logging
+ * @returns {FlutterJSRuntime} Runtime instance
+ */
+export function hydrate(app, options = {}) {
+  try {
+    if (options.debugMode) {
+      console.log('[FlutterJS] ðŸ’§ Starting hydration...');
+    }
+
+    if (!globalFlutterRuntime) {
+      globalFlutterRuntime = new FlutterJSRuntime({
+        debugMode: options.debugMode || false,
+        enableHotReload: options.enableHotReload !== false,
+        mode: 'hydrate'
+      });
+    }
+
+    // Enhanced options with Flutter runtime
+    const enhancedOptions = {
+      ...options,
+      context: {
+        ...options.context,
+        runtime: globalFlutterRuntime // âœ… Pass Flutter runtime with createElement
+      }
+    };
+
+    return coreHydrate(app, enhancedOptions);
+
+  } catch (error) {
+    console.error('[FlutterJS] âŒ Hydration failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get performance metrics
+ * 
+ * Returns detailed performance metrics including render times,
+ * update counts, and Flutter-specific statistics.
+ * 
+ * @returns {Object|null} Performance metrics or null if no runtime
+ */
+export function getMetrics() {
+  if (!globalFlutterRuntime) {
+    return null;
+  }
+  return globalFlutterRuntime.getStats();
+}
+
+/**
+ * Get performance report
+ * 
+ * Returns a detailed report of all performance measurements.
+ * 
+ * @returns {Object|null} Performance report or null if no runtime
+ */
+export function getPerformanceReport() {
+  if (!globalFlutterRuntime) {
+    return null;
+  }
+  return globalFlutterRuntime.getPerformanceReport();
+}
+
+/**
+ * Clear performance metrics
+ * 
+ * Resets all performance tracking data.
+ */
+export function clearMetrics() {
+  if (!globalFlutterRuntime) {
+    return;
+  }
+  globalFlutterRuntime.clearMetrics();
+  globalFlutterRuntime.clearPerformanceMarks();
+}
+
+/**
+ * Register lifecycle callback
+ * 
+ * Available events:
+ * - onElementCreated: When an element is created
+ * - onElementMounted: When an element is mounted to DOM
+ * - onElementUpdated: When an element is updated
+ * - onElementUnmounted: When an element is unmounted
+ * - onError: When an error occurs
+ * - onStateChange: When state changes
+ * 
+ * @param {string} eventName - Event name
+ * @param {Function} callback - Callback function
+ */
+export function on(eventName, callback) {
+  if (!globalFlutterRuntime) {
+    console.warn('[FlutterJS] No runtime instance. Call runApp() first.');
+    return;
+  }
+  globalFlutterRuntime.on(eventName, callback);
+}
+
+/**
+ * Unregister lifecycle callback
+ * 
+ * @param {string} eventName - Event name
+ * @param {Function} callback - Callback function to remove
+ */
+export function off(eventName, callback) {
+  if (!globalFlutterRuntime) {
+    return;
+  }
+  globalFlutterRuntime.off(eventName, callback);
+}
+
+/**
+ * Get Flutter configuration
+ * 
+ * @returns {Object|null} Flutter config or null if no runtime
+ */
+export function getConfig() {
+  if (!globalFlutterRuntime) {
+    return null;
+  }
+  return globalFlutterRuntime.getFlutterConfig();
+}
+
+/**
+ * Dispose runtime and cleanup
+ * 
+ * This completely destroys the runtime and cleans up all resources.
+ * After calling this, you need to call runApp() again to start a new app.
+ */
+export function dispose() {
+  if (globalFlutterRuntime) {
+    globalFlutterRuntime.destroy();
+    globalFlutterRuntime = null;
+  }
+}
+
+/**
+ * Check if runtime is initialized
+ * 
+ * @returns {boolean} True if runtime exists and is initialized
+ */
+export function isInitialized() {
+  return globalFlutterRuntime !== null && globalFlutterRuntime.isInitialized();
+}
+
+/**
+ * Check if app is mounted
+ * 
+ * @returns {boolean} True if app is mounted to DOM
+ */
+export function isMounted() {
+  return globalFlutterRuntime !== null && globalFlutterRuntime.isMounted();
 }
 
 // ============================================================================
@@ -982,12 +1142,72 @@ function escapeHtml(text) {
 // ============================================================================
 
 export default {
+  // Classes
   FlutterJSRuntime,
+  VNodeRuntime,
+
+  // Core API
   runApp,
   getRuntime,
   updateApp,
   hotReload,
+  renderToString,
+  hydrate,
+
+  // Metrics
+  getMetrics,
+  getPerformanceReport,
+  clearMetrics,
+
+  // Lifecycle
+  on,
+  off,
+
+  // Utilities
+  getConfig,
   dispose,
+  isInitialized,
+  isMounted,
   isBrowser,
   isSSR
 };
+
+// ============================================================================
+// BROWSER GLOBAL API
+// ============================================================================
+
+if (typeof window !== 'undefined') {
+  console.log('[FlutterJS] ðŸŒ Setting up window.FlutterJS');
+
+  window.FlutterJS = {
+    // Core
+    runApp,
+    getRuntime,
+    updateApp,
+    hotReload,
+    renderToString,
+    hydrate,
+
+    // Metrics
+    getMetrics,
+    getPerformanceReport,
+    clearMetrics,
+
+    // Lifecycle
+    on,
+    off,
+
+    // Utilities
+    getConfig,
+    dispose,
+    isInitialized,
+    isMounted,
+
+    // Version info
+    version: '1.0.0',
+    environment: 'browser'
+  };
+
+  console.log('[FlutterJS] âœ… window.FlutterJS ready');
+  console.log('[FlutterJS] ðŸ“š Available methods:', Object.keys(window.FlutterJS).join(', '));
+}

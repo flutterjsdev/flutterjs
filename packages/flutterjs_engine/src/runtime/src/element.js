@@ -8,7 +8,7 @@
 import { BuildContext } from './build_context.js';
 
 // ============================================================================
-// DIAGNOSTIC LEVELS - Mirror Dart's DiagnosticLevel
+// DIAGNOSTIC LEVELS
 // ============================================================================
 
 const DiagnosticLevel = {
@@ -39,7 +39,7 @@ const DiagnosticsTreeStyle = {
 };
 
 // ============================================================================
-// DIAGNOSTICABLE MIXIN - Minimal debug support
+// DIAGNOSTICABLE MIXIN
 // ============================================================================
 
 export class Diagnosticable {
@@ -92,9 +92,6 @@ export class Diagnosticable {
 
 /**
  * Base Element Class
- * 
- * Represents a node in the element tree. Elements are created from widgets
- * and manage the actual rendering and lifecycle.
  */
 class Element extends Diagnosticable {
   constructor(widget, parent = null, runtime = null) {
@@ -108,42 +105,34 @@ class Element extends Diagnosticable {
       throw new Error('RUNTIME IS UNDEFINED! Runtime is required for Element creation');
     }
 
-    // ✅ Use private property for widget storage
     this._widget = widget;
     this._parent = parent;
     this.runtime = runtime;
 
-    // Element tree structure
     this._children = [];
     this._childMap = new Map();
 
-    // Rendering state
     this._vnode = null;
     this._domNode = null;
 
-    // Lifecycle state
     this._mounted = false;
     this._dirty = false;
     this._building = false;
 
-    // Tree position
     this._depth = parent ? (parent._depth || 0) + 1 : 0;
 
-    // Identity
     this.key = widget.key;
     this._id = Element.generateId();
 
-    // Metadata
     this._buildCount = 0;
     this._lastBuildTime = 0;
     this._lastBuildDuration = 0;
 
-    // Build context
     this._context = null;
   }
 
   // ============================================================================
-  // PROPERTIES - Getter/Setter pattern
+  // PROPERTIES
   // ============================================================================
 
   get widget() {
@@ -213,16 +202,10 @@ class Element extends Diagnosticable {
   // CORE METHODS
   // ============================================================================
 
-  /**
-   * Perform rebuild - must be overridden by subclasses
-   */
   performRebuild() {
     throw new Error(`${this.constructor.name}.performRebuild() must be implemented by subclass`);
   }
 
-  /**
-   * Mount element (first time attachment to tree)
-   */
   mount(parent = null) {
     if (this._mounted) {
       console.warn(`[Element] ${this._id} already mounted`);
@@ -232,16 +215,13 @@ class Element extends Diagnosticable {
     try {
       this._mounted = true;
 
-      // Update parent if provided
       if (parent) {
         this._parent = parent;
         this._depth = (parent._depth || 0) + 1;
       }
 
-      // Perform initial rebuild
       this._vnode = this.performRebuild();
 
-      // Mount children
       this._children.forEach(child => {
         if (!child._mounted) {
           child.mount(this);
@@ -255,9 +235,6 @@ class Element extends Diagnosticable {
     }
   }
 
-  /**
-   * Rebuild element when dirty
-   */
   rebuild() {
     if (!this._mounted) {
       console.warn(`[Element] Cannot rebuild unmounted element ${this._id}`);
@@ -274,10 +251,8 @@ class Element extends Diagnosticable {
 
       const oldVNode = this._vnode;
 
-      // Perform rebuild
       this._vnode = this.performRebuild();
 
-      // Apply changes
       this.applyChanges(oldVNode, this._vnode);
 
       this._dirty = false;
@@ -289,18 +264,12 @@ class Element extends Diagnosticable {
     }
   }
 
-  /**
-   * Apply changes from VNode diff
-   */
   applyChanges(oldVNode, newVNode) {
     if (this.runtime.config && this.runtime.config.debugMode) {
       console.log(`[Element] Applied changes to ${this._id}`);
     }
   }
 
-  /**
-   * Mark element as needing rebuild
-   */
   markNeedsBuild() {
     if (this._dirty) {
       return;
@@ -313,15 +282,11 @@ class Element extends Diagnosticable {
 
     this._dirty = true;
 
-    // Notify runtime if available
     if (this.runtime && this.runtime.markNeedsBuild) {
       this.runtime.markNeedsBuild(this);
     }
   }
 
-  /**
-   * Unmount element
-   */
   unmount() {
     if (!this._mounted) {
       return;
@@ -330,14 +295,12 @@ class Element extends Diagnosticable {
     try {
       this.willUnmount();
 
-      // Unmount children first
       this._children.forEach(child => {
         if (child._mounted) {
           child.unmount();
         }
       });
 
-      // Clear references
       this._children = [];
       this._childMap.clear();
       this._vnode = null;
@@ -352,9 +315,6 @@ class Element extends Diagnosticable {
     }
   }
 
-  /**
-   * Update element with new widget
-   */
   updateWidget(newWidget) {
     if (!newWidget) {
       throw new Error('New widget is required for update');
@@ -370,9 +330,6 @@ class Element extends Diagnosticable {
     this.didUpdateWidget(oldWidget, newWidget);
   }
 
-  /**
-   * Determine if rebuild is needed
-   */
   shouldRebuild(oldWidget, newWidget) {
     if (oldWidget === newWidget) {
       return false;
@@ -385,9 +342,6 @@ class Element extends Diagnosticable {
     return !this.areWidgetsEqual(oldWidget, newWidget);
   }
 
-  /**
-   * Compare two widgets for equality
-   */
   areWidgetsEqual(w1, w2) {
     if (w1.constructor !== w2.constructor) {
       return false;
@@ -420,9 +374,6 @@ class Element extends Diagnosticable {
     });
   }
 
-  /**
-   * Add child element
-   */
   addChild(child) {
     if (!child) {
       throw new Error('Child element is required');
@@ -437,9 +388,6 @@ class Element extends Diagnosticable {
     child.parent = this;
   }
 
-  /**
-   * Remove child element
-   */
   removeChild(child) {
     const index = this._children.indexOf(child);
 
@@ -454,16 +402,10 @@ class Element extends Diagnosticable {
     child.parent = null;
   }
 
-  /**
-   * Find child by key
-   */
   findChildByKey(key) {
     return this._childMap.get(key);
   }
 
-  /**
-   * Find ancestor of type
-   */
   findAncestorOfType(ElementType) {
     let current = this._parent;
 
@@ -477,9 +419,6 @@ class Element extends Diagnosticable {
     return null;
   }
 
-  /**
-   * Visit all ancestors
-   */
   visitAncestors(visitor) {
     let current = this._parent;
 
@@ -555,23 +494,25 @@ class Element extends Diagnosticable {
   }
 }
 
-
-
-
-// Initialize counter
 Element._counter = 0;
 
 /**
- * StatelessElement
+ * StatelessElement - FIXED VERSION
  * 
- * Element for StatelessWidget. These elements don't have state,
- * they just build based on their widget's configuration.
+ * ✅ KEY FIX: Properly handle recursive widget building
+ * When widget.build() returns another widget (not a VNode),
+ * we need to mount and build that widget recursively.
  */
 class StatelessElement extends Element {
   constructor(widget, parent, runtime) {
     super(widget, parent, runtime);
   }
 
+  /**
+   * ✅ FIXED: Recursive widget-to-VNode building
+   * This method properly handles the case where widget.build()
+   * returns another Widget instead of a VNode
+   */
   build() {
     console.log('📦 StatelessElement.build() START', {
       widgetType: this.widget?.constructor.name,
@@ -589,11 +530,9 @@ class StatelessElement extends Element {
       console.log('✓ widget.build() returned:', {
         resultType: typeof result,
         resultConstructor: result?.constructor?.name,
-        resultKeys: result ? Object.keys(result).slice(0, 5) : null,
         isVNode: result?.tag !== undefined,
         isString: typeof result === 'string',
         isNull: result === null,
-        result: result
       });
 
       if (!result) {
@@ -601,57 +540,88 @@ class StatelessElement extends Element {
         throw new Error('StatelessWidget.build() returned null');
       }
 
-      // STEP 2: Check if result is a DOM element (the culprit!)
+      // STEP 2: Check if result is an HTMLElement (error case)
       if (result instanceof HTMLElement) {
-        console.error('❌ FOUND THE ISSUE!');
-        console.error('   Widget returned an HTMLElement instead of a Widget/VNode');
-        console.error('   Element type:', result.tagName);
-        console.error('   Element:', result);
-        console.error('   Widget class:', this.widget.constructor.name);
-        console.error('   This means widget.build() is directly manipulating the DOM');
+        console.error('❌ CRITICAL: Widget returned an HTMLElement instead of Widget/VNode');
         throw new Error(
-          `❌ CRITICAL: ${this.widget.constructor.name}.build() returned an HTMLElement (${result.tagName}). ` +
+          `${this.widget.constructor.name}.build() returned an HTMLElement (${result.tagName}). ` +
           `build() must return a Widget or VNode, not a DOM element!`
         );
       }
 
-      // STEP 3: Check if result is a widget (not a VNode)
+      // STEP 3: ✅ Check if it's already a VNode
+      if (result && typeof result === 'object' && result.tag) {
+        console.log('✅ Result is a VNode, returning');
+        return result;
+      }
+
+      // STEP 4: ✅ Check if it's a string/number/primitive
+      if (typeof result === 'string' || typeof result === 'number' || typeof result === 'boolean') {
+        console.log('✅ Result is a primitive:', result);
+        return result;
+      }
+
+      // STEP 5: ✅ Check if it's a Widget (has build method or createState)
       const isWidget = result &&
         typeof result === 'object' &&
-        result.constructor.name &&
-        !result.tag;
+        (typeof result.build === 'function' || typeof result.createState === 'function');
 
       if (isWidget) {
-        console.log('🔄 Result is a Widget, recursively building...');
-        const childElement = this.runtime.createElement(result, this);
+        console.log('🔄 Result is a Widget, need to build recursively:', result.constructor.name);
+        
+        // ✅ FIX: Create element for this widget
+        const childElement = this._createElementForWidget(result);
 
-        if (!childElement) {
-          throw new Error('Failed to create element from child widget');
+        console.log('✅ Created child element:', childElement.constructor.name);
+
+        // ✅ FIX: Set parent before building (don't call mount yet)
+        childElement._parent = this;
+        childElement._depth = this._depth + 1;
+        childElement._mounted = true;  // Mark as mounted for build context
+
+        console.log('✅ Set up child element parent/depth');
+
+        // ✅ FIX: Recursively build the child element to get VNode
+        const childVNode = childElement.build();
+
+        console.log('✅ Child element.build() returned:', {
+          hasTag: childVNode?.tag !== undefined,
+          type: typeof childVNode
+        });
+
+        if (!childVNode) {
+          throw new Error('Child element.build() returned null');
         }
 
-        return childElement.build();
+        return childVNode;
       }
 
-      // STEP 4: Check if it's a VNode
-      if (result?.tag) {
-        console.log('✓ Result is a VNode');
-        return result;
-      }
-
-      // STEP 5: Check if it's a string/primitive
-      if (typeof result === 'string' || typeof result === 'number') {
-        console.log('✓ Result is a primitive:', result);
-        return result;
-      }
-
-      console.warn('⚠️ Unknown result type:', result);
+      // If we get here, it's an unknown type
+      console.warn('⚠️ Unknown result type from build():', result);
       return result;
 
     } catch (error) {
-      console.error('❌ Build error:', error);
+      console.error('❌ Build error:', error.message);
       console.error('   Widget:', this.widget?.constructor.name);
-      console.error('   Error message:', error.message);
       throw new Error(`StatelessWidget build failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * ✅ Helper to create appropriate element type for a widget
+   * @private
+   */
+  _createElementForWidget(widget) {
+    if (typeof widget.createState === 'function') {
+      console.log('  Creating StatefulElement for:', widget.constructor.name);
+      return new StatefulElement(widget, this, this.runtime);
+    } else if (widget.updateShouldNotify && typeof widget.updateShouldNotify === 'function') {
+      console.log('  Creating InheritedElement for:', widget.constructor.name);
+      const { InheritedElement } = require('./inherited_element.js');
+      return new InheritedElement(widget, this, this.runtime);
+    } else {
+      console.log('  Creating StatelessElement for:', widget.constructor.name);
+      return new StatelessElement(widget, this, this.runtime);
     }
   }
 
@@ -660,12 +630,10 @@ class StatelessElement extends Element {
   }
 }
 
-
 /**
- * StatefulElement
+ * StatefulElement - FIXED VERSION
  * 
- * Element for StatefulWidget. These elements own a State object
- * that persists across rebuilds.
+ * ✅ Same recursive building logic as StatelessElement
  */
 class StatefulElement extends Element {
   constructor(widget, parent, runtime) {
@@ -686,6 +654,9 @@ class StatefulElement extends Element {
     this.state._mounted = false;
   }
 
+  /**
+   * ✅ FIXED: Same recursive building as StatelessElement
+   */
   build() {
     const context = this.buildContext();
 
@@ -700,22 +671,58 @@ class StatefulElement extends Element {
         throw new Error('State.build() returned null');
       }
 
-      // ✅ FIX: If result is a widget (not a VNode), convert to element and build
-      if (result && typeof result === 'object' && result.constructor.name && !result.tag) {
-        // This is a widget, not a VNode
-        const childElement = this.runtime.createElement(result, this);
+      // ✅ FIX: Check if it's a VNode first
+      if (result && typeof result === 'object' && result.tag) {
+        return result;
+      }
 
-        if (!childElement) {
-          throw new Error('Failed to create element from child widget');
+      // ✅ FIX: Check if it's a primitive
+      if (typeof result === 'string' || typeof result === 'number' || typeof result === 'boolean') {
+        return result;
+      }
+
+      // ✅ FIX: Check if it's a widget and build recursively
+      const isWidget = result &&
+        typeof result === 'object' &&
+        (typeof result.build === 'function' || typeof result.createState === 'function');
+
+      if (isWidget) {
+        console.log('🔄 State.build() returned a Widget, building recursively:', result.constructor.name);
+        
+        const childElement = this._createElementForWidget(result);
+        
+        // ✅ FIX: Set up parent/depth without calling mount
+        childElement._parent = this;
+        childElement._depth = this._depth + 1;
+        childElement._mounted = true;
+        
+        const childVNode = childElement.build();
+
+        if (!childVNode) {
+          throw new Error('Child element.build() returned null');
         }
 
-        // Recursively build the child element
-        return childElement.build();
+        return childVNode;
       }
 
       return result;
     } catch (error) {
       throw new Error(`StatefulWidget build failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * ✅ Helper to create appropriate element type for a widget
+   * @private
+   */
+  _createElementForWidget(widget) {
+    if (typeof widget.createState === 'function') {
+      return new StatefulElement(widget, this, this.runtime);
+    } else if (widget.updateShouldNotify && typeof widget.updateShouldNotify === 'function') {
+      const { InheritedElement } = require('./inherited_element.js');
+      return new InheritedElement(widget, this, this.runtime);
+    } else {
+      return new StatelessElement(widget, this, this.runtime);
     }
   }
 
@@ -735,7 +742,6 @@ class StatefulElement extends Element {
   update(newWidget) {
     const oldWidget = this.widget;
 
-    // ✅ FIX: Use setter
     this.widget = newWidget;
     this.state._widget = newWidget;
 
@@ -780,10 +786,7 @@ class StatefulElement extends Element {
 }
 
 /**
- * ComponentElement
- * 
- * Generic element for custom components that don't fit
- * the standard widget patterns.
+ * ComponentElement - Custom components
  */
 class ComponentElement extends Element {
   constructor(widget, parent, runtime) {
@@ -803,20 +806,41 @@ class ComponentElement extends Element {
     try {
       const result = method.call(this.widget, context);
 
-      // ✅ FIX: If result is a widget (not a VNode), convert to element and build
-      if (result && typeof result === 'object' && result.constructor.name && !result.tag) {
-        const childElement = this.runtime.createElement(result, this);
+      // ✅ FIX: Recursive building
+      if (result && typeof result === 'object' && result.tag) {
+        return result;
+      }
 
-        if (!childElement) {
-          throw new Error('Failed to create element from child widget');
-        }
+      if (typeof result === 'string' || typeof result === 'number') {
+        return result;
+      }
 
+      const isWidget = result &&
+        typeof result === 'object' &&
+        (typeof result.build === 'function' || typeof result.createState === 'function');
+
+      if (isWidget) {
+        const childElement = this._createElementForWidget(result);
+        
+        // ✅ FIX: Set up parent/depth without calling mount
+        childElement._parent = this;
+        childElement._depth = this._depth + 1;
+        childElement._mounted = true;
+        
         return childElement.build();
       }
 
       return result;
     } catch (error) {
       throw new Error(`Component build failed: ${error.message}`);
+    }
+  }
+
+  _createElementForWidget(widget) {
+    if (typeof widget.createState === 'function') {
+      return new StatefulElement(widget, this, this.runtime);
+    } else {
+      return new StatelessElement(widget, this, this.runtime);
     }
   }
 

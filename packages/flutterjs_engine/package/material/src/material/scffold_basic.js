@@ -1,4 +1,4 @@
-import { StatefulWidget,Element,StatelessWidget } from '../core/widget_element.js';
+import { StatefulWidget, Element, StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 
 // ============================================================================
@@ -651,46 +651,142 @@ class Scaffold extends StatefulWidget {
   }
 
   createElement(parent, runtime) {
-    return new ScaffoldElement(this,parent, runtime);
+    return new ScaffoldElement(this, parent, runtime);
   }
 }
 
 class ScaffoldElement extends ScaffoldState {
-  constructor(widget) {
+  constructor(widget, parent, runtime) {
     super(widget);
+    this.parent = parent;
+    this.runtime = runtime;
+    this.mounted = false;
   }
 
   mount(parent = null) {
-    super.mount(parent);
+    if (this.mounted) return;
+
+    if (parent) {
+      this.parent = parent;
+    }
+
+    this.mounted = true;
+
+    // Create proper context
+    this.context = {
+      element: this,
+      runtime: this.runtime,
+      parent: this.parent,
+      // Add any other needed context properties
+      findAncestorStateOfType: (stateType) => {
+        let current = this.parent;
+        while (current) {
+          if (current instanceof stateType) {
+            return current;
+          }
+          current = current.parent;
+        }
+        return null;
+      }
+    };
+  }
+
+  getElementId() {
+    return this._elementId || (this._elementId = `scaffold-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  }
+
+  getWidgetPath() {
+    const parts = [];
+    let current = this;
+    while (current) {
+      if (current.widget) {
+        parts.unshift(current.widget.constructor.name);
+      }
+      current = current.parent;
+    }
+    return parts.join('/');
+  }
+
+  performRebuild() {
+    if (!this.mounted) {
+      this.mount();
+    }
+
+    // ✅ CRITICAL: Make sure context exists before calling build
+    if (!this.context) {
+      this.context = {
+        element: this,
+        runtime: this.runtime,
+        parent: this.parent
+      };
+    }
+
+    // Call widget.build() with proper context
+    return this.widget.build(this.context);
   }
 
   build(context) {
-    return this.widget.build(this.context);
+    // Ensure context is set
+    if (context) {
+      this.context = context;
+    }
+    return this.performRebuild();
+  }
+
+  markNeedsBuild() {
+    // Trigger rebuild through runtime
+    if (this.runtime && this.runtime.update) {
+      this.runtime.update();
+    }
   }
 }
 
- class AppBar extends StatelessWidget {
-  constructor({ title, backgroundColor } = {}) {
-    super({ title, backgroundColor });
+class AppBar extends StatelessWidget {
+  constructor({ title, backgroundColor, leading, actions } = {}) {
+    super();
     this.title = title;
     this.backgroundColor = backgroundColor;
+    this.leading = leading;
+    this.actions = actions;
   }
 
   build(context) {
-    return new VNode(
-      'div',
-      {
+    // ✅ FIX: Build title as VNode if it's a widget
+    let titleVNode = null;
+    if (this.title) {
+      if (this.title.createElement) {
+        // It's a widget - build it
+        const titleElement = this.title.createElement(context.element, context.element.runtime);
+        titleElement.mount(context.element);
+        titleVNode = titleElement.performRebuild();
+      } else {
+        // It's a string - wrap in VNode
+        titleVNode = new VNode({
+          tag: 'span',
+          children: [String(this.title)]
+        });
+      }
+    }
+
+    // ✅ FIX: Use VNode constructor correctly with OBJECT parameter
+    return new VNode({
+      tag: 'div',  // ✅ CORRECT: tag is inside the config object
+      props: {
         className: 'flutter-appbar',
-        style: {
-          backgroundColor: this.backgroundColor || 'var(--md-sys-color-primary)',
-          color: '#FFFFFF',
-          padding: '16px',
-          fontSize: '20px',
-          fontWeight: 'bold',
-        },
+        'data-widget': 'AppBar'
       },
-      [this.title]
-    );
+      style: {
+        backgroundColor: this.backgroundColor || 'var(--md-sys-color-primary)',
+        color: '#FFFFFF',
+        padding: '16px',
+        fontSize: '20px',
+        fontWeight: 'bold',
+        display: 'flex',
+        alignItems: 'center',
+        minHeight: '56px'
+      },
+      children: titleVNode ? [titleVNode] : []
+    });
   }
 }
 

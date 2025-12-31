@@ -1,19 +1,7 @@
 /**
  * FlutterJS Runtime - Complete Integration Layer
  * 
- * Brings together all VNode system components:
- * - VNode creation and management
- * - Widget building
- * - Style conversion
- * - Rendering (CSR/SSR)
- * - Hydration
- * - State management
- * 
- * Provides high-level API for:
- * - runApp() - Start application
- * - Hot reload
- * - State updates
- * - Performance monitoring
+ * FIXED: All 3 VNodeRenderer.render() calls now properly instantiate the class
  */
 
 import { VNode } from './vnode.js';
@@ -31,6 +19,7 @@ export class VNodeRuntime {
     this.rootVNode = null;
     this.isHydrated = false;
     this.hotReloadEnabled = false;
+    this.renderer = null;  // ✅ ADD: Store renderer instance
     this.stateRegistry = new Map();
     this.performanceMetrics = {
       initialRender: 0,
@@ -48,7 +37,6 @@ export class VNodeRuntime {
       averageRenderTime: 0
     };
   }
-
 
   /**
    * Start the application
@@ -72,6 +60,10 @@ export class VNodeRuntime {
       // Get target element
       this.rootElement = this.getTargetElement(target);
       console.log(`  [RUNTIME] Target element found`);
+
+      // ✅ CREATE RENDERER INSTANCE HERE
+      this.renderer = new VNodeRenderer({ debugMode: true });
+      console.log(`  [RUNTIME] VNodeRenderer instance created`);
 
       // Check if SSR content exists
       const hasSSRContent = this.hasSSRContent(this.rootElement);
@@ -138,7 +130,12 @@ export class VNodeRuntime {
     console.log(`  [RENDERAPP] Root element before render:`, this.rootElement.innerHTML.substring(0, 100));
     console.log(`  [RENDERAPP] Root element classes:`, this.rootElement.className);
 
-    VNodeRenderer.render(this.rootVNode, this.rootElement, {
+    // ✅ FIX #1: Use instance instead of static call
+    if (!this.renderer) {
+      this.renderer = new VNodeRenderer({ debugMode: true });
+    }
+    
+    this.renderer.render(this.rootVNode, this.rootElement, {
       clear: true
     });
     console.log(`  [RENDERAPP] Rendered to DOM`);
@@ -218,11 +215,12 @@ export class VNodeRuntime {
     const newVNode = VNodeBuilder.build(widgetTree, context);
     console.log(`  [UPDATE] New VNode created`);
 
-    if (this.rootVNode) {
-      VNodeRenderer.render(newVNode, this.rootElement, { clear: true });
-    } else {
-      VNodeRenderer.render(newVNode, this.rootElement, { clear: true });
+    // ✅ FIX #2 & #3: Use instance instead of static calls
+    if (!this.renderer) {
+      this.renderer = new VNodeRenderer({ debugMode: true });
     }
+
+    this.renderer.render(newVNode, this.rootElement, { clear: true });
 
     this.rootVNode = newVNode;
 
@@ -513,9 +511,9 @@ export class VNodeRuntime {
     console.log(`  [DESTROY] Destroying runtime`);
 
     // Cleanup event listeners
-    if (this.rootElement) {
+    if (this.rootElement && this.renderer) {
       console.log(`  [DESTROY] Cleaning up event listeners`);
-      VNodeRenderer.cleanupEventListeners(this.rootElement);
+      this.renderer.cleanupEventListeners(this.rootElement);
     }
 
     // Clear state registry
@@ -533,6 +531,7 @@ export class VNodeRuntime {
     this.app = null;
     this.rootElement = null;
     this.rootVNode = null;
+    this.renderer = null;
 
     console.log('✓ Runtime destroyed');
   }
@@ -554,14 +553,14 @@ export function runApp(app, options = {}) {
 
   if (!globalRuntime) {
     console.log(`[GLOBAL] Creating new global runtime`);
-    globalRuntime = new FlutterJSRuntime();
+    globalRuntime = new VNodeRuntime();
   }
   return globalRuntime.runApp(app, options);
 }
 
 /**
  * Get the global runtime instance
- * @returns {FlutterJSRuntime} Runtime instance
+ * @returns {VNodeRuntime} Runtime instance
  */
 export function getRuntime() {
   console.log(`[GLOBAL] getRuntime called, exists: ${globalRuntime !== null}`);
@@ -609,9 +608,6 @@ export function hotReload() {
   globalRuntime.hotReload();
 }
 
-
-
-
 /**
  * Server-side render to HTML
  * @param {Widget} app - Root widget
@@ -655,7 +651,7 @@ export function hydrate(app, options = {}) {
 
   if (!globalRuntime) {
     console.log(`[GLOBAL] Creating new global runtime for hydration`);
-    globalRuntime = new FlutterJSRuntime();
+    globalRuntime = new VNodeRuntime();
   }
 
   const target = options.target || '#root';
@@ -678,7 +674,6 @@ export function hydrate(app, options = {}) {
   return globalRuntime;
 }
 
-
 // Default export
 export default {
   runApp,
@@ -688,12 +683,7 @@ export default {
   hotReload,
   renderToString,
   hydrate,
-  VNode,
-  VNodeBuilder,
-  StyleConverter,
-  VNodeRenderer,
-  SSRRenderer,
-  Hydrator,
+
   VNodeRuntime
 };
 
