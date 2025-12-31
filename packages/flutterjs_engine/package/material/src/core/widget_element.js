@@ -288,7 +288,8 @@ class StatefulElement extends Element {
     super(widget, parent, runtime);
     this.state = widget.createState();
     this.state._element = this;
-    this.state.widget = widget;
+    // ✅ FIX: Use _widget instead of widget (or create proper setter in State)
+    this.state._widget = widget;
   }
 
   /**
@@ -337,7 +338,8 @@ class StatefulElement extends Element {
   updateWidget(newWidget) {
     const oldWidget = this.widget;
     this.widget = newWidget;
-    this.state._updateWidget(newWidget);   // Use internal hook
+    // ✅ FIX: Use _widget instead of widget
+    this.state._widget = newWidget;
 
     try {
       this.state.didUpdateWidget(oldWidget);
