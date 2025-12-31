@@ -205,11 +205,11 @@ class FloatingActionButton extends StatelessWidget {
 
     // Build child element
     if (this.child) {
-      const childElement = this.child.createElement?.() || this.child;
+      const childElement = this.child.createElement?.(context.element, context.element.runtime) || this.child;
       if (childElement.mount) {
         childElement.mount(context.element);
       }
-      childVNode = childElement.performRebuild?.() || null;
+      childVNode = childElement.performRebuild?.(context.element, context.element.runtime) || null;
     }
 
     // Inject ripple animation keyframes
@@ -263,11 +263,11 @@ class FloatingActionButton extends StatelessWidget {
     });
 
     // Build gesture detector element
-    const fabElement = fabWidget.createElement?.();
+    const fabElement = fabWidget.createElement?.(context.element, context.element.runtime);
     if (fabElement && fabElement.mount) {
       fabElement.mount(context.element);
     }
-    let fabVNode = fabElement?.performRebuild?.() || null;
+    let fabVNode = fabElement?.performRebuild?.(context.element, context.element.runtime) || null;
 
     // Wrap with tooltip if provided
     if (this.tooltip) {
@@ -330,7 +330,7 @@ class FloatingActionButton extends StatelessWidget {
 }
 
 class FloatingActionButtonElement extends Element {
-  performRebuild() {
+  performRebuild(parent, runtime) {
     return this.widget.build(this.context);
   }
 }
@@ -441,11 +441,11 @@ class FloatingActionButtonExtended extends StatelessWidget {
 
     let iconVNode = null;
     if (this.icon) {
-      const iconElement = this.icon.createElement?.() || this.icon;
+      const iconElement = this.icon.createElement?.(context.element, context.element.runtime) || this.icon;
       if (iconElement.mount) {
         iconElement.mount(context.element);
       }
-      iconVNode = iconElement.performRebuild?.() || null;
+      iconVNode = iconElement.performRebuild?.(context.element, context.element.runtime) || null;
     }
 
     const buttonContent = new VNode({
@@ -479,11 +479,11 @@ class FloatingActionButtonExtended extends StatelessWidget {
       })
     });
 
-    const fabElement = fabWidget.createElement?.();
+    const fabElement = fabWidget.createElement?.(context.element, context.element.runtime);
     if (fabElement && fabElement.mount) {
       fabElement.mount(context.element);
     }
-    return fabElement?.performRebuild?.() || null;
+    return fabElement?.performRebuild?.(context.element, context.element.runtime) || null;
   }
 
   createElement(parent, runtime) {

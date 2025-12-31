@@ -425,6 +425,8 @@ class ErrorWidget extends StatelessWidget {
 class ProxyElement extends Element {
   constructor(widget, parent = null, runtime = null) {
     super(widget, parent, runtime);
+    this.parent=parent;
+    this.runtime=runtime;
   }
 
   mount(parent = null) {
@@ -434,7 +436,7 @@ class ProxyElement extends Element {
   performRebuild() {
     // ProxyWidget typically renders child directly
     if (this.widget.child) {
-      const childElement = this.widget.child.createElement?.();
+      const childElement = this.widget.child.createElement?.(this.parent, this.runtime);
       if (childElement && childElement.mount) {
         childElement.mount(this);
       }
@@ -452,12 +454,14 @@ class InheritedElement extends ProxyElement {
   constructor(widget, parent = null, runtime = null) {
     super(widget, parent, runtime);
     this._dependents = new Set();
+    this.parent=parent;
+    this.runtime=runtime;
   }
 
   performRebuild() {
     // Render child
     if (this.widget.child) {
-      const childElement = this.widget.child.createElement?.();
+      const childElement = this.widget.child.createElement?.(this.parent, this.runtime);
       if (childElement && childElement.mount) {
         childElement.mount(this);
       }
@@ -474,11 +478,13 @@ class InheritedElement extends ProxyElement {
 class NotificationListenerElement extends ProxyElement {
   constructor(widget, parent = null, runtime = null) {
     super(widget, parent, runtime);
+    this.parent = parent;
+    this.runtime = runtime;
   }
 
   performRebuild() {
     if (this.widget.child) {
-      const childElement = this.widget.child.createElement?.();
+      const childElement = this.widget.child.createElement?.(this.parent, this.runtime);
       if (childElement && childElement.mount) {
         childElement.mount(this);
       }

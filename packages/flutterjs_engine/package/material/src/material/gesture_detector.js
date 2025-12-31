@@ -109,7 +109,7 @@ class GestureDetector extends StatelessWidget {
 
     let childVNode = null;
     if (this.child) {
-      const childElement = this.child.createElement?.() || this.child;
+      const childElement = this.child.createElement?.(context.element, context.element.runtime) || this.child;
       if (childElement.mount) {
         childElement.mount(context.element);
       }
