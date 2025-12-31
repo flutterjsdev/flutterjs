@@ -251,7 +251,7 @@ class MaterialApp extends StatelessWidget {
     }
 
     // Build page element
-    const pageElement = pageWidget.createElement?.() || pageWidget;
+    const pageElement = pageWidget.createElement?.(context.element, context.element.runtime) || pageWidget;
     if (pageElement.mount) {
       pageElement.mount(context.element);
     }

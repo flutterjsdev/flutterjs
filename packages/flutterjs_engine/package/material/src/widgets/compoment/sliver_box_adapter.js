@@ -254,7 +254,7 @@ class SliverPadding extends ProxyWidget {
 
     let childVNode = null;
     if (this.child) {
-      const childElement = this.child.createElement();
+      const childElement = this.child.createElement(context.element, context.element.runtime);
       childElement.mount(context.element);
       childVNode = childElement.performRebuild();
     }

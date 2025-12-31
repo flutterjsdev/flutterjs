@@ -117,7 +117,7 @@ class SnackBar {
       style.margin = `${this.margin}px`;
     }
 
-    const contentVNode = this.content?.createElement?.()
+    const contentVNode = this.content?.createElement?.(context.element, context.element.runtime)
       ? this.content.createElement(context.element, context.element.runtime).performRebuild()
       : new VNode({ tag: 'span', children: [String(this.content)] });
 
