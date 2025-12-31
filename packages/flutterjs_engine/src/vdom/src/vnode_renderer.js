@@ -1,26 +1,28 @@
 /**
  * VNodeRenderer - Client-Side Rendering (CSR)
- * 
- * Converts VNode trees to actual DOM elements in the browser.
- * Handles:
- * - DOM element creation
- * - Props/styles/events application
- * - Recursive child rendering
- * - Refs and callbacks
- * - Event listener management
+ * WITH ENHANCED DEBUGGING
  */
 
 class VNodeRenderer {
-  /**
-   * Render VNode tree to DOM
-   * @param {VNode|string|Array} vnode - VNode tree to render
-   * @param {HTMLElement} targetElement - DOM element to render into
-   * @param {Object} options - Rendering options
-   * @returns {HTMLElement} Root DOM element
-   */
-   render(vnode, targetElement, options = {}) {
+  constructor(options = {}) {
+    this.debugMode = options.debugMode || false;
+    this.rootElement = options.rootElement || null;
+  }
+
+  render(vnode, targetElement, options = {}) {
     if (!targetElement) {
       throw new Error('Target element is required');
+    }
+
+    if (this.debugMode) {
+      console.log('[VNodeRenderer] 🎨 Rendering to', targetElement.id || targetElement.className || targetElement.tagName);
+      console.log('[VNodeRenderer] 📦 VNode to render:', {
+        type: typeof vnode,
+        isArray: Array.isArray(vnode),
+        hasTag: vnode?.tag,
+        constructor: vnode?.constructor?.name,
+        keys: vnode ? Object.keys(vnode).slice(0, 10) : []
+      });
     }
 
     // Clear target if specified
@@ -40,16 +42,14 @@ class VNodeRenderer {
       }
     }
 
-    // Return first element or array
+    if (this.debugMode) {
+      console.log('[VNodeRenderer] ✅ Rendered successfully');
+    }
+
     return Array.isArray(domNode) ? domNode[0] : domNode;
   }
 
-  /**
-   * Create DOM node from VNode
-   * @param {VNode|string|Array} vnode - VNode to convert
-   * @returns {HTMLElement|Text|Array|null} DOM node(s)
-   */
-   createDOMNode(vnode) {
+  createDOMNode(vnode) {
     // Handle null/undefined
     if (vnode === null || vnode === undefined) {
       return document.createTextNode('');
@@ -72,9 +72,31 @@ class VNodeRenderer {
       return document.createTextNode('');
     }
 
-    // Must be a VNode object
+    // ✅ ENHANCED DEBUG: Check if it's a valid VNode
     if (!vnode.tag) {
-      console.warn('Invalid VNode: missing tag', vnode);
+      console.error('❌ Invalid VNode: missing tag');
+      console.error('📋 Object details:', {
+        type: typeof vnode,
+        constructor: vnode?.constructor?.name,
+        hasTag: vnode?.tag !== undefined,
+        hasBuild: typeof vnode?.build === 'function',
+        hasCreateState: typeof vnode?.createState === 'function',
+        hasCreateElement: typeof vnode?.createElement === 'function',
+        keys: Object.keys(vnode).slice(0, 20)
+      });
+      console.error('🔍 Full object:', vnode);
+      
+      // Try to identify what it is
+      if (typeof vnode.build === 'function') {
+        console.error('❌ This looks like a WIDGET, not a VNode!');
+        console.error('   Widget type:', vnode.constructor.name);
+        console.error('   Widget should have been built to VNode before rendering');
+      } else if (typeof vnode.createElement === 'function') {
+        console.error('❌ This looks like a WIDGET with createElement!');
+      } else if (vnode.appBar || vnode.body || vnode.floatingActionButton) {
+        console.error('❌ This looks like a SCAFFOLD widget instance!');
+      }
+      
       return document.createTextNode('');
     }
 
@@ -111,23 +133,17 @@ class VNodeRenderer {
     return element;
   }
 
-  /**
-   * Render children into parent element
-   * @private
-   */
-   renderChildren(parent, children) {
+  renderChildren(parent, children) {
     children.forEach((child, index) => {
       const childNode = this.createDOMNode(child);
       
       if (childNode) {
         if (Array.isArray(childNode)) {
-          // Fragment - append all nodes
           childNode.forEach(node => parent.appendChild(node));
         } else {
           parent.appendChild(childNode);
         }
 
-        // Store parent/index references for VNode children
         if (child && typeof child === 'object' && child.tag) {
           child._parent = parent._vnode;
           child._index = index;
@@ -136,54 +152,43 @@ class VNodeRenderer {
     });
   }
 
-  /**
-   * Apply HTML attributes to element
-   * @private
-   */
-   applyProps(element, props) {
+  applyProps(element, props) {
     Object.entries(props).forEach(([key, value]) => {
       if (value === null || value === undefined) {
         return;
       }
 
       try {
-        // Special handling for className
         if (key === 'className' || key === 'class') {
           element.className = value;
           return;
         }
 
-        // Special handling for value (inputs)
         if (key === 'value' && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT')) {
           element.value = value;
           return;
         }
 
-        // Special handling for checked (checkboxes/radios)
         if (key === 'checked' && element.tagName === 'INPUT') {
           element.checked = !!value;
           return;
         }
 
-        // Special handling for selected (options)
         if (key === 'selected' && element.tagName === 'OPTION') {
           element.selected = !!value;
           return;
         }
 
-        // Special handling for disabled
         if (key === 'disabled') {
           element.disabled = !!value;
           return;
         }
 
-        // Data attributes and aria attributes
         if (key.startsWith('data-') || key.startsWith('aria-')) {
           element.setAttribute(key, String(value));
           return;
         }
 
-        // Boolean attributes
         if (typeof value === 'boolean') {
           if (value) {
             element.setAttribute(key, '');
@@ -193,16 +198,13 @@ class VNodeRenderer {
           return;
         }
 
-        // Try setting as property first (faster)
         if (key in element) {
           element[key] = value;
         } else {
-          // Fall back to setAttribute
           element.setAttribute(key, String(value));
         }
       } catch (error) {
         console.warn(`Failed to set prop ${key}:`, error);
-        // Try setAttribute as fallback
         try {
           element.setAttribute(key, String(value));
         } catch (e) {
@@ -212,15 +214,10 @@ class VNodeRenderer {
     });
   }
 
-  /**
-   * Apply CSS styles to element
-   * @private
-   */
-   applyStyles(element, styles) {
+  applyStyles(element, styles) {
     Object.entries(styles).forEach(([key, value]) => {
       if (value !== null && value !== undefined) {
         try {
-          // Handle CSS custom properties (--variable-name)
           if (key.startsWith('--')) {
             element.style.setProperty(key, value);
           } else {
@@ -233,11 +230,7 @@ class VNodeRenderer {
     });
   }
 
-  /**
-   * Attach event listeners to element
-   * @private
-   */
-   applyEvents(element, events) {
+  applyEvents(element, events) {
     Object.entries(events).forEach(([eventName, handler]) => {
       if (typeof handler !== 'function') {
         console.warn(`Event handler for ${eventName} is not a function`);
@@ -245,18 +238,14 @@ class VNodeRenderer {
       }
 
       try {
-        // Normalize event name
-        // onClick -> click, onInput -> input, etc.
         const normalizedName = eventName
           .replace(/^on/, '')
           .toLowerCase();
 
-        // Store listeners for cleanup
         if (!element._eventListeners) {
           element._eventListeners = {};
         }
 
-        // Remove old listener if exists
         if (element._eventListeners[normalizedName]) {
           element.removeEventListener(
             normalizedName,
@@ -264,7 +253,6 @@ class VNodeRenderer {
           );
         }
 
-        // Add new listener
         element.addEventListener(normalizedName, handler);
         element._eventListeners[normalizedName] = handler;
       } catch (error) {
@@ -273,26 +261,14 @@ class VNodeRenderer {
     });
   }
 
-  /**
-   * Clear element contents and remove event listeners
-   * @private
-   */
-   clearElement(element) {
-    // Remove event listeners from all descendants
+  clearElement(element) {
     this.cleanupEventListeners(element);
-
-    // Clear innerHTML
     element.innerHTML = '';
   }
 
-  /**
-   * Recursively remove event listeners
-   * @private
-   */
-   cleanupEventListeners(element) {
+  cleanupEventListeners(element) {
     if (!element) return;
 
-    // Remove listeners from this element
     if (element._eventListeners) {
       Object.entries(element._eventListeners).forEach(([event, handler]) => {
         element.removeEventListener(event, handler);
@@ -300,26 +276,17 @@ class VNodeRenderer {
       element._eventListeners = null;
     }
 
-    // Remove VNode reference
     if (element._vnode) {
       element._vnode._element = null;
       element._vnode = null;
     }
 
-    // Recursively clean children
     Array.from(element.children).forEach(child => {
       this.cleanupEventListeners(child);
     });
   }
 
-  /**
-   * Update element with new props
-   * @param {HTMLElement} element - Element to update
-   * @param {Object} oldProps - Previous props
-   * @param {Object} newProps - New props
-   */
-   updateProps(element, oldProps = {}, newProps = {}) {
-    // Remove old props that don't exist in new props
+  updateProps(element, oldProps = {}, newProps = {}) {
     Object.keys(oldProps).forEach(key => {
       if (!(key in newProps)) {
         if (key === 'className' || key === 'class') {
@@ -336,36 +303,20 @@ class VNodeRenderer {
       }
     });
 
-    // Apply new props
     this.applyProps(element, newProps);
   }
 
-  /**
-   * Update element with new styles
-   * @param {HTMLElement} element - Element to update
-   * @param {Object} oldStyles - Previous styles
-   * @param {Object} newStyles - New styles
-   */
-   updateStyles(element, oldStyles = {}, newStyles = {}) {
-    // Remove old styles that don't exist in new styles
+  updateStyles(element, oldStyles = {}, newStyles = {}) {
     Object.keys(oldStyles).forEach(key => {
       if (!(key in newStyles)) {
         element.style[key] = '';
       }
     });
 
-    // Apply new styles
     this.applyStyles(element, newStyles);
   }
 
-  /**
-   * Update element with new events
-   * @param {HTMLElement} element - Element to update
-   * @param {Object} oldEvents - Previous events
-   * @param {Object} newEvents - New events
-   */
-   updateEvents(element, oldEvents = {}, newEvents = {}) {
-    // Remove old event listeners
+  updateEvents(element, oldEvents = {}, newEvents = {}) {
     Object.keys(oldEvents).forEach(eventName => {
       if (!(eventName in newEvents)) {
         const normalizedName = eventName.replace(/^on/, '').toLowerCase();
@@ -379,52 +330,27 @@ class VNodeRenderer {
       }
     });
 
-    // Apply new events
     this.applyEvents(element, newEvents);
   }
 
-  /**
-   * Replace element with new VNode
-   * @param {HTMLElement} oldElement - Element to replace
-   * @param {VNode} newVNode - New VNode to render
-   * @returns {HTMLElement} New element
-   */
-   replaceElement(oldElement, newVNode) {
+  replaceElement(oldElement, newVNode) {
     const newElement = this.createDOMNode(newVNode);
     
     if (oldElement.parentNode && newElement) {
-      // Cleanup old element
       this.cleanupEventListeners(oldElement);
-      
-      // Replace in DOM
       oldElement.parentNode.replaceChild(newElement, oldElement);
     }
 
     return newElement;
   }
 
-  /**
-   * Remove element from DOM
-   * @param {HTMLElement} element - Element to remove
-   */
-   removeElement(element) {
+  removeElement(element) {
     if (!element || !element.parentNode) return;
-
-    // Cleanup event listeners
     this.cleanupEventListeners(element);
-
-    // Remove from DOM
     element.parentNode.removeChild(element);
   }
 
-  /**
-   * Insert element at specific position
-   * @param {HTMLElement} parent - Parent element
-   * @param {VNode} vnode - VNode to insert
-   * @param {number} index - Position to insert at
-   * @returns {HTMLElement} Inserted element
-   */
-   insertAt(parent, vnode, index) {
+  insertAt(parent, vnode, index) {
     const element = this.createDOMNode(vnode);
     
     if (!element) return null;
@@ -440,13 +366,7 @@ class VNodeRenderer {
     return element;
   }
 
-  /**
-   * Find element by index path
-   * @param {HTMLElement} root - Root element
-   * @param {string} indexPath - Dot-separated index path (e.g., "0.1.2")
-   * @returns {HTMLElement|null} Found element
-   */
-   findElementByPath(root, indexPath) {
+  findElementByPath(root, indexPath) {
     if (!indexPath) return root;
 
     const indices = indexPath.split('.').map(Number);
@@ -461,12 +381,7 @@ class VNodeRenderer {
     return current;
   }
 
-  /**
-   * Get element's index path
-   * @param {HTMLElement} element - Element to get path for
-   * @returns {string} Dot-separated index path
-   */
-   getElementPath(element) {
+  getElementPath(element) {
     const indices = [];
     let current = element;
 
@@ -480,13 +395,7 @@ class VNodeRenderer {
     return indices.join('.');
   }
 
-  /**
-   * Batch render multiple VNodes
-   * @param {Array} vnodes - Array of VNodes
-   * @param {HTMLElement} container - Container element
-   */
-   batchRender(vnodes, container) {
-    // Use DocumentFragment for better performance
+  batchRender(vnodes, container) {
     const fragment = document.createDocumentFragment();
 
     vnodes.forEach(vnode => {
@@ -500,36 +409,24 @@ class VNodeRenderer {
       }
     });
 
-    // Clear and append in one operation
     this.clearElement(container);
     container.appendChild(fragment);
   }
 
-  /**
-   * Check if element needs update
-   * @param {HTMLElement} element - DOM element
-   * @param {VNode} vnode - New VNode
-   * @returns {boolean} True if update needed
-   */
-   needsUpdate(element, vnode) {
+  needsUpdate(element, vnode) {
     if (!element._vnode) return true;
     
     const oldVNode = element._vnode;
 
-    // Different tags = needs replace
     if (oldVNode.tag !== vnode.tag) return true;
-
-    // Check if key changed
     if (oldVNode.key !== vnode.key) return true;
 
-    // Check if props changed (shallow)
     const oldProps = oldVNode.props || {};
     const newProps = vnode.props || {};
     if (Object.keys(oldProps).length !== Object.keys(newProps).length) {
       return true;
     }
 
-    // Check if styles changed (shallow)
     const oldStyles = oldVNode.style || {};
     const newStyles = vnode.style || {};
     if (Object.keys(oldStyles).length !== Object.keys(newStyles).length) {
@@ -540,6 +437,4 @@ class VNodeRenderer {
   }
 }
 
-
-
-export {VNodeRenderer}
+export { VNodeRenderer };
