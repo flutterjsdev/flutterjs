@@ -1,4 +1,5 @@
-import { Widget, Element } from '../../core/widget_element.js';
+import { Widget, } from '../../core/widget_element.js';
+import {Element} from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
 
 // ============================================================================

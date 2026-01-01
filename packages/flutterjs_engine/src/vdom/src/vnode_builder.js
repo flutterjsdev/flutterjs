@@ -31,6 +31,11 @@ class VNodeBuilder {
    * @param {BuildContext} context - Build context with runtime
    * @returns {VNode|string|null} VNode tree or text content
    */
+  /**
+ * VNodeBuilder - FIXED build() method
+ * Key fix: Check StatefulWidget BEFORE StatelessWidget
+ */
+
   build(widget, context = {}) {
     const buildPath = this.buildStack.join(' → ');
     const indent = '  '.repeat(this.buildStack.length);
@@ -45,7 +50,7 @@ class VNodeBuilder {
         console.log(`${indent}  Has build: ${typeof widget?.build === 'function'}`);
         console.log(`${indent}  Has createState: ${typeof widget?.createState === 'function'}`);
         console.log(`${indent}  Has tag: ${widget?.tag !== undefined}`);
-        console.log(`${indent}  Runtime: ${!!this.runtime ? '✓' : '✗'}`);
+        console.log(`${indent}  Runtime: ${!!this.runtime ? '✔' : '✗'}`);
         console.log('='.repeat(80));
       }
 
@@ -109,18 +114,28 @@ class VNodeBuilder {
         );
       }
 
-      // ✅ STATELESS WIDGET
-      if (typeof widget.build === 'function' && !widget.createState) {
-        return this.buildStatelessWidget(widget, context, indent);
+      // ✅ FIX: CHECK STATEFUL WIDGET FIRST (before StatelessWidget)
+      // This is critical because StatefulWidget may also have a build() method
+      if (typeof widget.createState === 'function') {
+        if (this.debugMode) {
+          console.log(`${indent}✅ DETECTED STATEFUL WIDGET: ${widget.constructor.name}`);
+        }
+        return this.buildStatefulWidget(widget, context, indent);
       }
 
-      // ✅ STATEFUL WIDGET
-      if (typeof widget.createState === 'function') {
-        return this.buildStatefulWidget(widget, context, indent);
+      // ✅ THEN check for StatelessWidget
+      if (typeof widget.build === 'function' && !widget.createState) {
+        if (this.debugMode) {
+          console.log(`${indent}✅ DETECTED STATELESS WIDGET: ${widget.constructor.name}`);
+        }
+        return this.buildStatelessWidget(widget, context, indent);
       }
 
       // ✅ INHERITED WIDGET
       if (widget.updateShouldNotify && typeof widget.updateShouldNotify === 'function') {
+        if (this.debugMode) {
+          console.log(`${indent}✅ DETECTED INHERITED WIDGET: ${widget.constructor.name}`);
+        }
         return this.buildInheritedWidget(widget, context, indent);
       }
 

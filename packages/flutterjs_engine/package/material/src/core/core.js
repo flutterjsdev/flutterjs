@@ -2,20 +2,18 @@
 // Core widget and element classes
 
 export {
-    GlobalKey,
-    ValueKey,
-    ObjectKey,
-    Key,
-    ProxyWidget,
-    InheritedWidget,
-    Notification,
-    NotificationListener,
-    ErrorWidget,
-    Diagnosticable,
+    State,
     Widget,
-    Element,
     StatelessWidget,
     StatelessElement,
     StatefulWidget,
-    StatefulElement
+    StatefulElement,
+    ProxyWidget,
+    ProxyElement,
+    ErrorWidget,
+    Key,
+    ValueKey,
+    ObjectKey,
+    GlobalKey,
+    Diagnosticable
 } from "./widget_element.js";

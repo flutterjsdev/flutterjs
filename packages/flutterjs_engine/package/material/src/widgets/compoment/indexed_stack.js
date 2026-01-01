@@ -1,4 +1,5 @@
-import { Widget, StatelessWidget, Element } from '../../core/widget_element.js';
+import { Widget, StatelessWidget,  } from '../../core/widget_element.js';
+import {Element} from "@flutterjs/runtime"
 import { Stack, StackElement, RenderStack, AlignmentDirectional, StackFit } from './stack.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Clip, TextDirection } from '../../utils/utils.js';

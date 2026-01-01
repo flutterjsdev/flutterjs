@@ -1,4 +1,5 @@
-import { Widget, InheritedWidget, Element } from '../../core/widget_element.js';
+import { Widget, InheritedWidget,  } from '../../core/widget_element.js';
+import {Element} from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
 import { TextDirection, Alignment } from '../../utils/utils.js';
 
