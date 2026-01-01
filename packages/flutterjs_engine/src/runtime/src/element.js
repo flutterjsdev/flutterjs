@@ -499,9 +499,7 @@ Element._counter = 0;
 /**
  * StatelessElement - FIXED VERSION
  * 
- * ✅ KEY FIX: Properly handle recursive widget building
- * When widget.build() returns another widget (not a VNode),
- * we need to mount and build that widget recursively.
+ * ✅ KEY FIX: Returns result from widget.build(), NOT the Element
  */
 class StatelessElement extends Element {
   constructor(widget, parent, runtime) {
@@ -509,15 +507,13 @@ class StatelessElement extends Element {
   }
 
   /**
-   * ✅ FIXED: Recursive widget-to-VNode building
-   * This method properly handles the case where widget.build()
-   * returns another Widget instead of a VNode
+   * Build the widget and return the result
+   * ✅ CRITICAL: This must return the result of widget.build(), not this Element
    */
   build() {
     console.log('📦 StatelessElement.build() START', {
       widgetType: this.widget?.constructor.name,
-      widgetInstance: this.widget,
-      hasBuildMethod: typeof this.widget?.build === 'function'
+      widgetInstance: this.widget
     });
 
     const context = this.buildContext();
@@ -540,28 +536,19 @@ class StatelessElement extends Element {
         throw new Error('StatelessWidget.build() returned null');
       }
 
-      // STEP 2: Check if result is an HTMLElement (error case)
-      if (result instanceof HTMLElement) {
-        console.error('❌ CRITICAL: Widget returned an HTMLElement instead of Widget/VNode');
-        throw new Error(
-          `${this.widget.constructor.name}.build() returned an HTMLElement (${result.tagName}). ` +
-          `build() must return a Widget or VNode, not a DOM element!`
-        );
-      }
-
-      // STEP 3: ✅ Check if it's already a VNode
+      // ✅ CRITICAL FIX: Check if result is a VNode first
       if (result && typeof result === 'object' && result.tag) {
-        console.log('✅ Result is a VNode, returning');
+        console.log('✅ Result is a VNode, returning it directly');
         return result;
       }
 
-      // STEP 4: ✅ Check if it's a string/number/primitive
+      // ✅ Check if it's a string/number/primitive
       if (typeof result === 'string' || typeof result === 'number' || typeof result === 'boolean') {
         console.log('✅ Result is a primitive:', result);
         return result;
       }
 
-      // STEP 5: ✅ Check if it's a Widget (has build method or createState)
+      // ✅ Check if it's a Widget (has build method or createState)
       const isWidget = result &&
         typeof result === 'object' &&
         (typeof result.build === 'function' || typeof result.createState === 'function');
@@ -582,6 +569,7 @@ class StatelessElement extends Element {
         console.log('✅ Set up child element parent/depth');
 
         // ✅ FIX: Recursively build the child element to get VNode
+        // ✅ CRITICAL: Call build() on the child element, NOT this element
         const childVNode = childElement.build();
 
         console.log('✅ Child element.build() returned:', {
@@ -617,6 +605,7 @@ class StatelessElement extends Element {
       return new StatefulElement(widget, this, this.runtime);
     } else if (widget.updateShouldNotify && typeof widget.updateShouldNotify === 'function') {
       console.log('  Creating InheritedElement for:', widget.constructor.name);
+      // Import InheritedElement if needed
       const { InheritedElement } = require('./inherited_element.js');
       return new InheritedElement(widget, this, this.runtime);
     } else {
@@ -658,6 +647,11 @@ class StatefulElement extends Element {
    * ✅ FIXED: Same recursive building as StatelessElement
    */
   build() {
+    console.log('📦 StatefulElement.build() START', {
+      widgetType: this.widget?.constructor.name,
+      stateType: this.state?.constructor.name
+    });
+
     const context = this.buildContext();
 
     try {
@@ -665,23 +659,32 @@ class StatefulElement extends Element {
         throw new Error('State must implement build() method');
       }
 
+      console.log('📝 Calling state.build(context)...');
       const result = this.state.build(context);
+
+      console.log('✓ state.build() returned:', {
+        resultType: typeof result,
+        resultConstructor: result?.constructor?.name,
+        isVNode: result?.tag !== undefined
+      });
 
       if (!result) {
         throw new Error('State.build() returned null');
       }
 
-      // ✅ FIX: Check if it's a VNode first
+      // ✅ Check if it's a VNode first
       if (result && typeof result === 'object' && result.tag) {
+        console.log('✅ Result is a VNode, returning');
         return result;
       }
 
-      // ✅ FIX: Check if it's a primitive
+      // ✅ Check if it's a primitive
       if (typeof result === 'string' || typeof result === 'number' || typeof result === 'boolean') {
+        console.log('✅ Result is a primitive');
         return result;
       }
 
-      // ✅ FIX: Check if it's a widget and build recursively
+      // ✅ Check if it's a widget and build recursively
       const isWidget = result &&
         typeof result === 'object' &&
         (typeof result.build === 'function' || typeof result.createState === 'function');
@@ -691,7 +694,7 @@ class StatefulElement extends Element {
         
         const childElement = this._createElementForWidget(result);
         
-        // ✅ FIX: Set up parent/depth without calling mount
+        // ✅ Set up parent/depth without calling mount
         childElement._parent = this;
         childElement._depth = this._depth + 1;
         childElement._mounted = true;
@@ -806,7 +809,7 @@ class ComponentElement extends Element {
     try {
       const result = method.call(this.widget, context);
 
-      // ✅ FIX: Recursive building
+      // ✅ Check if VNode
       if (result && typeof result === 'object' && result.tag) {
         return result;
       }
@@ -822,7 +825,6 @@ class ComponentElement extends Element {
       if (isWidget) {
         const childElement = this._createElementForWidget(result);
         
-        // ✅ FIX: Set up parent/depth without calling mount
         childElement._parent = this;
         childElement._depth = this._depth + 1;
         childElement._mounted = true;
