@@ -119,7 +119,11 @@ export class VNodeRuntime {
     console.log(`  [RENDERAPP] Widget tree:`, JSON.stringify(widgetTree, null, 2).substring(0, 200));
 
     // Convert to VNode
-    this.rootVNode = VNodeBuilder.build(widgetTree, context);
+    const vNodeBuilder = new VNodeBuilder({
+      debugMode: this.flutterConfig?.debugMode || false,
+      runtime: this  // ← CRITICAL: Pass runtime
+    });
+    this.rootVNode = vNodeBuilder.build(widgetTree, context,);
     console.log(`  [RENDERAPP] VNode created`);
     console.log(`  [RENDERAPP] VNode tag: ${this.rootVNode.tag}`);
     console.log(`  [RENDERAPP] VNode children count: ${this.rootVNode.children ? this.rootVNode.children.length : 0}`);
@@ -134,7 +138,7 @@ export class VNodeRuntime {
     if (!this.renderer) {
       this.renderer = new VNodeRenderer({ debugMode: true });
     }
-    
+
     this.renderer.render(this.rootVNode, this.rootElement, {
       clear: true
     });
@@ -164,9 +168,12 @@ export class VNodeRuntime {
 
     const widgetTree = app.build ? app.build(context) : app;
     console.log(`  [HYDRATEAPP] Widget tree built`);
-
+    const vNodeBuilder = new VNodeBuilder({
+      debugMode: this.flutterConfig?.debugMode || false,
+      runtime: this  // ← CRITICAL: Pass runtime
+    });
     // Convert to VNode
-    this.rootVNode = VNodeBuilder.build(widgetTree, context);
+    this.rootVNode = vNodeBuilder.build(widgetTree, context);
     console.log(`  [HYDRATEAPP] VNode created`);
 
     // Hydrate
@@ -211,8 +218,13 @@ export class VNodeRuntime {
     const widgetTree = this.app.build ? this.app.build(context) : this.app;
     console.log(`  [UPDATE] Widget tree rebuilt`);
 
+    const vNodeBuilder = new VNodeBuilder({
+      debugMode: this.flutterConfig?.debugMode || false,
+      runtime: this  // ← CRITICAL: Pass runtime
+    });
+
     // Convert to VNode
-    const newVNode = VNodeBuilder.build(widgetTree, context);
+    const newVNode = vNodeBuilder.build(widgetTree, context);
     console.log(`  [UPDATE] New VNode created`);
 
     // ✅ FIX #2 & #3: Use instance instead of static calls
@@ -627,8 +639,12 @@ export function renderToString(app, options = {}) {
   const widgetTree = app.build ? app.build(context) : app;
 
   console.log(`[GLOBAL] SSR: Building VNode`);
-  const vnode = VNodeBuilder.build(widgetTree, context);
-
+  // ✅ Create instance with runtime
+  const vNodeBuilder = new VNodeBuilder({
+    debugMode: this.flutterConfig?.debugMode || false,
+    runtime: this  // ← CRITICAL: Pass runtime
+  });
+  this.rootVNode = vNodeBuilder.build(widgetTree, context);
   console.log(`[GLOBAL] SSR: Rendering to string`);
   return RenderEngine.renderServer(vnode, {
     title: options.title || 'FlutterJS App',

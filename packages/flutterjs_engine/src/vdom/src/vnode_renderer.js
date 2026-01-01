@@ -1,12 +1,12 @@
 /**
- * VNodeRenderer - Client-Side Rendering (CSR)
- * WITH ENHANCED DEBUGGING
+ * VNodeRenderer - WITH ENHANCED WIDGET IDENTIFICATION
  */
 
 class VNodeRenderer {
   constructor(options = {}) {
     this.debugMode = options.debugMode || false;
     this.rootElement = options.rootElement || null;
+    this.tracker = options.tracker || null;  // Optional tracker
   }
 
   render(vnode, targetElement, options = {}) {
@@ -21,7 +21,6 @@ class VNodeRenderer {
         isArray: Array.isArray(vnode),
         hasTag: vnode?.tag,
         constructor: vnode?.constructor?.name,
-        keys: vnode ? Object.keys(vnode).slice(0, 10) : []
       });
     }
 
@@ -30,23 +29,155 @@ class VNodeRenderer {
       this.clearElement(targetElement);
     }
 
-    // Create DOM tree
-    const domNode = this.createDOMNode(vnode);
+    try {
+      // Create DOM tree
+      const domNode = this.createDOMNode(vnode);
 
-    // Append to target
-    if (domNode) {
-      if (Array.isArray(domNode)) {
-        domNode.forEach(node => targetElement.appendChild(node));
-      } else {
-        targetElement.appendChild(domNode);
+      // Append to target
+      if (domNode) {
+        if (Array.isArray(domNode)) {
+          domNode.forEach(node => targetElement.appendChild(node));
+        } else {
+          targetElement.appendChild(domNode);
+        }
       }
+
+      if (this.debugMode) {
+        console.log('[VNodeRenderer] ✅ Rendered successfully');
+      }
+
+      return Array.isArray(domNode) ? domNode[0] : domNode;
+
+    } catch (error) {
+      // Enhanced error with widget identification
+      this.handleRenderError(error, vnode);
+      throw error;
+    }
+  }
+
+  /**
+   * Handle render error with widget identification
+   * @private
+   */
+  handleRenderError(error, vnode) {
+    console.error('');
+    console.error('❌ '.repeat(50));
+    console.error('VNODE RENDERER ERROR - WIDGET NOT CONVERTED TO VNODE');
+    console.error('❌ '.repeat(50));
+    console.error('');
+
+    // Identify the widget
+    console.error('🔍 FAILED VNODE DETAILS:');
+    console.error('   Constructor:', vnode?.constructor?.name || 'unknown');
+    console.error('   Type:', typeof vnode);
+    console.error('   Has .tag:', vnode?.tag !== undefined);
+    console.error('   Has .build:', typeof vnode?.build === 'function');
+    console.error('   Has .createState:', typeof vnode?.createState === 'function');
+    console.error('   Has .updateShouldNotify:', typeof vnode?.updateShouldNotify === 'function');
+    console.error('');
+
+    // Identify what type of widget this is
+    const widgetType = this.identifyWidgetType(vnode);
+    console.error('📋 WIDGET TYPE:', widgetType);
+    console.error('');
+
+    // Show available properties
+    if (vnode && typeof vnode === 'object') {
+      console.error('📝 WIDGET PROPERTIES:');
+      const props = this.getWidgetProperties(vnode);
+      Object.entries(props).forEach(([key, value]) => {
+        console.error(`   ${key}: ${value}`);
+      });
+      console.error('');
     }
 
-    if (this.debugMode) {
-      console.log('[VNodeRenderer] ✅ Rendered successfully');
+    // Error analysis
+    console.error('💥 PROBLEM:');
+    if (typeof vnode?.build === 'function' && !vnode?.tag) {
+      console.error('   This is a WIDGET (not a VNode)');
+      console.error('   Widget has a build() method but was never built to VNode');
+      console.error('   This means VNodeBuilder failed to properly convert this widget');
+      console.error('');
+      console.error('🎯 THE ISSUE:');
+      console.error(`   Widget "${vnode.constructor.name}" reached the renderer`);
+      console.error('   without being converted to a VNode first.');
+      console.error('');
+      console.error('✅ SOLUTIONS:');
+      console.error('   1. Check VNodeBuilder logs above for detailed error');
+      console.error('   2. Verify Element.build() returns a VNode');
+      console.error('   3. Check StatelessElement/StatefulElement implementation');
+      console.error('   4. Ensure all nested widgets are also converted to VNodes');
     }
 
-    return Array.isArray(domNode) ? domNode[0] : domNode;
+    console.error('');
+    console.error('📚 ERROR MESSAGE:', error.message);
+    console.error('');
+    console.error('❌ '.repeat(50));
+    console.error('');
+  }
+
+  /**
+   * Identify widget type
+   * @private
+   */
+  identifyWidgetType(widget) {
+    if (!widget || typeof widget !== 'object') {
+      return 'NOT_A_WIDGET';
+    }
+
+    if (widget.tag !== undefined) {
+      return 'VNODE (has .tag)';
+    }
+
+    if (typeof widget.createState === 'function') {
+      return 'StatefulWidget';
+    }
+
+    if (typeof widget.build === 'function' && !widget.createState) {
+      return 'StatelessWidget';
+    }
+
+    if (typeof widget.updateShouldNotify === 'function') {
+      return 'InheritedWidget';
+    }
+
+    if (widget.appBar || widget.body || widget.floatingActionButton) {
+      return 'Scaffold (or similar)';
+    }
+
+    if (widget.title && widget.theme && widget.home) {
+      return 'MaterialApp';
+    }
+
+    if (widget.child || widget.children) {
+      return 'Container/Layout Widget';
+    }
+
+    return 'Unknown Widget Type';
+  }
+
+  /**
+   * Get widget properties
+   * @private
+   */
+  getWidgetProperties(widget) {
+    const props = {};
+    const keys = Object.keys(widget)
+      .filter(k => !k.startsWith('_') && !k.startsWith('__') && typeof widget[k] !== 'function')
+      .slice(0, 10);  // Limit to first 10
+
+    keys.forEach(key => {
+      const value = widget[key];
+      if (typeof value === 'object') {
+        props[key] = `[${value.constructor.name}]`;
+      } else if (typeof value === 'string' && value.length > 30) {
+        props[key] = `"${value.substring(0, 30)}..."`;
+      } else {
+        props[key] = JSON.stringify(value);
+      }
+    });
+
+    return props;
   }
 
   createDOMNode(vnode) {
@@ -72,32 +203,25 @@ class VNodeRenderer {
       return document.createTextNode('');
     }
 
-    // ✅ ENHANCED DEBUG: Check if it's a valid VNode
-    if (!vnode.tag) {
-      console.error('❌ Invalid VNode: missing tag');
-      console.error('📋 Object details:', {
-        type: typeof vnode,
-        constructor: vnode?.constructor?.name,
-        hasTag: vnode?.tag !== undefined,
-        hasBuild: typeof vnode?.build === 'function',
-        hasCreateState: typeof vnode?.createState === 'function',
-        hasCreateElement: typeof vnode?.createElement === 'function',
-        keys: Object.keys(vnode).slice(0, 20)
-      });
-      console.error('🔍 Full object:', vnode);
-      
-      // Try to identify what it is
-      if (typeof vnode.build === 'function') {
-        console.error('❌ This looks like a WIDGET, not a VNode!');
-        console.error('   Widget type:', vnode.constructor.name);
-        console.error('   Widget should have been built to VNode before rendering');
-      } else if (typeof vnode.createElement === 'function') {
-        console.error('❌ This looks like a WIDGET with createElement!');
-      } else if (vnode.appBar || vnode.body || vnode.floatingActionButton) {
-        console.error('❌ This looks like a SCAFFOLD widget instance!');
+    // ✅ Check if it's a valid VNode with tag
+    if (!vnode || !vnode.tag) {
+      // This is where the error occurs - enhanced error message
+      console.error('');
+      console.error('🛑 CRITICAL: VNode missing .tag property');
+      console.error('   Constructor:', vnode?.constructor?.name);
+      console.error('   Type:', typeof vnode);
+      console.error('   Is Widget:', typeof vnode?.build === 'function');
+      console.error('');
+
+      // Use tracker if available
+      if (this.tracker && typeof this.tracker.trackRenderFailure === 'function') {
+        this.tracker.trackRenderFailure(vnode, new Error('Missing tag property'));
       }
-      
-      return document.createTextNode('');
+
+      throw new Error(
+        `[VNodeRenderer] Invalid VNode: Widget "${vnode?.constructor?.name}" was not built to VNode. ` +
+        `This is a build chain error. Check VNodeBuilder logs above for the actual build failure.`
+      );
     }
 
     // Create element
@@ -135,19 +259,24 @@ class VNodeRenderer {
 
   renderChildren(parent, children) {
     children.forEach((child, index) => {
-      const childNode = this.createDOMNode(child);
-      
-      if (childNode) {
-        if (Array.isArray(childNode)) {
-          childNode.forEach(node => parent.appendChild(node));
-        } else {
-          parent.appendChild(childNode);
-        }
+      try {
+        const childNode = this.createDOMNode(child);
 
-        if (child && typeof child === 'object' && child.tag) {
-          child._parent = parent._vnode;
-          child._index = index;
+        if (childNode) {
+          if (Array.isArray(childNode)) {
+            childNode.forEach(node => parent.appendChild(node));
+          } else {
+            parent.appendChild(childNode);
+          }
+
+          if (child && typeof child === 'object' && child.tag) {
+            child._parent = parent._vnode;
+            child._index = index;
+          }
         }
+      } catch (error) {
+        console.error(`Error rendering child at index ${index}:`, error);
+        throw error;
       }
     });
   }
@@ -335,7 +464,7 @@ class VNodeRenderer {
 
   replaceElement(oldElement, newVNode) {
     const newElement = this.createDOMNode(newVNode);
-    
+
     if (oldElement.parentNode && newElement) {
       this.cleanupEventListeners(oldElement);
       oldElement.parentNode.replaceChild(newElement, oldElement);
@@ -352,11 +481,11 @@ class VNodeRenderer {
 
   insertAt(parent, vnode, index) {
     const element = this.createDOMNode(vnode);
-    
+
     if (!element) return null;
 
     const children = Array.from(parent.childNodes);
-    
+
     if (index >= children.length) {
       parent.appendChild(element);
     } else {
@@ -415,7 +544,7 @@ class VNodeRenderer {
 
   needsUpdate(element, vnode) {
     if (!element._vnode) return true;
-    
+
     const oldVNode = element._vnode;
 
     if (oldVNode.tag !== vnode.tag) return true;
