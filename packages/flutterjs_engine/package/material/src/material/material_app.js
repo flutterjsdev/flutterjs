@@ -1,5 +1,17 @@
+/**
+ * ============================================================================
+ * FIXED MaterialApp - Properly Handles StatefulWidget → State Connection
+ * ============================================================================
+ * 
+ * The issue was MaterialApp was calling createState() directly without
+ * going through an Element, so state._mount() never got called.
+ * 
+ * Solution: Use runtime's VNodeBuilder to properly create Elements
+ */
+
 import { StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
+import { StatefulElement, StatelessElement } from '@flutterjs/runtime';
 
 // ============================================================================
 // THEME DATA
@@ -125,7 +137,7 @@ class Navigator {
 }
 
 // ============================================================================
-// MATERIAL APP - PROPER IMPLEMENTATION
+// MATERIAL APP - FIXED VERSION
 // ============================================================================
 
 class MaterialApp extends StatelessWidget {
@@ -214,7 +226,7 @@ class MaterialApp extends StatelessWidget {
   }
 
   /**
-   * ✅ Check if object is a Widget
+   * Check if object is a Widget
    */
   _isWidget(obj) {
     if (!obj || typeof obj !== 'object') return false;
@@ -225,8 +237,8 @@ class MaterialApp extends StatelessWidget {
   }
 
   /**
-   * ✅ Build widget to VNode using runtime
-   * This properly handles StatefulWidget and StatelessWidget
+   * ✅ FIXED: Build widget to VNode by creating proper Element
+   * This ensures state._mount() gets called with proper widget reference
    */
   _buildWidgetToVNode(widget, context) {
     console.log('🔨 _buildWidgetToVNode called for:', widget?.constructor?.name);
@@ -248,45 +260,84 @@ class MaterialApp extends StatelessWidget {
       return String(widget);
     }
 
-    // Is a Widget - need to build it
+    // Is a Widget - need to build it THROUGH AN ELEMENT
     if (this._isWidget(widget)) {
-      console.log('  → Is a Widget, calling build...');
+      console.log('  → Is a Widget, creating Element...');
 
       try {
-        // StatefulWidget: createState() -> state.build()
+        let element;
+        
+        // ✅ StatefulWidget: Create StatefulElement (which handles state mounting)
         if (typeof widget.createState === 'function') {
-          console.log('    → StatefulWidget detected');
-          const state = widget.createState();
-          console.log('    → State instance created:', state?.constructor?.name);
-
-          if (state && typeof state.build === 'function') {
-            const result = state.build(context);
-            console.log('    → State.build() returned:', result?.constructor?.name || typeof result);
-            
-            // Recursively build if still a widget
-            if (this._isWidget(result)) {
-              console.log('    → Result is still a widget, recursing...');
-              return this._buildWidgetToVNode(result, context);
-            }
-            return result;
+          console.log('    → StatefulWidget detected, creating StatefulElement');
+          
+          // Get runtime from context
+          const runtime = context.runtime || context.element?.runtime;
+          if (!runtime) {
+            throw new Error('Runtime not available in context');
           }
-        }
-        // StatelessWidget: just call build()
-        else if (typeof widget.build === 'function') {
-          console.log('    → StatelessWidget detected');
-          const result = widget.build(context);
-          console.log('    → build() returned:', result?.constructor?.name || typeof result);
+          
+          // Create StatefulElement (this will create and mount the state)
+          element = new StatefulElement(widget, null, runtime);
+          
+          console.log('    → StatefulElement created');
+          
+          // ✅ CRITICAL: Mount the element (this calls state._mount())
+          if (!element.mounted) {
+            console.log('    → Mounting element...');
+            element.mount();
+            console.log('    → Element mounted');
+            console.log('    → State._widget:', element.state?._widget?.constructor?.name);
+            console.log('    → State.widget.title:', element.state?.widget?.title);
+          }
+          
+          // Build the element to get VNode
+          const result = element.build();
+          console.log('    → StatefulElement.build() returned:', result?.tag || typeof result);
           
           // Recursively build if still a widget
           if (this._isWidget(result)) {
             console.log('    → Result is still a widget, recursing...');
-            return this._buildWidgetToVNode(result, context);
+            return this._buildWidgetToVNode(result, {
+              ...context,
+              runtime: runtime
+            });
           }
+          
+          return result;
+        }
+        // ✅ StatelessWidget: Create StatelessElement
+        else if (typeof widget.build === 'function') {
+          console.log('    → StatelessWidget detected, creating StatelessElement');
+          
+          const runtime = context.runtime || context.element?.runtime;
+          if (!runtime) {
+            throw new Error('Runtime not available in context');
+          }
+          
+          element = new StatelessElement(widget, null, runtime);
+          
+          if (!element.mounted) {
+            element.mount();
+          }
+          
+          const result = element.build();
+          console.log('    → StatelessElement.build() returned:', result?.tag || typeof result);
+          
+          // Recursively build if still a widget
+          if (this._isWidget(result)) {
+            console.log('    → Result is still a widget, recursing...');
+            return this._buildWidgetToVNode(result, {
+              ...context,
+              runtime: runtime
+            });
+          }
+          
           return result;
         }
       } catch (error) {
         console.error('  ❌ Error building widget:', error);
-        return null;
+        throw error;
       }
     }
 
@@ -296,12 +347,6 @@ class MaterialApp extends StatelessWidget {
 
   /**
    * ✅ BUILD METHOD
-   * MaterialApp is a StatelessWidget, so build() returns a VNode or another Widget
-   * We need to:
-   * 1. Get the home widget (e.g., MyHomePage)
-   * 2. Build it to a VNode using _buildWidgetToVNode
-   * 3. Wrap it with theme styling
-   * 4. Return the final VNode
    */
   build(context) {
     console.log('📖 MaterialApp.build() START');
@@ -309,7 +354,7 @@ class MaterialApp extends StatelessWidget {
     const currentTheme = this._getTheme();
     this._applyTheme(currentTheme);
 
-    // Get the home widget (could be MyHomePage - StatefulWidget)
+    // Get the home widget (e.g., MyHomePage - StatefulWidget)
     let pageWidget = this.navigator.getCurrentPage(context);
     console.log('📄 Current page widget:', pageWidget?.constructor?.name);
 
@@ -318,16 +363,22 @@ class MaterialApp extends StatelessWidget {
       pageWidget = this._buildEmptyPage();
     }
 
-    // ✅ BUILD the page widget to a VNode
-    let pageVNode = this._buildWidgetToVNode(pageWidget, context);
-    console.log('✅ pageVNode after building:', pageVNode?.tag || typeof pageVNode);
-
-    if (!pageVNode) {
-      console.error('❌ Failed to build page widget');
+    // ✅ BUILD the page widget to a VNode (properly through Element)
+    let pageVNode;
+    try {
+      pageVNode = this._buildWidgetToVNode(pageWidget, context);
+      console.log('✅ pageVNode after building:', pageVNode?.tag || typeof pageVNode);
+    } catch (error) {
+      console.error('❌ Failed to build page widget:', error);
       pageVNode = this._buildEmptyPageVNode();
     }
 
-    // ✅ Wrap with theme container and return VNode
+    if (!pageVNode) {
+      console.error('❌ pageVNode is null');
+      pageVNode = this._buildEmptyPageVNode();
+    }
+
+    // Wrap with theme container and return VNode
     const result = new VNode({
       tag: 'div',
       props: {

@@ -2,17 +2,12 @@
  * VNodeBuilder - WITH COMPREHENSIVE ERROR HANDLING
  * Properly converts Widget → Element → VNode
  * 
- * Features:
- * - Detailed error messages with context
- * - Stack trace preservation
- * - Helpful suggestions
- * - Error recovery attempts
- * - Debug logging
+ * ✅ FIXED: Proper State vs StatefulWidget detection
+ * All existing functionality preserved
  */
 import { VNode } from './vnode.js';
 import { StyleConverter } from './style_converter.js';
-import { StatelessElement, StatefulElement } from '@flutterjs/runtime/element';
-import { InheritedElement } from '@flutterjs/runtime/inherited_element';
+import { StatelessElement, StatefulElement, State,InheritedElement } from '@flutterjs/runtime';
 
 class VNodeBuilder {
   constructor(options = {}) {
@@ -26,16 +21,67 @@ class VNodeBuilder {
   }
 
   /**
+   * ✅ CRITICAL FIX: Determine widget type correctly
+   * - StatefulWidget: has createState(), is NOT a State instance
+   * - State: extends State class, has build(), should NOT reach here
+   * - StatelessWidget: has build(), no createState()
+   * - InheritedWidget: has updateShouldNotify()
+   * @private
+   */
+  getWidgetType(widget) {
+    if (!widget || typeof widget !== 'object') {
+      return 'PRIMITIVE';
+    }
+
+    // Check if it's already a VNode
+    if (widget.tag !== undefined) {
+      return 'VNODE';
+    }
+
+    // Check if it's a string
+    if (typeof widget === 'string' || typeof widget === 'number' || typeof widget === 'boolean') {
+      return 'PRIMITIVE';
+    }
+
+    // ✅ KEY FIX: Check if it's a State instance FIRST
+    // State classes extend State and have build() but NOT createState()
+    if (widget instanceof State) {
+      return 'STATE_INSTANCE';  // ❌ ERROR - should never be passed here
+    }
+
+    // Check if it's a StatefulWidget
+    // StatefulWidget has createState() and is NOT a State instance
+    if (typeof widget.createState === 'function' && !(widget instanceof State)) {
+      return 'STATEFUL_WIDGET';
+    }
+
+    // Check if it's a StatelessWidget
+    // Has build() but NOT createState() and NOT a State instance
+    if (typeof widget.build === 'function' && 
+        typeof widget.createState !== 'function' &&
+        !(widget instanceof State)) {
+      return 'STATELESS_WIDGET';
+    }
+
+    // Check if it's an InheritedWidget
+    if (typeof widget.updateShouldNotify === 'function') {
+      return 'INHERITED_WIDGET';
+    }
+
+    // Check for generic widget with build method (recovery case)
+    if (typeof widget.build === 'function') {
+      return 'GENERIC_WIDGET';
+    }
+
+    return 'UNKNOWN';
+  }
+
+  /**
    * Build VNode tree from widget
    * @param {Widget} widget - Flutter widget instance
    * @param {BuildContext} context - Build context with runtime
    * @returns {VNode|string|null} VNode tree or text content
    */
-  /**
- * VNodeBuilder - FIXED build() method
- * Key fix: Check StatefulWidget BEFORE StatelessWidget
- */
-
   build(widget, context = {}) {
     const buildPath = this.buildStack.join(' → ');
     const indent = '  '.repeat(this.buildStack.length);
@@ -62,15 +108,7 @@ class VNodeBuilder {
         return null;
       }
 
-      // If already a VNode, return as-is
-      if (widget && typeof widget === 'object' && widget.tag) {
-        if (this.debugMode) {
-          console.log(`${indent}✔ Already a VNode (tag: ${widget.tag}), returning`);
-        }
-        return widget;
-      }
-
-      // Handle text strings directly
+      // Handle primitives (strings, numbers, booleans)
       if (typeof widget === 'string') {
         if (this.debugMode) {
           console.log(`${indent}✔ Text node: "${widget.substring(0, 50)}${widget.length > 50 ? '...' : ''}"`);
@@ -78,7 +116,6 @@ class VNodeBuilder {
         return widget;
       }
 
-      // Handle numbers
       if (typeof widget === 'number') {
         if (this.debugMode) {
           console.log(`${indent}✔ Number node: ${widget}`);
@@ -86,12 +123,18 @@ class VNodeBuilder {
         return String(widget);
       }
 
-      // Handle booleans (render nothing)
       if (typeof widget === 'boolean') {
         if (this.debugMode) {
           console.log(`${indent}✔ Boolean node (renders nothing)`);
         }
         return null;
+      }
+
+      // Determine widget type
+      const widgetType = this.getWidgetType(widget);
+
+      if (this.debugMode) {
+        console.log(`${indent}Widget Type Detected: ${widgetType}`);
       }
 
       // ✅ Ensure runtime is in context
@@ -114,73 +157,57 @@ class VNodeBuilder {
         );
       }
 
-      // ✅ FIX: CHECK STATEFUL WIDGET FIRST (before StatelessWidget)
-      // This is critical because StatefulWidget may also have a build() method
-      if (typeof widget.createState === 'function') {
-        if (this.debugMode) {
-          console.log(`${indent}✅ DETECTED STATEFUL WIDGET: ${widget.constructor.name}`);
-        }
-        return this.buildStatefulWidget(widget, context, indent);
-      }
-
-      // ✅ THEN check for StatelessWidget
-      if (typeof widget.build === 'function' && !widget.createState) {
-        if (this.debugMode) {
-          console.log(`${indent}✅ DETECTED STATELESS WIDGET: ${widget.constructor.name}`);
-        }
-        return this.buildStatelessWidget(widget, context, indent);
-      }
-
-      // ✅ INHERITED WIDGET
-      if (widget.updateShouldNotify && typeof widget.updateShouldNotify === 'function') {
-        if (this.debugMode) {
-          console.log(`${indent}✅ DETECTED INHERITED WIDGET: ${widget.constructor.name}`);
-        }
-        return this.buildInheritedWidget(widget, context, indent);
-      }
-
-      // ✅ FALLBACK: Unknown widget type
-      if (this.debugMode) {
-        console.warn(`${indent}⚠️ Unknown widget type: ${widget.constructor?.name || typeof widget}`);
-      }
-
-      // Try to build as generic widget
-      if (widget && typeof widget === 'object' && typeof widget.build === 'function') {
-        if (this.debugMode) {
-          console.warn(`${indent}⚠️ Widget escaped type checks, attempting recovery...`);
-        }
-
-        try {
-          const element = new StatelessElement(widget, null, this.runtime);
-          const builtResult = element.build();
-
-          // Recursively build if result is still a widget
-          if (builtResult && typeof builtResult === 'object' && typeof builtResult.build === 'function') {
-            if (this.debugMode) {
-              console.log(`${indent}✔ Recovery successful, recursively building...`);
-            }
-            return this.build(builtResult, context);
+      // Route to appropriate builder based on type
+      switch (widgetType) {
+        case 'VNODE':
+          if (this.debugMode) {
+            console.log(`${indent}✔ Already a VNode (tag: ${widget.tag}), returning`);
           }
+          return widget;
 
-          return builtResult;
-        } catch (error) {
+        case 'STATE_INSTANCE':
+          // ❌ THIS IS THE BUG FIX
           throw this.createError(
-            'RECOVERY_FAILED',
-            'Failed to recover widget during generic build',
+            'STATE_PASSED_TO_BUILDER',
+            `State instance "${widget.constructor.name}" was passed to VNodeBuilder`,
             {
-              originalError: error.message,
-              widgetType: widget.constructor.name,
-              suggestion: 'Ensure widget implements build() or createState() correctly'
+              stateType: widget.constructor.name,
+              suggestion: 'VNodeBuilder expects Widgets, not State instances. State instances are handled internally by StatefulElement.',
+              expectedFlow: 'StatefulWidget → StatefulElement (creates state) → State.build()'
             }
           );
-        }
-      }
 
-      // DEFAULT: Use generic builder
-      if (this.debugMode) {
-        console.log(`${indent}📦 Using generic widget builder`);
+        case 'STATEFUL_WIDGET':
+          if (this.debugMode) {
+            console.log(`${indent}✅ DETECTED STATEFUL WIDGET: ${widget.constructor.name}`);
+          }
+          return this.buildStatefulWidget(widget, context, indent);
+
+        case 'STATELESS_WIDGET':
+          if (this.debugMode) {
+            console.log(`${indent}✅ DETECTED STATELESS WIDGET: ${widget.constructor.name}`);
+          }
+          return this.buildStatelessWidget(widget, context, indent);
+
+        case 'INHERITED_WIDGET':
+          if (this.debugMode) {
+            console.log(`${indent}✅ DETECTED INHERITED WIDGET: ${widget.constructor.name}`);
+          }
+          return this.buildInheritedWidget(widget, context, indent);
+
+        case 'GENERIC_WIDGET':
+          if (this.debugMode) {
+            console.warn(`${indent}⚠️ Generic widget type (has build but no clear classification)`);
+          }
+          return this.buildGenericWidget(widget, context, indent);
+
+        case 'UNKNOWN':
+        default:
+          if (this.debugMode) {
+            console.warn(`${indent}⚠️ Unknown widget type: ${widget.constructor?.name || typeof widget}`);
+          }
+          return this.buildGeneric(widget, context, indent);
       }
-      return this.buildGeneric(widget, context, indent);
 
     } catch (error) {
       // Enhanced error handling
@@ -391,6 +418,61 @@ class VNodeBuilder {
   }
 
   /**
+   * Build a generic widget (widget with build but unclear type)
+   * @private
+   */
+  buildGenericWidget(widget, context, indent) {
+    try {
+      if (this.debugMode) {
+        console.log(`${indent}📦 Building Generic Widget: ${widget.constructor.name}`);
+      }
+
+      this.buildStack.push(widget.constructor.name);
+
+      try {
+        const element = new StatelessElement(widget, null, this.runtime);
+        const builtResult = element.build();
+
+        if (!builtResult) {
+          throw this.createError(
+            'BUILD_RETURNED_NULL',
+            `Generic widget ${widget.constructor.name}.build() returned null`,
+            {
+              suggestion: 'build() must return a Widget or VNode'
+            }
+          );
+        }
+
+        // Recursively build if result is still a widget
+        if (builtResult && typeof builtResult === 'object' && typeof builtResult.build === 'function') {
+          if (this.debugMode) {
+            console.log(`${indent}✔ Recovery successful, recursively building...`);
+          }
+          return this.build(builtResult, context);
+        }
+
+        return builtResult;
+
+      } catch (error) {
+        throw this.createError(
+          'RECOVERY_FAILED',
+          'Failed to build generic widget',
+          {
+            originalError: error.message,
+            widgetType: widget.constructor.name,
+            suggestion: 'Ensure widget implements build() correctly'
+          }
+        );
+      } finally {
+        this.buildStack.pop();
+      }
+
+    } catch (error) {
+      throw this.wrapError(error, `GenericWidget: ${widget.constructor.name}`);
+    }
+  }
+
+  /**
    * Build an inherited widget
    * @private
    */
@@ -537,7 +619,7 @@ class VNodeBuilder {
    * Get widget type name
    * @private
    */
-  getWidgetType(widget) {
+  getWidgetTypeName(widget) {
     if (!widget) return 'Unknown';
     if (widget.constructor && widget.constructor.name) return widget.constructor.name;
     if (widget.runtimeType) return widget.runtimeType;
@@ -651,7 +733,8 @@ class VNodeBuilder {
         type: typeof widget,
         hasBuild: typeof widget.build === 'function',
         hasCreateState: typeof widget.createState === 'function',
-        hasTag: widget.tag !== undefined
+        hasTag: widget.tag !== undefined,
+        isStateInstance: widget instanceof State
       } : null,
       details: error.details || {}
     };
