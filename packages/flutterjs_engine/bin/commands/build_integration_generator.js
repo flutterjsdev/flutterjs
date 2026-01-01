@@ -444,53 +444,85 @@ html, body {
 
 
   genreateWidgetTracker() {
-    return `
+   return `
+   /**
+ * ============================================================================
+ * IMPROVED WIDGET TRACKER
+ * 
+ * Provides comprehensive widget build tracking with:
+ * ✅ Clear error identification
+ * ✅ Build chain visualization
+ * ✅ Actionable error messages
+ * ✅ Component isolation
+ * ============================================================================
+ */
+
 class WidgetTracker {
   constructor() {
-    this.buildStack = [];
-    this.widgetRegistry = new Map();
-    this.buildAttempts = [];
+    this.buildStack = [];           // Current build hierarchy
+    this.widgetRegistry = new Map(); // All created widgets
+    this.buildAttempts = [];        // Build attempt history
+    this.errorLog = [];             // All errors
+    this.stats = {
+      created: 0,
+      buildAttempts: 0,
+      successful: 0,
+      failed: 0
+    };
   }
+
+  // ========================================================================
+  // TRACKING METHODS
+  // ========================================================================
 
   /**
    * Track widget instantiation
    */
   trackWidgetCreation(widget) {
-    const widgetId = this.generateId();
+    const widgetId = this._generateId();
     const info = {
       id: widgetId,
       createdAt: new Date().toISOString(),
       constructor: widget.constructor.name,
-      type: this.getWidgetType(widget),
-      properties: this.extractProperties(widget),
+      type: this._getWidgetType(widget),
       hasTag: widget.tag !== undefined,
       hasBuild: typeof widget.build === 'function',
       hasCreateState: typeof widget.createState === 'function',
-      hasUpdateShouldNotify: typeof widget.updateShouldNotify === 'function'
+      hasUpdateShouldNotify: typeof widget.updateShouldNotify === 'function',
+      properties: this._extractProperties(widget)
     };
 
     this.widgetRegistry.set(widgetId, info);
-    widget.__debugId = widgetId;
-    widget.__debugInfo = info;
+    widget.__trackedId = widgetId;
+    this.stats.created++;
 
     return widgetId;
   }
 
   /**
-   * Track build attempt
+   * Track build start
    */
-  trackBuildStart(widget, context) {
+  trackBuildStart(widget, context = {}) {
+    this.stats.buildAttempts++;
+
     const attempt = {
+      id: this._generateId(),
       timestamp: new Date().toISOString(),
-      widget: widget.constructor.name,
-      widgetId: widget.__debugId,
+      widget: widget?.constructor?.name || 'Unknown',
+      widgetId: widget?.__trackedId || 'untracked',
       stack: [...this.buildStack],
       stackPath: this.buildStack.join(' → ') || 'ROOT',
-      status: 'IN_PROGRESS'
+      status: 'IN_PROGRESS',
+      startTime: performance.now(),
+      context: {
+        element: context.element?.constructor?.name,
+        parent: context.parent?.constructor?.name,
+        method: context.method || 'unknown'
+      }
     };
 
     this.buildAttempts.push(attempt);
-    this.buildStack.push(widget.constructor.name);
+    this.buildStack.push(widget?.constructor?.name || 'Unknown');
 
     return attempt;
   }
@@ -502,323 +534,407 @@ class WidgetTracker {
     if (this.buildAttempts.length === 0) return;
 
     const attempt = this.buildAttempts[this.buildAttempts.length - 1];
+    const duration = performance.now() - attempt.startTime;
+
     attempt.status = 'SUCCESS';
+    attempt.duration = duration;
     attempt.result = {
       type: typeof result,
       constructor: result?.constructor?.name,
       hasTag: result?.tag !== undefined,
-      isVNode: result?.tag !== undefined
+      isVNode: result?.tag !== undefined && typeof result.tag === 'string'
     };
 
     this.buildStack.pop();
+    this.stats.successful++;
   }
 
   /**
-   * Track build failure
+   * Track build failure - ENHANCED ERROR TRACKING
    */
-  trackBuildFailure(widget, error) {
-    if (this.buildAttempts.length === 0) return;
+  trackBuildFailure(widget, error, context = {}) {
+    if (this.buildAttempts.length === 0) {
+      // Create new attempt if needed
+      this.trackBuildStart(widget, context);
+    }
 
     const attempt = this.buildAttempts[this.buildAttempts.length - 1];
+    const duration = performance.now() - attempt.startTime;
+
     attempt.status = 'FAILED';
+    attempt.duration = duration;
     attempt.error = {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
+      message: error?.message || String(error),
+      code: error?.code || 'UNKNOWN',
+      type: error?.constructor?.name,
+      stack: error?.stack?.split('\\n').slice(0, 5) || [] // First 5 lines
     };
-    attempt.failureInfo = this.getFailureAnalysis(widget, error);
+
+    attempt.failureInfo = this._analyzeFailure(widget, error);
+    attempt.suggestion = this._generateSuggestion(widget, error, attempt);
 
     this.buildStack.pop();
+    this.stats.failed++;
+
+    // Add to error log
+    this.errorLog.push({
+      timestamp: new Date().toISOString(),
+      widget: widget?.constructor?.name,
+      error: attempt.error.message,
+      buildPath: attempt.stackPath,
+      failureInfo: attempt.failureInfo
+    });
+
+    return attempt;
+  }
+
+  // ========================================================================
+  // ERROR ANALYSIS & SUGGESTIONS
+  // ========================================================================
+
+  /**
+   * Analyze failure reason
+   */
+  _analyzeFailure(widget, error) {
+    const analysis = {
+      isWidgetIssue: false,
+      isElementIssue: false,
+      isStateIssue: false,
+      reason: 'Unknown',
+      details: []
+    };
+
+    if (!widget) {
+      analysis.reason = 'Widget is null or undefined';
+      analysis.details.push('No widget instance available for build');
+      return analysis;
+    }
+
+    // Check widget type
+    const hasCreateState = typeof widget.createState === 'function';
+    const hasBuild = typeof widget.build === 'function';
+    const hasTag = widget.tag !== undefined;
+
+    if (hasTag && hasBuild) {
+      analysis.isWidgetIssue = true;
+      analysis.reason = 'Widget is hybrid (has both tag and build)';
+      analysis.details.push('Widget appears to be both VNode and Widget');
+      return analysis;
+    }
+
+    if (!hasBuild && !hasCreateState && !hasTag) {
+      analysis.isWidgetIssue = true;
+      analysis.reason = 'Invalid widget type';
+      analysis.details.push('Widget has no build(), createState(), or tag property');
+      analysis.details.push('Check if widget was properly instantiated');
+      return analysis;
+    }
+
+    if (error?.message?.includes('null')) {
+      analysis.reason = 'Null/Undefined returned';
+      analysis.details.push('build() or createElement() returned null');
+      return analysis;
+    }
+
+    if (error?.message?.includes('build')) {
+      analysis.isWidgetIssue = true;
+      analysis.reason = 'Build method error';
+      analysis.details.push('Error occurred in build() method');
+      if (hasCreateState) {
+        analysis.details.push('This is a StatefulWidget - check State.build()');
+      }
+      return analysis;
+    }
+
+    if (error?.message?.includes('element') || error?.message?.includes('Element')) {
+      analysis.isElementIssue = true;
+      analysis.reason = 'Element creation error';
+      analysis.details.push('Error occurred during element creation');
+      return analysis;
+    }
+
+    if (error?.message?.includes('state') || error?.message?.includes('State')) {
+      analysis.isStateIssue = true;
+      analysis.reason = 'State initialization error';
+      analysis.details.push('Error occurred during state initialization');
+      return analysis;
+    }
+
+    analysis.reason = 'Generic build error';
+    analysis.details.push('Check error message for specifics');
+    return analysis;
   }
 
   /**
-   * Track render failure
+   * Generate actionable suggestion
    */
-  trackRenderFailure(vnode, error) {
-    console.error('');
-    console.error('❌ '.repeat(50));
-    console.error('RENDER FAILURE - WIDGET IDENTIFICATION');
-    console.error('❌ '.repeat(50));
-    console.error('');
+  _generateSuggestion(widget, error, attempt) {
+    const name = widget?.constructor?.name || 'Unknown';
+    const msg = error?.message || '';
+    const failureInfo = attempt.failureInfo;
 
-    console.error('🔍 FAILED VNODE INFO:');
-    console.error('   Constructor:', vnode?.constructor?.name);
-    console.error('   Type:', typeof vnode);
-    console.error('   Has tag:', vnode?.tag !== undefined);
-    console.error('   Has build:', typeof vnode?.build === 'function');
-    console.error('   Has createState:', typeof vnode?.createState === 'function');
-    console.error('');
+    const suggestions = [];
 
-    // Find in registry if it has a debug ID
-    if (vnode.__debugId && this.widgetRegistry.has(vnode.__debugId)) {
-      const info = this.widgetRegistry.get(vnode.__debugId);
-      console.error('📦 WIDGET REGISTRY INFO:');
-      console.error('   Widget ID:', info.id);
-      console.error('   Constructor:', info.constructor);
-      console.error('   Type:', info.type);
-      console.error('   Has build:', info.hasBuild);
-      console.error('   Has createState:', info.hasCreateState);
-      console.error('');
+    // Based on failure analysis
+    if (failureInfo.isWidgetIssue) {
+      suggestions.push(\`❌ Widget Issue: \${name}\`);
+      suggestions.push(\`   Check that \${name} is a valid Widget class\`);
+
+      if (typeof widget.createState === 'function') {
+        suggestions.push(\`   This is a StatefulWidget\`);
+        suggestions.push(\`   Verify createState() returns a State instance\`);
+        suggestions.push(\`   Verify State.build(context) returns a Widget or VNode\`);
+      } else if (typeof widget.build === 'function') {
+        suggestions.push(\`   This is a StatelessWidget\`);
+        suggestions.push(\`   Verify build(context) returns a Widget or VNode\`);
+      }
     }
 
-    // Show build stack
-    if (this.buildStack.length > 0) {
-      console.error('🔗 BUILD STACK:');
-      this.buildStack.forEach((name, idx) => {
-        console.error(\`   \${ idx + 1 }. \${ name } \`);
-      });
-      console.error('');
+    if (failureInfo.isElementIssue) {
+      suggestions.push(\`❌ Element Issue: \${name}\`);
+      suggestions.push(\`   createElement(parent, runtime) may have failed\`);
+      suggestions.push(\`   Check that runtime is passed correctly\`);
+      suggestions.push(\`   Verify Element subclass implementation\`);
     }
 
-    // Show last build attempts
+    if (failureInfo.isStateIssue) {
+      suggestions.push(\`❌ State Issue: \${name}\`);
+      suggestions.push(\`   State initialization failed\`);
+      suggestions.push(\`   Check initState(), didMount() methods\`);
+      suggestions.push(\`   Verify state properties are properly initialized\`);
+    }
+
+    // Specific error messages
+    if (msg.includes('createState') || msg.includes('not a function')) {
+      suggestions.push(\`\\n⚠️  Method Not Found\`);
+      suggestions.push(\`   Verify \${name}.createState() is defined\`);
+      suggestions.push(\`   Check method name spelling\`);
+    }
+
+    if (msg.includes('returned null') || msg.includes('undefined')) {
+      suggestions.push(\`\\n⚠️  Null/Undefined Return\`);
+      suggestions.push(\`   build() must return a Widget or VNode\`);
+      suggestions.push(\`   Cannot return null or undefined\`);
+      suggestions.push(\`   Example: return new Container(...)\`);
+    }
+
+    if (msg.includes('Cannot read') || msg.includes('is not defined')) {
+      suggestions.push(\`\\n⚠️  Reference Error\`);
+      suggestions.push(\`   Variable or property doesn't exist\`);
+      suggestions.push(\`   Check spelling and scope\`);
+      suggestions.push(\`   Ensure imports are correct\`);
+    }
+
+    if (suggestions.length === 0) {
+      suggestions.push(\`⚠️  Generic Error: \${msg}\`);
+      suggestions.push(\`   Check console for full error details\`);
+    }
+
+    return suggestions.join('\\n');
+  }
+
+  // ========================================================================
+  // REPORTING - ENHANCED
+  // ========================================================================
+
+  /**
+   * Print detailed error report
+   */
+  printReport() {
+    if (this.stats.failed === 0) {
+      console.log('%c✅ No errors recorded', 'color: #4CAF50; font-weight: bold');
+      return;
+    }
+
+    console.clear();
+
+    console.log('%c════════════════════════════════════════════════════════════════', 'color: #f44336; font-weight: bold');
+    console.log('%c🔴 WIDGET BUILD ERROR REPORT', 'color: #f44336; font-weight: bold; font-size: 16px');
+    console.log('%c════════════════════════════════════════════════════════════════\\n', 'color: #f44336; font-weight: bold');
+
+    // Statistics
+    console.log('%c📊 STATISTICS', 'color: #2196F3; font-weight: bold');
+    console.log(\`  Total Widgets: \${this.stats.created}\`);
+    console.log(\`  Build Attempts: \${this.stats.buildAttempts}\`);
+    console.log(\`  ✅ Successful: \${this.stats.successful}\`);
+    console.log(\`  ❌ Failed: \${this.stats.failed}\\n\`);
+
+    // Failed attempts
     if (this.buildAttempts.length > 0) {
-      console.error('📋 LAST BUILD ATTEMPTS:');
-      const recentAttempts = this.buildAttempts.slice(-5);
-      recentAttempts.forEach((attempt, idx) => {
-        const status = attempt.status === 'SUCCESS' ? '✅' : '❌';
-        console.error(\`   \${ status } \${ attempt.widget } \`);
-        if (attempt.result) {
-          console.error(\`       Result: \${ attempt.result.constructor } (isVNode: \${ attempt.result.isVNode })\`);
-        }
-        if (attempt.error) {
-          console.error(\`       Error: \${ attempt.error.message } \`);
-        }
+      const failedAttempts = this.buildAttempts.filter(a => a.status === 'FAILED');
+
+      failedAttempts.forEach((attempt, idx) => {
+        this._printFailedAttempt(attempt, idx + 1, failedAttempts.length);
       });
-      console.error('');
     }
 
-    // Detailed analysis
-    console.error('🔎 DETAILED ANALYSIS:');
-    console.error(\`   Error: \${ error.message } \`);
-    console.error(\`   Vnode Constructor: \${ vnode?.constructor?.name } \`);
-    console.error('');
+    console.log('%c════════════════════════════════════════════════════════════════\\n', 'color: #f44336; font-weight: bold');
+  }
 
-    // Identify the problem
-    if (typeof vnode?.build === 'function' && !vnode?.tag) {
-      console.error('💥 PROBLEM IDENTIFIED:');
-      console.error('   ❌ Widget.build() method exists but not converted to VNode');
-      console.error('   ❌ This is a build chain failure in VNodeBuilder');
-      console.error('');
-      console.error('🎯 LIKELY CAUSES:');
-      console.error('   1. Widget is from @flutterjs/material but not properly imported');
-      console.error(\`   2. VNodeBuilder doesn't handle this widget type\`);
-      console.error('   3. Element.build() not returning a VNode');
-      console.error('   4. build() method returns another widget instead of VNode');
-      console.error('');
-      console.error('✅ SOLUTIONS:');
-      console.error('   1. Check if widget is imported from correct package');
-      console.error('   2. Add debug logging to Element.build() method');
-      console.error('   3. Ensure widget.build() returns VNode or valid widget');
-      console.error('   4. Add error handler in VNodeBuilder for this widget type');
+  /**
+   * Print single failed attempt
+   */
+  _printFailedAttempt(attempt, index, total) {
+    console.log(\`%c[\${index}/\${total}] \${attempt.widget}\`, 'color: #FF5252; font-weight: bold; font-size: 14px');
+    console.log(\`    Timestamp: \${attempt.timestamp}\`);
+    console.log(\`    Duration: \${attempt.duration.toFixed(2)}ms\\n\`);
+
+    console.log(\`%c    Build Path:\`, 'color: #FF9800; font-weight: bold');
+    if (attempt.stack.length === 0) {
+      console.log(\`      ROOT → \${attempt.widget}\`);
+    } else {
+      console.log(\`      \${attempt.stackPath}\`);
     }
+    console.log('');
 
-    console.error('❌ '.repeat(50));
-    console.error('');
+    console.log(\`%c    Error Message:\`, 'color: #f44336; font-weight: bold');
+    console.log(\`    ❌ \${attempt.error.message}\`);
+    if (attempt.error.code !== 'UNKNOWN') {
+      console.log(\`    Code: \${attempt.error.code}\`);
+    }
+    console.log('');
 
-    // Return actionable info
+    console.log(\`%c    Failure Analysis:\`, 'color: #FF6F00; font-weight: bold');
+    console.log(\`    Reason: \${attempt.failureInfo.reason}\`);
+    if (attempt.failureInfo.details.length > 0) {
+      attempt.failureInfo.details.forEach(detail => {
+        console.log(\`    • \${detail}\`);
+      });
+    }
+    console.log('');
+
+    console.log(\`%c    💡 Suggestions:\`, 'color: #4CAF50; font-weight: bold');
+    const suggestionLines = attempt.suggestion.split('\\n');
+    suggestionLines.forEach(line => {
+      if (line.trim()) {
+        console.log(\`    \${line}\`);
+      }
+    });
+    console.log('');
+
+    if (attempt.error.stack && attempt.error.stack.length > 0) {
+      console.log(\`%c    Stack Trace:\`, 'color: #666; font-weight: bold');
+      attempt.error.stack.forEach(line => {
+        console.log(\`    \${line}\`);
+      });
+      console.log('');
+    }
+  }
+
+  /**
+   * Get full report as object
+   */
+  getReport() {
     return {
-      failedWidget: vnode?.constructor?.name,
-      buildStack: this.buildStack,
-      attempts: this.buildAttempts.slice(-5)
+      stats: { ...this.stats },
+      errors: this.errorLog,
+      buildAttempts: this.buildAttempts.map(a => ({
+        widget: a.widget,
+        status: a.status,
+        duration: a.duration,
+        error: a.error?.message,
+        suggestions: a.suggestion,
+        buildPath: a.stackPath
+      })),
+      registry: Array.from(this.widgetRegistry.values())
     };
   }
 
   /**
-   * Get failure analysis
+   * Get last error details
    */
-  getFailureAnalysis(widget, error) {
-    return {
-      widgetType: widget.constructor.name,
-      hasProperBuild: typeof widget.build === 'function',
-      hasProperCreateState: typeof widget.createState === 'function',
-      hasTag: widget.tag !== undefined,
-      errorType: error.code || 'UNKNOWN',
-      errorMessage: error.message,
-      suggestion: this.getSuggestion(widget, error)
-    };
+  getLastError() {
+    const failed = this.buildAttempts.filter(a => a.status === 'FAILED');
+    return failed.length > 0 ? failed[failed.length - 1] : null;
   }
 
   /**
-   * Get suggestion for fixing
+   * Clear all tracking data
    */
-  getSuggestion(widget, error) {
-    const name = widget.constructor.name;
-
-    if (error.code === 'MISSING_RUNTIME') {
-      return \`Runtime is missing.Ensure VNodeBuilder receives runtime: new VNodeBuilder({ runtime: this })\`;
-    }
-
-    if (error.code === 'BUILD_RETURNED_NULL') {
-      return \`\${ name }.build() returned null.All build methods must return a Widget or VNode.\`;
-    }
-
-    if (error.code === 'UNKNOWN_BUILD_RESULT') {
-      return \`\${ name }.build() returned an invalid type.Check the return value of build() method.\`;
-    }
-
-    if (typeof widget.build === 'function' && !widget.createState) {
-      return \`\${ name } is a StatelessWidget.Ensure its build() method returns a Widget or VNode.\`;
-    }
-
-    if (typeof widget.createState === 'function') {
-      return \`\${ name } is a StatefulWidget.Check its State.build() method returns a Widget or VNode.\`;
-    }
-
-    return \`Check \${ name } implementation.Verify build() returns VNode or valid widget.\`;
+  clear() {
+    this.buildStack = [];
+    this.widgetRegistry.clear();
+    this.buildAttempts = [];
+    this.errorLog = [];
+    this.stats = { created: 0, buildAttempts: 0, successful: 0, failed: 0 };
   }
 
-  /**
-   * Extract widget properties
-   */
-  extractProperties(widget) {
+  // ========================================================================
+  // HELPERS
+  // ========================================================================
+
+  _getWidgetType(widget) {
+    if (typeof widget.createState === 'function') return 'StatefulWidget';
+    if (typeof widget.build === 'function') return 'StatelessWidget';
+    if (typeof widget.updateShouldNotify === 'function') return 'InheritedWidget';
+    if (widget.tag !== undefined) return 'VNode';
+    return 'Unknown';
+  }
+
+  _extractProperties(widget) {
     const props = {};
-    const keys = Object.keys(widget).filter(k => !k.startsWith('_') && !k.startsWith('__'));
-    
+    const keys = Object.keys(widget)
+      .filter(k => !k.startsWith('_') && !k.startsWith('__'))
+      .slice(0, 5); // Limit to 5 properties
+
     keys.forEach(key => {
       const value = widget[key];
       if (typeof value !== 'function') {
-        props[key] = {
-          type: typeof value,
-          constructor: value?.constructor?.name,
-          value: typeof value === 'object' ? '[object]' : value
-        };
+        props[key] = typeof value === 'object' ? \`[\${value?.constructor?.name}]\` : value;
       }
     });
 
     return props;
   }
 
-  /**
-   * Get widget type
-   */
-  getWidgetType(widget) {
-    if (typeof widget.createState === 'function') return 'StatefulWidget';
-    if (typeof widget.build === 'function') return 'StatelessWidget';
-    if (typeof widget.updateShouldNotify === 'function') return 'InheritedWidget';
-    return 'Unknown';
-  }
-
-  /**
-   * Generate unique ID
-   */
-  generateId() {
-    return \`w_\${ Date.now() }_\${ Math.random().toString(36).substr(2, 9) } \`;
-  }
-
-  /**
-   * Get report
-   */
-  getReport() {
-    return {
-      totalWidgets: this.widgetRegistry.size,
-      buildAttempts: this.buildAttempts.length,
-      failedAttempts: this.buildAttempts.filter(a => a.status === 'FAILED').length,
-      successfulAttempts: this.buildAttempts.filter(a => a.status === 'SUCCESS').length,
-      currentStack: this.buildStack,
-      registry: Array.from(this.widgetRegistry.values()),
-      attempts: this.buildAttempts
-    };
-  }
-
-  /**
-   * Print detailed report
-   */
-  printReport() {
-    const report = this.getReport();
-
-    console.log('');
-    console.log('📊 WIDGET BUILD REPORT');
-    console.log('═'.repeat(80));
-    console.log('');
-    console.log('📈 STATISTICS:');
-    console.log(\`   Total Widgets Created: \${ report.totalWidgets } \`);
-    console.log(\`   Total Build Attempts: \${ report.buildAttempts } \`);
-    console.log(\`   ✅ Successful: \${ report.successfulAttempts } \`);
-    console.log(\`   ❌ Failed: \${ report.failedAttempts } \`);
-    console.log('');
-
-    if (report.currentStack.length > 0) {
-      console.log('🔗 CURRENT BUILD STACK:');
-      report.currentStack.forEach((name, idx) => {
-        console.log(\`   \${ idx + 1 }. \${ name } \`);
-      });
-      console.log('');
-    }
-
-    if (report.failedAttempts > 0) {
-      console.log('❌ FAILED BUILD ATTEMPTS:');
-      report.attempts
-        .filter(a => a.status === 'FAILED')
-        .forEach(attempt => {
-          console.log(\`   Widget: \${ attempt.widget } \`);
-          console.log(\`   Error: \${ attempt.error.message } \`);
-          console.log(\`   Stack: \${ attempt.stack.join(' → ') || 'ROOT' } \`);
-          console.log('');
-        });
-    }
-
-    console.log('═'.repeat(80));
-    console.log('');
+  _generateId() {
+    return \`\${Date.now()}_\${Math.random().toString(36).substr(2, 9)}\`;
   }
 }
 
-// Global tracker instance
+// ============================================================================
+// GLOBAL TRACKER MANAGEMENT
+// ============================================================================
+
 let globalTracker = null;
 
-/**
- * Enable widget tracking globally
- */
 export function enableWidgetTracking() {
   if (globalTracker) {
-    console.log('⚠️ Widget tracking already enabled');
-    return;
+    console.warn('⚠️ Widget tracking already enabled');
+    return globalTracker;
   }
 
   globalTracker = new WidgetTracker();
 
-  // Intercept VNodeBuilder
-  console.log('🔍 Enabling Widget Debug Tracking...');
-
-  // Make tracker globally available
   if (typeof window !== 'undefined') {
     window.__widgetTracker = globalTracker;
-    console.log('✅ Widget tracker available as: window.__widgetTracker');
-    console.log('   Use window.__widgetTracker.getReport() for details');
-    console.log('   Use window.__widgetTracker.printReport() for formatted output');
+    console.log('%c✅ Widget Tracker Enabled', 'color: #4CAF50; font-weight: bold');
+    console.log('%c   Use: window.__widgetTracker.printReport()', 'color: #666');
+    console.log('%c   Use: window.__widgetTracker.getReport()', 'color: #666');
   }
 
   return globalTracker;
 }
 
-/**
- * Get global tracker
- */
 export function getWidgetTracker() {
   return globalTracker;
 }
 
-/**
- * Print report
- */
 export function printWidgetReport() {
   if (!globalTracker) {
-    console.warn('Widget tracking not enabled. Call enableWidgetTracking() first.');
+    console.warn('⚠️ Widget tracking not enabled');
     return;
   }
   globalTracker.printReport();
 }
 
-/**
- * Get report
- */
 export function getWidgetReport() {
-  if (!globalTracker) {
-    return null;
-  }
-  return globalTracker.getReport();
+  return globalTracker?.getReport() || null;
 }
 
-export { WidgetTracker };`;
+export { WidgetTracker };
+
+   `;
   }
 
 

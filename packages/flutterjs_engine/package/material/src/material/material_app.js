@@ -125,7 +125,7 @@ class Navigator {
 }
 
 // ============================================================================
-// MATERIAL APP - FIXED
+// MATERIAL APP - PROPER IMPLEMENTATION
 // ============================================================================
 
 class MaterialApp extends StatelessWidget {
@@ -181,9 +181,6 @@ class MaterialApp extends StatelessWidget {
     }
   }
 
-  /**
-   * Get current theme based on themeMode
-   */
   _getTheme() {
     if (this.themeMode === 'dark') {
       return this.darkTheme;
@@ -198,9 +195,6 @@ class MaterialApp extends StatelessWidget {
     return this.theme;
   }
 
-  /**
-   * Apply theme to document
-   */
   _applyTheme(theme) {
     if (typeof document === 'undefined') return;
 
@@ -219,71 +213,121 @@ class MaterialApp extends StatelessWidget {
     document.body.style.color = theme.brightness === 'dark' ? '#FFF' : '#000';
   }
 
+  /**
+   * ✅ Check if object is a Widget
+   */
+  _isWidget(obj) {
+    if (!obj || typeof obj !== 'object') return false;
+    return (
+      typeof obj.build === 'function' ||
+      typeof obj.createState === 'function'
+    );
+  }
+
+  /**
+   * ✅ Build widget to VNode using runtime
+   * This properly handles StatefulWidget and StatelessWidget
+   */
+  _buildWidgetToVNode(widget, context) {
+    console.log('🔨 _buildWidgetToVNode called for:', widget?.constructor?.name);
+
+    if (!widget) {
+      console.log('  → widget is null, returning null');
+      return null;
+    }
+
+    // Already a VNode
+    if (widget && widget.tag !== undefined) {
+      console.log('  → Already a VNode');
+      return widget;
+    }
+
+    // String or number
+    if (typeof widget === 'string' || typeof widget === 'number') {
+      console.log('  → String/number, converting');
+      return String(widget);
+    }
+
+    // Is a Widget - need to build it
+    if (this._isWidget(widget)) {
+      console.log('  → Is a Widget, calling build...');
+
+      try {
+        // StatefulWidget: createState() -> state.build()
+        if (typeof widget.createState === 'function') {
+          console.log('    → StatefulWidget detected');
+          const state = widget.createState();
+          console.log('    → State instance created:', state?.constructor?.name);
+
+          if (state && typeof state.build === 'function') {
+            const result = state.build(context);
+            console.log('    → State.build() returned:', result?.constructor?.name || typeof result);
+            
+            // Recursively build if still a widget
+            if (this._isWidget(result)) {
+              console.log('    → Result is still a widget, recursing...');
+              return this._buildWidgetToVNode(result, context);
+            }
+            return result;
+          }
+        }
+        // StatelessWidget: just call build()
+        else if (typeof widget.build === 'function') {
+          console.log('    → StatelessWidget detected');
+          const result = widget.build(context);
+          console.log('    → build() returned:', result?.constructor?.name || typeof result);
+          
+          // Recursively build if still a widget
+          if (this._isWidget(result)) {
+            console.log('    → Result is still a widget, recursing...');
+            return this._buildWidgetToVNode(result, context);
+          }
+          return result;
+        }
+      } catch (error) {
+        console.error('  ❌ Error building widget:', error);
+        return null;
+      }
+    }
+
+    console.log('  → Unknown type, returning null');
+    return null;
+  }
+
+  /**
+   * ✅ BUILD METHOD
+   * MaterialApp is a StatelessWidget, so build() returns a VNode or another Widget
+   * We need to:
+   * 1. Get the home widget (e.g., MyHomePage)
+   * 2. Build it to a VNode using _buildWidgetToVNode
+   * 3. Wrap it with theme styling
+   * 4. Return the final VNode
+   */
   build(context) {
-    console.log('🔍 MaterialApp.build() START');
+    console.log('📖 MaterialApp.build() START');
     
     const currentTheme = this._getTheme();
     this._applyTheme(currentTheme);
 
-    // ✅ Get current page widget
+    // Get the home widget (could be MyHomePage - StatefulWidget)
     let pageWidget = this.navigator.getCurrentPage(context);
     console.log('📄 Current page widget:', pageWidget?.constructor?.name);
 
     if (!pageWidget) {
-      console.warn('⚠️ No page widget found, using error page');
-      pageWidget = this._buildErrorPage();
+      console.warn('⚠️ No page widget found');
+      pageWidget = this._buildEmptyPage();
     }
 
-    // ✅ FIX: Build the page widget RECURSIVELY
-    // Don't manually create elements - let the build system handle it
-    let pageVNode = null;
+    // ✅ BUILD the page widget to a VNode
+    let pageVNode = this._buildWidgetToVNode(pageWidget, context);
+    console.log('✅ pageVNode after building:', pageVNode?.tag || typeof pageVNode);
 
-    if (pageWidget) {
-      // Check if pageWidget is already a VNode
-      if (pageWidget.tag !== undefined) {
-        console.log('✅ pageWidget is already a VNode');
-        pageVNode = pageWidget;
-      }
-      // Check if pageWidget is a Widget
-      else if (typeof pageWidget.build === 'function') {
-        console.log('🔄 pageWidget is a Widget, building recursively:', pageWidget.constructor.name);
-        try {
-          pageVNode = pageWidget.build(context);
-          console.log('✅ pageWidget.build() returned:', {
-            type: typeof pageVNode,
-            hasTag: pageVNode?.tag !== undefined,
-            constructor: pageVNode?.constructor?.name
-          });
-        } catch (error) {
-          console.error('❌ Error building pageWidget:', error);
-          pageVNode = this._buildErrorVNode(`Error: ${error.message}`);
-        }
-      }
-      // If it's a string or number, convert to VNode
-      else if (typeof pageWidget === 'string' || typeof pageWidget === 'number') {
-        console.log('📝 pageWidget is text:', pageWidget);
-        pageVNode = new VNode({
-          tag: 'p',
-          props: {},
-          children: [String(pageWidget)]
-        });
-      }
-      else {
-        console.error('❌ Unknown pageWidget type:', pageWidget?.constructor?.name);
-        pageVNode = this._buildErrorVNode('Unknown page widget type');
-      }
+    if (!pageVNode) {
+      console.error('❌ Failed to build page widget');
+      pageVNode = this._buildEmptyPageVNode();
     }
 
-    // ✅ Wrap with builder if provided
-    if (this.builder && pageVNode) {
-      console.log('🎁 Applying builder wrapper');
-      const wrappedWidget = this.builder(context, pageWidget);
-      if (wrappedWidget) {
-        pageVNode = wrappedWidget;
-      }
-    }
-
-    // ✅ Return root container with theme - MUST be a VNode
+    // ✅ Wrap with theme container and return VNode
     const result = new VNode({
       tag: 'div',
       props: {
@@ -301,51 +345,30 @@ class MaterialApp extends StatelessWidget {
         'data-app': 'MaterialApp',
         'data-theme': currentTheme.brightness
       },
-      children: pageVNode ? [pageVNode] : []
+      children: [pageVNode]
     });
 
-    console.log('✅ MaterialApp.build() returning VNode with tag:', result.tag);
+    console.log('✅ MaterialApp.build() returning VNode');
     return result;
   }
 
   /**
-   * Build error page when no route found
+   * Empty widget
    */
-  _buildErrorPage() {
+  _buildEmptyPage() {
     return new StatelessWidget({
-      build: (context) => {
-        return this._buildErrorVNode(`Route not found: ${this.navigator.currentRoute}`);
-      }
+      build: () => this._buildEmptyPageVNode()
     });
   }
 
   /**
-   * Build error VNode
+   * Empty page VNode
    */
-  _buildErrorVNode(message) {
+  _buildEmptyPageVNode() {
     return new VNode({
       tag: 'div',
-      props: {
-        style: {
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '100vh',
-          flexDirection: 'column'
-        }
-      },
-      children: [
-        new VNode({
-          tag: 'h1',
-          props: { style: { color: '#d32f2f' } },
-          children: ['Error']
-        }),
-        new VNode({
-          tag: 'p',
-          props: { style: { color: '#666' } },
-          children: [message]
-        })
-      ]
+      props: { style: { padding: '20px', textAlign: 'center' } },
+      children: ['No page configured']
     });
   }
 }

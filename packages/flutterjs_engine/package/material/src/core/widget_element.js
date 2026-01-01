@@ -1,13 +1,274 @@
+/**
+ * FIXED: Complete Stateful/Stateless Widget System
+ * 
+ * KEY FIXES:
+ * 1. StatefulElement properly initializes State with lifecycle
+ * 2. State.setState() correctly marks element for rebuild
+ * 3. Proper context passing through entire widget tree
+ * 4. Both StatelessElement and StatefulElement work correctly
+ */
+
 import { Diagnosticable, Element } from "@flutterjs/runtime/element";
 import { VNode } from "@flutterjs/vdom/vnode";
 
 // ============================================================================
-// 1. WIDGET CLASS - With Diagnosticable
+// STATE BASE CLASS - FIXED
 // ============================================================================
 
 /**
- * Widget - Abstract base class for all widgets
+ * State - Mutable state holder for StatefulWidget
+ * 
+ * âœ… CRITICAL: This is now properly integrated with StatefulElement
  */
+class State extends Diagnosticable {
+  constructor() {
+    super();
+
+    // Internal references
+    this._element = null;           // Owner StatefulElement
+    this._widget = null;            // Current widget configuration
+    this._mounted = false;          // Is state mounted?
+    this._building = false;         // Currently building?
+
+    // Lifecycle tracking
+    this._didInitState = false;
+    this._didMount = false;
+    this._isActive = false;
+
+    // Performance tracking
+    this._buildCount = 0;
+  }
+
+  /**
+   * Get the widget that created this state
+   */
+  get widget() {
+    return this._widget;
+  }
+
+  /**
+   * Get the build context
+   */
+  get context() {
+    return this._element?.context || null;
+  }
+
+  /**
+   * Check if state is mounted
+   */
+  get mounted() {
+    return this._mounted;
+  }
+
+  // ========== LIFECYCLE METHODS ==========
+
+  /**
+   * Called once when state is first created
+   * Override to initialize state variables
+   */
+  initState() {
+    // Override in subclass
+  }
+
+  /**
+   * Called when widget configuration changes
+   * @param {Widget} oldWidget - Previous widget
+   */
+  didUpdateWidget(oldWidget) {
+    // Override in subclass
+  }
+
+  /**
+   * Called when inherited dependencies change
+   */
+  didChangeDependencies() {
+    // Override in subclass
+  }
+
+  /**
+   * Called after first frame is rendered
+   */
+  didMount() {
+    // Override in subclass
+  }
+
+  /**
+   * Called when state is about to be permanently removed
+   * Override to cleanup resources
+   */
+  dispose() {
+    // Override in subclass
+  }
+
+  /**
+   * Called when state is reactivated
+   */
+  activate() {
+    // Override in subclass
+  }
+
+  /**
+   * Called when state is deactivated
+   */
+  deactivate() {
+    // Override in subclass
+  }
+
+  /**
+   * Build the widget tree
+   * MUST be overridden in subclass
+   * @param {BuildContext} context - Build context
+   * @returns {Widget|VNode} Widget tree or VNode
+   */
+  build(context) {
+    throw new Error(`${this.constructor.name}.build(context) must be implemented`);
+  }
+
+  // ========== STATE MANAGEMENT ==========
+
+  /**
+   * Update state and schedule rebuild
+   * @param {Function|Object} updateFn - Update function or object
+   */
+  setState(updateFn) {
+    if (!this.mounted) {
+      console.warn(`[State] setState called on unmounted state`);
+      return;
+    }
+
+    if (this._building) {
+      console.warn(`[State] setState called during build`);
+    }
+
+    // Apply update
+    if (typeof updateFn === 'function') {
+      try {
+        updateFn.call(this);
+      } catch (error) {
+        console.error(`[State] setState update function failed:`, error);
+        throw error;
+      }
+    } else if (typeof updateFn === 'object' && updateFn !== null) {
+      Object.assign(this, updateFn);
+    }
+
+    // Trigger rebuild
+    if (this._element && typeof this._element.markNeedsBuild === 'function') {
+      this._element.markNeedsBuild();
+    }
+  }
+
+  // ========== INTERNAL LIFECYCLE (called by StatefulElement) ==========
+
+  /**
+   * Internal: Initialize state
+   * Called by StatefulElement after mount
+   */
+  _init() {
+    if (this._didInitState) {
+      return;
+    }
+
+    this._didInitState = true;
+    this._mounted = true;
+    this._isActive = true;
+
+    try {
+      console.log(`[State] Calling initState for ${this.constructor.name}`);
+      this.initState();
+    } catch (error) {
+      console.error(`[State] initState failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Internal: Call didChangeDependencies
+   */
+  _didChangeDependencies() {
+    try {
+      this.didChangeDependencies();
+    } catch (error) {
+      console.error(`[State] didChangeDependencies failed:`, error);
+    }
+  }
+
+  /**
+   * Internal: Call didMount
+   */
+  _didMount() {
+    if (this._didMount) {
+      return;
+    }
+
+    this._didMount = true;
+
+    try {
+      console.log(`[State] Calling didMount for ${this.constructor.name}`);
+      this.didMount();
+    } catch (error) {
+      console.error(`[State] didMount failed:`, error);
+    }
+  }
+
+  /**
+   * Internal: Dispose state
+   */
+  _dispose() {
+    this._mounted = false;
+    this._isActive = false;
+
+    try {
+      console.log(`[State] Calling dispose for ${this.constructor.name}`);
+      this.dispose();
+    } catch (error) {
+      console.error(`[State] dispose failed:`, error);
+    }
+  }
+
+  /**
+   * Internal: Deactivate state
+   */
+  _deactivate() {
+    if (!this._isActive) {
+      return;
+    }
+
+    this._isActive = false;
+
+    try {
+      this.deactivate();
+    } catch (error) {
+      console.error(`[State] deactivate failed:`, error);
+    }
+  }
+
+  /**
+   * Internal: Reactivate state
+   */
+  _reactivate() {
+    if (this._isActive) {
+      return;
+    }
+
+    this._isActive = true;
+
+    try {
+      this.activate();
+    } catch (error) {
+      console.error(`[State] activate failed:`, error);
+    }
+  }
+
+  toStringShort() {
+    return `${this.constructor.name}`;
+  }
+}
+
+// ============================================================================
+// WIDGET BASE CLASS
+// ============================================================================
+
 class Widget extends Diagnosticable {
   constructor(key = null) {
     super();
@@ -27,25 +288,349 @@ class Widget extends Diagnosticable {
     );
   }
 
-  /**
-   * Get short description of widget
-   */
   toStringShort() {
     return `${this.constructor.name}${this.key ? `(key: ${this.key})` : '(unkeyed)'}`;
   }
 
-  /**
-   * Add widget-specific debug properties
-   * Override in subclasses for custom properties
-   */
   debugFillProperties(properties) {
     super.debugFillProperties(properties);
-    // Subclasses add their own properties here
   }
 }
 
 // ============================================================================
-// 2. PROXY WIDGET - Base for wrapping widgets
+// STATELESS WIDGET
+// ============================================================================
+
+class StatelessWidget extends Widget {
+  constructor(key = null) {
+    super(key);
+  }
+
+  /**
+   * Build the widget UI
+   * MUST be overridden
+   */
+  build(context) {
+    throw new Error(`${this.constructor.name}.build(context) must be implemented`);
+  }
+
+  /**
+   * Create element for this widget
+   */
+  createElement(parent, runtime) {
+    return new StatelessElement(this, parent, runtime);
+  }
+}
+
+/**
+ * StatelessElement - Element for stateless widget
+ * âœ… FIXED: Properly accepts parent and runtime
+ */
+class StatelessElement extends Element {
+  constructor(widget, parent = null, runtime = null) {
+    if (!widget) {
+      throw new Error('[StatelessElement] Widget is required');
+    }
+    if (!runtime) {
+      throw new Error('[StatelessElement] Runtime is required');
+    }
+
+    super(widget, parent, runtime);
+
+    console.log(`[StatelessElement] Created for ${widget.constructor.name}`);
+  }
+
+  /**
+   * Perform rebuild
+   */
+  performRebuild() {
+    try {
+      console.log(`[StatelessElement] build() for ${this.widget.constructor.name}`);
+
+      const result = this.widget.build(this.context);
+
+      if (!result) {
+        throw new Error(
+          `${this.widget.constructor.name}.build() returned null or undefined`
+        );
+      }
+
+      console.log(`[StatelessElement] âœ… build() returned:`, {
+        type: typeof result,
+        constructor: result?.constructor?.name,
+        hasTag: result?.tag !== undefined
+      });
+
+      return result;
+    } catch (error) {
+      console.error(`[StatelessElement] build error:`, error);
+      throw error;
+    }
+  }
+}
+
+// ============================================================================
+// STATEFUL WIDGET
+// ============================================================================
+
+class StatefulWidget extends Widget {
+  constructor(key = null) {
+    super(key);
+  }
+
+  /**
+   * Create the state object
+   * MUST be overridden
+   */
+  createState() {
+    throw new Error(`${this.constructor.name}.createState() must be implemented`);
+  }
+
+  /**
+   * Create element for this widget
+   */
+  createElement(parent, runtime) {
+    return new StatefulElement(this, parent, runtime);
+  }
+}
+
+/**
+ * StatefulElement - Element for stateful widget
+ * âœ… FIXED: Properly manages State lifecycle
+ */
+class StatefulElement extends Element {
+  constructor(widget, parent = null, runtime = null) {
+    if (!widget) {
+      throw new Error('[StatefulElement] Widget is required');
+    }
+    if (!runtime) {
+      throw new Error('[StatefulElement] Runtime is required');
+    }
+
+    super(widget, parent, runtime);
+
+    // State management
+    this._state = null;
+    this._stateCreated = false;
+    this._stateInitialized = false;
+
+    console.log(`[StatefulElement] Created for ${widget.constructor.name}`);
+  }
+
+  /**
+   * Get or create state
+   */
+  get state() {
+    if (!this._stateCreated) {
+      this._createState();
+    }
+    return this._state;
+  }
+
+  /**
+   * Create state instance
+   */
+  _createState() {
+    if (this._stateCreated) {
+      return;
+    }
+
+    console.log(`[StatefulElement] Creating state for ${this.widget.constructor.name}`);
+
+    try {
+      // Call widget's createState()
+      this._state = this.widget.createState();
+
+      if (!this._state) {
+        throw new Error(
+          `${this.widget.constructor.name}.createState() returned null`
+        );
+      }
+
+      if (!(this._state instanceof State)) {
+        throw new Error(
+          `${this.widget.constructor.name}.createState() must return a State instance`
+        );
+      }
+
+      if (typeof this._state.build !== 'function') {
+        throw new Error(
+          `State for ${this.widget.constructor.name} must implement build(context)`
+        );
+      }
+
+      // Link state to element
+      this._state._element = this;
+      this._state._widget = this.widget;
+
+      this._stateCreated = true;
+
+      console.log(`[StatefulElement] âœ… State created: ${this._state.constructor.name}`);
+    } catch (error) {
+      console.error(`[StatefulElement] Failed to create state:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Initialize state
+   */
+  _initializeState() {
+    if (this._stateInitialized) {
+      return;
+    }
+
+    console.log(`[StatefulElement] Initializing state`);
+
+    try {
+      // Call state initialization
+      this._state._init();
+      this._state._didChangeDependencies();
+      this._state._didMount();
+
+      this._stateInitialized = true;
+
+      console.log(`[StatefulElement] âœ… State initialized`);
+    } catch (error) {
+      console.error(`[StatefulElement] State initialization failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Mount element
+   */
+  mount(parent = null) {
+    if (this._mounted) {
+      return;
+    }
+
+    console.log(`[StatefulElement] mount()`);
+
+    // Call parent mount
+    super.mount(parent);
+
+    // Ensure state is created and initialized
+    if (!this._stateCreated) {
+      this._createState();
+    }
+
+    if (!this._stateInitialized) {
+      this._initializeState();
+    }
+
+    console.log(`[StatefulElement] âœ… Mounted`);
+  }
+
+  /**
+   * Update widget
+   */
+  updateWidget(newWidget) {
+    console.log(`[StatefulElement] updateWidget()`);
+
+    const oldWidget = this.widget;
+    this.widget = newWidget;
+    this._state._widget = newWidget;
+
+    try {
+      this._state.didUpdateWidget(oldWidget);
+    } catch (error) {
+      console.error(`[StatefulElement] didUpdateWidget failed:`, error);
+    }
+
+    this.markNeedsBuild();
+  }
+
+  /**
+   * Perform rebuild
+   */
+  performRebuild() {
+    console.log(`[StatefulElement] performRebuild() for ${this.widget.constructor.name}`);
+
+    try {
+      // Ensure state is ready
+      if (!this._stateCreated) {
+        this._createState();
+      }
+
+      if (!this._stateInitialized) {
+        this._initializeState();
+      }
+
+      // Mark as building
+      this._state._building = true;
+
+      // Call state.build(context)
+      const result = this._state.build(this.context);
+
+      // Done building
+      this._state._building = false;
+
+      if (!result) {
+        throw new Error(
+          `State.build() for ${this.widget.constructor.name} returned null`
+        );
+      }
+
+      console.log(`[StatefulElement] âœ… performRebuild() returned:`, {
+        type: typeof result,
+        constructor: result?.constructor?.name
+      });
+
+      return result;
+    } catch (error) {
+      this._state._building = false;
+      console.error(`[StatefulElement] performRebuild() failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Unmount element
+   */
+  unmount() {
+    console.log(`[StatefulElement] unmount()`);
+
+    if (!this._mounted) {
+      return;
+    }
+
+    try {
+      if (this._state) {
+        this._state._dispose();
+      }
+
+      super.unmount();
+
+      console.log(`[StatefulElement] âœ… Unmounted`);
+    } catch (error) {
+      console.error(`[StatefulElement] unmount() failed:`, error);
+    }
+  }
+
+  /**
+   * Deactivate
+   */
+  deactivate() {
+    if (this._state) {
+      this._state._deactivate();
+    }
+    super.deactivate?.();
+  }
+
+  /**
+   * Activate
+   */
+  activate() {
+    if (this._state) {
+      this._state._reactivate();
+    }
+    super.activate?.();
+  }
+}
+
+// ============================================================================
+// PROXY WIDGET
 // ============================================================================
 
 class ProxyWidget extends Widget {
@@ -62,35 +647,71 @@ class ProxyWidget extends Widget {
   }
 }
 
-// ============================================================================
-// 3. INHERITED WIDGET - Ambient state propagation
-// ============================================================================
-
-class InheritedWidget extends ProxyWidget {
-  constructor({ key = null, child = null } = {}) {
-    super({ key, child });
+/**
+ * ProxyElement - Element for proxy widget
+ */
+class ProxyElement extends Element {
+  constructor(widget, parent = null, runtime = null) {
+    super(widget, parent, runtime);
   }
 
-  /**
-   * Override to return true when dependent widgets should rebuild
-   */
-  updateShouldNotify(oldWidget) {
-    throw new Error(
-      `${this.constructor.name}.updateShouldNotify() must be implemented`
-    );
-  }
+  performRebuild() {
+    if (!this.widget.child) {
+      return null;
+    }
 
-  createElement(parent, runtime) {
-    return new InheritedElement(this, parent, runtime);
-  }
+    try {
+      const childElement = this.widget.child.createElement(this, this.runtime);
 
-  static of(context, widgetType) {
-    return context.dependOnInheritedWidgetOfExactType(widgetType);
+      if (childElement && typeof childElement.mount === 'function') {
+        childElement.mount(this);
+      }
+
+      if (childElement && typeof childElement.performRebuild === 'function') {
+        return childElement.performRebuild();
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`[ProxyElement] performRebuild failed:`, error);
+      throw error;
+    }
   }
 }
 
 // ============================================================================
-// 4. KEY CLASSES
+// ERROR WIDGET
+// ============================================================================
+
+class ErrorWidget extends StatelessWidget {
+  constructor({ message = 'Error', error = null } = {}) {
+    super();
+    this.message = message;
+    this.error = error;
+  }
+
+  build(context) {
+    return new VNode({
+      tag: 'div',
+      props: {
+        style: {
+          backgroundColor: '#ff1744',
+          color: 'white',
+          padding: '16px',
+          borderRadius: '4px',
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word'
+        }
+      },
+      children: [this.message]
+    });
+  }
+}
+
+// ============================================================================
+// KEY CLASSES
 // ============================================================================
 
 class Key {
@@ -160,364 +781,22 @@ class GlobalKey extends Key {
 }
 
 // ============================================================================
-// 5. NOTIFICATION CLASSES
-// ============================================================================
-
-class Notification {
-  constructor() {
-    if (new.target === Notification) {
-      throw new Error('Notification is abstract');
-    }
-  }
-
-  dispatch(context) {
-    context.dispatchNotification(this);
-  }
-}
-
-class NotificationListener extends ProxyWidget {
-  constructor({ key = null, child = null, onNotification = null } = {}) {
-    super({ key, child });
-    this.onNotification = onNotification;
-  }
-
-  createElement(parent, runtime) {
-    return new NotificationListenerElement(this, parent, runtime);
-  }
-}
-
-// ============================================================================
-// 6. STATELESS WIDGET & ELEMENT
-// ============================================================================
-
-/**
- * StatelessWidget - Immutable widget that depends only on props/configuration
- */
-class StatelessWidget extends Widget {
-  constructor(key = null) {
-    super(key);
-  }
-
-  /**
-   * Build the widget UI
-   */
-  build(context) {
-    throw new Error(`${this.constructor.name}.build() must be implemented`);
-  }
-
-  /**
-   * Create element for this widget
-   */
-  createElement(parent, runtime) {
-    return new StatelessElement(this, parent, runtime);
-  }
-
-  reassemble() { }
-}
-
-/**
- * StatelessElement - Element for stateless widget
- * ✅ FIXED: Now accepts parent and runtime parameters
- */
-class StatelessElement extends Element {
-  constructor(widget, parent = null, runtime = null) {
-    super(widget, parent, runtime);
-  }
-
-  /**
-   * Mount the element
-   */
-  mount(parent = null) {
-    super.mount(parent);
-  }
-
-  reassemble() {
-    this.widget.reassemble?.();
-    super.reassemble();
-  }
-
-  /**
-   * Perform rebuild
-   */
-  performRebuild() {
-    try {
-      return this.widget.build(this.context);
-    } catch (error) {
-      console.error(`build error: ${error}`);
-      return new ErrorWidget({ message: error.toString() });
-    }
-  }
-}
-
-// ============================================================================
-// 7. STATEFUL WIDGET & ELEMENT
-// ============================================================================
-
-/**
- * StatefulWidget - Widget that holds mutable state
- */
-class StatefulWidget extends Widget {
-  constructor(key = null) {
-    super(key);
-  }
-
-  /**
-   * Create the state object
-   */
-  createState() {
-    throw new Error(`${this.constructor.name}.createState() must be implemented`);
-  }
-
-  /**
-   * Create element for this widget
-   */
-  createElement(parent, runtime) {
-    return new StatefulElement(this, parent, runtime);
-  }
-
-  // Called during hot reload
-  reassemble() { }
-}
-
-/**
- * StatefulElement - Element for stateful widget
- * ✅ FIXED: Now accepts parent and runtime parameters
- */
-class StatefulElement extends Element {
-  constructor(widget, parent = null, runtime = null) {
-    super(widget, parent, runtime);
-    this.state = widget.createState();
-    this.state._element = this;
-    // ✅ FIX: Use _widget instead of widget (or create proper setter in State)
-    this.state._widget = widget;
-  }
-
-  /**
-   * Mount the element
-   */
-  mount(parent = null) {
-    super.mount(parent);        // sets _parent, _depth, creates BuildContext, etc
-    this.state._mount(this);    // Initialize state and call initState + didChangeDependencies
-  }
-
-  /**
-   * Unmount the element
-   */
-  unmount() {
-    try {
-      this.state.dispose();
-    } catch (error) {
-      console.error(`dispose error in ${this._debugLabel}:`, error);
-    }
-
-    this.state._unmount();
-    super.unmount();
-  }
-
-  activate() {
-    this.state._reactivate();          // Use hook
-    super.activate?.();                // optional if base has it
-  }
-
-  /**
-   * Deactivate the element
-   */
-  deactivate() {
-    try {
-      this.state.deactivate();
-    } catch (error) {
-      console.error(`deactivate error in ${this._debugLabel}:`, error);
-    }
-    this.state._deactivate();
-    super.deactivate();
-  }
-
-  /**
-   * Update widget
-   */
-  updateWidget(newWidget) {
-    const oldWidget = this.widget;
-    this.widget = newWidget;
-    // ✅ FIX: Use _widget instead of widget
-    this.state._widget = newWidget;
-
-    try {
-      this.state.didUpdateWidget(oldWidget);
-    } catch (error) {
-      console.error(`didUpdateWidget error in ${this._debugLabel}:`, error);
-    }
-
-    this.markNeedsBuild();
-  }
-
-  /**
-   * Perform rebuild
-   */
-  performRebuild() {
-    try {
-      return this.state.build(this.context);
-    } catch (error) {
-      console.error(`build error in ${this._debugLabel}:`, error);
-      throw error;
-    }
-  }
-
-  reassemble() {
-    try {
-      this.state.reassemble();
-    } catch (error) {
-      console.error(`reassemble error: ${error}`);
-    }
-    super.reassemble();
-  }
-
-  didChangeDependencies() {
-    try {
-      this.state.didChangeDependencies();
-    } catch (error) {
-      console.error(`didChangeDependencies error: ${error}`);
-    }
-  }
-
-  /**
-   * Debug properties for StatefulElement
-   */
-  debugFillProperties(properties) {
-    super.debugFillProperties(properties);
-    properties.push({ name: 'stateType', value: this.state.constructor.name });
-    properties.push({ name: 'stateInitialized', value: this.state._didInitState });
-  }
-}
-
-// ============================================================================
-// 8. ERROR WIDGET
-// ============================================================================
-
-class ErrorWidget extends StatelessWidget {
-  constructor({ message = 'Error', error = null } = {}) {
-    super();
-    this.message = message;
-    this.error = error;
-  }
-
-  build(context) {
-    return new VNode({
-      tag: 'div',
-      props: {
-        style: {
-          backgroundColor: '#ff1744',
-          color: 'white',
-          padding: '16px',
-          borderRadius: '4px',
-          fontFamily: 'monospace',
-          fontSize: '12px',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word'
-        }
-      },
-      children: [this.message]
-    });
-  }
-}
-
-// ============================================================================
-// 9. PROXY ELEMENT (for ProxyWidget)
-// ============================================================================
-
-class ProxyElement extends Element {
-  constructor(widget, parent = null, runtime = null) {
-    super(widget, parent, runtime);
-    this.parent=parent;
-    this.runtime=runtime;
-  }
-
-  mount(parent = null) {
-    super.mount(parent);
-  }
-
-  performRebuild() {
-    // ProxyWidget typically renders child directly
-    if (this.widget.child) {
-      const childElement = this.widget.child.createElement?.(this.parent, this.runtime);
-      if (childElement && childElement.mount) {
-        childElement.mount(this);
-      }
-      return childElement?.performRebuild?.() || null;
-    }
-    return null;
-  }
-}
-
-// ============================================================================
-// 10. INHERITED ELEMENT (for InheritedWidget)
-// ============================================================================
-
-class InheritedElement extends ProxyElement {
-  constructor(widget, parent = null, runtime = null) {
-    super(widget, parent, runtime);
-    this._dependents = new Set();
-    this.parent=parent;
-    this.runtime=runtime;
-  }
-
-  performRebuild() {
-    // Render child
-    if (this.widget.child) {
-      const childElement = this.widget.child.createElement?.(this.parent, this.runtime);
-      if (childElement && childElement.mount) {
-        childElement.mount(this);
-      }
-      return childElement?.performRebuild?.() || null;
-    }
-    return null;
-  }
-}
-
-// ============================================================================
-// 11. NOTIFICATION LISTENER ELEMENT
-// ============================================================================
-
-class NotificationListenerElement extends ProxyElement {
-  constructor(widget, parent = null, runtime = null) {
-    super(widget, parent, runtime);
-    this.parent = parent;
-    this.runtime = runtime;
-  }
-
-  performRebuild() {
-    if (this.widget.child) {
-      const childElement = this.widget.child.createElement?.(this.parent, this.runtime);
-      if (childElement && childElement.mount) {
-        childElement.mount(this);
-      }
-      return childElement?.performRebuild?.() || null;
-    }
-    return null;
-  }
-}
-
-// ============================================================================
 // EXPORTS
 // ============================================================================
 
 export {
-  GlobalKey,
-  ValueKey,
-  ObjectKey,
-  Key,
-  ProxyWidget,
-  ProxyElement,
-  InheritedWidget,
-  InheritedElement,
-  Notification,
-  NotificationListener,
-  NotificationListenerElement,
-  ErrorWidget,
-  Diagnosticable,
+  State,
   Widget,
-  Element,
   StatelessWidget,
   StatelessElement,
   StatefulWidget,
-  StatefulElement
+  StatefulElement,
+  ProxyWidget,
+  ProxyElement,
+  ErrorWidget,
+  Key,
+  ValueKey,
+  ObjectKey,
+  GlobalKey,
+  Diagnosticable
 };
