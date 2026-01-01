@@ -44,7 +44,6 @@ export {
 
 export {
     MaterialApp,
-    MaterialAppElement,
     ThemeData,
     Navigator,
     Route

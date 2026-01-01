@@ -90,6 +90,39 @@ export class Diagnosticable {
   }
 }
 
+
+// ✅ Helper function to check if something is a REAL VNode
+function isRealVNode(obj) {
+  if (!obj || typeof obj !== 'object') {
+    return false;
+  }
+
+  // Check for VNode properties AND structure
+  const hasTag = typeof obj.tag === 'string';  // ✅ tag must be STRING (HTML tag name)
+  const hasChildren = Array.isArray(obj.children) || obj.children === null || obj.children === undefined;
+  const hasProps = obj.props === null || obj.props === undefined || typeof obj.props === 'object';
+
+  // VNode should NOT have build() or createState() methods
+  const isNotWidget = typeof obj.build !== 'function' && typeof obj.createState !== 'function';
+
+  // All conditions must be true
+  return hasTag && hasChildren && hasProps && isNotWidget;
+}
+
+// ✅ Helper function to check if something is a Widget
+function isWidget(obj) {
+  if (!obj || typeof obj !== 'object') {
+    return false;
+  }
+
+  return (
+    typeof obj.build === 'function' ||
+    typeof obj.createState === 'function' ||
+    typeof obj.render === 'function'
+  );
+}
+
+
 /**
  * Base Element Class
  */
@@ -508,10 +541,10 @@ class StatelessElement extends Element {
 
   /**
    * Build the widget and return the result
-   * ✅ CRITICAL: This must return the result of widget.build(), not this Element
+   * ✅ CRITICAL: Use strict VNode detection
    */
   build() {
-    console.log('📦 StatelessElement.build() START', {
+    console.log('🔦 StatelessElement.build() START', {
       widgetType: this.widget?.constructor.name,
       widgetInstance: this.widget
     });
@@ -520,13 +553,13 @@ class StatelessElement extends Element {
 
     try {
       // STEP 1: Call widget's build method
-      console.log('📝 Calling widget.build(context)...');
+      console.log('🔍 Calling widget.build(context)...');
       const result = this.widget.build(context);
 
       console.log('✓ widget.build() returned:', {
         resultType: typeof result,
         resultConstructor: result?.constructor?.name,
-        isVNode: result?.tag !== undefined,
+        hasTag: result?.tag !== undefined,
         isString: typeof result === 'string',
         isNull: result === null,
       });
@@ -536,9 +569,9 @@ class StatelessElement extends Element {
         throw new Error('StatelessWidget.build() returned null');
       }
 
-      // ✅ CRITICAL FIX: Check if result is a VNode first
-      if (result && typeof result === 'object' && result.tag) {
-        console.log('✅ Result is a VNode, returning it directly');
+      // ✅ STRICT CHECK: Use isRealVNode() instead of just checking .tag
+      if (isRealVNode(result)) {
+        console.log('✅ Result is a REAL VNode, returning it directly');
         return result;
       }
 
@@ -549,32 +582,28 @@ class StatelessElement extends Element {
       }
 
       // ✅ Check if it's a Widget (has build method or createState)
-      const isWidget = result &&
-        typeof result === 'object' &&
-        (typeof result.build === 'function' || typeof result.createState === 'function');
-
-      if (isWidget) {
+      if (isWidget(result)) {
         console.log('🔄 Result is a Widget, need to build recursively:', result.constructor.name);
-        
-        // ✅ FIX: Create element for this widget
+
+        // Create element for this widget
         const childElement = this._createElementForWidget(result);
 
         console.log('✅ Created child element:', childElement.constructor.name);
 
-        // ✅ FIX: Set parent before building (don't call mount yet)
+        // Set parent before building
         childElement._parent = this;
         childElement._depth = this._depth + 1;
-        childElement._mounted = true;  // Mark as mounted for build context
+        childElement._mounted = true;
 
         console.log('✅ Set up child element parent/depth');
 
-        // ✅ FIX: Recursively build the child element to get VNode
-        // ✅ CRITICAL: Call build() on the child element, NOT this element
+        // Recursively build the child element to get VNode
         const childVNode = childElement.build();
 
         console.log('✅ Child element.build() returned:', {
           hasTag: childVNode?.tag !== undefined,
-          type: typeof childVNode
+          type: typeof childVNode,
+          isRealVNode: isRealVNode(childVNode)
         });
 
         if (!childVNode) {
@@ -586,7 +615,16 @@ class StatelessElement extends Element {
 
       // If we get here, it's an unknown type
       console.warn('⚠️ Unknown result type from build():', result);
-      return result;
+      console.warn('   Constructor:', result?.constructor?.name);
+      console.warn('   Type:', typeof result);
+      console.warn('   Has .tag:', result?.tag);
+      console.warn('   Has .build:', typeof result?.build);
+
+      throw new Error(
+        `Invalid build() return type from ${this.widget.constructor.name}. ` +
+        `Expected: Widget, VNode, string, number, or null. ` +
+        `Got: ${result?.constructor?.name} with tag="${result?.tag}"`
+      );
 
     } catch (error) {
       console.error('❌ Build error:', error.message);
@@ -596,7 +634,7 @@ class StatelessElement extends Element {
   }
 
   /**
-   * ✅ Helper to create appropriate element type for a widget
+   * Helper to create appropriate element type for a widget
    * @private
    */
   _createElementForWidget(widget) {
@@ -605,7 +643,6 @@ class StatelessElement extends Element {
       return new StatefulElement(widget, this, this.runtime);
     } else if (widget.updateShouldNotify && typeof widget.updateShouldNotify === 'function') {
       console.log('  Creating InheritedElement for:', widget.constructor.name);
-      // Import InheritedElement if needed
       const { InheritedElement } = require('./inherited_element.js');
       return new InheritedElement(widget, this, this.runtime);
     } else {
@@ -643,11 +680,8 @@ class StatefulElement extends Element {
     this.state._mounted = false;
   }
 
-  /**
-   * ✅ FIXED: Same recursive building as StatelessElement
-   */
   build() {
-    console.log('📦 StatefulElement.build() START', {
+    console.log('🔦 StatefulElement.build() START', {
       widgetType: this.widget?.constructor.name,
       stateType: this.state?.constructor.name
     });
@@ -659,7 +693,7 @@ class StatefulElement extends Element {
         throw new Error('State must implement build() method');
       }
 
-      console.log('📝 Calling state.build(context)...');
+      console.log('🔍 Calling state.build(context)...');
       const result = this.state.build(context);
 
       console.log('✓ state.build() returned:', {
@@ -672,9 +706,9 @@ class StatefulElement extends Element {
         throw new Error('State.build() returned null');
       }
 
-      // ✅ Check if it's a VNode first
-      if (result && typeof result === 'object' && result.tag) {
-        console.log('✅ Result is a VNode, returning');
+      // ✅ STRICT CHECK: Use isRealVNode()
+      if (isRealVNode(result)) {
+        console.log('✅ Result is a REAL VNode, returning');
         return result;
       }
 
@@ -685,20 +719,16 @@ class StatefulElement extends Element {
       }
 
       // ✅ Check if it's a widget and build recursively
-      const isWidget = result &&
-        typeof result === 'object' &&
-        (typeof result.build === 'function' || typeof result.createState === 'function');
-
-      if (isWidget) {
+      if (isWidget(result)) {
         console.log('🔄 State.build() returned a Widget, building recursively:', result.constructor.name);
-        
+
         const childElement = this._createElementForWidget(result);
-        
-        // ✅ Set up parent/depth without calling mount
+
+        // Set up parent/depth without calling mount
         childElement._parent = this;
         childElement._depth = this._depth + 1;
         childElement._mounted = true;
-        
+
         const childVNode = childElement.build();
 
         if (!childVNode) {
@@ -708,16 +738,16 @@ class StatefulElement extends Element {
         return childVNode;
       }
 
-      return result;
+      throw new Error(
+        `Invalid build() return type from ${this.widget.constructor.name} state. ` +
+        `Expected: Widget, VNode, string, number, or null.`
+      );
+
     } catch (error) {
       throw new Error(`StatefulWidget build failed: ${error.message}`);
     }
   }
 
-  /**
-   * ✅ Helper to create appropriate element type for a widget
-   * @private
-   */
   _createElementForWidget(widget) {
     if (typeof widget.createState === 'function') {
       return new StatefulElement(widget, this, this.runtime);
@@ -742,49 +772,8 @@ class StatefulElement extends Element {
     super.mount();
   }
 
-  update(newWidget) {
-    const oldWidget = this.widget;
-
-    this.widget = newWidget;
-    this.state._widget = newWidget;
-
-    if (this.state.didUpdateWidget && typeof this.state.didUpdateWidget === 'function') {
-      try {
-        this.state.didUpdateWidget(oldWidget);
-      } catch (error) {
-        console.error(`[StatefulElement] didUpdateWidget failed:`, error);
-      }
-    }
-
-    if (this.shouldRebuild(oldWidget, newWidget)) {
-      this.markNeedsBuild();
-    }
-  }
-
-  unmount() {
-    if (this.state.dispose && typeof this.state.dispose === 'function') {
-      try {
-        this.state.dispose();
-      } catch (error) {
-        console.error(`[StatefulElement] dispose failed:`, error);
-      }
-    }
-
-    this.state._mounted = false;
-    super.unmount();
-  }
-
   buildContext() {
     return new BuildContext(this, this.runtime, this.state);
-  }
-
-  getStats() {
-    const stats = super.getStats();
-    return {
-      ...stats,
-      hasState: !!this.state,
-      stateMounted: this.state ? this.state._mounted : false
-    };
   }
 }
 
@@ -824,11 +813,11 @@ class ComponentElement extends Element {
 
       if (isWidget) {
         const childElement = this._createElementForWidget(result);
-        
+
         childElement._parent = this;
         childElement._depth = this._depth + 1;
         childElement._mounted = true;
-        
+
         return childElement.build();
       }
 
@@ -866,5 +855,6 @@ export {
   StatelessElement,
   StatefulElement,
   ComponentElement,
-  DiagnosticLevel
+  DiagnosticLevel,
+  isRealVNode, isWidget
 };
