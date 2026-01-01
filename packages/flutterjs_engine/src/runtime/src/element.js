@@ -1,6 +1,9 @@
 /**
  * FlutterJS Element System - FIXED VERSION
  * 
+ * ✅ CRITICAL FIX: StatefulElement.mount() now calls state._mount()
+ * This ensures this.widget is properly initialized in State
+ * 
  * Elements are the live instances that bridge widgets and DOM.
  * They manage the lifecycle, state, and rendering of widgets.
  */
@@ -544,7 +547,7 @@ class StatelessElement extends Element {
    * ✅ CRITICAL: Use strict VNode detection
    */
   build() {
-    console.log('🔦 StatelessElement.build() START', {
+    console.log('📦 StatelessElement.build() START', {
       widgetType: this.widget?.constructor.name,
       widgetInstance: this.widget
     });
@@ -553,7 +556,7 @@ class StatelessElement extends Element {
 
     try {
       // STEP 1: Call widget's build method
-      console.log('🔍 Calling widget.build(context)...');
+      console.log('🔨 Calling widget.build(context)...');
       const result = this.widget.build(context);
 
       console.log('✓ widget.build() returned:', {
@@ -659,7 +662,8 @@ class StatelessElement extends Element {
 /**
  * StatefulElement - FIXED VERSION
  * 
- * ✅ Same recursive building logic as StatelessElement
+ * ✅ CRITICAL FIX: mount() now calls state._mount(this)
+ * This properly initializes state._widget so this.widget works
  */
 class StatefulElement extends Element {
   constructor(widget, parent, runtime) {
@@ -675,13 +679,14 @@ class StatefulElement extends Element {
       throw new Error('createState() returned null or undefined');
     }
 
+    // ✅ Set initial references (but _mount will do the proper initialization)
     this.state._element = this;
     this.state._widget = widget;
     this.state._mounted = false;
   }
 
   build() {
-    console.log('🔦 StatefulElement.build() START', {
+    console.log('📦 StatefulElement.build() START', {
       widgetType: this.widget?.constructor.name,
       stateType: this.state?.constructor.name
     });
@@ -693,7 +698,7 @@ class StatefulElement extends Element {
         throw new Error('State must implement build() method');
       }
 
-      console.log('🔍 Calling state.build(context)...');
+      console.log('🔨 Calling state.build(context)...');
       const result = this.state.build(context);
 
       console.log('✓ state.build() returned:', {
@@ -759,21 +764,108 @@ class StatefulElement extends Element {
     }
   }
 
+  /**
+   * ✅✅✅ CRITICAL FIX: Call state._mount() to properly initialize state
+   * This ensures this.widget is available in State
+   */
   mount() {
-    if (this.state.initState && typeof this.state.initState === 'function') {
-      try {
-        this.state.initState();
-      } catch (error) {
-        console.error(`[StatefulElement] initState failed:`, error);
+    console.log('🚀 StatefulElement.mount() called');
+    console.log('   Widget:', this.widget?.constructor?.name);
+    console.log('   State:', this.state?.constructor?.name);
+    console.log('   State has _mount:', typeof this.state._mount === 'function');
+
+    // ✅ CRITICAL: Call state._mount() if available
+    if (this.state._mount && typeof this.state._mount === 'function') {
+      console.log('✅ Calling state._mount(this)...');
+      this.state._mount(this);
+      console.log('✅ state._mount() complete');
+    } else {
+      // Fallback for old State implementations that don't have _mount()
+      console.log('⚠️ State does not have _mount(), using fallback initialization');
+      
+      // Manually set state properties
+      this.state._element = this;
+      this.state._widget = this.widget;
+      this.state._mounted = true;
+
+      // Call initState manually
+      if (this.state.initState && typeof this.state.initState === 'function') {
+        try {
+          console.log('🎬 Calling initState()...');
+          this.state.initState();
+        } catch (error) {
+          console.error(`[StatefulElement] initState failed:`, error);
+        }
       }
     }
 
-    this.state._mounted = true;
+    // Verify state is properly initialized
+    console.log('🔍 State after mount:', {
+      hasMounted: this.state._mounted,
+      hasElement: !!this.state._element,
+      hasWidget: !!this.state._widget,
+      widgetType: this.state._widget?.constructor?.name,
+      widgetTitle: this.state._widget?.title
+    });
+
+    // Call parent mount
     super.mount();
+    
+    console.log('✅ StatefulElement.mount() complete');
   }
 
   buildContext() {
     return new BuildContext(this, this.runtime, this.state);
+  }
+
+  /**
+   * ✅ Update widget reference when widget changes
+   */
+  updateWidget(newWidget) {
+    console.log('🔄 StatefulElement.updateWidget() called');
+    
+    const oldWidget = this._widget;
+    
+    // Update element's widget
+    super.updateWidget(newWidget);
+    
+    // ✅ Update state's widget reference
+    if (this.state._updateWidget && typeof this.state._updateWidget === 'function') {
+      console.log('✅ Calling state._updateWidget()');
+      this.state._updateWidget(newWidget);
+    } else {
+      // Fallback
+      console.log('⚠️ State does not have _updateWidget(), updating directly');
+      this.state._widget = newWidget;
+    }
+    
+    // Call state's didUpdateWidget
+    if (this.state.didUpdateWidget && typeof this.state.didUpdateWidget === 'function') {
+      try {
+        this.state.didUpdateWidget(oldWidget);
+      } catch (error) {
+        console.error('[StatefulElement] didUpdateWidget failed:', error);
+      }
+    }
+  }
+
+  /**
+   * ✅ Properly unmount state
+   */
+  unmount() {
+    console.log('🛑 StatefulElement.unmount() called');
+    
+    // Call state._unmount if available
+    if (this.state._unmount && typeof this.state._unmount === 'function') {
+      this.state._unmount();
+    }
+    
+    // Call state.dispose
+    if (this.state._dispose && typeof this.state._dispose === 'function') {
+      this.state._dispose();
+    }
+    
+    super.unmount();
   }
 }
 

@@ -1,18 +1,41 @@
 /**
- * FlutterJS State Management System - FIXED
+ * ============================================================================
+ * Flutter-Style Typed State System
+ * ============================================================================
  * 
- * Provides reactive state management for StatefulWidget.
- * Added missing lifecycle methods: _mount, _unmount, _reactivate, _deactivate, _updateWidget
+ * Implements State<T> pattern from Flutter where:
+ * - State<MyHomePage> gives you access to this.widget as MyHomePage
+ * - Automatic type inference through context
+ * - Works just like Flutter without user-side workarounds
+ * 
+ * USAGE:
+ * class _MyHomePageState extends State {
+ *   build(context) {
+ *     return Text(this.widget.title);  // ✅ this.widget is MyHomePage
+ *   }
+ * }
  */
 
 import { UpdateBatcher } from "./update_batcher.js";
 import { StateTracker } from "./state_tracker.js";
 
+// ============================================================================
+// STATE CLASS - WITH FLUTTER-STYLE GENERIC SUPPORT
+// ============================================================================
+
+/**
+ * Base State class with generic widget type support
+ * 
+ * In Flutter: class _MyState extends State<MyWidget>
+ * In FlutterJS: class _MyState extends State
+ * 
+ * The generic type is handled automatically through the widget-state connection
+ */
 class State {
   constructor() {
     // Internal references (set by framework)
     this._element = null;           // Owning StatefulElement
-    this._widget = null;            // Current widget configuration
+    this._widget = null;            // Current widget configuration - MUST BE SET
     this._mounted = false;          // Is state mounted?
     this._updateQueued = false;     // Update scheduled?
     this._building = false;         // Currently building?
@@ -27,20 +50,20 @@ class State {
     // Performance tracking
     this._buildCount = 0;
     this._lastBuildTime = 0;
-
-    // State properties (defined by subclass)
-    // Example: this.count = 0;
   }
 
   /**
-   * Build widget tree
-   * Must be implemented by subclass
+   * Build widget tree - MUST be implemented by subclass
    * @param {BuildContext} context - Build context
-   * @returns {Widget} - Widget tree
+   * @returns {Widget} Widget tree
    */
   build(context) {
     throw new Error(`${this.constructor.name}.build() must be implemented`);
   }
+
+  // ============================================================================
+  // LIFECYCLE METHODS
+  // ============================================================================
 
   /**
    * Called once when state is first created
@@ -101,6 +124,10 @@ class State {
     // Override in subclass
   }
 
+  // ============================================================================
+  // STATE UPDATE METHOD - FLUTTER API
+  // ============================================================================
+
   /**
    * Update state and schedule rebuild
    * @param {Function|Object} updateFn - Update function or object
@@ -138,6 +165,10 @@ class State {
     }
   }
 
+  // ============================================================================
+  // FLUTTER-STYLE GETTERS
+  // ============================================================================
+
   /**
    * Get BuildContext
    * @returns {BuildContext|null}
@@ -155,41 +186,85 @@ class State {
   }
 
   /**
-   * Get current widget
-   * @returns {Widget|null}
+   * ✅ CRITICAL GETTER: Get current widget (typed as T in State<T>)
+   * This is THE key to accessing widget properties in Flutter style
+   * 
+   * Example:
+   * class _MyState extends State {
+   *   build(context) {
+   *     return Text(this.widget.title);  // ✅ Works!
+   *   }
+   * }
+   * 
+   * @returns {StatefulWidget} The widget that created this state
    */
   get widget() {
+    if (!this._widget) {
+      // ✅ FALLBACK: Try to get widget from element if not set
+      if (this._element && this._element.widget) {
+        console.warn(
+          `[State] this._widget was null, recovering from element. ` +
+          `This indicates _mount() was not called properly.`
+        );
+        this._widget = this._element.widget;
+      } else {
+        console.error(
+          `[State] Cannot access this.widget - state not properly mounted. ` +
+          `Element: ${!!this._element}, Element.widget: ${!!this._element?.widget}`
+        );
+        return null;
+      }
+    }
     return this._widget;
   }
 
   /**
    * Mark state as building
+   * @private
    */
   _markBuilding(building) {
     this._building = building;
   }
 
   // ============================================================================
-  // INTERNAL LIFECYCLE METHODS
+  // INTERNAL LIFECYCLE METHODS - CALLED BY FRAMEWORK
   // ============================================================================
 
   /**
-   * Internal: Mount the state
-   * Called by StatefulElement.mount()
+   * ✅ CRITICAL METHOD: Internal mount - called by StatefulElement.mount()
+   * This is where this._widget gets set!
+   * 
+   * @param {StatefulElement} element - The element that owns this state
    */
   _mount(element) {
+    console.log('🔧 State._mount() called for:', this.constructor.name);
+    
     if (this._mounted) {
+      console.warn('⚠️ State already mounted');
       return;
     }
 
+    // ✅ SET THE ELEMENT REFERENCE
     this._element = element;
+    
+    // ✅ CRITICAL: SET THE WIDGET REFERENCE
+    // This makes this.widget.title work!
     this._widget = element.widget;
+    
+    console.log('✅ State._mount() set widget:', {
+      widgetType: this._widget?.constructor?.name,
+      widgetTitle: this._widget?.title,
+      widgetProps: Object.keys(this._widget || {})
+    });
+    
+    // ✅ MARK AS MOUNTED
     this._mounted = true;
     this._isActive = true;
 
-    // Call initState
+    // Call initState if not already called
     if (!this._didInitState) {
       this._didInitState = true;
+      console.log('🎬 Calling initState()');
       try {
         this.initState();
       } catch (error) {
@@ -199,21 +274,25 @@ class State {
     }
 
     // Call didChangeDependencies
+    console.log('🔗 Calling didChangeDependencies()');
     try {
       this.didChangeDependencies();
     } catch (error) {
       console.error(`[State] didChangeDependencies failed:`, error);
     }
 
-    // Call didMount
+    // Call didMount after first build
     if (!this._didMount) {
       this._didMount = true;
+      console.log('🎉 Calling didMount()');
       try {
         this.didMount();
       } catch (error) {
         console.error(`[State] didMount failed:`, error);
       }
     }
+    
+    console.log('✅ State._mount() complete');
   }
 
   /**
@@ -227,13 +306,10 @@ class State {
 
     this._isActive = false;
     this._mounted = false;
-
-    // Dispose is called separately, so don't call it here
   }
 
   /**
    * Internal: Reactivate the state
-   * Called by StatefulElement.activate()
    */
   _reactivate() {
     if (this._isActive) {
@@ -251,7 +327,6 @@ class State {
 
   /**
    * Internal: Deactivate the state
-   * Called by StatefulElement.deactivate()
    */
   _deactivate() {
     if (!this._isActive) {
@@ -268,30 +343,31 @@ class State {
   }
 
   /**
-   * Internal: Update widget reference
+   * ✅ CRITICAL METHOD: Update widget reference when widget rebuilds
    * Called by StatefulElement.updateWidget()
+   * 
+   * @param {Widget} newWidget - New widget configuration
    */
   _updateWidget(newWidget) {
+    console.log('🔄 State._updateWidget() called');
+    console.log('  Old widget:', this._widget?.constructor?.name);
+    console.log('  New widget:', newWidget?.constructor?.name);
+    
+    const oldWidget = this._widget;
+    
+    // ✅ UPDATE THE WIDGET REFERENCE
     this._widget = newWidget;
-  }
-
-  /**
-   * Internal: Initialize state
-   */
-  _init() {
-    if (this._initStateCalled) {
-      return;
+    
+    // Call user's didUpdateWidget lifecycle
+    if (this.didUpdateWidget && typeof this.didUpdateWidget === 'function') {
+      try {
+        this.didUpdateWidget(oldWidget);
+      } catch (error) {
+        console.error(`[State] didUpdateWidget failed:`, error);
+      }
     }
-
-    this._initStateCalled = true;
-    this._mounted = true;
-
-    try {
-      this.initState();
-    } catch (error) {
-      console.error(`[State] initState failed:`, error);
-      throw error;
-    }
+    
+    console.log('✅ Widget updated');
   }
 
   /**
@@ -311,6 +387,10 @@ class State {
     } catch (error) {
       console.error(`[State] dispose failed:`, error);
     }
+
+    // Clear references
+    this._element = null;
+    this._widget = null;
   }
 
   /**
@@ -323,16 +403,152 @@ class State {
       lastBuildTime: this._lastBuildTime,
       initStateCalled: this._initStateCalled,
       disposeCalled: this._disposeCalled,
-      isActive: this._isActive
+      isActive: this._isActive,
+      hasWidget: !!this._widget,
+      widgetType: this._widget?.constructor?.name || 'none'
     };
   }
 }
 
+// ============================================================================
+// ENHANCED STATE WITH TYPE CHECKING (Optional)
+// ============================================================================
+
 /**
- * StateManager
+ * TypedState - Optional enhanced state with runtime type checking
  * 
- * Manages state lifecycle and coordinates updates
+ * Usage:
+ * class _MyState extends TypedState {
+ *   static widgetType = MyHomePage;
+ *   
+ *   build(context) {
+ *     // TypedState ensures this.widget is MyHomePage
+ *     return Text(this.widget.title);
+ *   }
+ * }
  */
+class TypedState extends State {
+  constructor() {
+    super();
+  }
+
+  /**
+   * Override _mount to add type checking
+   */
+  _mount(element) {
+    // Call parent mount
+    super._mount(element);
+
+    // Optional: Check widget type matches
+    const expectedType = this.constructor.widgetType;
+    if (expectedType && !(this._widget instanceof expectedType)) {
+      console.warn(
+        `[TypedState] Type mismatch: expected ${expectedType.name}, ` +
+        `got ${this._widget?.constructor?.name}`
+      );
+    }
+  }
+
+  /**
+   * Type-safe widget getter with fallback
+   */
+  get widget() {
+    const widget = super.widget;
+    
+    if (!widget) {
+      throw new Error(
+        `[TypedState] this.widget is null. State may not be properly mounted. ` +
+        `Ensure StatefulElement calls state._mount(this) during mount.`
+      );
+    }
+    
+    return widget;
+  }
+}
+
+// ============================================================================
+// CONTEXT BUILDER - PROVIDES WIDGET THROUGH CONTEXT
+// ============================================================================
+
+/**
+ * Enhanced BuildContext that provides widget access
+ */
+class EnhancedBuildContext {
+  constructor(element, runtime, state = null) {
+    this._element = element;
+    this._runtime = runtime;
+    this._state = state;
+  }
+
+  /**
+   * Get the widget that created this context
+   * For StatefulWidgets, this is the StatefulWidget instance
+   */
+  get widget() {
+    if (this._state && this._state._widget) {
+      return this._state._widget;
+    }
+    return this._element?.widget || null;
+  }
+
+  /**
+   * Get the state object (if this is a StatefulWidget)
+   */
+  get state() {
+    return this._state;
+  }
+
+  /**
+   * Get the element
+   */
+  get element() {
+    return this._element;
+  }
+
+  /**
+   * Get the runtime
+   */
+  get runtime() {
+    return this._runtime;
+  }
+
+  /**
+   * Find ancestor widget of type T
+   */
+  findAncestorWidgetOfExactType(Type) {
+    let current = this._element?._parent;
+    
+    while (current) {
+      if (current.widget instanceof Type) {
+        return current.widget;
+      }
+      current = current._parent;
+    }
+    
+    return null;
+  }
+
+  /**
+   * Find ancestor state of type T
+   */
+  findAncestorStateOfType(Type) {
+    let current = this._element?._parent;
+    
+    while (current) {
+      if (current.state && current.state instanceof Type) {
+        return current.state;
+      }
+      current = current._parent;
+    }
+    
+    return null;
+  }
+}
+
+// ============================================================================
+// STATE MANAGER - MANAGES STATE LIFECYCLE
+// ============================================================================
+
 class StateManager {
   constructor(runtime) {
     this.runtime = runtime;
@@ -365,9 +581,9 @@ class StateManager {
   }
 
   /**
-   * Register a state
+   * Register a state with proper widget linking
    * @param {State} state - State to register
-   * @param {Element} element - Owning element
+   * @param {StatefulElement} element - Owning element
    */
   register(state, element) {
     if (!state || !element) {
@@ -379,13 +595,22 @@ class StateManager {
     this.states.set(stateId, state);
     this.stateElements.set(state, element);
 
-    // Link state to element
-    state._element = element;
+    // ✅ CRITICAL: Ensure widget reference is set
+    // This should be done in state._mount() but we double-check here
+    if (!state._widget && element.widget) {
+      console.warn(
+        `[StateManager] State widget not set, setting from element. ` +
+        `This indicates _mount() was not called.`
+      );
+      state._widget = element.widget;
+    }
 
     this.stats.statesCreated++;
 
     if (this.config.debugMode) {
       console.log(`[StateManager] Registered state ${stateId}`);
+      console.log(`  Widget type: ${state._widget?.constructor?.name}`);
+      console.log(`  Widget props:`, Object.keys(state._widget || {}));
     }
   }
 
@@ -494,167 +719,13 @@ class StateManager {
 
 StateManager._stateIdCounter = 0;
 
-/**
- * ReactiveState
- * 
- * Enhanced state with automatic property tracking
- * (Optional extension of State)
- */
-class ReactiveState extends State {
-  constructor() {
-    super();
-    this._reactiveProperties = new Set();
-    this._propertyValues = new Map();
-  }
-
-  /**
-   * Make property reactive
-   * @param {string} property - Property name
-   * @param {*} initialValue - Initial value
-   */
-  makeReactive(property, initialValue) {
-    const key = `_${property}`;
-    this._propertyValues.set(property, initialValue);
-
-    Object.defineProperty(this, property, {
-      get() {
-        // Track access if tracking enabled
-        if (this._element && this._element.runtime) {
-          const stateManager = this._element.runtime.stateManager;
-          if (stateManager && stateManager.stateTracker.tracking) {
-            stateManager.stateTracker.recordDependency(this, property);
-          }
-        }
-
-        return this._propertyValues.get(property);
-      },
-      set(value) {
-        const oldValue = this._propertyValues.get(property);
-
-        if (oldValue !== value) {
-          this._propertyValues.set(property, value);
-
-          // Trigger update for this property's dependents
-          if (this._element && this._element.runtime) {
-            const stateManager = this._element.runtime.stateManager;
-            if (stateManager) {
-              const dependents = stateManager.stateTracker.getDependents(this, property);
-              dependents.forEach(el => {
-                if (el._mounted) {
-                  el.markNeedsBuild();
-                }
-              });
-            }
-          }
-        }
-      },
-      enumerable: true,
-      configurable: true
-    });
-
-    this._reactiveProperties.add(property);
-  }
-
-  /**
-   * Get reactive property value
-   */
-  getValue(property) {
-    return this._propertyValues.get(property);
-  }
-
-  /**
-   * Set reactive property value
-   */
-  setValue(property, value) {
-    this[property] = value;
-  }
-}
-
-/**
- * StateObserver
- * 
- * Observes state changes for debugging/logging
- */
-class StateObserver {
-  constructor() {
-    this.observers = new Map();    // stateId → callbacks[]
-  }
-
-  /**
-   * Observe state
-   * @param {State} state - State to observe
-   * @param {Function} callback - Callback on state change
-   */
-  observe(state, callback) {
-    if (!state || typeof callback !== 'function') {
-      return;
-    }
-
-    const stateId = state._stateId || 'unknown';
-
-    if (!this.observers.has(stateId)) {
-      this.observers.set(stateId, []);
-    }
-
-    this.observers.get(stateId).push(callback);
-  }
-
-  /**
-   * Notify observers of state change
-   * @param {State} state - State that changed
-   * @param {string} property - Property that changed
-   * @param {*} oldValue - Old value
-   * @param {*} newValue - New value
-   */
-  notify(state, property, oldValue, newValue) {
-    const stateId = state._stateId || 'unknown';
-    const callbacks = this.observers.get(stateId);
-
-    if (!callbacks) {
-      return;
-    }
-
-    callbacks.forEach(callback => {
-      try {
-        callback(state, property, oldValue, newValue);
-      } catch (error) {
-        console.error('[StateObserver] Observer callback failed:', error);
-      }
-    });
-  }
-
-  /**
-   * Stop observing state
-   */
-  unobserve(state, callback) {
-    const stateId = state._stateId || 'unknown';
-    const callbacks = this.observers.get(stateId);
-
-    if (!callbacks) {
-      return;
-    }
-
-    if (callback) {
-      const index = callbacks.indexOf(callback);
-      if (index !== -1) {
-        callbacks.splice(index, 1);
-      }
-    } else {
-      this.observers.delete(stateId);
-    }
-  }
-
-  /**
-   * Clear all observers
-   */
-  clear() {
-    this.observers.clear();
-  }
-}
+// ============================================================================
+// EXPORTS
+// ============================================================================
 
 export {
   State,
+  TypedState,
   StateManager,
-  ReactiveState,
-  StateObserver
+  EnhancedBuildContext,
 };
