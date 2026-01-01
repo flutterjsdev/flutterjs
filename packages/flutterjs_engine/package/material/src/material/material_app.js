@@ -1,4 +1,4 @@
-import { Widget, StatelessWidget, Element } from '../core/widget_element.js';
+import { StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 
 // ============================================================================
@@ -42,9 +42,6 @@ class ThemeData {
     this.appBarTheme = appBarTheme;
   }
 
-  /**
-   * Create a dark theme
-   */
   static dark() {
     return new ThemeData({
       brightness: 'dark',
@@ -57,9 +54,6 @@ class ThemeData {
     });
   }
 
-  /**
-   * Create a light theme
-   */
   static light() {
     return new ThemeData({
       brightness: 'light',
@@ -93,17 +87,11 @@ class Navigator {
     this.currentRoute = initialRoute;
   }
 
-  /**
-   * Navigate to a named route
-   */
   pushNamed(routeName, { arguments: args = null } = {}) {
     this.currentRoute = routeName;
     this.routeStack.push(routeName);
   }
 
-  /**
-   * Go back
-   */
   pop() {
     if (this.routeStack.length > 1) {
       this.routeStack.pop();
@@ -113,9 +101,6 @@ class Navigator {
     return false;
   }
 
-  /**
-   * Get current page widget
-   */
   getCurrentPage(context) {
     const routeName = this.currentRoute;
 
@@ -140,7 +125,7 @@ class Navigator {
 }
 
 // ============================================================================
-// MATERIAL APP
+// MATERIAL APP - FIXED
 // ============================================================================
 
 class MaterialApp extends StatelessWidget {
@@ -180,7 +165,6 @@ class MaterialApp extends StatelessWidget {
     this.locale = locale;
     this.builder = builder;
 
-    // Initialize navigator
     this.navigator = new Navigator({
       routes: this.routes,
       initialRoute: this.initialRoute,
@@ -188,12 +172,10 @@ class MaterialApp extends StatelessWidget {
       onUnknownRoute: this.onUnknownRoute
     });
 
-    // Add home to routes if provided
     if (this.home) {
       this.navigator.routes['/'] = (context) => this.home;
     }
 
-    // Set page title
     if (typeof document !== 'undefined') {
       document.title = this.title;
     }
@@ -209,7 +191,6 @@ class MaterialApp extends StatelessWidget {
     if (this.themeMode === 'light') {
       return this.theme;
     }
-    // system mode - detect from OS
     if (typeof window !== 'undefined' && window.matchMedia) {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       return isDark ? this.darkTheme : this.theme;
@@ -233,41 +214,77 @@ class MaterialApp extends StatelessWidget {
     root.style.setProperty('--text-color', 
       theme.brightness === 'dark' ? '#FFF' : '#000');
 
-    // Apply body background
     document.body.style.backgroundColor = theme.scaffoldBackgroundColor;
     document.body.style.fontFamily = theme.fontFamily;
     document.body.style.color = theme.brightness === 'dark' ? '#FFF' : '#000';
   }
 
   build(context) {
+    console.log('🔍 MaterialApp.build() START');
+    
     const currentTheme = this._getTheme();
     this._applyTheme(currentTheme);
 
-    // Get current page
+    // ✅ Get current page widget
     let pageWidget = this.navigator.getCurrentPage(context);
+    console.log('📄 Current page widget:', pageWidget?.constructor?.name);
 
     if (!pageWidget) {
+      console.warn('⚠️ No page widget found, using error page');
       pageWidget = this._buildErrorPage();
     }
 
-    // Build page element
-    const pageElement = pageWidget.createElement?.(context.element, context.element.runtime) || pageWidget;
-    if (pageElement.mount) {
-      pageElement.mount(context.element);
+    // ✅ FIX: Build the page widget RECURSIVELY
+    // Don't manually create elements - let the build system handle it
+    let pageVNode = null;
+
+    if (pageWidget) {
+      // Check if pageWidget is already a VNode
+      if (pageWidget.tag !== undefined) {
+        console.log('✅ pageWidget is already a VNode');
+        pageVNode = pageWidget;
+      }
+      // Check if pageWidget is a Widget
+      else if (typeof pageWidget.build === 'function') {
+        console.log('🔄 pageWidget is a Widget, building recursively:', pageWidget.constructor.name);
+        try {
+          pageVNode = pageWidget.build(context);
+          console.log('✅ pageWidget.build() returned:', {
+            type: typeof pageVNode,
+            hasTag: pageVNode?.tag !== undefined,
+            constructor: pageVNode?.constructor?.name
+          });
+        } catch (error) {
+          console.error('❌ Error building pageWidget:', error);
+          pageVNode = this._buildErrorVNode(`Error: ${error.message}`);
+        }
+      }
+      // If it's a string or number, convert to VNode
+      else if (typeof pageWidget === 'string' || typeof pageWidget === 'number') {
+        console.log('📝 pageWidget is text:', pageWidget);
+        pageVNode = new VNode({
+          tag: 'p',
+          props: {},
+          children: [String(pageWidget)]
+        });
+      }
+      else {
+        console.error('❌ Unknown pageWidget type:', pageWidget?.constructor?.name);
+        pageVNode = this._buildErrorVNode('Unknown page widget type');
+      }
     }
 
-    let pageVNode = pageElement.performRebuild?.() || null;
-
-    // Wrap with builder if provided
-    if (this.builder) {
+    // ✅ Wrap with builder if provided
+    if (this.builder && pageVNode) {
+      console.log('🎁 Applying builder wrapper');
       const wrappedWidget = this.builder(context, pageWidget);
       if (wrappedWidget) {
         pageVNode = wrappedWidget;
       }
     }
 
-    // Root container with theme
-    return new VNode({
+    // ✅ Return root container with theme - MUST be a VNode
+    const result = new VNode({
       tag: 'div',
       props: {
         style: {
@@ -286,6 +303,9 @@ class MaterialApp extends StatelessWidget {
       },
       children: pageVNode ? [pageVNode] : []
     });
+
+    console.log('✅ MaterialApp.build() returning VNode with tag:', result.tag);
+    return result;
   }
 
   /**
@@ -294,42 +314,39 @@ class MaterialApp extends StatelessWidget {
   _buildErrorPage() {
     return new StatelessWidget({
       build: (context) => {
-        return new VNode({
-          tag: 'div',
-          props: {
-            style: {
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              height: '100vh',
-              flexDirection: 'column'
-            }
-          },
-          children: [
-            new VNode({
-              tag: 'h1',
-              props: { style: { color: '#d32f2f' } },
-              children: ['404: Page Not Found']
-            }),
-            new VNode({
-              tag: 'p',
-              props: { style: { color: '#666' } },
-              children: [`Route: ${this.navigator.currentRoute}`]
-            })
-          ]
-        });
+        return this._buildErrorVNode(`Route not found: ${this.navigator.currentRoute}`);
       }
     });
   }
 
-  createElement(parent, runtime) {
-    return new MaterialAppElement(this,parent, runtime);
-  }
-}
-
-class MaterialAppElement extends Element {
-  performRebuild() {
-    return this.widget.build(this.context);
+  /**
+   * Build error VNode
+   */
+  _buildErrorVNode(message) {
+    return new VNode({
+      tag: 'div',
+      props: {
+        style: {
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          flexDirection: 'column'
+        }
+      },
+      children: [
+        new VNode({
+          tag: 'h1',
+          props: { style: { color: '#d32f2f' } },
+          children: ['Error']
+        }),
+        new VNode({
+          tag: 'p',
+          props: { style: { color: '#666' } },
+          children: [message]
+        })
+      ]
+    });
   }
 }
 
@@ -339,7 +356,6 @@ class MaterialAppElement extends Element {
 
 export {
   MaterialApp,
-  MaterialAppElement,
   ThemeData,
   Navigator,
   Route

@@ -156,32 +156,9 @@ class VNodeRenderer {
     return 'Unknown Widget Type';
   }
 
-  /**
-   * Get widget properties
-   * @private
-   */
-  getWidgetProperties(widget) {
-    const props = {};
-    const keys = Object.keys(widget)
-      .filter(k => !k.startsWith('_') && !k.startsWith('__') && typeof widget[k] !== 'function')
-      .slice(0, 10);  // Limit to first 10
-
-    keys.forEach(key => {
-      const value = widget[key];
-      if (typeof value === 'object') {
-        props[key] = `[${value.constructor.name}]`;
-      } else if (typeof value === 'string' && value.length > 30) {
-        props[key] = `"${value.substring(0, 30)}..."`;
-      } else {
-        props[key] = JSON.stringify(value);
-      }
-    });
-
-    return props;
-  }
 
   createDOMNode(vnode) {
-    // Handle null/undefined
+    // ✅ Handle null/undefined FIRST
     if (vnode === null || vnode === undefined) {
       return document.createTextNode('');
     }
@@ -205,13 +182,19 @@ class VNodeRenderer {
 
     // ✅ Check if it's a valid VNode with tag
     if (!vnode || !vnode.tag) {
-      // This is where the error occurs - enhanced error message
-      console.error('');
       console.error('🛑 CRITICAL: VNode missing .tag property');
       console.error('   Constructor:', vnode?.constructor?.name);
       console.error('   Type:', typeof vnode);
       console.error('   Is Widget:', typeof vnode?.build === 'function');
       console.error('');
+
+      // ✅ USE OPTIONAL CHAINING HERE!
+      if (vnode?.constructor?.name === 'FlutterJSRuntime') {
+        throw new Error(
+          'Widget.build() returned the runtime object! ' +
+          'build() must return a Widget, VNode, string, or null'
+        );
+      }
 
       // Use tracker if available
       if (this.tracker && typeof this.tracker.trackRenderFailure === 'function') {
@@ -255,6 +238,33 @@ class VNodeRenderer {
     }
 
     return element;
+  }
+
+  // ✅ FIXED: getWidgetProperties with null check
+  getWidgetProperties(widget) {
+    const props = {};
+
+    // ✅ Add null safety check
+    if (!widget || typeof widget !== 'object') {
+      return props;
+    }
+
+    const keys = Object.keys(widget)
+      .filter(k => !k.startsWith('_') && !k.startsWith('__') && typeof widget[k] !== 'function')
+      .slice(0, 10);  // Limit to first 10
+
+    keys.forEach(key => {
+      const value = widget[key];
+      if (typeof value === 'object' && value !== null) {
+        props[key] = `[${value?.constructor?.name || 'object'}]`;  // ✅ Safe
+      } else if (typeof value === 'string' && value.length > 30) {
+        props[key] = `"${value.substring(0, 30)}..."`;
+      } else {
+        props[key] = JSON.stringify(value);
+      }
+    });
+
+    return props;
   }
 
   renderChildren(parent, children) {
