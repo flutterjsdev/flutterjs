@@ -358,6 +358,11 @@ export class DevServer {
   /**
    * Setup Express middleware - ✅ SERVE SOURCE MAPS
    */
+  // In dev.js, replace the _setupMiddleware() node_modules serving section:
+
+  /**
+   * Setup Express middleware - ✅ PROPER NODE_MODULES SERVING
+   */
   _setupMiddleware() {
     // Compression
     this.app.use(compression());
@@ -375,7 +380,6 @@ export class DevServer {
     this.app.use((req, res, next) => {
       res.setHeader('X-Dev-Server', 'FlutterJS');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      // ✅ Allow source maps
       res.setHeader('X-SourceMap', 'true');
       next();
     });
@@ -390,10 +394,13 @@ export class DevServer {
           const statusColor = statusCode >= 400 ? chalk.red :
             statusCode >= 300 ? chalk.yellow : chalk.green;
 
-          console.log(
-            `${statusColor(statusCode)}${chalk.reset()} ` +
-            `${chalk.gray(req.method)} ${req.url}`
-          );
+          // Don't log node_modules requests (too noisy)
+          if (!req.url.includes('/node_modules/')) {
+            console.log(
+              `${statusColor(statusCode)}${chalk.reset()} ` +
+              `${chalk.gray(req.method)} ${req.url}`
+            );
+          }
         } catch (error) {
           console.error(chalk.red('Logging error:'), error.message);
         }
@@ -433,31 +440,86 @@ export class DevServer {
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
 
-    // ✅ NEW: Serve source maps
+    // ✅ FIXED: Simple and direct node_modules serving
+    const nodeModulesPath = path.join(this.projectRoot, 'node_modules');
+
+    if (fs.existsSync(nodeModulesPath)) {
+      try {
+        // Create a custom handler for node_modules to avoid errors
+        this.app.use('/node_modules', (req, res, next) => {
+          const filePath = path.join(nodeModulesPath, req.path);
+
+          // Security: prevent directory traversal
+          if (!filePath.startsWith(nodeModulesPath)) {
+            res.status(403).json({ error: 'Forbidden' });
+            return;
+          }
+
+          // Check if file exists
+          if (!fs.existsSync(filePath)) {
+            res.status(404).json({ error: 'Not found', path: req.path });
+            return;
+          }
+
+          // Check if it's a directory
+          const stat = fs.statSync(filePath);
+          if (stat.isDirectory()) {
+            res.status(400).json({ error: 'Is a directory', path: req.path });
+            return;
+          }
+
+          // Set correct MIME type
+          let contentType = 'application/octet-stream';
+          if (filePath.endsWith('.js')) {
+            contentType = 'text/javascript; charset=utf-8';
+          } else if (filePath.endsWith('.map')) {
+            contentType = 'application/json; charset=utf-8';
+          } else if (filePath.endsWith('.json')) {
+            contentType = 'application/json; charset=utf-8';
+          } else if (filePath.endsWith('.css')) {
+            contentType = 'text/css; charset=utf-8';
+          }
+
+          // Read and send file
+          try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            res.setHeader('Content-Type', contentType);
+            res.setHeader('Cache-Control', 'no-cache');
+            res.send(content);
+          } catch (error) {
+            console.error(chalk.red(`Error reading ${filePath}:`, error.message));
+            res.status(500).json({
+              error: 'Internal server error',
+              message: error.message
+            });
+          }
+        });
+
+        console.log(chalk.gray(`📦 Serving node_modules from: ${nodeModulesPath}`));
+      } catch (error) {
+        console.error(chalk.red(`Failed to setup node_modules serving: ${error.message}`));
+      }
+    } else {
+      console.warn(chalk.yellow(`⚠️  node_modules not found at: ${nodeModulesPath}`));
+    }
+
+    // ✅ Serve source maps
     if (this.sourceMapGenerator && fs.existsSync(this.mapsDir)) {
       this.app.use('/maps', express.static(this.mapsDir, {
         maxAge: 0,
         etag: false,
+        setHeaders: (res, path) => {
+          res.setHeader('Content-Type', 'application/json');
+        }
       }));
-      console.log(chalk.gray(`🗺️ Serving source maps from: /maps`));
-    }
-
-    // Serve node_modules from project root
-    const nodeModulesPath = path.join(this.projectRoot, 'node_modules');
-    if (fs.existsSync(nodeModulesPath)) {
-      this.app.use('/node_modules', express.static(nodeModulesPath, {
-        maxAge: 0,
-        etag: false,
-      }));
-      console.log(chalk.gray(`🔧 Serving node_modules from: ${nodeModulesPath}`));
-    } else {
-      console.warn(chalk.yellow(`⚠   node_modules not found at: ${nodeModulesPath}`));
+      console.log(chalk.gray(`🗺️  Serving source maps from: /maps`));
     }
 
     // Static files from .dev build directory
     this.app.use(express.static(this.buildDir, {
       maxAge: 0,
       etag: false,
+      fallthrough: true,
     }));
   }
 
@@ -853,12 +915,12 @@ export class DevServer {
         console.log(chalk.blue('🌐 URLs:\n'));
         console.log(chalk.cyan(`  Local:   ${url}`));
         console.log(chalk.cyan(`  Network: ${protocol}://127.0.0.1:${this.port}`));
-        
+
         // ✅ Show source maps info
         if (this.sourceMapGenerator) {
           console.log(chalk.cyan(`  🗺️ Source Maps: ${url}/api/sourcemaps`));
         }
-        
+
         console.log(chalk.gray(`\n  Press Ctrl+C to stop\n`));
 
         resolve();
