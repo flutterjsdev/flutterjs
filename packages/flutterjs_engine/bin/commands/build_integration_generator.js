@@ -151,9 +151,15 @@ class BuildGenerator {
         size: JSON.stringify(manifest).length,
       });
 
+      // ✅ 7. Write SourceMaps
+      const sourceMapperPath = path.join(outputDir, "source_mapper.js");
+      const sourceMapper = this.generateSourceMapper();
+      await fs.promises.writeFile(sourceMapperPath, sourceMapper, "utf-8");
+      files.push({ name: "source_mapper.js", size: sourceMapper.length });
+
       this.integration.buildOutput.files = files;
       this.integration.buildOutput.manifest = manifest;
-
+      await this._copySourceMapsFromPackages();
       spinner.succeed(chalk.green("✓ Output generated"));
       if (this.config.debugMode) {
         console.log(chalk.gray(`  Files: ${files.length}`));
@@ -162,6 +168,58 @@ class BuildGenerator {
     } catch (error) {
       spinner.fail(chalk.red(`✗ Output generation failed: ${error.message}`));
       throw error;
+    }
+  }
+
+
+  async _copySourceMapsFromPackages() {
+    const nodeModulesDir = path.join(this.projectRoot, 'node_modules', '@flutterjs');
+    const outputNodeModulesDir = path.join(this.integration.buildOutput.outputDir, 'node_modules', '@flutterjs');
+
+    try {
+      // Create output node_modules directory
+      await fs.promises.mkdir(outputNodeModulesDir, { recursive: true });
+
+      // Find all .map files
+      const findMapFiles = async (dir) => {
+        const maps = [];
+        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+
+          if (entry.isDirectory()) {
+            const subMaps = await findMapFiles(fullPath);
+            maps.push(...subMaps);
+          } else if (entry.name.endsWith('.map')) {
+            maps.push(fullPath);
+          }
+        }
+
+        return maps;
+      };
+
+      const mapFiles = await findMapFiles(nodeModulesDir);
+
+      for (const mapFile of mapFiles) {
+        const relative = path.relative(nodeModulesDir, mapFile);
+        const dest = path.join(outputNodeModulesDir, relative);
+
+        // Create destination directory
+        await fs.promises.mkdir(path.dirname(dest), { recursive: true });
+
+        // Copy the map file
+        await fs.promises.copyFile(mapFile, dest);
+
+        if (this.config.debugMode) {
+          console.log(chalk.gray(`  ✓ Copied: ${relative}`));
+        }
+      }
+
+      console.log(chalk.green(`✅ Copied ${mapFiles.length} source map files`));
+
+    } catch (error) {
+      console.warn(chalk.yellow(`⚠️  Could not copy source maps: ${error.message}`));
     }
   }
 
@@ -377,6 +435,703 @@ html, body {
 .fjs-button:active { transform: scale(0.98); }`;
   }
 
+
+  /**
+   * Generate source_mapper
+   */
+  generateSourceMapper() {
+    return `/**
+ * ============================================================================
+ * Advanced Source Map Loader - Multi-Package Support
+ * ============================================================================
+ */
+
+class PackageSourceMapManager {
+  constructor(options = {}) {
+    this.options = {
+      baseNodeModules: options.baseNodeModules || '/node_modules/@flutterjs',
+      debugMode: options.debugMode || false,
+      autoDiscover: options.autoDiscover !== false,
+      parallel: options.parallel !== false,
+      maxConcurrent: options.maxConcurrent || 5,
+      timeout: options.timeout || 5000,
+      ...options,
+    };
+
+    this.packages = new Map();
+    this.globalNameMap = new Map();
+    this.sourceMapCache = new Map();
+    this.filePathMap = new Map();
+    this.loadingPromise = null;
+    this.isLoaded = false;
+
+    this.stats = {
+      packagesDiscovered: 0,
+      packagesLoaded: 0,
+      sourceMapsLoaded: 0,
+      totalNames: 0,
+      totalFiles: 0,
+      loadTime: 0,
+      errors: [],
+    };
+
+    if (this.options.debugMode) {
+      console.log('[SourceMapLoader] 🚀 Initialized');
+      console.log(\`  Base: \${this.options.baseNodeModules}\`);
+      console.log(\`  Auto-discover: \${this.options.autoDiscover}\`);
+    }
+  }
+
+  async load() {
+    if (this.loadingPromise) {
+      return this.loadingPromise;
+    }
+
+    const startTime = performance.now();
+
+    this.loadingPromise = (async () => {
+      console.log('\\n📦 Phase: Discovering Source Maps from All Packages');
+      console.log('='.repeat(70));
+
+      try {
+        console.log('\\n🔍 Discovering packages...');
+        const packages = await this._discoverPackages();
+
+        if (packages.length === 0) {
+          console.warn(\`⚠️  No packages found at \${this.options.baseNodeModules}\`);
+          this.isLoaded = true;
+          return this._getLoadResult(startTime, 0);
+        }
+
+        this.stats.packagesDiscovered = packages.length;
+        console.log(\`  ✅ Found \${packages.length} packages:\\n\`);
+        packages.forEach((pkg) => {
+          console.log(\`     • @flutterjs/\${pkg}\`);
+        });
+
+        console.log('\\n\\n📂 Loading source maps...\\n');
+        const results = await this._loadPackageMaps(packages);
+
+        console.log('\\n\\n🗺️  Merging name mappings...\\n');
+        await this._mergeNameMaps();
+
+        this.isLoaded = true;
+        const result = this._getLoadResult(startTime, results.length);
+
+        console.log('='.repeat(70));
+        console.log(\`✅ Source maps ready!\\n\`);
+        console.log(\`   Packages: \${this.stats.packagesLoaded}\`);
+        console.log(\`   Source Maps: \${this.stats.sourceMapsLoaded}\`);
+        console.log(\`   Names Mapped: \${this.stats.totalNames}\`);
+        console.log(\`   Load Time: \${this.stats.loadTime.toFixed(2)}ms\`);
+        console.log('='.repeat(70) + '\\n');
+
+        return result;
+      } catch (error) {
+        console.error(\`\\n❌ Failed to load source maps: \${error.message}\`);
+        if (this.options.debugMode) {
+          console.error(\`Stack: \${error.stack}\`);
+        }
+        this.stats.errors.push(error.message);
+        return { success: false, loaded: 0, error: error.message };
+      }
+    })();
+
+    return this.loadingPromise;
+  }
+
+  async _discoverPackages() {
+    return await this._discoverPackagesFallback();
+  }
+
+  _parseDirectoryListing(html) {
+    const packages = [];
+    const linkRegex = /href="([^"]+?)\\/"/g;
+    let match;
+
+    while ((match = linkRegex.exec(html)) !== null) {
+      const name = match[1];
+      if (name !== '..' && !name.startsWith('.') && name.length > 0) {
+        packages.push(name);
+      }
+    }
+
+    return packages;
+  }
+
+  // ✅ FIXED: Use GET instead of HEAD for discovery
+  async _discoverPackagesFallback() {
+    const commonPackages = [
+      'runtime',
+      'vdom',
+      'material',
+    ];
+
+    const discovered = [];
+
+    for (const pkgName of commonPackages) {
+      try {
+        const packageJsonUrl = \`\${this.options.baseNodeModules}/\${pkgName}/package.json\`;
+        const response = await fetch(packageJsonUrl, {
+          method: 'GET',  // ✅ CHANGED: Use GET instead of HEAD
+          timeout: this.options.timeout,
+        }).catch((err) => {
+          if (this.options.debugMode) {
+            console.log(\`  [Fetch error] \${pkgName}: \${err.message}\`);
+          }
+          return null;
+        });
+
+        if (response && response.ok) {
+          // Try to parse to ensure it's valid JSON
+          try {
+            const json = await response.json();
+            discovered.push(pkgName);
+            if (this.options.debugMode) {
+              console.log(\`  ✓ Found: \${pkgName}\`);
+            }
+          } catch (parseErr) {
+            console.error(\`  ❌ Invalid package.json for \${pkgName}: \${parseErr.message}\`);
+          }
+        }
+      } catch (err) {
+        if (this.options.debugMode) {
+          console.log(\`  ❌ Error checking \${pkgName}: \${err.message}\`);
+        }
+      }
+    }
+
+    return discovered;
+  }
+  async _loadPackageMaps(packageNames) {
+    const results = [];
+    const chunks = this._chunkArray(packageNames, this.options.maxConcurrent);
+
+    for (const chunk of chunks) {
+      const chunkResults = await Promise.all(
+        chunk.map((pkgName) => this._loadPackageSourceMaps(pkgName))
+      );
+      results.push(...chunkResults);
+    }
+
+    return results.filter((r) => r !== null);
+  }
+
+  async _loadPackageSourceMaps(packageName) {
+    const packagePath = \`\${this.options.baseNodeModules}/\${packageName}\`;
+    const packageInfo = {
+      name: packageName,
+      path: packagePath,
+      files: new Map(),
+      nameMap: new Map(),
+      errors: [],
+      filesLoaded: 0,
+      mapsLoaded: 0,
+    };
+
+    try {
+      const jsFiles = await this._findJsFiles(packagePath);
+
+      if (jsFiles.length === 0) {
+        if (this.options.debugMode) {
+          console.log(\`  ⚠️  No JS files in \${packageName}\`);
+        }
+        return null;
+      }
+
+      for (const jsFile of jsFiles) {
+        const mapUrl = \`\${packagePath}/\${jsFile}.map\`;
+
+        try {
+          const mapData = await this._fetchSourceMap(mapUrl);
+
+          if (mapData) {
+            const basename = jsFile.split('/').pop();
+            packageInfo.files.set(jsFile, mapData);
+            packageInfo.mapsLoaded++;
+
+            if (mapData.names && Array.isArray(mapData.names)) {
+              mapData.names.forEach((name) => {
+                packageInfo.nameMap.set(name, name);
+              });
+            }
+
+            if (this.options.debugMode) {
+              console.log(\`    ✓ \${packageName}/\${basename} (\${mapData.names?.length || 0} names)\`);
+            }
+          }
+        } catch (err) {
+          packageInfo.errors.push({
+            file: jsFile,
+            error: err.message,
+          });
+        }
+      }
+
+      if (packageInfo.mapsLoaded > 0) {
+        this.packages.set(packageName, packageInfo);
+        this.stats.packagesLoaded++;
+        this.stats.sourceMapsLoaded += packageInfo.mapsLoaded;
+        this.stats.totalFiles += jsFiles.length;
+
+        console.log(\`  ✅ \${packageName}: \${packageInfo.mapsLoaded}/\${jsFiles.length} source maps\`);
+
+        return packageInfo;
+      } else {
+        console.log(\`  ⚠️  \${packageName}: No source maps loaded\`);
+        return null;
+      }
+    } catch (error) {
+      packageInfo.errors.push({ error: error.message });
+      console.log(\`  ⚠️  \${packageName}: \${error.message}\`);
+      return null;
+    }
+  }
+
+// ✅ Helper to resolve package.json - WITH DEBUGGING
+ async _resolvePackageJson(packagePath) {
+    try {
+      const packageJsonUrl = \`\${packagePath}/package.json\`;
+      
+      console.log(\`    📥 Fetching: \${packageJsonUrl}\`);
+
+      const response = await fetch(packageJsonUrl, {
+        method: 'GET',
+        timeout: this.options.timeout,
+      }).catch((err) => {
+        console.error(\`    ❌ Fetch error: \${err.message}\`);
+        return null;
+      });
+
+      if (!response) {
+        console.error(\`    ❌ No response from: \${packageJsonUrl}\`);
+        return null;
+      }
+
+      if (!response.ok) {
+        console.error(\`    ❌ HTTP \${response.status}: \${packageJsonUrl}\`);
+        return null;
+      }
+
+      let packageJson;
+      try {
+        packageJson = await response.json();
+      } catch (parseErr) {
+        console.error(\`    ❌ Failed to parse JSON: \${parseErr.message}\`);
+        return null;
+      }
+
+      if (!packageJson.name) {
+        console.error(\`    ❌ Invalid package.json - no "name" field\`);
+        return null;
+      }
+
+      console.log(\`    ✅ Loaded package.json: \${packageJson.name}\`);
+      console.log(\`    📖 Main field: "\${packageJson.main}"\`);
+
+      return packageJson;
+    } catch (error) {
+      console.error(\`    ❌ Error in _resolvePackageJson: \${error.message}\`);
+      return null;
+    }
+  }
+
+  // ✅ FIXED: Properly resolve entry point from package.json
+  async _findJsFiles(packagePath) {
+    const files = [];
+
+    try {
+      // Get package.json
+      const packageJson = await this._resolvePackageJson(packagePath);
+      
+      if (!packageJson) {
+        console.log(\`    ⚠️  Could not resolve package.json at \${packagePath}\`);
+        return files;
+      }
+
+      if (this.options.debugMode) {
+        console.log(\`    📦 Package: \${packageJson.name}\`);
+      }
+      
+      // ✅ Get entry point from "main" field
+      let entryPoint = packageJson.main;
+
+      if (!entryPoint) {
+        console.log(\`    ⚠️  No "main" field in \${packageJson.name}/package.json\`);
+        return files;
+      }
+
+      // Normalize the path (remove leading ./)
+      if (entryPoint.startsWith('./')) {
+        entryPoint = entryPoint.substring(2);
+      }
+
+      console.log(\`    📖 Resolved entry point: \${entryPoint}\`);
+
+      // Test if the entry point exists
+      const entryUrl = \`\${packagePath}/\${entryPoint}\`;
+      
+      if (this.options.debugMode) {
+        console.log(\`    🔍 Checking: \${entryUrl}\`);
+      }
+
+      const entryResponse = await fetch(entryUrl, {
+        method: 'HEAD',
+        timeout: this.options.timeout,
+      }).catch(() => null);
+
+      if (entryResponse && entryResponse.ok) {
+        files.push(entryPoint);
+        console.log(\`    ✅ Found: \${entryPoint}\`);
+        return files;
+      }
+
+      // Entry point doesn't exist
+      console.log(\`    ❌ Entry point missing: \${entryPoint}\`);
+      console.log(\`    🔍 Trying fallbacks...\`);
+
+      const fallbackLocations = [
+        'dist/index.js',
+        'lib/index.js',
+        'index.js',
+      ];
+
+      for (const location of fallbackLocations) {
+        try {
+          const fallbackUrl = \`\${packagePath}/\${location}\`;
+          
+          if (this.options.debugMode) {
+            console.log(\`    🔍 Checking fallback: \${fallbackUrl}\`);
+          }
+
+          const fallbackResponse = await fetch(fallbackUrl, {
+            method: 'HEAD',
+            timeout: this.options.timeout,
+          }).catch(() => null);
+
+          if (fallbackResponse && fallbackResponse.ok) {
+            files.push(location);
+            console.log(\`    ✅ Fallback found: \${location}\`);
+            return files;
+          }
+        } catch (err) {
+          // Continue to next fallback
+        }
+      }
+
+      console.log(\`    ❌ No entry point found for \${packageJson.name}\`);
+      return files;
+
+    } catch (error) {
+      console.error(\`    ❌ Error in _findJsFiles: \${error.message}\`);
+      return files;
+    }
+  }
+  // ✅ FIXED: Better error handling
+  async _fetchSourceMap(url) {
+    if (this.sourceMapCache.has(url)) {
+      return this.sourceMapCache.get(url);
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        timeout: this.options.timeout,
+      }).catch(() => null);
+
+      // Handle null response (network error, timeout)
+      if (!response) {
+        if (this.options.debugMode) {
+          console.log(\`  [network error] \${url}\`);
+        }
+        return null;
+      }
+
+      // Handle non-200 responses
+      if (!response.ok) {
+        if (this.options.debugMode && response.status !== 404) {
+          console.log(\`  [\${response.status}] \${url}\`);
+        }
+        return null;
+      }
+
+      const mapData = await response.json();
+
+      // Validate source map format
+      if (mapData && (mapData.version === 3 || mapData.names)) {
+        this.sourceMapCache.set(url, mapData);
+        return mapData;
+      }
+
+      return null;
+    } catch (error) {
+      if (this.options.debugMode) {
+        console.warn(\`Failed to fetch \${url}: \${error.message}\`);
+      }
+      return null;
+    }
+  }
+
+  async _mergeNameMaps() {
+    let totalNames = 0;
+
+    for (const [packageName, packageInfo] of this.packages) {
+      for (const [minified, original] of packageInfo.nameMap) {
+        if (!this.globalNameMap.has(minified)) {
+          this.globalNameMap.set(minified, original);
+          totalNames++;
+        }
+      }
+
+      for (const [filePath, mapData] of packageInfo.files) {
+        if (mapData.names) {
+          mapData.names.forEach((name) => {
+            this.filePathMap.set(filePath, {
+              package: packageName,
+              name: name,
+            });
+          });
+        }
+      }
+    }
+
+    this._addCommonPatterns();
+    this.stats.totalNames = this.globalNameMap.size;
+
+    if (this.options.debugMode) {
+      console.log(\`   Total unique names: \${this.stats.totalNames}\`);
+    }
+  }
+
+  _addCommonPatterns() {
+    const commonPatterns = {
+      v: 'StatelessElement',
+      o: 'Element',
+      A: 'Widget',
+      r: 'runtime',
+      s: 'state',
+      e: 'element',
+      t: 'target',
+      i: 'index',
+      n: 'name',
+      h: 'handler',
+      w: 'widget',
+      a: 'analyzer',
+      b: 'builder',
+      c: 'context',
+      d: 'data',
+      f: 'function',
+      g: 'get',
+      j: 'json',
+      k: 'key',
+      l: 'list',
+      m: 'map',
+      p: 'parent',
+      q: 'query',
+      u: 'update',
+      x: 'x',
+      y: 'y',
+      z: 'zone',
+      build: 'build',
+      render: 'render',
+      create: 'create',
+      update: 'update',
+      mount: 'mount',
+      dispose: 'dispose',
+    };
+
+    for (const [minified, original] of Object.entries(commonPatterns)) {
+      if (!this.globalNameMap.has(minified)) {
+        this.globalNameMap.set(minified, original);
+      }
+    }
+  }
+
+  decode(minifiedName) {
+    if (!minifiedName || typeof minifiedName !== 'string') {
+      return minifiedName;
+    }
+
+    if (this.globalNameMap.has(minifiedName)) {
+      return this.globalNameMap.get(minifiedName);
+    }
+
+    return minifiedName;
+  }
+
+  decodeMessage(message) {
+    if (!this.isLoaded || !message || typeof message !== 'string') {
+      return message;
+    }
+
+    let decoded = message;
+
+    for (const [minified, original] of this.globalNameMap) {
+      if (minified !== original && minified.length <= 3) {
+        try {
+          const regex = new RegExp(\`\\\\b\${minified}\\\\b\`, 'g');
+          decoded = decoded.replace(regex, original);
+        } catch (e) {
+          // Skip invalid regex patterns
+        }
+      }
+    }
+
+    return decoded;
+  }
+
+  decodeError(error) {
+    if (!error) return error;
+
+    const decoded = { ...error };
+
+    if (error.message) {
+      decoded.message = this.decodeMessage(error.message);
+    }
+
+    if (error.stack) {
+      decoded.stack = this.decodeMessage(error.stack);
+    }
+
+    return decoded;
+  }
+
+  intercept() {
+    const originalLog = console.log;
+    const originalError = console.error;
+    const originalWarn = console.warn;
+    const originalInfo = console.info;
+    const originalDebug = console.debug;
+
+    const mapper = this;
+
+    const decodeArgs = (args) => {
+      return args.map((arg) => {
+        if (typeof arg === 'string') {
+          return mapper.decodeMessage(arg);
+        }
+        if (arg instanceof Error) {
+          return mapper.decodeError(arg);
+        }
+        return arg;
+      });
+    };
+
+    console.log = function (...args) {
+      originalLog.apply(console, decodeArgs(args));
+    };
+
+    console.error = function (...args) {
+      originalError.apply(console, decodeArgs(args));
+    };
+
+    console.warn = function (...args) {
+      originalWarn.apply(console, decodeArgs(args));
+    };
+
+    console.info = function (...args) {
+      originalInfo.apply(console, decodeArgs(args));
+    };
+
+    console.debug = function (...args) {
+      originalDebug.apply(console, decodeArgs(args));
+    };
+
+    if (this.options.debugMode) {
+      console.log('[SourceMapLoader] ✅ Console intercepted');
+    }
+  }
+
+  _chunkArray(array, size) {
+    const chunks = [];
+    for (let i = 0; i < array.length; i += size) {
+      chunks.push(array.slice(i, i + size));
+    }
+    return chunks;
+  }
+
+  _getLoadResult(startTime, count) {
+    this.stats.loadTime = performance.now() - startTime;
+
+    return {
+      success: this.stats.sourceMapsLoaded > 0,
+      loaded: count,
+      stats: { ...this.stats },
+    };
+  }
+
+  getStats() {
+    return {
+      ...this.stats,
+      isReady: this.isLoaded,
+      packages: this.packages.size,
+      globalNames: this.globalNameMap.size,
+    };
+  }
+
+  getPackages() {
+    return Array.from(this.packages.keys());
+  }
+
+  getPackageDetails(packageName) {
+    const pkg = this.packages.get(packageName);
+    if (!pkg) return null;
+
+    return {
+      name: pkg.name,
+      path: pkg.path,
+      mapsLoaded: pkg.mapsLoaded,
+      filesLoaded: pkg.files.size,
+      names: pkg.nameMap.size,
+      errors: pkg.errors,
+    };
+  }
+
+  getNameMappings() {
+    return Array.from(this.globalNameMap.entries()).map(([minified, original]) => ({
+      minified,
+      original,
+    }));
+  }
+}
+
+let globalSourceMapLoader = null;
+
+async function initializeSourceMaps(options = {}) {
+  if (globalSourceMapLoader) {
+    return globalSourceMapLoader;
+  }
+
+  const loader = new PackageSourceMapManager({
+    baseNodeModules: options.baseNodeModules || '/node_modules/@flutterjs',
+    debugMode: options.debugMode || false,
+    autoDiscover: options.autoDiscover !== false,
+    intercept: options.intercept !== false,
+    ...options,
+  });
+
+  await loader.load();
+
+  if (options.intercept !== false) {
+    loader.intercept();
+  }
+
+  globalSourceMapLoader = loader;
+  return loader;
+}
+
+function getSourceMapLoader() {
+  return globalSourceMapLoader;
+}
+
+export {
+  PackageSourceMapManager,
+  initializeSourceMaps,
+  getSourceMapLoader,
+};
+export default PackageSourceMapManager;`;
+  }
+
   /**
    * Generate widget registry
    * Maps widget names to their type and methods
@@ -451,6 +1206,13 @@ import {
   dispose
 } from '@flutterjs/runtime';
 
+
+import { initializeSourceMaps } from './source_mapper.js';
+
+console.log('🚀 FlutterJS App Bootstrapping...\\n');
+
+
+
 // ============================================================================
 // BUILD-TIME METADATA
 // ============================================================================
@@ -477,6 +1239,13 @@ async function bootApp() {
   console.log('Project:', '${projectName}');
   
   try {
+  // Initialize source maps for ALL packages
+await initializeSourceMaps({
+  baseNodeModules: '/node_modules/@flutterjs',  // Your packages location
+  debugMode: BUILD_MODE !== 'production',
+  autoDiscover: true,  // Auto-find all packages
+  intercept: true,     // Intercept console
+});
     const rootElement = document.getElementById('root');
     if (!rootElement) {
       throw new Error('Fatal: Root element #root not found in DOM');

@@ -2,7 +2,7 @@
   "name": "@flutterjs/vdom",
   "version": "1.0.0",
   "type": "module",
-  "main": "./dist/vdom.js",
+  "main": "./dist/runtime_index.js",
   "exports": {
     "./hydrator": "./dist/hydrator.js",
     "./patch_applier": "./dist/patch_applier.js",
