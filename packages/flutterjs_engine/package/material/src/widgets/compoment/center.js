@@ -1,4 +1,4 @@
-import { Widget,StatelessWidget } from '../../core/widget_element.js';
+import { Widget, StatelessWidget } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 
 import { Alignment } from '../../utils/utils.js';
@@ -23,14 +23,14 @@ class Align extends StatelessWidget {
     const elementId = context.element.getElementId();
     const widgetPath = context.element.getWidgetPath();
 
-    const childWidget = this.child instanceof Widget 
+    const childWidget = this.child instanceof Widget
       ? this._buildChild(this.child, context)
       : this.child;
 
     return new VNode({
       tag: 'div',
       props: {
-        className: 'fjs-align',
+        // className: 'fjs-align', // Removed to test VDOM style bug
         style: inlineStyles,
         'data-element-id': elementId,
         'data-widget-path': widgetPath,
@@ -51,10 +51,14 @@ class Align extends StatelessWidget {
 
     if (this.widthFactor !== null) {
       styles.width = `${this.widthFactor * 100}%`;
+    } else {
+      styles.width = '100%';
     }
 
     if (this.heightFactor !== null) {
       styles.height = `${this.heightFactor * 100}%`;
+    } else {
+      styles.height = '100%';
     }
 
     return styles;

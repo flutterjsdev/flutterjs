@@ -55,7 +55,7 @@ class TextStyle {
     this.underline = underline;
     this.overline = overline;
     this.gradient = gradient;
-    
+
     if (this.googleFont) {
       this._loadGoogleFont(this.googleFont);
     }
@@ -106,12 +106,12 @@ class TextStyle {
 
   _loadGoogleFont(fontName) {
     if (typeof document === 'undefined') return;
-    
+
     const formattedName = fontName.replace(/\s+/g, '+');
     const linkId = `google-font-${fontName.replace(/\s+/g, '-')}`;
-    
+
     if (document.getElementById(linkId)) return;
-    
+
     const link = document.createElement('link');
     link.id = linkId;
     link.href = `https://fonts.googleapis.com/css2?family=${formattedName}:wght@100;200;300;400;500;600;700;800;900&display=swap`;
@@ -202,14 +202,14 @@ class TextStyle {
     if (this.gradient) {
       return this.gradient;
     }
-    
+
     if (!this.backgroundColor) return 'transparent';
-    
+
     if (this.backgroundOpacity < 1) {
       const rgb = this._hexToRgb(this.backgroundColor);
       return rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${this.backgroundOpacity})` : this.backgroundColor;
     }
-    
+
     return this.backgroundColor;
   }
 
@@ -224,7 +224,7 @@ class TextStyle {
 
   toCSSString() {
     const decorationStyle = this._buildTextDecoration();
-    
+
     return {
       color: this.color,
       fontSize: `${this.fontSize}px`,
@@ -264,22 +264,34 @@ class TextStyle {
  * Supports selection, overflow handling, max lines, and text alignment
  */
 class Text extends StatelessWidget {
-  constructor({
-    key = null,
-    data = '',
-    style = new TextStyle(),
-    textAlign = TextAlign.left,
-    textDirection = TextDirection.ltr,
-    overflow = TextOverflow.clip,
-    maxLines = null,
-    softWrap = true,
-    semanticsLabel = null,
-    selectable = false,
-    selectionColor = null,
-    onSelectionChanged = null
-  } = {}) {
+  constructor(dataOrOptions, options = {}) {
+    let _data = '';
+    let _opts = {};
+
+    if (typeof dataOrOptions === 'string') {
+      _data = dataOrOptions;
+      _opts = options;
+    } else {
+      _opts = dataOrOptions || {};
+      _data = _opts.data || '';
+    }
+
+    const {
+      key = null,
+      style = new TextStyle(),
+      textAlign = TextAlign.left,
+      textDirection = TextDirection.ltr,
+      overflow = TextOverflow.clip,
+      maxLines = null,
+      softWrap = true,
+      semanticsLabel = null,
+      selectable = false,
+      selectionColor = null,
+      onSelectionChanged = null
+    } = _opts;
+
     super(key);
-    this.data = data;
+    this.data = _data;
     this.style = style instanceof TextStyle ? style : new TextStyle(style);
     this.textAlign = textAlign;
     this.textDirection = textDirection;
@@ -298,7 +310,7 @@ class Text extends StatelessWidget {
     const widgetPath = context.element.getWidgetPath();
 
     const props = {
-      className: 'fjs-text',
+      // className: 'fjs-text',
       style: inlineStyles,
       'data-element-id': elementId,
       'data-widget-path': widgetPath,

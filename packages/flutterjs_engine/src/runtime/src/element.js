@@ -238,6 +238,24 @@ class Element extends Diagnosticable {
   // CORE METHODS
   // ============================================================================
 
+  getElementId() {
+    return this._id;
+  }
+
+  getWidgetPath() {
+    if (this._widgetPath) return this._widgetPath;
+
+    const name = this.widget?.constructor?.name || 'Unknown';
+    const parentPath = this.parent?.getWidgetPath ? this.parent.getWidgetPath() : '';
+
+    this._widgetPath = parentPath ? `${parentPath}/${name}` : name;
+    return this._widgetPath;
+  }
+
+  getIdentificationStrategy() {
+    return this.key ? 'key' : 'id';
+  }
+
   performRebuild() {
     throw new Error(`${this.constructor.name}.performRebuild() must be implemented by subclass`);
   }
@@ -641,6 +659,12 @@ class StatelessElement extends Element {
    * @private
    */
   _createElementForWidget(widget) {
+    // ✅ Use widget's createElement if available
+    if (widget && typeof widget.createElement === 'function') {
+      console.log('  Using widget.createElement() for:', widget.constructor.name);
+      return widget.createElement(this, this.runtime);
+    }
+
     if (typeof widget.createState === 'function') {
       console.log('  Creating StatefulElement for:', widget.constructor.name);
       return new StatefulElement(widget, this, this.runtime);
@@ -656,6 +680,14 @@ class StatelessElement extends Element {
 
   buildContext() {
     return new BuildContext(this, this.runtime);
+  }
+
+  /**
+   * ✅ CRITICAL: Implement performRebuild() to satisfy Element.mount() contract
+   * This method is called by Element.mount() and must return a VNode
+   */
+  performRebuild() {
+    return this.build();
   }
 }
 
@@ -754,6 +786,11 @@ class StatefulElement extends Element {
   }
 
   _createElementForWidget(widget) {
+    // ✅ Use widget's createElement if available
+    if (widget && typeof widget.createElement === 'function') {
+      return widget.createElement(this, this.runtime);
+    }
+
     if (typeof widget.createState === 'function') {
       return new StatefulElement(widget, this, this.runtime);
     } else if (widget.updateShouldNotify && typeof widget.updateShouldNotify === 'function') {
@@ -782,7 +819,7 @@ class StatefulElement extends Element {
     } else {
       // Fallback for old State implementations that don't have _mount()
       console.log('⚠️ State does not have _mount(), using fallback initialization');
-      
+
       // Manually set state properties
       this.state._element = this;
       this.state._widget = this.widget;
@@ -810,7 +847,7 @@ class StatefulElement extends Element {
 
     // Call parent mount
     super.mount();
-    
+
     console.log('✅ StatefulElement.mount() complete');
   }
 
@@ -823,12 +860,12 @@ class StatefulElement extends Element {
    */
   updateWidget(newWidget) {
     console.log('🔄 StatefulElement.updateWidget() called');
-    
+
     const oldWidget = this._widget;
-    
+
     // Update element's widget
     super.updateWidget(newWidget);
-    
+
     // ✅ Update state's widget reference
     if (this.state._updateWidget && typeof this.state._updateWidget === 'function') {
       console.log('✅ Calling state._updateWidget()');
@@ -838,7 +875,7 @@ class StatefulElement extends Element {
       console.log('⚠️ State does not have _updateWidget(), updating directly');
       this.state._widget = newWidget;
     }
-    
+
     // Call state's didUpdateWidget
     if (this.state.didUpdateWidget && typeof this.state.didUpdateWidget === 'function') {
       try {
@@ -854,18 +891,26 @@ class StatefulElement extends Element {
    */
   unmount() {
     console.log('🛑 StatefulElement.unmount() called');
-    
+
     // Call state._unmount if available
     if (this.state._unmount && typeof this.state._unmount === 'function') {
       this.state._unmount();
     }
-    
+
     // Call state.dispose
     if (this.state._dispose && typeof this.state._dispose === 'function') {
       this.state._dispose();
     }
-    
+
     super.unmount();
+  }
+
+  /**
+   * ✅ CRITICAL: Implement performRebuild() to satisfy Element.mount() contract
+   * This method is called by Element.mount() and must return a VNode
+   */
+  performRebuild() {
+    return this.build();
   }
 }
 
@@ -920,6 +965,11 @@ class ComponentElement extends Element {
   }
 
   _createElementForWidget(widget) {
+    // ✅ Use widget's createElement if available
+    if (widget && typeof widget.createElement === 'function') {
+      return widget.createElement(this, this.runtime);
+    }
+
     if (typeof widget.createState === 'function') {
       return new StatefulElement(widget, this, this.runtime);
     } else {
@@ -939,6 +989,14 @@ class ComponentElement extends Element {
         this.markNeedsBuild();
       }
     };
+  }
+
+  /**
+   * ✅ CRITICAL: Implement performRebuild() to satisfy Element.mount() contract
+   * This method is called by Element.mount() and must return a VNode
+   */
+  performRebuild() {
+    return this.build();
   }
 }
 

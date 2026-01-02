@@ -1,5 +1,5 @@
-import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
-import {Element} from "@flutterjs/runtime"
+import { StatefulWidget, StatelessWidget, Widget } from '../core/widget_element.js';
+import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
 
 // ============================================================================
@@ -163,8 +163,8 @@ class SnackBar {
 // ============================================================================
 
 class ScaffoldState extends Element {
-  constructor(widget) {
-    super(widget);
+  constructor(widget, parent = null, runtime = null) {
+    super(widget, parent, runtime);
     this._snackBars = [];
     this._currentSnackBar = null;
     this._snackBarTimer = null;
@@ -321,7 +321,7 @@ class ScaffoldState extends Element {
 // SCAFFOLD WIDGET
 // ============================================================================
 
-class Scaffold extends StatefulWidget {
+class Scaffold extends Widget {
   constructor({
     key = null,
     appBar = null,
@@ -658,20 +658,17 @@ class Scaffold extends StatefulWidget {
 
 class ScaffoldElement extends ScaffoldState {
   constructor(widget, parent, runtime) {
-    super(widget);
-    this.parent = parent;
-    this.runtime = runtime;
-    this.mounted = false;
+    super(widget, parent, runtime);
   }
 
   mount(parent = null) {
     if (this.mounted) return;
 
     if (parent) {
-      this.parent = parent;
+      this._parent = parent;
     }
 
-    this.mounted = true;
+    this._mounted = true;
 
     // Create proper context
     this.context = {

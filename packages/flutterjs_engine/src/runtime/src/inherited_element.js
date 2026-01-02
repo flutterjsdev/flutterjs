@@ -147,6 +147,14 @@ class InheritedElement extends Element {
   }
 
   /**
+   * Perform rebuild - required by Element base class
+   * @returns {VNode} VNode for the child widget
+   */
+  performRebuild() {
+    return this.build();
+  }
+
+  /**
    * Register a dependent element
    * Called when an element calls dependOnInheritedWidgetOfExactType
    *
