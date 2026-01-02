@@ -1,4 +1,4 @@
-import {Element} from "@flutterjs/runtime"
+import { Element } from "@flutterjs/runtime"
 import { Widget, } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 
@@ -112,8 +112,8 @@ class RenderListBody {
 // ============================================================================
 
 class ListBodyElement extends Element {
-  constructor(widget) {
-    super(widget);
+  constructor(widget, parent = null, runtime = null) {
+    super(widget, parent, runtime);
     this._renderObject = null;
   }
 
@@ -135,7 +135,7 @@ class ListBodyElement extends Element {
     super.updateWidget(newWidget);
 
     if (oldWidget.mainAxis !== newWidget.mainAxis ||
-        oldWidget.reverse !== newWidget.reverse) {
+      oldWidget.reverse !== newWidget.reverse) {
       this.widget.updateRenderObject(this.context, this._renderObject);
       this.markNeedsBuild();
     }
@@ -341,7 +341,7 @@ class ListBody extends Widget {
    * Create element
    */
   createElement(parent, runtime) {
-    return new ListBodyElement(this,parent, runtime);
+    return new ListBodyElement(this, parent, runtime);
   }
 }
 

@@ -9,7 +9,7 @@
  * Solution: Use runtime's VNodeBuilder to properly create Elements
  */
 
-import { StatelessWidget } from '../core/widget_element.js';
+import { StatelessWidget, ErrorWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { StatefulElement, StatelessElement } from '@flutterjs/runtime';
 
@@ -36,6 +36,7 @@ class ThemeData {
     fontFamily = 'Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI"',
     appBarTheme = null
   } = {}) {
+    console.log('🎨 ThemeData constructor called', { primaryColor, primarySwatch });
     this.brightness = brightness;
     this.primaryColor = primaryColor;
     this.primarySwatch = primarySwatch;
@@ -52,6 +53,28 @@ class ThemeData {
     this.textTheme = textTheme;
     this.fontFamily = fontFamily;
     this.appBarTheme = appBarTheme;
+
+    // Initialize default TextTheme if not provided
+    const isDark = brightness === 'dark';
+    const baseColor = isDark ? '#FFFFFF' : '#000000';
+
+    this.textTheme = textTheme || {
+      displayLarge: { fontFamily: fontFamily, fontSize: 57, fontWeight: '400', color: baseColor },
+      displayMedium: { fontFamily: fontFamily, fontSize: 45, fontWeight: '400', color: baseColor },
+      displaySmall: { fontFamily: fontFamily, fontSize: 36, fontWeight: '400', color: baseColor },
+      headlineLarge: { fontFamily: fontFamily, fontSize: 32, fontWeight: '400', color: baseColor },
+      headlineMedium: { fontFamily: fontFamily, fontSize: 28, fontWeight: '400', color: baseColor },
+      headlineSmall: { fontFamily: fontFamily, fontSize: 24, fontWeight: '400', color: baseColor },
+      titleLarge: { fontFamily: fontFamily, fontSize: 22, fontWeight: '400', color: baseColor },
+      titleMedium: { fontFamily: fontFamily, fontSize: 16, fontWeight: '500', color: baseColor },
+      titleSmall: { fontFamily: fontFamily, fontSize: 14, fontWeight: '500', color: baseColor },
+      bodyLarge: { fontFamily: fontFamily, fontSize: 16, fontWeight: '400', color: baseColor },
+      bodyMedium: { fontFamily: fontFamily, fontSize: 14, fontWeight: '400', color: baseColor },
+      bodySmall: { fontFamily: fontFamily, fontSize: 12, fontWeight: '400', color: baseColor },
+      labelLarge: { fontFamily: fontFamily, fontSize: 14, fontWeight: '500', color: baseColor },
+      labelMedium: { fontFamily: fontFamily, fontSize: 12, fontWeight: '500', color: baseColor },
+      labelSmall: { fontFamily: fontFamily, fontSize: 11, fontWeight: '500', color: baseColor },
+    };
   }
 
   static dark() {
@@ -162,6 +185,7 @@ class MaterialApp extends StatelessWidget {
     super(key);
 
     this.title = title;
+    console.log('🏗️ MaterialApp constructor - theme passed:', theme);
     this.theme = theme || ThemeData.light();
     this.darkTheme = darkTheme || ThemeData.dark();
     this.themeMode = themeMode;
@@ -210,19 +234,36 @@ class MaterialApp extends StatelessWidget {
   _applyTheme(theme) {
     if (typeof document === 'undefined') return;
 
+    console.log('🖌️ _applyTheme called. Primary:', theme.primaryColor, 'Card:', theme.cardColor);
+
+    // Safeguards for undefined theme properties
+    const primary = theme.primaryColor || '#2196F3'; // Default blue
+    const surface = theme.cardColor || '#FFFFFF';
+    const background = theme.scaffoldBackgroundColor || '#FAFAFA';
+    const onPrimary = '#FFFFFF';
+    const onSurface = (theme.brightness === 'dark') ? '#FFFFFF' : '#000000';
+    const onBackground = (theme.brightness === 'dark') ? '#FFFFFF' : '#000000';
+
     const root = document.documentElement;
-    root.style.setProperty('--primary-color', theme.primaryColor);
-    root.style.setProperty('--accent-color', theme.accentColor);
-    root.style.setProperty('--scaffold-bg', theme.scaffoldBackgroundColor);
-    root.style.setProperty('--card-color', theme.cardColor);
+    root.style.setProperty('--primary-color', primary);
+    root.style.setProperty('--accent-color', theme.accentColor || '#FF4081');
+    root.style.setProperty('--scaffold-bg', background);
+    root.style.setProperty('--card-color', surface);
     root.style.setProperty('--divider-color', theme.dividerColor);
     root.style.setProperty('--font-family', theme.fontFamily);
-    root.style.setProperty('--text-color', 
-      theme.brightness === 'dark' ? '#FFF' : '#000');
+    root.style.setProperty('--text-color', onSurface);
 
-    document.body.style.backgroundColor = theme.scaffoldBackgroundColor;
+    // MD3 System Colors (Mapped from Legacy Theme with Fallbacks)
+    root.style.setProperty('--md-sys-color-primary', primary);
+    root.style.setProperty('--md-sys-color-on-primary', onPrimary);
+    root.style.setProperty('--md-sys-color-surface', surface);
+    root.style.setProperty('--md-sys-color-on-surface', onSurface);
+    root.style.setProperty('--md-sys-color-background', background);
+    root.style.setProperty('--md-sys-color-on-background', onBackground);
+
+    document.body.style.backgroundColor = background;
     document.body.style.fontFamily = theme.fontFamily;
-    document.body.style.color = theme.brightness === 'dark' ? '#FFF' : '#000';
+    document.body.style.color = onSurface;
   }
 
   /**
@@ -266,22 +307,22 @@ class MaterialApp extends StatelessWidget {
 
       try {
         let element;
-        
+
         // ✅ StatefulWidget: Create StatefulElement (which handles state mounting)
         if (typeof widget.createState === 'function') {
           console.log('    → StatefulWidget detected, creating StatefulElement');
-          
+
           // Get runtime from context
           const runtime = context.runtime || context.element?.runtime;
           if (!runtime) {
             throw new Error('Runtime not available in context');
           }
-          
+
           // Create StatefulElement (this will create and mount the state)
           element = new StatefulElement(widget, null, runtime);
-          
+
           console.log('    → StatefulElement created');
-          
+
           // ✅ CRITICAL: Mount the element (this calls state._mount())
           if (!element.mounted) {
             console.log('    → Mounting element...');
@@ -290,11 +331,11 @@ class MaterialApp extends StatelessWidget {
             console.log('    → State._widget:', element.state?._widget?.constructor?.name);
             console.log('    → State.widget.title:', element.state?.widget?.title);
           }
-          
+
           // Build the element to get VNode
           const result = element.build();
           console.log('    → StatefulElement.build() returned:', result?.tag || typeof result);
-          
+
           // Recursively build if still a widget
           if (this._isWidget(result)) {
             console.log('    → Result is still a widget, recursing...');
@@ -303,27 +344,27 @@ class MaterialApp extends StatelessWidget {
               runtime: runtime
             });
           }
-          
+
           return result;
         }
         // ✅ StatelessWidget: Create StatelessElement
         else if (typeof widget.build === 'function') {
           console.log('    → StatelessWidget detected, creating StatelessElement');
-          
+
           const runtime = context.runtime || context.element?.runtime;
           if (!runtime) {
             throw new Error('Runtime not available in context');
           }
-          
+
           element = new StatelessElement(widget, null, runtime);
-          
+
           if (!element.mounted) {
             element.mount();
           }
-          
+
           const result = element.build();
           console.log('    → StatelessElement.build() returned:', result?.tag || typeof result);
-          
+
           // Recursively build if still a widget
           if (this._isWidget(result)) {
             console.log('    → Result is still a widget, recursing...');
@@ -332,7 +373,7 @@ class MaterialApp extends StatelessWidget {
               runtime: runtime
             });
           }
-          
+
           return result;
         }
       } catch (error) {
@@ -350,7 +391,7 @@ class MaterialApp extends StatelessWidget {
    */
   build(context) {
     console.log('📖 MaterialApp.build() START');
-    
+
     const currentTheme = this._getTheme();
     this._applyTheme(currentTheme);
 
@@ -370,7 +411,7 @@ class MaterialApp extends StatelessWidget {
       console.log('✅ pageVNode after building:', pageVNode?.tag || typeof pageVNode);
     } catch (error) {
       console.error('❌ Failed to build page widget:', error);
-      pageVNode = this._buildEmptyPageVNode();
+      pageVNode = this._buildErrorPageVNode(error, context);
     }
 
     if (!pageVNode) {
@@ -412,6 +453,22 @@ class MaterialApp extends StatelessWidget {
     });
   }
 
+  /*
+   * Error page VNode
+   */
+  _buildErrorPageVNode(error, context) {
+    const errorWidget = new ErrorWidget({
+      message: `Application Error:\n${error?.message || error?.toString() || 'Unknown error'}`,
+      error: error
+    });
+
+    // Create element and build
+    const runtime = context?.runtime || context?.element?.runtime;
+    const element = new StatelessElement(errorWidget, null, runtime);
+    if (!element.mounted) element.mount();
+    return element.build();
+  }
+
   /**
    * Empty page VNode
    */
@@ -423,6 +480,7 @@ class MaterialApp extends StatelessWidget {
     });
   }
 }
+
 
 // ============================================================================
 // EXPORTS

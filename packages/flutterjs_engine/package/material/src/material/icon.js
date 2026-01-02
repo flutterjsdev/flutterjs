@@ -150,22 +150,33 @@ class IconThemeData {
  * Supports Material Design icons and custom icon fonts
  */
 class Icon extends StatelessWidget {
-  constructor({
-    key = null,
-    icon = null,
-    size = null,
-    fill = null,
-    weight = null,
-    grade = null,
-    opticalSize = null,
-    color = null,
-    shadows = null,
-    semanticLabel = null,
-    textDirection = null,
-    applyTextScaling = null,
-    blendMode = null,
-    fontWeight = null
-  } = {}) {
+  constructor(iconOrOptions, options = {}) {
+    let _icon = null;
+    let _opts = {};
+
+    if (iconOrOptions && (iconOrOptions.constructor?.name === 'IconData' || iconOrOptions.codePoint !== undefined)) {
+      _icon = iconOrOptions;
+      _opts = options;
+    } else {
+      _opts = iconOrOptions || {};
+      _icon = _opts.icon;
+    }
+
+    const {
+      key = null,
+      size = null,
+      fill = null,
+      weight = null,
+      grade = null,
+      opticalSize = null,
+      color = null,
+      shadows = null,
+      semanticLabel = null,
+      textDirection = null,
+      applyTextScaling = null,
+      blendMode = null,
+      fontWeight = null
+    } = _opts;
     super(key);
 
     // Assertions
@@ -179,7 +190,7 @@ class Icon extends StatelessWidget {
       throw new Error('opticalSize must be greater than 0.0');
     }
 
-    this.icon = icon;
+    this.icon = _icon;
     this.size = size;
     this.fill = fill;
     this.weight = weight;

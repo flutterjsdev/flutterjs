@@ -1,5 +1,5 @@
 import { Widget, StatelessWidget } from '../core/widget_element.js';
-import {Element} from "@flutterjs/runtime"
+import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
 import { GestureDetector } from './gesture_detector.js';
 
@@ -128,8 +128,8 @@ class FloatingActionButton extends StatelessWidget {
       backgroundColor: this.splashColor || 'rgba(255, 255, 255, 0.2)',
       opacity: 0,
       pointerEvents: 'none',
-      animation: this._isPressed 
-        ? 'fab-ripple 0.6s ease-out' 
+      animation: this._isPressed
+        ? 'fab-ripple 0.6s ease-out'
         : 'none'
     };
   }
@@ -258,9 +258,7 @@ class FloatingActionButton extends StatelessWidget {
       onTapDown: (event) => this._handleTapDown(event),
       onTapUp: (event) => this._handleTapUp(event),
       onLongPress: (event) => this._handleLongPress(event),
-      child: new StatelessWidget({
-        build: (ctx) => buttonContent
-      })
+      child: new _FABContentWrapper(buttonContent)
     });
 
     // Build gesture detector element
@@ -318,7 +316,7 @@ class FloatingActionButton extends StatelessWidget {
   }
 
   createElement(parent, runtime) {
-    return new FloatingActionButtonElement(this,parent, runtime);
+    return new FloatingActionButtonElement(this, parent, runtime);
   }
 
   debugFillProperties(properties) {
@@ -475,9 +473,7 @@ class FloatingActionButtonExtended extends StatelessWidget {
     const fabWidget = new GestureDetector({
       onTap: (event) => this._handlePress(event),
       onLongPress: (event) => this._handleLongPress(event),
-      child: new StatelessWidget({
-        build: (ctx) => buttonContent
-      })
+      child: new _FABContentWrapper(buttonContent)
     });
 
     const fabElement = fabWidget.createElement?.(context.element, context.element.runtime);
@@ -488,7 +484,18 @@ class FloatingActionButtonExtended extends StatelessWidget {
   }
 
   createElement(parent, runtime) {
-    return new FloatingActionButtonElement(this,parent, runtime);
+    return new FloatingActionButtonElement(this, parent, runtime);
+  }
+}
+
+class _FABContentWrapper extends StatelessWidget {
+  constructor(content) {
+    super();
+    this.content = content;
+  }
+
+  build(context) {
+    return this.content;
   }
 }
 
