@@ -322,6 +322,26 @@ class Element extends Diagnosticable {
     if (this.runtime.config && this.runtime.config.debugMode) {
       console.log(`[Element] Applied changes to ${this._id}`);
     }
+
+    // ✅ DIRECT DOM PATCHING to preserve state
+    if (oldVNode && oldVNode._element && this.runtime.renderer) {
+      if (this.runtime.config && this.runtime.config.debugMode) {
+        console.log(`[Element] Patching DOM for ${this._id}`);
+      }
+
+      try {
+        // Use renderer to replace the actual DOM element
+        // This is a "coarse-grained" update (replace whole element) but better than full page reload
+        const newDomNode = this.runtime.renderer.replaceElement(oldVNode._element, newVNode);
+
+        // Update local DOM reference if this element tracks it directly
+        if (this._domNode === oldVNode._element) {
+          this._domNode = newDomNode;
+        }
+      } catch (e) {
+        console.error(`[Element] Failed to patch DOM for ${this._id}:`, e);
+      }
+    }
   }
 
   markNeedsBuild() {

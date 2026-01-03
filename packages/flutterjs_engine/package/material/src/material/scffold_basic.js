@@ -455,7 +455,10 @@ class Scaffold extends Widget {
       marginTop: `${bodyTop}px`,
       marginBottom: `${bodyBottom}px`,
       overflowY: this.resizeToAvoidBottomInset ? 'auto' : 'visible',
-      overflowX: 'hidden'
+      overflowX: 'hidden',
+      width: '100%',
+      display: 'flex',
+      flexDirection: 'column'
     };
 
     const bottomNavContainerStyle = {
@@ -612,7 +615,7 @@ class Scaffold extends Widget {
    */
   _getFabContainerStyle() {
     const baseStyle = {
-      position: 'fixed',
+      position: 'absolute',
       zIndex: 250
     };
 

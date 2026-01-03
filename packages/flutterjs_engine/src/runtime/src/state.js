@@ -160,8 +160,12 @@ class State {
     }
 
     // Mark element for rebuild
+    // Mark element for rebuild
     if (this._element && this._element.markNeedsBuild) {
+      console.log(`[State] setState calling markNeedsBuild on element: ${this.constructor.name}`);
       this._element.markNeedsBuild();
+    } else {
+      console.error(`[State] setState failed: element or markNeedsBuild missing. Has element: ${!!this._element}`);
     }
   }
 
@@ -238,7 +242,7 @@ class State {
    */
   _mount(element) {
     console.log('🔧 State._mount() called for:', this.constructor.name);
-    
+
     if (this._mounted) {
       console.warn('⚠️ State already mounted');
       return;
@@ -246,17 +250,17 @@ class State {
 
     // ✅ SET THE ELEMENT REFERENCE
     this._element = element;
-    
+
     // ✅ CRITICAL: SET THE WIDGET REFERENCE
     // This makes this.widget.title work!
     this._widget = element.widget;
-    
+
     console.log('✅ State._mount() set widget:', {
       widgetType: this._widget?.constructor?.name,
       widgetTitle: this._widget?.title,
       widgetProps: Object.keys(this._widget || {})
     });
-    
+
     // ✅ MARK AS MOUNTED
     this._mounted = true;
     this._isActive = true;
@@ -291,7 +295,7 @@ class State {
         console.error(`[State] didMount failed:`, error);
       }
     }
-    
+
     console.log('✅ State._mount() complete');
   }
 
@@ -352,12 +356,12 @@ class State {
     console.log('🔄 State._updateWidget() called');
     console.log('  Old widget:', this._widget?.constructor?.name);
     console.log('  New widget:', newWidget?.constructor?.name);
-    
+
     const oldWidget = this._widget;
-    
+
     // ✅ UPDATE THE WIDGET REFERENCE
     this._widget = newWidget;
-    
+
     // Call user's didUpdateWidget lifecycle
     if (this.didUpdateWidget && typeof this.didUpdateWidget === 'function') {
       try {
@@ -366,7 +370,7 @@ class State {
         console.error(`[State] didUpdateWidget failed:`, error);
       }
     }
-    
+
     console.log('✅ Widget updated');
   }
 
@@ -454,14 +458,14 @@ class TypedState extends State {
    */
   get widget() {
     const widget = super.widget;
-    
+
     if (!widget) {
       throw new Error(
         `[TypedState] this.widget is null. State may not be properly mounted. ` +
         `Ensure StatefulElement calls state._mount(this) during mount.`
       );
     }
-    
+
     return widget;
   }
 }
@@ -517,14 +521,14 @@ class EnhancedBuildContext {
    */
   findAncestorWidgetOfExactType(Type) {
     let current = this._element?._parent;
-    
+
     while (current) {
       if (current.widget instanceof Type) {
         return current.widget;
       }
       current = current._parent;
     }
-    
+
     return null;
   }
 
@@ -533,14 +537,14 @@ class EnhancedBuildContext {
    */
   findAncestorStateOfType(Type) {
     let current = this._element?._parent;
-    
+
     while (current) {
       if (current.state && current.state instanceof Type) {
         return current.state;
       }
       current = current._parent;
     }
-    
+
     return null;
   }
 }

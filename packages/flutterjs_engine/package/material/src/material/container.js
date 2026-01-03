@@ -1,5 +1,5 @@
 import { Widget, StatelessWidget } from '../core/widget_element.js';
-import {Element} from "@flutterjs/runtime"
+import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Clip, TextDirection, Alignment } from '../utils/utils.js';
 import { Padding } from '../widgets/widgets.js';
@@ -164,7 +164,7 @@ class BoxConstraints {
    */
   debugAssertIsValid() {
     if (!(this.minWidth >= 0 && this.maxWidth >= this.minWidth &&
-          this.minHeight >= 0 && this.maxHeight >= this.minHeight)) {
+      this.minHeight >= 0 && this.maxHeight >= this.minHeight)) {
       throw new Error(
         `Invalid BoxConstraints: ${this.minWidth}..${this.maxWidth}, ${this.minHeight}..${this.maxHeight}`
       );
@@ -437,7 +437,7 @@ class DecoratedBox extends Widget {
   }
 
   createElement(parent, runtime) {
-    return new DecoratedBoxElement(this,parent, runtime);
+    return new DecoratedBoxElement(this, parent, runtime);
   }
 }
 
@@ -648,7 +648,9 @@ class Align extends StatelessWidget {
           style: {
             display: 'flex',
             justifyContent: 'center',
-            alignItems: 'center'
+            alignItems: 'center',
+            width: '100%',
+            height: '100%'
           }
         },
         children: [childVNode]
@@ -686,11 +688,30 @@ class ConstrainedBox extends StatelessWidget {
 
   build(context) {
     const childElement = this.child?.createElement(context.element, context.element.runtime);
+    let childVNode = null;
+
     if (childElement) {
       childElement.mount(context.element);
-      return childElement.performRebuild();
+      childVNode = childElement.performRebuild();
     }
-    return new VNode({ tag: 'div', children: [] });
+
+    const style = {};
+    if (this.constraints) {
+      if (this.constraints.minWidth > 0) style.minWidth = `${this.constraints.minWidth}px`;
+      if (this.constraints.maxWidth < Infinity) style.maxWidth = `${this.constraints.maxWidth}px`;
+      if (this.constraints.minHeight > 0) style.minHeight = `${this.constraints.minHeight}px`;
+      if (this.constraints.maxHeight < Infinity) style.maxHeight = `${this.constraints.maxHeight}px`;
+
+      // Handle expand() case specifically for 100%
+      if (this.constraints.minWidth === 0 && this.constraints.maxWidth === Infinity) style.width = '100%';
+      if (this.constraints.minHeight === 0 && this.constraints.maxHeight === Infinity) style.height = '100%';
+    }
+
+    return new VNode({
+      tag: 'div',
+      props: { style },
+      children: childVNode ? [childVNode] : []
+    });
   }
 }
 
