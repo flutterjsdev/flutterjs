@@ -285,7 +285,7 @@ class Text extends StatelessWidget {
       maxLines = null,
       softWrap = true,
       semanticsLabel = null,
-      selectable = false,
+      selectable = true,
       selectionColor = null,
       onSelectionChanged = null
     } = _opts;
