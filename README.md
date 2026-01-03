@@ -344,17 +344,254 @@ my-app/
 
 ---
 
+## Dart CLI Pipeline
+
+FlutterJS includes a powerful **Dart CLI** that analyzes your Flutter/Dart code and converts it to optimized JavaScript.
+
+### Running the Dart CLI
+
+```bash
+# Navigate to your Flutter project
+cd examples/counter
+
+# Run the full pipeline: Analysis → IR → JavaScript
+dart run path/to/flutterjs/bin/flutterjs.dart run --to-js
+
+# With dev server (starts after conversion)
+dart run path/to/flutterjs/bin/flutterjs.dart run --to-js --serve
+
+# With custom port
+dart run path/to/flutterjs/bin/flutterjs.dart run --to-js --serve --server-port 4000
+```
+
+### Pipeline Phases
+
+The Dart CLI executes a multi-phase pipeline:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  PHASE 0: Setup & Initialization                                │
+│  • Validate project directory                                   │
+│  • Initialize Dart analyzer                                     │
+│  • Create output directories                                    │
+├─────────────────────────────────────────────────────────────────┤
+│  PHASE 1: Static Analysis                                       │
+│  • Parse Dart AST                                               │
+│  • Build dependency graph                                       │
+│  • Detect changed files (incremental)                           │
+├─────────────────────────────────────────────────────────────────┤
+│  PHASE 2: IR Generation (5 Passes)                              │
+│  • Pass 1: Declaration Discovery                                │
+│  • Pass 2: Symbol Resolution                                    │
+│  • Pass 3: Type Inference                                       │
+│  • Pass 4: Control-Flow Analysis                                │
+│  • Pass 5: Validation & Diagnostics                             │
+├─────────────────────────────────────────────────────────────────┤
+│  PHASE 3: IR Serialization                                      │
+│  • Generate binary IR files                                     │
+│  • Save conversion reports                                      │
+├─────────────────────────────────────────────────────────────────┤
+│  PHASE 4-6: JavaScript Conversion                               │
+│  • Convert IR to JavaScript                                     │
+│  • Validate generated code                                      │
+│  • Optimize (levels 0-3)                                        │
+│  • Write .fjs files                                             │
+├─────────────────────────────────────────────────────────────────┤
+│  PHASE 7: Dev Server (--serve flag)                             │
+│  • Spawn flutter_js.exe dev server                              │
+│  • Open browser automatically                                   │
+│  • Hot reload on file changes                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### CLI Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--project, -p` | Path to Flutter project root | `.` |
+| `--source, -s` | Source directory relative to project | `lib` |
+| `--to-js` | Convert IR to JavaScript | `false` |
+| `--serve` | Start dev server after conversion | `false` |
+| `--server-port` | Dev server port | `3000` |
+| `--open-browser` | Open browser automatically | `true` |
+| `--js-optimization-level` | Optimization level (0-3) | `1` |
+| `--validate-output` | Validate generated JavaScript | `true` |
+| `--incremental` | Only reprocess changed files | `true` |
+| `--parallel` | Enable parallel processing | `true` |
+| `--verbose, -v` | Show detailed logs | `false` |
+
+---
+
+## Engine Bridge Architecture
+
+FlutterJS uses a **bridge architecture** to connect the Dart CLI with the JavaScript runtime engine.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Dart CLI (flutterjs.dart)                                      │
+│                                                                 │
+│  • Analyzes Dart/Flutter code                                   │
+│  • Generates IR (Intermediate Representation)                   │
+│  • Converts IR to .fjs JavaScript files                         │
+│                                                                 │
+│  After conversion (when --serve is used):                       │
+│                     │                                           │
+│                     ▼ Process.start()                           │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  flutter_js.exe dev --port 3000                          │   │
+│  │                                                          │   │
+│  │  • Serves .fjs files via Express.js                      │   │
+│  │  • Hot Module Replacement (HMR)                          │   │
+│  │  • WebSocket for live updates                            │   │
+│  │  • Opens browser automatically                           │   │
+│  └─────────────────────────────────────────────────────────┘    │
+│                     │                                           │
+│                     ▼                                           │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  Browser: http://localhost:3000                          │   │
+│  │                                                          │   │
+│  │  • FlutterJS Runtime loads                               │   │
+│  │  • Widgets render to semantic HTML                       │   │
+│  │  • State management works                                │   │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Platform Binaries
+
+The engine bridge automatically detects your platform and uses the appropriate binary:
+
+| Platform | Binary |
+|----------|--------|
+| Windows | `flutter_js.exe` |
+| macOS | `flutter_js-macos` |
+| Linux | `flutter_js-linux` |
+
+Binaries are located in: `packages/flutterjs_engine/dist/`
+
+### Building Engine Binaries
+
+```bash
+cd packages/flutterjs_engine
+
+# Build for current platform
+npm run build:windows  # Windows
+npm run build:macos    # macOS
+npm run build:linux    # Linux
+
+# Build for all platforms
+npm run build:all
+```
+
+### Future: IPC Mode (Coming Soon)
+
+The bridge is designed to evolve to a full IPC (Inter-Process Communication) mode:
+
+```dart
+// Future IPC implementation
+Process.start('flutter_js.exe', ['dev', '--ipc']);
+// stdin:  {"method": "reload", "files": ["main.fjs"]}
+// stdout: {"status": "ok", "reloadedCount": 1}
+```
+
+### ✅ Unified Project Structure
+
+The Dart CLI now automatically generates a proper JS project structure in `build/flutterjs/`:
+
+```
+your-flutter-project/
+├── lib/
+│   └── main.dart              ← Your Flutter/Dart source code
+│
+└── build/
+    ├── reports/               ← Dart CLI reports (analysis, conversion)
+    │   ├── conversion_report.json
+    │   └── summary_report.json
+    │
+    └── flutterjs/             ← Generated JS project (where JS CLI runs)
+        ├── flutterjs.config.js  ← Auto-generated config
+        ├── package.json         ← Auto-generated manifest
+        ├── src/                 ← Generated .fjs files
+        │   └── main.fjs
+        └── public/              ← Generated HTML
+            └── index.html
+```
+
+**How It Works:**
+
+1. **Dart CLI** runs from your project root (`examples/counter`)
+2. **Dart CLI** analyzes `lib/main.dart` and converts it to `build/flutterjs/src/main.fjs`
+3. **Dart CLI** auto-generates `flutterjs.config.js`, `package.json`, and `public/index.html`
+4. **JS CLI** runs from `build/flutterjs/` (the generated JS project)
+5. **Browser** opens and your app is running!
+
+---
+
+## Example: Counter App
+
+### 1. Navigate to the example
+
+```bash
+cd examples/counter
+```
+
+### 2. Run the full pipeline with dev server
+
+```bash
+dart run ../../bin/flutterjs.dart run --to-js --serve
+```
+
+### 3. Output
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│    FLUTTER IR TO JAVASCRIPT CONVERSION PIPELINE (Phases 0-6)  │
+└────────────────────────────────────────────────────────────────┘
+Project:  C:\path\to\flutterjs\examples\counter
+Source:   C:\path\to\flutterjs\examples\counter\lib
+Build:    C:\path\to\flutterjs\examples\counter\build\flutterjs
+
+PHASE 1: Analyzing project...
+  Files for conversion: 2
+
+PHASE 2: Generating IR...
+  ✅ main.dart processed
+
+PHASES 4-6: Converting IR to JavaScript...
+  ✅ Generated: 1 files
+
+� Setting up FlutterJS project...
+   ✅ JS project initialized
+
+�🚀 Starting FlutterJS Dev Server...
+✅ Dev Server running at http://localhost:3000
+   📁 Project root: C:\path\to\flutterjs\examples\counter\build\flutterjs
+   📁 Source files: C:\path\to\flutterjs\examples\counter\build\flutterjs\src
+
+⏳ Server(s) running. Press "q" or Ctrl+C to stop.
+   🌐 Dev Server: http://localhost:3000
+```
+
+---
+
 ## Roadmap
 
 - [x] Core widget system (StatelessWidget, StatefulWidget)
 - [x] Material Design components
 - [x] CLI with dev server
 - [x] SSR/CSR/Hybrid modes
+- [x] Dart CLI Pipeline (Analysis → IR → JS)
+- [x] Engine Bridge (Dart CLI ↔ JS Runtime)
+- [x] Incremental compilation
+- [x] DevTools IR Viewer
 - [ ] Animation support
 - [ ] Full Material 3 theming
 - [ ] Route-based code splitting
 - [ ] PWA support
 - [ ] TypeScript definitions
+- [ ] IPC mode for tighter CLI-Engine integration
 
 ---
 

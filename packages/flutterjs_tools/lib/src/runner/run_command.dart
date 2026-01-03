@@ -11,6 +11,7 @@ import 'package:dev_tools/dev_tools.dart';
 import 'package:args/command_runner.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart';
 import 'package:flutterjs_tools/src/runner/code_pipleiline.dart';
+import 'package:flutterjs_tools/src/runner/engine_bridge.dart';
 import 'package:flutterjs_tools/src/runner/helper.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
@@ -171,6 +172,7 @@ class RunCommand extends Command<void> {
   final bool verbose;
   final bool verboseHelp;
   BinaryIRServer? _devToolsServer;
+  EngineBridgeManager? _engineBridgeManager;
 
   void _registerArguments() {
     argParser
@@ -278,6 +280,21 @@ class RunCommand extends Command<void> {
         'debounce-time',
         help: 'File watcher debounce time in ms (default: 500)',
         defaultsTo: '500',
+      )
+      ..addFlag(
+        'serve',
+        help: 'Start dev server after JS conversion (requires --to-js)',
+        negatable: false,
+      )
+      ..addOption(
+        'server-port',
+        help: 'Port for the FlutterJS dev server (default: 3000)',
+        defaultsTo: '3000',
+      )
+      ..addFlag(
+        'open-browser',
+        help: 'Open browser automatically when server starts',
+        defaultsTo: true,
       );
   }
 
@@ -309,8 +326,15 @@ class RunCommand extends Command<void> {
       // Report results (DON'T call printSummary here!)
       await _reportResults(config, context, results);
 
+      // Start dev server if --serve flag is set (requires --to-js)
+      if (config.serve &&
+          config.toJs &&
+          results.jsConversion.filesGenerated > 0) {
+        await _startDevServer(config, context);
+      }
+
       // Cleanup (DON'T call printSummary here either!)
-      await _cleanup(config);
+      await _cleanup(config, context);
 
       // ✅ ONLY place where printSummary should be called
       debugger.printSummary(force: true);
@@ -345,7 +369,10 @@ class RunCommand extends Command<void> {
           int.tryParse(argResults!['devtools-port'] as String) ?? 8765,
       devToolsNoOpen: argResults!['devtools-no-open'] as bool,
       enableDevTools: !(argResults!['devtools-no-open'] as bool),
-
+      // New: Dev server configuration
+      serve: argResults!['serve'] as bool,
+      serverPort: int.tryParse(argResults!['server-port'] as String) ?? 3000,
+      openBrowser: argResults!['open-browser'] as bool,
       verbose: verbose,
     );
   }
@@ -501,14 +528,82 @@ class RunCommand extends Command<void> {
   }
 
   // =========================================================================
+  // DEV SERVER
+  // =========================================================================
+
+  Future<void> _startDevServer(
+    PipelineConfig config,
+    PipelineContext context,
+  ) async {
+    _engineBridgeManager = EngineBridgeManager();
+
+    // Step 1: Initialize JS project structure (creates flutterjs.config.js, package.json)
+    if (!config.jsonOutput) {
+      print('\n📦 Setting up FlutterJS project...');
+    }
+
+    final initSuccess = await _engineBridgeManager!.initProject(
+      buildPath: context.buildPath,
+      verbose: config.verbose,
+    );
+
+    if (!initSuccess) {
+      print('⚠️  JS project init failed, but continuing to try dev server...');
+    }
+
+    // Step 2: Start the dev server from build/flutterjs
+    if (!config.jsonOutput) {
+      print('\n🚀 Starting FlutterJS Dev Server...');
+    }
+
+    final result = await _engineBridgeManager!.startAfterBuild(
+      buildPath: context.buildPath, // JS CLI runs from here
+      jsOutputPath: context.jsOutputPath, // .fjs files are in lib/
+      port: config.serverPort,
+      openBrowser: config.openBrowser,
+      verbose: config.verbose,
+    );
+
+    if (!result.success) {
+      print('\n❌ Failed to start dev server: ${result.errorMessage}');
+      return;
+    }
+
+    if (!config.jsonOutput) {
+      print('\n✅ Dev Server running at ${result.url}');
+      print('   📁 Project root: ${context.buildPath}');
+      print('   📁 Source files: ${context.jsOutputPath}');
+    }
+  }
+
+  // =========================================================================
   // CLEANUP & SHUTDOWN
   // =========================================================================
 
-  Future<void> _cleanup(PipelineConfig config) async {
-    if (config.enableDevTools && _devToolsServer != null) {
+  Future<void> _cleanup(PipelineConfig config, PipelineContext context) async {
+    // Check if either DevTools or Dev Server are running
+    final devToolsRunning = config.enableDevTools && _devToolsServer != null;
+    final devServerRunning = _engineBridgeManager?.isRunning ?? false;
+
+    if (devToolsRunning || devServerRunning) {
       if (!config.jsonOutput) {
-        print('\n⏳ DevTools server is running. Press Ctrl+C to stop.\n');
+        print('\n⏳ Server(s) running. Press "q" or Ctrl+C to stop.');
+        if (devToolsRunning) {
+          print('   🔧 DevTools: http://localhost:${_devToolsServer!.port}');
+        }
+        if (devServerRunning) {
+          print('   🌐 Dev Server: http://localhost:${config.serverPort}');
+        }
+        print('');
       }
+
+      // Wait for Ctrl+C
+      await _waitForExit();
+    }
+
+    // Cleanup resources
+    if (_engineBridgeManager != null) {
+      await _engineBridgeManager!.stop();
     }
 
     if (config.strictMode &&
@@ -517,9 +612,55 @@ class RunCommand extends Command<void> {
     }
   }
 
+  /// Wait for user to press Ctrl+C or 'q'
+  Future<void> _waitForExit() async {
+    final completer = Completer<void>();
+
+    // Handle SIGINT (Ctrl+C)
+    final sigintSub = ProcessSignal.sigint.watch().listen((signal) {
+      if (!completer.isCompleted) {
+        print('\n\n👋 Shutting down...');
+        completer.complete();
+      }
+    });
+
+    // Also listen to stdin for 'q' to quit (keeps process alive in interactive mode)
+    StreamSubscription? stdinSub;
+    try {
+      if (stdin.hasTerminal) {
+        // Only configure terminal if we own it
+        try {
+          stdin.echoMode = false;
+          stdin.lineMode = false;
+        } catch (_) {}
+
+        stdinSub = stdin.listen((data) {
+          final char = String.fromCharCodes(data);
+          if (char.toLowerCase() == 'q') {
+            if (!completer.isCompleted) {
+              print('\n\n👋 Quitting...');
+              completer.complete();
+            }
+          }
+        });
+      }
+    } catch (e) {
+      // Ignore stdin errors (e.g. if piped or non-interactive)
+    }
+
+    // Keep running until signal received or process exits
+    await completer.future;
+
+    await sigintSub.cancel();
+    await stdinSub?.cancel();
+  }
+
   void _handleFatalError(dynamic e, StackTrace st) {
     print('\nFatal error: $e');
     if (verbose) print('Stack trace:\n$st');
+
+    // Cleanup on error
+    _engineBridgeManager?.stop();
 
     exit(1);
   }
@@ -551,14 +692,24 @@ class SetupManager {
       );
 
       // Create output directories
+      // build/flutterjs/ is the JS project root (where flutter_js.exe will run)
+      // build/flutterjs/src/ is where .fjs files go (matches JS CLI's entry.main: 'src/main.fjs')
+      // build/reports/ is for Dart CLI reports (separate from JS project)
       final buildDir = path.join(absoluteProjectPath, 'build');
       final flutterJsDir = path.join(buildDir, 'flutterjs');
-      final jsOutputPath = path.join(flutterJsDir, 'fjs');
-      final reportsPath = path.join(flutterJsDir, 'reports');
+      final jsOutputPath = path.join(
+        flutterJsDir,
+        'src',
+      ); // Using src/ to match JS example
+      final reportsPath = path.join(
+        buildDir,
+        'reports',
+      ); // Keep reports outside flutterjs
 
       if (config.toJs) await Directory(jsOutputPath).create(recursive: true);
-      if (config.generateReports)
+      if (config.generateReports) {
         await Directory(reportsPath).create(recursive: true);
+      }
 
       // Initialize parser
       if (!config.jsonOutput) print('Initializing Dart parser...\n');
@@ -568,7 +719,6 @@ class SetupManager {
         projectPath: absoluteProjectPath,
         sourcePath: absoluteSourcePath,
         buildPath: flutterJsDir,
-
         jsOutputPath: jsOutputPath,
         reportsPath: reportsPath,
       );
@@ -1072,6 +1222,11 @@ class PipelineConfig {
   final bool devToolsNoOpen;
   final bool enableDevTools;
 
+  // Dev server configuration
+  final bool serve;
+  final int serverPort;
+  final bool openBrowser;
+
   final bool verbose;
 
   PipelineConfig({
@@ -1091,7 +1246,9 @@ class PipelineConfig {
     required this.devToolsPort,
     required this.devToolsNoOpen,
     required this.enableDevTools,
-
+    required this.serve,
+    required this.serverPort,
+    required this.openBrowser,
     required this.verbose,
   });
 }
