@@ -42,11 +42,39 @@ class VNode {
   } = {}) {
     this.tag = tag;
     this.props = props || {};
+    this.props = props || {};
     this.style = style || {};
+    this.events = events || {};
+
+    // ✅ FIX: Extract props.style into this.style for backward compatibility
+    // Some widgets incorrectly pass styles inside props.style instead of style
+    if (this.props && this.props.style && typeof this.props.style === 'object') {
+      // Merge props.style into this.style (props.style takes precedence for conflicts)
+      this.style = { ...this.style, ...this.props.style };
+      // Remove style from props to avoid duplication in HTML attributes
+      delete this.props.style;
+    }
+
+    // ✅ FIX: Extract event handlers (on*) from props to events
+    // Some widgets pass event handlers in props (e.g., onMouseDown, onClick)
+    // but the renderer expects them in the events object
+    if (this.props && typeof this.props === 'object') {
+      Object.keys(this.props).forEach(key => {
+        // Check for event handler pattern: starts with 'on' + uppercase letter
+        if (key.length > 2 && key.startsWith('on') && key[2] === key[2].toUpperCase()) {
+          const handler = this.props[key];
+          if (typeof handler === 'function') {
+            this.events[key] = handler;
+            delete this.props[key];
+          }
+        }
+      });
+    }
+
     this.children = Array.isArray(children) ? children : [];
     this.key = key;
     this.ref = ref;
-    this.events = events || {};
+    this.ref = ref;
 
     // State binding
     this.statefulWidgetId = statefulWidgetId;
@@ -111,9 +139,9 @@ class VNode {
    * @returns {HTMLElement} DOM element
    */
   toDOM(options = {}) {
-     console.log(`\n=== toDOM called for tag: ${this.tag}`);
-  console.log(`    style object:`, this.style);
-  console.log(`    style keys:`, Object.keys(this.style));
+    console.log(`\n=== toDOM called for tag: ${this.tag}`);
+    console.log(`    style object:`, this.style);
+    console.log(`    style keys:`, Object.keys(this.style));
     // Handle text nodes
     if (typeof this === 'string') {
       return document.createTextNode(this);

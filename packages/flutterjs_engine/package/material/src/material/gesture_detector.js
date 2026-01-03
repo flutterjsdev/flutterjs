@@ -1,5 +1,5 @@
 import { Widget, StatelessWidget } from '../core/widget_element.js';
-import {Element} from "@flutterjs/runtime"
+import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
 import {
   TapRecognizer,
@@ -263,7 +263,10 @@ class GestureDetector extends StatelessWidget {
    * Route events to recognizers
    */
   _routeEvent(eventType, event, elementId) {
+    console.log(`[GestureDetector] _routeEvent: ${eventType}`, event);
     this._initializeRecognizers(elementId);
+    console.log(`[GestureDetector] recognizers count: ${this.recognizers.length}`);
+    console.log(`[GestureDetector] onTap present: ${!!this.onTap}`);
 
     this.recognizers.forEach(recognizer => {
       if (!recognizer.isDisposed) {
@@ -275,6 +278,7 @@ class GestureDetector extends StatelessWidget {
   // ========== MOUSE EVENTS ==========
 
   _handleMouseDown(e, elementId) {
+    console.log('[GestureDetector] _handleMouseDown', e);
     this._routeEvent('mousedown', e, elementId);
     if (this.onTapDown) {
       this.onTapDown({
@@ -354,7 +358,7 @@ class GestureDetector extends StatelessWidget {
   }
 
   createElement(parent, runtime) {
-    return new GestureDetectorElement(this,parent, runtime);
+    return new GestureDetectorElement(this, parent, runtime);
   }
 
   debugFillProperties(properties) {

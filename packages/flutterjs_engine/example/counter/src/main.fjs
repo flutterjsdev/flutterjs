@@ -12,6 +12,7 @@
  * 6. Proper exports
  */
 import { runApp,BuildContext, State,} from '@flutterjs/runtime';
+
 import {
   // Core Framework
   Widget,
@@ -139,6 +140,7 @@ class _MyHomePageState extends State {
    * Increment counter and trigger rebuild
    */
   _incrementCounter = () => {
+    console.log('[COUNTER] _incrementCounter called!');
     this.setState(() => {
       this._counter++;
     });
