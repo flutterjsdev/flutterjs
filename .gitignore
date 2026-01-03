@@ -32,3 +32,8 @@ packages/flutterjs_engine/dist/
 
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# IDE and Melos
+.idea/
+*.iml
+pubspec_overrides.yaml

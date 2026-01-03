@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <a href="https://flutterjs.dev"><strong>🌐 flutterjs.dev</strong></a>
+</p>
+
+<p align="center">
   <a href="#installation">Installation</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#why-flutterjs">Why FlutterJS?</a> •
@@ -33,6 +37,7 @@ Flutter Web is amazing for apps, but terrible for the web:
 ---
 
 ## The Solution
+
 
 FlutterJS compiles your Flutter/Dart code to **semantic HTML + CSS + JavaScript** instead of Canvas/WASM.
 
@@ -595,6 +600,21 @@ PHASES 4-6: Converting IR to JavaScript...
 
 ---
 
+## Initialization
+
+To set up the project for development (both Dart and JavaScript packages), run the following command from the root directory:
+
+```bash
+# 1. Activate Melos globally (if not already done)
+dart pub global activate melos
+
+# 2. Get dependencies
+dart pub get
+
+# 3. Initialize all packages (Dart & JS)
+melos run init
+```
+
 ## Contributing
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -603,12 +623,9 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 # Clone the repo
 git clone https://github.com/flutterjsdev/flutterjs.git
 
-# Install dependencies
-cd flutterjs/packages/flutterjs_engine
-npm install
-
-# Run tests
-npm test
+# Set up the project (Follow 'Initialization' steps above)
+# 1. dart pub get
+# 2. melos run init
 ```
 
 ---
@@ -621,6 +638,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ## Links
 
+- **Website**: [flutterjs.dev](https://flutterjs.dev)
 - **GitHub**: [github.com/flutterjsdev/flutterjs](https://github.com/flutterjsdev/flutterjs)
 - **Issues**: [Report a bug](https://github.com/flutterjsdev/flutterjs/issues)
 - **Discussions**: [Ask questions](https://github.com/flutterjsdev/flutterjs/discussions)

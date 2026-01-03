@@ -2,12 +2,21 @@
 name: flutterjs
 packages:
   - packages/**
+  - examples/**
 
 scripts:
+  bootstrap:
+    run: melos bootstrap
+    description: Bootstrap all Dart packages.
+
+  init:
+    run: dart run tool/init.dart
+    description: Initialize all dependencies for Dart and JavaScript packages.
+
   test:all:
-    run: melos exec -- dart test
-    description: Run tests for all packages
+    run: melos exec --dir-exists="test" -- dart test
+    description: Run tests for all Dart packages.
   
   analyze:all:
     run: melos exec -- dart analyze
-    description: Analyze all packages
+    description: Analyze all Dart packages.
