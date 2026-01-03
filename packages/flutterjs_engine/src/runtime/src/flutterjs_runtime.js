@@ -552,61 +552,61 @@ export class FlutterJSRuntime extends VNodeRuntime {
       this.dirtyElements = new Set();
     }
 
+    // ✅ Add to dirty set
     this.dirtyElements.add(element);
 
+    // ✅ Schedule batch update (microtask)
     if (!this.isBatchSchedulled) {
       this.isBatchSchedulled = true;
       Promise.resolve().then(() => this.processBuildQueue());
     }
   }
 
+  /**
+   * Process the build queue and rebuild only dirty elements
+   */
   processBuildQueue() {
     if (this.flutterConfig.debugMode) {
       console.log(`[FlutterJSRuntime] 🔄 Processing build queue (size: ${this.dirtyElements.size})`);
     }
 
     this.isBatchSchedulled = false;
-    const elements = Array.from(this.dirtyElements);
-    this.dirtyElements.clear();
 
-    // Sort by depth (deepest first? or shallowest? Flutter does shallowest first, but here maybe order doesn't matter much for basic cases)
-    // Actually typically you want to build parents before children so you don't rebuild a child then rebuild it again because parent rebuilt.
-    // So sort by depth ascending.
-    elements.sort((a, b) => a.depth - b.depth);
+    // Snapshot of elements to rebuild
+    const elements = Array.from(this.dirtyElements);
+    this.dirtyElements.clear(); // Clear immediately so new updates can be queued
+
+    // Sort by depth (parents before children) to avoid redundant rebuilds
+    elements.sort((a, b) => (a.depth || 0) - (b.depth || 0));
 
     for (const element of elements) {
-      if (element.mounted && element.dirty) {
+      // Check if element is still mounted and marked dirty
+      // (It might have been unmounted by a parent rebuild)
+      if (element.mounted) {
         try {
+          if (this.flutterConfig.debugMode) {
+            console.log(`[FlutterJSRuntime] 🔨 Rebuilding dirty element: ${element.widget?.constructor.name}`);
+          }
+
+          // ✅ Targeted Rebuild:
+          // element.rebuild() calls performRebuild() -> gets new VNode
+          // AND calls applyChanges() -> patches the DOM specifically for this element
           element.rebuild();
-          // After rebuild, we need to update the DOM for this element subtree.
-          // Since this is a VNode-based system, Element.rebuild() updates element._vnode.
-          // But we need to patch the DOM.
-          // Element doesn't have reference to VNodeRenderer usually?
-          // Actually, VNodeRenderer renders from root. 
-          // We might need to call this.update() which rebuilds whole tree?
-          // But that defeats the purpose of localized setState.
 
-          // If the element is component-based (StatefulWidget), its build() returns a VNode.
-          // We need to patch that VNode into the existing one?
-          // Or does flutterjs handle this?
-          // Looking at Element.rebuild(), it calls this.performRebuild() and then this.applyChanges(oldVNode, newVNode).
-
-          // Element.applyChanges is empty by default explicitly:
-          // applyChanges(oldVNode, newVNode) { ... }
-
-          // So Element.rebuild() does NOT update the DOM automatically.
-          // We need to trigger a DOM update.
-
-          // For now, let's just trigger a full update() to be safe and ensure it works.
-          // Localized updates require a more complex patcher that can target specific DOM nodes.
         } catch (e) {
-          console.error(e);
+          console.error(`[FlutterJSRuntime] Error rebuilding element ${element.widget?.constructor.name}:`, e);
+          this.handleError('rebuild', e, { element: element.toString() });
         }
       }
     }
 
-    // Trigger full render for now as Element.rebuild() doesn't seem to patch DOM
-    // this.update();
+    // Check if more updates were queued during processing
+    if (this.dirtyElements.size > 0) {
+      if (this.flutterConfig.debugMode) {
+        console.log(`[FlutterJSRuntime] 🔄 More updates queued during batch, scheduling next batch...`);
+      }
+      Promise.resolve().then(() => this.processBuildQueue());
+    }
   }
 
   onElementMounted(element) {

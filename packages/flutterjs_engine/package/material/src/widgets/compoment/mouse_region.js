@@ -25,8 +25,6 @@ const MouseCursor = {
   contextMenu: 'context-menu',
   help: 'help',
   resize: 'resize',
-  resizeColumn: 'col-resize',
-  resizeRow: 'row-resize',
   resizeUp: 'n-resize',
   resizeDown: 's-resize',
   resizeLeft: 'w-resize',
