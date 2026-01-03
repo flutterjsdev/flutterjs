@@ -236,7 +236,7 @@ class Flex extends Widget {
     // Map alignment to CSS
     const justifyContent = this._mapMainAxisAlignment();
     const alignItems = this._mapCrossAxisAlignment();
-    const flexDirection = this.direction === Axis.horizontal ? 'row' : 'column';
+    var flexDirection = this.direction === Axis.horizontal ? 'row' : 'column';
 
     // Handle reverse direction
     if (this.verticalDirection === VerticalDirection.up && this.direction === Axis.vertical) {

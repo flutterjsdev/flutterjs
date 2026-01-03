@@ -201,6 +201,10 @@ class MaterialApp extends StatelessWidget {
     this.locale = locale;
     this.builder = builder;
 
+    // ✅ ELEMENT CACHE: Store page element to prevent remounting
+    this._pageElement = null;
+    this._cachedPageWidget = null;
+
     this.navigator = new Navigator({
       routes: this.routes,
       initialRoute: this.initialRoute,
@@ -278,8 +282,8 @@ class MaterialApp extends StatelessWidget {
   }
 
   /**
-   * ✅ FIXED: Build widget to VNode by creating proper Element
-   * This ensures state._mount() gets called with proper widget reference
+   * ✅ FIXED: Build widget to VNode by REUSING Elements
+   * This prevents remounting and preserves state
    */
   _buildWidgetToVNode(widget, context) {
     console.log('🔨 _buildWidgetToVNode called for:', widget?.constructor?.name);
@@ -303,24 +307,44 @@ class MaterialApp extends StatelessWidget {
 
     // Is a Widget - need to build it THROUGH AN ELEMENT
     if (this._isWidget(widget)) {
-      console.log('  → Is a Widget, creating Element...');
+      console.log('  → Is a Widget, checking if can reuse element...');
 
       try {
         let element;
+        const runtime = context.runtime || context.element?.runtime;
+        if (!runtime) {
+          throw new Error('Runtime not available in context');
+        }
 
-        // ✅ StatefulWidget: Create StatefulElement (which handles state mounting)
-        if (typeof widget.createState === 'function') {
-          console.log('    → StatefulWidget detected, creating StatefulElement');
+        // ✅ CHECK IF WE CAN REUSE EXISTING ELEMENT
+        if (this._pageElement &&
+          this._cachedPageWidget &&
+          widget.constructor === this._cachedPageWidget.constructor) {
+          console.log('♻️ REUSING existing element, calling rebuild()');
 
-          // Get runtime from context
-          const runtime = context.runtime || context.element?.runtime;
-          if (!runtime) {
-            throw new Error('Runtime not available in context');
+          // Update the widget reference (important for props changes)
+          this._pageElement.updateWidget(widget);
+          this._cachedPageWidget = widget;
+
+          // Rebuild (this calls state.build() on EXISTING state)
+          const result = this._pageElement.build();
+          console.log('    → Rebuild returned:', result?.tag || typeof result);
+
+          // Recursively build if still a widget
+          if (this._isWidget(result)) {
+            console.log('    → Result is still a widget, recursing...');
+            return this._buildWidgetToVNode(result, { ...context, runtime });
           }
 
-          // Create StatefulElement (this will create and mount the state)
-          element = new StatefulElement(widget, null, runtime);
+          return result;
+        }
 
+        // ✅ StatefulWidget: Create NEW StatefulElement (first time only)
+        if (typeof widget.createState === 'function') {
+          console.log('🆕 Creating NEW StatefulElement (first mount)');
+
+          // Create StatefulElement
+          element = new StatefulElement(widget, null, runtime);
           console.log('    → StatefulElement created');
 
           // ✅ CRITICAL: Mount the element (this calls state._mount())
@@ -332,6 +356,10 @@ class MaterialApp extends StatelessWidget {
             console.log('    → State.widget.title:', element.state?.widget?.title);
           }
 
+          // ✅ CACHE THE ELEMENT
+          this._pageElement = element;
+          this._cachedPageWidget = widget;
+
           // Build the element to get VNode
           const result = element.build();
           console.log('    → StatefulElement.build() returned:', result?.tag || typeof result);
@@ -339,10 +367,7 @@ class MaterialApp extends StatelessWidget {
           // Recursively build if still a widget
           if (this._isWidget(result)) {
             console.log('    → Result is still a widget, recursing...');
-            return this._buildWidgetToVNode(result, {
-              ...context,
-              runtime: runtime
-            });
+            return this._buildWidgetToVNode(result, { ...context, runtime });
           }
 
           return result;
@@ -350,11 +375,6 @@ class MaterialApp extends StatelessWidget {
         // ✅ StatelessWidget: Create StatelessElement
         else if (typeof widget.build === 'function') {
           console.log('    → StatelessWidget detected, creating StatelessElement');
-
-          const runtime = context.runtime || context.element?.runtime;
-          if (!runtime) {
-            throw new Error('Runtime not available in context');
-          }
 
           element = new StatelessElement(widget, null, runtime);
 
@@ -368,10 +388,7 @@ class MaterialApp extends StatelessWidget {
           // Recursively build if still a widget
           if (this._isWidget(result)) {
             console.log('    → Result is still a widget, recursing...');
-            return this._buildWidgetToVNode(result, {
-              ...context,
-              runtime: runtime
-            });
+            return this._buildWidgetToVNode(result, { ...context, runtime });
           }
 
           return result;

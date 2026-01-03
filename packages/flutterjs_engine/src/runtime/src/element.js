@@ -9,6 +9,10 @@
  */
 
 import { BuildContext } from './build_context.js';
+import { VNodeDiffer } from '@flutterjs/vdom/vnode_differ';
+import { PatchApplier } from '@flutterjs/vdom/patch_applier';
+// NOTE: InheritedElement is NOT imported here to avoid circular dependency.
+// InheritedWidget provides its own createElement() method that returns InheritedElement.
 
 // ============================================================================
 // DIAGNOSTIC LEVELS
@@ -154,6 +158,7 @@ class Element extends Diagnosticable {
     this._mounted = false;
     this._dirty = false;
     this._building = false;
+    this._shouldPatch = true; // Default to true, subclasses/build will disable if delegating
 
     this._depth = parent ? (parent._depth || 0) + 1 : 0;
 
@@ -307,9 +312,17 @@ class Element extends Diagnosticable {
 
       this._vnode = this.performRebuild();
 
-      this.applyChanges(oldVNode, this._vnode);
+      // Only apply changes if this element is responsible for patching
+      if (this._shouldPatch) {
+        this.applyChanges(oldVNode, this._vnode);
+      } else {
+        // If delegating, we still need to update our DOM reference from the child's result
+        if (this._vnode && this._vnode._element) {
+          this._domNode = this._vnode._element;
+        }
+      }
 
-      this._dirty = false;
+      this._dirty = false; // Mark clean regardless
     } catch (error) {
       console.error(`[Element] Rebuild failed for ${this._id}:`, error);
       throw error;
@@ -325,16 +338,68 @@ class Element extends Diagnosticable {
 
     // ✅ DIRECT DOM PATCHING to preserve state
     if (oldVNode && oldVNode._element && this.runtime.renderer) {
+
+      // ✅ TRY DIFFING FIRST (Fine-grained updates)
+      if (oldVNode._element.parentNode) {
+        try {
+          const domNode = oldVNode._element;
+          const parent = domNode.parentNode;
+          // Find index of current node
+          const index = Array.from(parent.childNodes).indexOf(domNode);
+
+          if (index !== -1) {
+            if (this.runtime.config && this.runtime.config.debugMode) {
+              console.log(`[Element] Diffing at index ${index}`);
+            }
+
+            // Generate patches
+            const patches = VNodeDiffer.diff(oldVNode, newVNode, index);
+
+            if (patches.length > 0) {
+              console.log(`[Element] Applying ${patches.length} patches to ${this._id} (${this.widget?.constructor.name})`);
+              patches.forEach(p => console.log(`   - Patch: ${p.type} at index ${p.index}, content:`, p.content));
+
+              // Apply patches
+              const result = PatchApplier.apply(parent, patches);
+              if (!result.success) {
+                console.error('[Element] PatchApplier failed:', result.errors);
+              } else {
+                console.log('[Element] Patches applied successfully');
+              }
+
+              // ✅ CRITICAL FIX: Ensure newVNode gets the DOM reference
+              if (!newVNode._element) {
+                newVNode._element = oldVNode._element;
+              }
+
+              // Update local DOM reference if the root node was replaced or just carried over
+              if (this._domNode === domNode) {
+                this._domNode = newVNode._element;
+              }
+            } else {
+              console.log(`[Element] No patches generated for ${this._id} (${this.widget?.constructor.name})`);
+              // No changes, but ensure new VNode has element reference
+              newVNode._element = oldVNode._element;
+              if (newVNode._element) {
+                newVNode._element._vnode = newVNode;
+              }
+            }
+            return; // ✅ Success, skip fallback
+          }
+        } catch (e) {
+          console.warn('[Element] Diffing failed, falling back to replace', e);
+        }
+      }
+
+      // ⚠️ FALLBACK: Coarse-grained update (Full Replacement)
+      // This happens if diffing fails or element has no parent
       if (this.runtime.config && this.runtime.config.debugMode) {
-        console.log(`[Element] Patching DOM for ${this._id}`);
+        console.log(`[Element] Fallback: Replacing DOM for ${this._id}`);
       }
 
       try {
-        // Use renderer to replace the actual DOM element
-        // This is a "coarse-grained" update (replace whole element) but better than full page reload
         const newDomNode = this.runtime.renderer.replaceElement(oldVNode._element, newVNode);
 
-        // Update local DOM reference if this element tracks it directly
         if (this._domNode === oldVNode._element) {
           this._domNode = newDomNode;
         }
@@ -613,12 +678,14 @@ class StatelessElement extends Element {
       // ✅ STRICT CHECK: Use isRealVNode() instead of just checking .tag
       if (isRealVNode(result)) {
         console.log('✅ Result is a REAL VNode, returning it directly');
+        this._shouldPatch = true; // We own this VNode
         return result;
       }
 
       // ✅ Check if it's a string/number/primitive
       if (typeof result === 'string' || typeof result === 'number' || typeof result === 'boolean') {
         console.log('✅ Result is a primitive:', result);
+        this._shouldPatch = true; // We own this primitive
         return result;
       }
 
@@ -626,8 +693,37 @@ class StatelessElement extends Element {
       if (isWidget(result)) {
         console.log('🔄 Result is a Widget, need to build recursively:', result.constructor.name);
 
+        let childElement = this._children[0];
+
+        // ✅ RECONCILIATION: Check if we can reuse the existing element
+        if (childElement && childElement.widget.constructor === result.constructor && childElement.widget.key === result.key) {
+          console.log('♻️ Reusing existing child element for:', result.constructor.name);
+
+          // ✅ CRITICAL FIX: Only rebuild if widget actually changed
+          const oldWidget = childElement.widget;
+          childElement.widget = result; // Update widget reference
+
+          // Check if rebuild is needed
+          if (childElement.shouldRebuild(oldWidget, result)) {
+            console.log('🔄 Widget changed, rebuilding child element');
+            childElement.rebuild();
+          } else {
+            console.log('✅ Widget unchanged, reusing existing vnode');
+          }
+
+          // Return existing vnode (either updated or reused)
+          return childElement.vnode;
+        }
+
+        // ❌ Cannot reuse: Unmount old child if exists
+        if (childElement) {
+          console.log('🗑️ Unmounting old child element:', childElement.constructor.name);
+          childElement.unmount();
+          this._children = [];
+        }
+
         // Create element for this widget
-        const childElement = this._createElementForWidget(result);
+        childElement = this._createElementForWidget(result);
 
         console.log('✅ Created child element:', childElement.constructor.name);
 
@@ -636,10 +732,16 @@ class StatelessElement extends Element {
         childElement._depth = this._depth + 1;
         childElement._mounted = true;
 
+        // ✅ Add to children array so unmount() works
+        this._children = [childElement];
+
         console.log('✅ Set up child element parent/depth');
 
         // Recursively build the child element to get VNode
         const childVNode = childElement.build();
+
+        // Also ensure vnode is set on child
+        childElement.vnode = childVNode;
 
         console.log('✅ Child element.build() returned:', {
           hasTag: childVNode?.tag !== undefined,
@@ -651,6 +753,7 @@ class StatelessElement extends Element {
           throw new Error('Child element.build() returned null');
         }
 
+        this._shouldPatch = false; // We delegated to child, child already patched
         return childVNode;
       }
 
@@ -679,7 +782,8 @@ class StatelessElement extends Element {
    * @private
    */
   _createElementForWidget(widget) {
-    // ✅ Use widget's createElement if available
+    // ✅ Use widget's createElement if available (InheritedWidget uses this)
+    // This avoids circular dependency with InheritedElement
     if (widget && typeof widget.createElement === 'function') {
       console.log('  Using widget.createElement() for:', widget.constructor.name);
       return widget.createElement(this, this.runtime);
@@ -689,9 +793,13 @@ class StatelessElement extends Element {
       console.log('  Creating StatefulElement for:', widget.constructor.name);
       return new StatefulElement(widget, this, this.runtime);
     } else if (widget.updateShouldNotify && typeof widget.updateShouldNotify === 'function') {
-      console.log('  Creating InheritedElement for:', widget.constructor.name);
-      const { InheritedElement } = require('./inherited_element.js');
-      return new InheritedElement(widget, this, this.runtime);
+      // InheritedWidget should have createElement defined, so this branch 
+      // is a fallback. The widget MUST provide createElement for InheritedWidget.
+      console.error('  ⚠️ InheritedWidget without createElement():', widget.constructor.name);
+      throw new Error(
+        `InheritedWidget "${widget.constructor.name}" must define createElement() method. ` +
+        `Extend InheritedWidget class properly.`
+      );
     } else {
       console.log('  Creating StatelessElement for:', widget.constructor.name);
       return new StatelessElement(widget, this, this.runtime);
@@ -766,12 +874,14 @@ class StatefulElement extends Element {
       // ✅ STRICT CHECK: Use isRealVNode()
       if (isRealVNode(result)) {
         console.log('✅ Result is a REAL VNode, returning');
+        this._shouldPatch = true; // We own this VNode
         return result;
       }
 
       // ✅ Check if it's a primitive
       if (typeof result === 'string' || typeof result === 'number' || typeof result === 'boolean') {
         console.log('✅ Result is a primitive');
+        this._shouldPatch = true; // We own this primitive
         return result;
       }
 
@@ -779,14 +889,51 @@ class StatefulElement extends Element {
       if (isWidget(result)) {
         console.log('🔄 State.build() returned a Widget, building recursively:', result.constructor.name);
 
-        const childElement = this._createElementForWidget(result);
+        let childElement = this._children[0];
+
+        // ✅ RECONCILIATION: Check if we can reuse the existing element
+        if (childElement && childElement.widget.constructor === result.constructor && childElement.widget.key === result.key) {
+          console.log('♻️ Reusing existing child element for:', result.constructor.name);
+
+          // ✅ CRITICAL FIX: Only rebuild if widget actually changed
+          const oldWidget = childElement.widget;
+          childElement.widget = result; // Update widget reference
+
+          // Check if rebuild is needed
+          if (childElement.shouldRebuild(oldWidget, result)) {
+            console.log('🔄 Widget changed, rebuilding child element');
+            childElement.rebuild();
+          } else {
+            console.log('✅ Widget unchanged, reusing existing vnode');
+          }
+
+          this._shouldPatch = false; // Child handled patching
+          return childElement.vnode;
+        }
+
+        // ❌ Cannot reuse: Unmount old child if exists
+        if (childElement) {
+          console.log('🗑️ Unmounting old child element:', childElement.constructor.name);
+          childElement.unmount();
+          this._children = [];
+        }
+
+        this._shouldPatch = false; // Child will patch (when built)
+
+        childElement = this._createElementForWidget(result);
 
         // Set up parent/depth without calling mount
         childElement._parent = this;
         childElement._depth = this._depth + 1;
         childElement._mounted = true;
 
+        // ✅ Add to children array so unmount() works
+        this._children = [childElement];
+
         const childVNode = childElement.build();
+
+        // Also ensure vnode is set on child
+        childElement.vnode = childVNode;
 
         if (!childVNode) {
           throw new Error('Child element.build() returned null');
@@ -794,6 +941,9 @@ class StatefulElement extends Element {
 
         return childVNode;
       }
+
+      this._shouldPatch = false; // Should have been set above, but safe default for delegates
+      return childElement ? childElement.vnode : result; // Fallback
 
       throw new Error(
         `Invalid build() return type from ${this.widget.constructor.name} state. ` +
@@ -814,7 +964,6 @@ class StatefulElement extends Element {
     if (typeof widget.createState === 'function') {
       return new StatefulElement(widget, this, this.runtime);
     } else if (widget.updateShouldNotify && typeof widget.updateShouldNotify === 'function') {
-      const { InheritedElement } = require('./inherited_element.js');
       return new InheritedElement(widget, this, this.runtime);
     } else {
       return new StatelessElement(widget, this, this.runtime);

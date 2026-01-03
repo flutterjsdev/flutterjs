@@ -158,12 +158,12 @@ export class PatchApplier {
   static _getParentIndex(index) {
     const str = String(index || '0');
     const parts = str.split('.');
-    
+
     if (parts.length === 1) {
       // Direct children of root - parent is rootElement itself (return null/empty)
       return null;
     }
-    
+
     parts.pop();
     return parts.join('.');
   }
@@ -181,7 +181,7 @@ export class PatchApplier {
     // Get parent element
     const parentIndex = this._getParentIndex(index);
     let parent;
-    
+
     if (parentIndex === null || parentIndex === '') {
       // Parent is the root element itself
       parent = rootElement;
@@ -439,6 +439,10 @@ export class PatchApplier {
     // Element node
     const tag = vnode.tag || 'div';
     const element = document.createElement(tag);
+
+    // ✅ CRITICAL: Link VNode to Element
+    vnode._element = element;
+    element._vnode = vnode;
 
     // Apply properties
     if (vnode.props && typeof vnode.props === 'object') {
