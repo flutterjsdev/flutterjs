@@ -91,9 +91,9 @@ export class DevServer {
     // Paths
     this.projectRoot = projectContext.projectRoot;
     this.buildDir = path.join(this.projectRoot, '.dev');
-    this.sourceDir = path.join(this.projectRoot, config.build?.source || 'lib');
+    this.sourceDir = path.join(this.projectRoot, config.build?.source || 'src');
     this.mapsDir = path.join(this.buildDir, 'maps');  // ✅ Store maps here
-    this.entryFile = config.entry?.main || 'lib/main.fjs';
+    this.entryFile = config.entry?.main || 'src/main.fjs';
     this.entryPath = path.join(this.projectRoot, this.entryFile);
 
     // Client connections

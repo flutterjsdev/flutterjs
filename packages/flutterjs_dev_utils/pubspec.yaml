@@ -1,4 +1,4 @@
-name: dev_utils
+name: flutterjs_dev_utils
 description: A sample command-line application.
 version: 1.0.0
 resolution: workspace

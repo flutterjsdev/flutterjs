@@ -605,14 +605,11 @@ PHASES 4-6: Converting IR to JavaScript...
 To set up the project for development (both Dart and JavaScript packages), run the following command from the root directory:
 
 ```bash
-# 1. Activate Melos globally (if not already done)
-dart pub global activate melos
-
-# 2. Get dependencies
+# 1. Get Dart dependencies
 dart pub get
 
-# 3. Initialize all packages (Dart & JS)
-melos run init
+# 2. Initialize project (installs JS dependencies)
+dart run tool/init.dart
 ```
 
 ## Contributing
@@ -625,7 +622,7 @@ git clone https://github.com/flutterjsdev/flutterjs.git
 
 # Set up the project (Follow 'Initialization' steps above)
 # 1. dart pub get
-# 2. melos run init
+# 2. dart run tool/init.dart
 ```
 
 ---

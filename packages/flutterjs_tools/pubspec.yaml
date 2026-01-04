@@ -1,26 +1,19 @@
 name: flutterjs_tools
 description: A sample command-line application.
 version: 1.0.0
-publish_to: none
+publish_to: 'none'
 resolution: workspace
-# repository: https://github.com/my_org/my_repo
 
 environment:
   sdk: ^3.10.0-278.0.dev
 
-# Add regular dependencies here.
 dependencies:
   path: ^1.9.0
-  flutterjs_core:
-    path: ../flutterjs_core
-  flutterjs_analyzer:
-    path: ../flutterjs_analyzer  
-  dev_utils:
-    path: ../dev_utils
-  dev_tools:
-    path: ../dev_tools
-  flutterjs_gen:
-    path: ../flutterjs_gen
+  flutterjs_core: any
+  flutterjs_analyzer: any
+  flutterjs_dev_utils: any
+  flutterjs_dev_tools: any
+  flutterjs_gen: any
   args: ^2.7.0
   analyzer: ^8.4.1
 

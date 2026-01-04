@@ -491,11 +491,17 @@ class OutputValidator {
         jsCode.contains('Text(') ||
         jsCode.contains('Row(') ||
         jsCode.contains('Column(')) {
-      if (!jsCode.contains('flutter-js-framework')) {
-        _addError(
-          'Flutter widgets used but framework not imported',
-          ErrorSeverity.error,
-          suggestion: 'Add import for flutter-js-framework',
+      // Check for FlutterJS imports
+      if (!jsCode.contains('@flutterjs/runtime') &&
+          !jsCode.contains('@flutterjs/material')) {
+        errors.add(
+          ValidationError(
+            severity: ErrorSeverity.warning,
+            lineNumber: 1,
+            message: 'Missing @flutterjs imports',
+            suggestion:
+                'Add import for @flutterjs/runtime and @flutterjs/material',
+          ),
         );
       }
     }

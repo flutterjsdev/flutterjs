@@ -14,9 +14,9 @@
     "run": "node bin/index.js run",
     "test": "node test/test.js",
     "build:binary": "pkg . --compress Brotli",
-    "build:linux": "pkg . -t node18-linux-x64 -o dist/flutter-js-linux",
-    "build:macos": "pkg . -t node18-macos-x64 -o dist/flutter-js-macos",
-    "build:windows": "pkg . -t node18-win-x64 -o dist/flutter-js.exe",
+    "build:linux": "pkg . -t node18-linux-x64 -o dist/flutterjs-linux",
+    "build:macos": "pkg . -t node18-macos-x64 -o dist/flutterjs-macos",
+    "build:windows": "pkg . -t node18-win-x64 -o dist/flutterjs-win.exe",
     "build:all": "npm run build:linux && npm run build:macos && npm run build:windows"
   },
   "dependencies": {
@@ -79,7 +79,12 @@
     "outputPath": "dist",
     "assets": [
       "templates/**/*",
-      "dist/**/*"
+      "dist/**/*",
+      "package.json"
+    ],
+    "scripts": [
+      "bin/**/*.js",
+      "src/**/*.js"
     ]
   },
   "repository": {

@@ -3,17 +3,15 @@ import 'dart:io';
 void main() async {
   print('🚀 Initializing FlutterJS Workspace...');
 
-  // 1. Melos Bootstrap
-  print('\n📦 Bootstrapping Dart packages...');
-
-  // Use global 'melos' command which is known to work
-  var bootstrapProcess = await Process.start(
-    'melos',
-    ['bootstrap'],
+  // 1. Dart Pub Get
+  print('\n📦 Resolving Dart dependencies...');
+  var pubGetProcess = await Process.start(
+    'dart',
+    ['pub', 'get'],
     mode: ProcessStartMode.inheritStdio,
     runInShell: true,
   );
-  var exitCode = await bootstrapProcess.exitCode;
+  var exitCode = await pubGetProcess.exitCode;
   if (exitCode != 0) exit(exitCode);
 
   // 2. NPM Install (Helper)

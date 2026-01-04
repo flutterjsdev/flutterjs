@@ -1,24 +1,21 @@
-name: dev_tools
+name: flutterjs_dev_tools
 description: A starting point for Dart libraries or applications.
 version: 1.0.0
 resolution: workspace
-# repository: https://github.com/my_org/my_repo
 
 environment:
-  sdk: ^3.11.0-113.0.dev
+  sdk: ^3.10.0-278.0.dev
 
-# Add regular dependencies here.
 dependencies:
   shelf: ^1.4.0
-  intl: 
+  intl: any
   shelf_cors_headers: ^0.1.0
   shelf_multipart: ^2.0.1
   path: ^1.8.0
   args: ^2.4.0
   http: ^1.1.0
   watcher: ^1.1.4
-  flutterjs_core:
-    path: ../flutterjs_core
+  flutterjs_core: any
 
 dev_dependencies:
   lints: ^6.0.0

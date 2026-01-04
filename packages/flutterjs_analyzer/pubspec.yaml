@@ -11,8 +11,9 @@ environment:
 dependencies:
   path: ^1.9.0
   analyzer: 
-  dev_tools:
-    path: ../dev_tools
+  flutterjs_dev_tools: any
+
+
 
 dev_dependencies:
   lints: ^6.0.0

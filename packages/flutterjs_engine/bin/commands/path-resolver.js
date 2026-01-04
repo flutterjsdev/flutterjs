@@ -21,11 +21,11 @@ export class PathResolver {
 
     /**
      * Get source file path (.fjs)
-     * From config: entry.main = 'lib/main.fjs'
-     * Returns: /full/path/to/project/lib/main.fjs
+     * From config: entry.main = 'src/main.fjs'
+     * Returns: /full/path/to/project/src/main.fjs
      */
     getSourcePath() {
-        const entryFile = this.config.entry?.main || 'lib/main.fjs';
+        const entryFile = this.config.entry?.main || 'src/main.fjs';
         const resolved = path.resolve(this.projectRoot, entryFile);
 
         // ✅ Debug output
@@ -42,12 +42,12 @@ export class PathResolver {
 
     /**
      * Get compiled file path (.js)
-     * From config: entry.main = 'lib/main.fjs'
-     * Returns: /full/path/to/project/dist/lib/main.js
+     * From config: entry.main = 'src/main.fjs'
+     * Returns: /full/path/to/project/dist/src/main.js
      * (relative to output dir)
      */
     getCompiledPath(outputDir = 'dist') {
-        const entryFile = this.config.entry?.main || 'lib/main.fjs';
+        const entryFile = this.config.entry?.main || 'src/main.fjs';
 
         // Remove .fjs extension, add .js
         const jsFile = entryFile.replace(/\.fjs$/, '.js');
@@ -57,11 +57,11 @@ export class PathResolver {
 
     /**
      * Get import path for app.js
-     * For use in: import { MyApp } from './lib/main.js'
-     * Returns: './lib/main.js' (relative to dist/)
+     * For use in: import { MyApp } from './src/main.js'
+     * Returns: './src/main.js' (relative to dist/)
      */
     getImportPath() {
-        const entryFile = this.config.entry?.main || 'lib/main.fjs';
+        const entryFile = this.config.entry?.main || 'src/main.fjs';
 
         // Remove .fjs, add .js
         const jsFile = entryFile.replace(/\.fjs$/, '.js');
@@ -83,7 +83,7 @@ export class PathResolver {
      * From config or default
      */
     getSourceDir() {
-        return this.config.build?.source || 'lib';
+        return this.config.build?.source || 'src';
     }
 
     /**

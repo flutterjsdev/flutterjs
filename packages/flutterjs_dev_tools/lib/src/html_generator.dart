@@ -1,12 +1,12 @@
-import 'package:dev_tools/src/ir_view/html_scripts.dart';
-import 'package:dev_tools/src/ir_view/html_scripts_left_panel.dart';
-import 'package:dev_tools/src/ir_view/html_scripts_right_panel.dart';
-import 'package:dev_tools/src/ir_view/html_scripts_utilities.dart';
-import 'package:dev_tools/src/ir_view/html_styles.dart';
-import 'package:dev_tools/src/ir_view/html_styles_left_panel.dart';
-import 'package:dev_tools/src/ir_view/html_styles_right_panel.dart';
-import 'package:dev_tools/src/json_view/html_scripts_json_reader.dart';
-import 'package:dev_tools/src/json_view/html_styles_json_reader.dart';
+import 'package:flutterjs_dev_tools/src/ir_view/html_scripts.dart';
+import 'package:flutterjs_dev_tools/src/ir_view/html_scripts_left_panel.dart';
+import 'package:flutterjs_dev_tools/src/ir_view/html_scripts_right_panel.dart';
+import 'package:flutterjs_dev_tools/src/ir_view/html_scripts_utilities.dart';
+import 'package:flutterjs_dev_tools/src/ir_view/html_styles.dart';
+import 'package:flutterjs_dev_tools/src/ir_view/html_styles_left_panel.dart';
+import 'package:flutterjs_dev_tools/src/ir_view/html_styles_right_panel.dart';
+import 'package:flutterjs_dev_tools/src/json_view/html_scripts_json_reader.dart';
+import 'package:flutterjs_dev_tools/src/json_view/html_styles_json_reader.dart';
 
 class HtmlGenerator {
   static String generate() => HtmlLayout.generate();

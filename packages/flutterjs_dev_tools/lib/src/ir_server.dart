@@ -7,7 +7,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:dev_tools/src/html_generator.dart';
+import 'package:flutterjs_dev_tools/src/html_generator.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
