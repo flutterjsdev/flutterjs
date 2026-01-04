@@ -1,78 +1,13 @@
-import { ProxyWidget,Widget } from '../../core/widget_element.js';
+import { ProxyWidget, Widget } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
+import { Size } from '../../utils/size.js';
+import { BoxConstraints } from '../../utils/box_constraints.js';
+import { Size } from '../../utils/size.js';
+import { BoxConstraints } from '../../utils/box_constraints.js';
 
-// ============================================================================
-// SIZE CLASS
-// Represents dimensions
-// ============================================================================
 
-class Size {
-    constructor(width = 0, height = 0) {
-        this.width = width;
-        this.height = height;
-    }
 
-    static get zero() {
-        return new Size(0, 0);
-    }
 
-    static get infinite() {
-        return new Size(Infinity, Infinity);
-    }
-
-    get isInfinite() {
-        return this.width === Infinity || this.height === Infinity;
-    }
-
-    get isFinite() {
-        return isFinite(this.width) && isFinite(this.height);
-    }
-
-    toString() {
-        return `Size(${this.width}, ${this.height})`;
-    }
-}
-
-// ============================================================================
-// CONSTRAINTS CLASS
-// Represents layout constraints
-// ============================================================================
-
-class BoxConstraints {
-    constructor(minWidth = 0, maxWidth = Infinity, minHeight = 0, maxHeight = Infinity) {
-        this.minWidth = minWidth;
-        this.maxWidth = maxWidth;
-        this.minHeight = minHeight;
-        this.maxHeight = maxHeight;
-    }
-
-    static tight(size) {
-        return new BoxConstraints(size.width, size.width, size.height, size.height);
-    }
-
-    static loose(size) {
-        return new BoxConstraints(0, size.width, 0, size.height);
-    }
-
-    static expand({ width = Infinity, height = Infinity } = {}) {
-        return new BoxConstraints(0, width, 0, height);
-    }
-
-    get isTight() {
-        return this.minWidth === this.maxWidth && this.minHeight === this.maxHeight;
-    }
-
-    constrain(size) {
-        return new Size(
-            Math.max(this.minWidth, Math.min(this.maxWidth, size.width)),
-            Math.max(this.minHeight, Math.min(this.maxHeight, size.height))
-        );
-    }
-
-    toString() {
-        return `BoxConstraints(${this.minWidth}..${this.maxWidth}, ${this.minHeight}..${this.maxHeight})`;
-    }
-}
 
 // ============================================================================
 // SINGLE CHILD LAYOUT DELEGATE BASE CLASS
@@ -307,7 +242,7 @@ class CustomSingleChildLayout extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new CustomSingleChildLayoutElement(this,parent, runtime);
+        return new CustomSingleChildLayoutElement(this, parent, runtime);
     }
 }
 
@@ -430,7 +365,7 @@ class LayoutId extends Widget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new LayoutIdElement(this,parent, runtime);
+        return new LayoutIdElement(this, parent, runtime);
     }
 }
 
@@ -530,7 +465,7 @@ class CustomMultiChildLayout extends Widget {
                 'data-widget': 'CustomMultiChildLayout',
                 ref: (el) => this._onContainerMount(el)
             },
-            children: childVNodes.map((vnode, index) => 
+            children: childVNodes.map((vnode, index) =>
                 new VNode({
                     tag: 'div',
                     props: {
@@ -654,7 +589,7 @@ class CustomMultiChildLayout extends Widget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new CustomMultiChildLayoutElement(this,parent, runtime);
+        return new CustomMultiChildLayoutElement(this, parent, runtime);
     }
 }
 
@@ -699,7 +634,5 @@ export {
     LayoutId,
     CustomMultiChildLayout,
     RenderCustomMultiChildLayoutBox,
-    MultiChildLayoutDelegate,
-    Size,
-    BoxConstraints
+    MultiChildLayoutDelegate
 };

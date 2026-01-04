@@ -3,6 +3,12 @@ import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Clip, TextDirection, Alignment } from '../utils/utils.js';
 import { Padding } from '../widgets/widgets.js';
+import { EdgeInsets } from '../utils/edge_insets.js';
+import { BoxConstraints } from '../utils/box_constraints.js';
+import { Align } from '../widgets/compoment/center.js'; // Align is exported from center.js based on previous readings
+import { ClipPath } from '../widgets/compoment/clip.js';
+import { ConstrainedBox, LimitedBox } from '../widgets/compoment/sized_box.js';
+import { Transform } from '../widgets/compoment/transform.js';
 
 // ============================================================================
 // ENUMS
@@ -17,187 +23,13 @@ const DecorationPosition = {
 // EDGE INSETS
 // ============================================================================
 
-class EdgeInsets {
-  constructor(top = 0, right = 0, bottom = 0, left = 0) {
-    this.top = top;
-    this.right = right;
-    this.bottom = bottom;
-    this.left = left;
-  }
 
-  /**
-   * Create symmetric insets
-   */
-  static symmetric({ vertical = 0, horizontal = 0 } = {}) {
-    return new EdgeInsets(vertical, horizontal, vertical, horizontal);
-  }
-
-  /**
-   * Create uniform insets
-   */
-  static all(value = 0) {
-    return new EdgeInsets(value, value, value, value);
-  }
-
-  /**
-   * Create only specific insets
-   */
-  static only({ top = 0, right = 0, bottom = 0, left = 0 } = {}) {
-    return new EdgeInsets(top, right, bottom, left);
-  }
-
-  /**
-   * Check if non-negative
-   */
-  get isNonNegative() {
-    return this.top >= 0 && this.right >= 0 && this.bottom >= 0 && this.left >= 0;
-  }
-
-  /**
-   * Get total horizontal
-   */
-  get horizontal() {
-    return this.left + this.right;
-  }
-
-  /**
-   * Get total vertical
-   */
-  get vertical() {
-    return this.top + this.bottom;
-  }
-
-  /**
-   * Add another inset
-   */
-  add(other) {
-    return new EdgeInsets(
-      this.top + other.top,
-      this.right + other.right,
-      this.bottom + other.bottom,
-      this.left + other.left
-    );
-  }
-
-  /**
-   * Convert to CSS
-   */
-  toCSSString() {
-    if (this.top === this.right && this.right === this.bottom && this.bottom === this.left) {
-      return `${this.top}px`;
-    }
-    if (this.top === this.bottom && this.left === this.right) {
-      return `${this.top}px ${this.left}px`;
-    }
-    return `${this.top}px ${this.right}px ${this.bottom}px ${this.left}px`;
-  }
-
-  /**
-   * Convert to CSS margin
-   */
-  toCSSMargin() {
-    return `${this.top}px ${this.right}px ${this.bottom}px ${this.left}px`;
-  }
-
-  /**
-   * Convert to CSS padding
-   */
-  toCSSPadding() {
-    return `${this.top}px ${this.right}px ${this.bottom}px ${this.left}px`;
-  }
-}
 
 // ============================================================================
 // BOX CONSTRAINTS
 // ============================================================================
 
-class BoxConstraints {
-  constructor(minWidth = 0, maxWidth = Infinity, minHeight = 0, maxHeight = Infinity) {
-    this.minWidth = minWidth;
-    this.maxWidth = maxWidth;
-    this.minHeight = minHeight;
-    this.maxHeight = maxHeight;
-  }
 
-  /**
-   * Create tight constraints
-   */
-  static tight(size) {
-    return new BoxConstraints(size.width, size.width, size.height, size.height);
-  }
-
-  /**
-   * Create loose constraints
-   */
-  static loose(size) {
-    return new BoxConstraints(0, size.width, 0, size.height);
-  }
-
-  /**
-   * Create expanding constraints
-   */
-  static expand({ width = Infinity, height = Infinity } = {}) {
-    return new BoxConstraints(0, width, 0, height);
-  }
-
-  /**
-   * Create for specific width/height
-   */
-  static tightFor({ width = null, height = null } = {}) {
-    return new BoxConstraints(
-      width !== null ? width : 0,
-      width !== null ? width : Infinity,
-      height !== null ? height : 0,
-      height !== null ? height : Infinity
-    );
-  }
-
-  /**
-   * Check if tight
-   */
-  get isTight() {
-    return this.minWidth === this.maxWidth && this.minHeight === this.maxHeight;
-  }
-
-  /**
-   * Check if valid
-   */
-  debugAssertIsValid() {
-    if (!(this.minWidth >= 0 && this.maxWidth >= this.minWidth &&
-      this.minHeight >= 0 && this.maxHeight >= this.minHeight)) {
-      throw new Error(
-        `Invalid BoxConstraints: ${this.minWidth}..${this.maxWidth}, ${this.minHeight}..${this.maxHeight}`
-      );
-    }
-    return true;
-  }
-
-  /**
-   * Tighten constraints
-   */
-  tighten({ width = null, height = null } = {}) {
-    return new BoxConstraints(
-      width !== null ? Math.max(this.minWidth, width) : this.minWidth,
-      width !== null ? Math.min(this.maxWidth, width) : this.maxWidth,
-      height !== null ? Math.max(this.minHeight, height) : this.minHeight,
-      height !== null ? Math.min(this.maxHeight, height) : this.maxHeight
-    );
-  }
-
-  /**
-   * Constrain size
-   */
-  constrain(size) {
-    return {
-      width: Math.max(this.minWidth, Math.min(this.maxWidth, size.width)),
-      height: Math.max(this.minHeight, Math.min(this.maxHeight, size.height))
-    };
-  }
-
-  toString() {
-    return `BoxConstraints(${this.minWidth}..${this.maxWidth}, ${this.minHeight}..${this.maxHeight})`;
-  }
-}
 
 // ============================================================================
 // DECORATION
@@ -629,127 +461,17 @@ class Container extends StatelessWidget {
 // SUPPORTING WIDGETS (Placeholder implementations)
 // ============================================================================
 
-class Align extends StatelessWidget {
-  constructor({ key = null, alignment = Alignment.center, child = null } = {}) {
-    super(key);
-    this.alignment = alignment;
-    this.child = child;
-  }
-
-  build(context) {
-    const childElement = this.child?.createElement(context.element, context.element.runtime);
-    if (childElement) {
-      childElement.mount(context.element);
-      const childVNode = childElement.performRebuild();
-
-      return new VNode({
-        tag: 'div',
-        props: {
-          style: {
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            width: '100%',
-            height: '100%'
-          }
-        },
-        children: [childVNode]
-      });
-    }
-    return new VNode({ tag: 'div', children: [] });
-  }
-}
 
 
 
-class ClipPath extends StatelessWidget {
-  constructor({ key = null, clipBehavior = Clip.hardEdge, child = null } = {}) {
-    super(key);
-    this.clipBehavior = clipBehavior;
-    this.child = child;
-  }
 
-  build(context) {
-    const childElement = this.child?.createElement(context.element, context.element.runtime);
-    if (childElement) {
-      childElement.mount(context.element);
-      return childElement.performRebuild();
-    }
-    return new VNode({ tag: 'div', children: [] });
-  }
-}
 
-class ConstrainedBox extends StatelessWidget {
-  constructor({ key = null, constraints = null, child = null } = {}) {
-    super(key);
-    this.constraints = constraints;
-    this.child = child;
-  }
 
-  build(context) {
-    const childElement = this.child?.createElement(context.element, context.element.runtime);
-    let childVNode = null;
 
-    if (childElement) {
-      childElement.mount(context.element);
-      childVNode = childElement.performRebuild();
-    }
 
-    const style = {};
-    if (this.constraints) {
-      if (this.constraints.minWidth > 0) style.minWidth = `${this.constraints.minWidth}px`;
-      if (this.constraints.maxWidth < Infinity) style.maxWidth = `${this.constraints.maxWidth}px`;
-      if (this.constraints.minHeight > 0) style.minHeight = `${this.constraints.minHeight}px`;
-      if (this.constraints.maxHeight < Infinity) style.maxHeight = `${this.constraints.maxHeight}px`;
 
-      // Handle expand() case specifically for 100%
-      if (this.constraints.minWidth === 0 && this.constraints.maxWidth === Infinity) style.width = '100%';
-      if (this.constraints.minHeight === 0 && this.constraints.maxHeight === Infinity) style.height = '100%';
-    }
 
-    return new VNode({
-      tag: 'div',
-      props: { style },
-      children: childVNode ? [childVNode] : []
-    });
-  }
-}
 
-class LimitedBox extends StatelessWidget {
-  constructor({ key = null, maxWidth = Infinity, maxHeight = Infinity, child = null } = {}) {
-    super(key);
-    this.maxWidth = maxWidth;
-    this.maxHeight = maxHeight;
-    this.child = child;
-  }
-
-  build(context) {
-    const childElement = this.child?.createElement(context.element, context.element.runtime);
-    if (childElement) {
-      childElement.mount(context.element);
-      return childElement.performRebuild();
-    }
-    return new VNode({ tag: 'div', children: [] });
-  }
-}
-
-class Transform extends StatelessWidget {
-  constructor({ key = null, transform = null, alignment = null, child = null } = {}) {
-    super(key);
-    this.transform = transform;
-    this.alignment = alignment;
-    this.child = child;
-  }
-
-  build(context) {
-    const childElement = this.child?.createElement(context.element, context.element.runtime);
-    if (childElement) {
-      childElement.mount(context.element);
-      return childElement.performRebuild();
-    }
-    return new VNode({ tag: 'div', children: [] });
-  }
-}
 
 // ============================================================================
 // EXPORTS
@@ -761,14 +483,7 @@ export {
   DecoratedBoxElement,
   RenderDecoratedBox,
   ColoredBox,
-  EdgeInsets,
-  BoxConstraints,
   BoxDecoration,
   Decoration,
-  DecorationPosition,
-  Padding,
-  ClipPath,
-  ConstrainedBox,
-  LimitedBox,
-  Transform
+  DecorationPosition
 };

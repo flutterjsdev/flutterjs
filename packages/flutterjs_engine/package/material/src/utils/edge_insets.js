@@ -22,6 +22,10 @@ export class EdgeInsets {
     return new EdgeInsets(top, right, bottom, left);
   }
 
+  static fromLTRB(left, top, right, bottom) {
+    return new EdgeInsets(top, right, bottom, left);
+  }
+
   get vertical() {
     return this.top + this.bottom;
   }
@@ -30,8 +34,63 @@ export class EdgeInsets {
     return this.left + this.right;
   }
 
+  get isNonNegative() {
+    return this.top >= 0 && this.right >= 0 && this.bottom >= 0 && this.left >= 0;
+  }
+
+  get isZero() {
+    return this.top === 0 && this.right === 0 && this.bottom === 0 && this.left === 0;
+  }
+
+  add(other) {
+    return new EdgeInsets(
+      this.top + other.top,
+      this.right + other.right,
+      this.bottom + other.bottom,
+      this.left + other.left
+    );
+  }
+
+  copyWith({ top, right, bottom, left } = {}) {
+    return new EdgeInsets(
+      top ?? this.top,
+      right ?? this.right,
+      bottom ?? this.bottom,
+      left ?? this.left
+    );
+  }
+
+  equals(other) {
+    if (!other || !(other instanceof EdgeInsets)) {
+      return false;
+    }
+    return this.top === other.top &&
+      this.right === other.right &&
+      this.bottom === other.bottom &&
+      this.left === other.left;
+  }
+
   toCSSString() {
     return `${this.top}px ${this.right}px ${this.bottom}px ${this.left}px`;
+  }
+
+  toCSSShorthand() {
+    const { top, right, bottom, left } = this;
+    if (top === right && right === bottom && bottom === left) {
+      return `${top}px`;
+    }
+    if (top === bottom && right === left) {
+      return `${top}px ${right}px`;
+    }
+    return this.toCSSString();
+  }
+
+  toCSSMargin() {
+    return this.toCSSString();
+  }
+
+  toCSSPadding() {
+    return this.toCSSString();
   }
 
   toString() {

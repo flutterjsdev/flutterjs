@@ -324,10 +324,11 @@ class FunctionCodeGen {
           break;
 
         case ParameterOrigin.superParam:
-          // Super parameter (super.x): DON'T assign here
-          // Parent constructor handles it via super()
-          // ✅ Skip - parent already initialized this
-          buffer.writeln(indenter.line('super.${param.name} = ${param.name};'));
+          // Super parameter (super.x): In JavaScript, super() is called first
+          // and the parent initializes its own fields. For the child to access
+          // these, we assign to this.propertyName (which refers to the instance).
+          // Note: super.key = x is NOT valid JavaScript syntax
+          buffer.writeln(indenter.line('this.${param.name} = ${param.name};'));
           break;
       }
     }

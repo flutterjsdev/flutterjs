@@ -1,41 +1,15 @@
-import { Widget, StatelessWidget,  } from '../../core/widget_element.js';
-import {Element} from "@flutterjs/runtime"
+import { Widget, StatelessWidget, } from '../../core/widget_element.js';
+import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
 import { TextDirection } from '../../utils/utils.js';
+import { Rect } from '../../utils/geometry.js';
 
 // ============================================================================
 // RECT CLASS
 // Represents a rectangular region with position and size
 // ============================================================================
 
-class Rect {
-  constructor(left = 0, top = 0, width = 0, height = 0) {
-    this.left = left;
-    this.top = top;
-    this.width = width;
-    this.height = height;
-    this.right = left + width;
-    this.bottom = top + height;
-  }
 
-  /**
-   * Create from LTRB (left, top, right, bottom)
-   */
-  static fromLTRB(left, top, right, bottom) {
-    return new Rect(left, top, right - left, bottom - top);
-  }
-
-  /**
-   * Create with size
-   */
-  static fromSize(position, size) {
-    return new Rect(position.x, position.y, size.width, size.height);
-  }
-
-  toString() {
-    return `Rect(${this.left}, ${this.top}, ${this.right}, ${this.bottom})`;
-  }
-}
 
 // ============================================================================
 // RELATIVE RECT CLASS
@@ -93,9 +67,9 @@ class StackParentData {
    * Check if child is positioned
    */
   isPositioned() {
-    return this.left !== null || this.top !== null || 
-           this.right !== null || this.bottom !== null ||
-           this.width !== null || this.height !== null;
+    return this.left !== null || this.top !== null ||
+      this.right !== null || this.bottom !== null ||
+      this.width !== null || this.height !== null;
   }
 
   /**
@@ -388,7 +362,7 @@ class Positioned extends Widget {
    * Create element
    */
   createElement(parent, runtime) {
-    return new PositionedElement(this,parent, runtime);
+    return new PositionedElement(this, parent, runtime);
   }
 }
 
@@ -558,12 +532,12 @@ class PositioningHelper {
     bottom = null,
     height = null
   } = {}) {
-    const horizontalConstrained = 
+    const horizontalConstrained =
       (left !== null && right !== null) ||
       (left !== null && width !== null) ||
       (right !== null && width !== null);
 
-    const verticalConstrained = 
+    const verticalConstrained =
       (top !== null && bottom !== null) ||
       (top !== null && height !== null) ||
       (bottom !== null && height !== null);
@@ -581,7 +555,7 @@ export {
   PositionedElement,
   PositionedDirectional,
   StackParentData,
-  Rect,
+
   RelativeRect,
   PositioningHelper
 };

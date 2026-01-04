@@ -1,0 +1,201 @@
+// ============================================================================
+// Generated from Dart IR - Advanced Code Generation (Phase 10)
+// WARNING: Do not edit manually - changes will be lost
+// Generated at: 2026-01-05 01:05:01.101543
+//
+// Smart Features Enabled:
+// ✓ Intelligent import detection
+// ✓ Unused widget filtering
+// ✓ Dependency-aware helper generation
+// ✓ Type-aware imports
+// ✓ Validation & Optimization (Phase 5)
+// ============================================================================
+
+
+import {
+  runApp,
+  Widget,
+  State,
+  StatefulWidget,
+  StatelessWidget,
+  BuildContext,
+  Key,
+} from '@flutterjs/runtime';
+import {
+  AppBar,
+  ChangeNotifierProvider,
+  Colors,
+  Column,
+  CrossAxisAlignment,
+  EdgeInsets,
+  ElevatedButton,
+  Expanded,
+  FloatingActionButton,
+  Icon,
+  Icons,
+  ListView,
+  MainAxisAlignment,
+  MaterialApp,
+  Padding,
+  Row,
+  Scaffold,
+  SizedBox,
+  Text,
+  ThemeData,
+} from '@flutterjs/material';
+
+
+// ===== RUNTIME HELPERS (3) =====
+
+function listCast(list, expectedType) {
+  return list.map(item => {
+    if (!(item instanceof expectedType)) {
+      throw new TypeError(`Item must be of type ${expectedType.name}`);
+    }
+    return item;
+  });
+}
+
+function mapCast(map, expectedKeyType, expectedValueType) {
+  const result = new Map();
+  for (const [key, value] of map) {
+    if (!(key instanceof expectedKeyType)) {
+      throw new TypeError(`Key must be of type ${expectedKeyType.name}`);
+    }
+    if (!(value instanceof expectedValueType)) {
+      throw new TypeError(`Value must be of type ${expectedValueType.name}`);
+    }
+    result.set(key, value);
+  }
+  return result;
+}
+
+function typeAssertion(value, expectedType, variableName) {
+  if (!(value instanceof expectedType)) {
+    throw new TypeError(`${variableName} must be of type ${expectedType.name}`);
+  }
+  return value;
+}
+
+
+
+
+
+
+
+// ===== CLASSES =====
+
+class CounterModel extends ChangeNotifier {
+  _count = 0;
+  status = "Idle";
+  history = [];
+
+  /**
+
+   * @returns {number}
+   */
+  get count() {
+  return this._count;
+  }
+
+  /**
+
+   */
+  increment() {
+  this._count++;
+  history.add(`+${count} at ${DateTime.now().toIso8601String()}`);
+  status = "Last action: increment";
+  this.notifyListeners();
+  }
+
+  /**
+
+   * @returns {Future<void>}
+   * @async
+   */
+  async fetchQuote() {
+  status = "Fetching...";
+  this.notifyListeners();
+  try {
+  {
+      const resp = await http.get(Uri.parse('https://api.quotable.io/random'));
+  if (resp.statusCode === 200) {
+  {
+          const data = jsonDecode(resp.body);
+          const quote = String(data["content"]);
+          history.add(`Quote: ${quote.substring(0, 30)}...`);
+          status = "Quote loaded";
+        }
+      } else {
+  {
+          status = (`HTTP ${resp.statusCode}`);
+        }
+      }
+    }
+  } catch (e) {
+  {
+      status = (`Error: ${e}`);
+    }
+  }
+  this.notifyListeners();
+  }
+
+  /**
+
+   */
+  reset() {
+  this._count = 0;
+  history.clear();
+  status = "Reset";
+  this.notifyListeners();
+  }
+
+}
+
+class MyApp extends StatelessWidget {
+  /**
+   * @param {BuildContext} [context]
+   * @returns {Widget}
+   */
+  // @override
+  build(context = undefined) {
+  return new ChangeNotifierProvider({ create: (_) => new CounterModel(), child: new MaterialApp({ title: "FlutterJs Stress Test", debugShowCheckedModeBanner: false, theme: new ThemeData({ primarySwatch: Colors.indigo }), home: new HomePage() }) });
+  }
+
+}
+
+class HomePage extends StatelessWidget {
+  /**
+   * @param {BuildContext} [context]
+   * @returns {Widget}
+   */
+  // @override
+  build(context = undefined) {
+  const model = context.watch<CounterModel>();
+  return new Scaffold({ appBar: new AppBar({ title: new Text("FlutterJs Stress Test"), backgroundColor: Colors.indigo }), body: new Padding({ padding: EdgeInsets.all(16), child: new Column({ crossAxisAlignment: CrossAxisAlignment.start, children: [new Text(`Count: ${model.count} ${math.min(10, 20)}`, { style: Theme.of(context).textTheme.headlineMedium!.copyWith({ color: (model.count.isEven) ? (Colors.indigo) : (Colors.purple) }) }), new SizedBox({ height: 20 }), new Row({ mainAxisAlignment: MainAxisAlignment.center, children: [new ElevatedButton({ onPressed: model.increment, child: new Text("+1") }), new SizedBox({ width: 16 }), new ElevatedButton({ onPressed: model.reset, child: new Text("Reset") }), new SizedBox({ width: 16 }), new ElevatedButton({ onPressed: model.fetchQuote, child: new Text("Fetch Quote") })] }), new SizedBox({ height: 20 }), new Text(`Status: ${model.status}`), new SizedBox({ height: 20 }), new Expanded({ child: ListView.builder({ itemCount: model.history.length, itemBuilder: (context, i) => new Card({ child: new ListTile({ leading: new CircleAvatar({ child: new Text(`${i + 1}`) }), title: new Text(model.history[i]), subtitle: new Text(`Item ${i}`) }) }) }) })] }) }), floatingActionButton: new FloatingActionButton({ onPressed: model.increment, child: new Icon(Icons.add) }) });
+  }
+
+}
+
+
+
+// ===== FUNCTIONS =====
+
+/**
+
+ */
+function main() {
+return runApp(new MyApp());
+}
+
+
+
+// ===== EXPORTS =====
+
+export {
+  CounterModel,
+  MyApp,
+  HomePage,
+  main,
+};
+

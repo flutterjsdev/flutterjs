@@ -311,6 +311,12 @@ class Flex extends Widget {
    * @private
    */
   _mapMainAxisAlignment() {
+    // Handle shorthand enum syntax (e.g. ".center")
+    let value = this.mainAxisAlignment;
+    if (typeof value === 'string' && value.startsWith('.')) {
+      value = value.substring(1);
+    }
+
     const map = {
       start: 'flex-start',
       end: 'flex-end',
@@ -319,7 +325,7 @@ class Flex extends Widget {
       spaceAround: 'space-around',
       spaceEvenly: 'space-evenly'
     };
-    return map[this.mainAxisAlignment] || 'flex-start';
+    return map[value] || 'flex-start';
   }
 
   /**
@@ -327,6 +333,12 @@ class Flex extends Widget {
    * @private
    */
   _mapCrossAxisAlignment() {
+    // Handle shorthand enum syntax (e.g. ".center")
+    let value = this.crossAxisAlignment;
+    if (typeof value === 'string' && value.startsWith('.')) {
+      value = value.substring(1);
+    }
+
     const map = {
       start: 'flex-start',
       end: 'flex-end',
@@ -334,7 +346,7 @@ class Flex extends Widget {
       stretch: 'stretch',
       baseline: 'baseline'
     };
-    return map[this.crossAxisAlignment] || 'center';
+    return map[value] || 'center';
   }
 
   debugFillProperties(properties) {
@@ -510,6 +522,12 @@ class Wrap extends Widget {
    * @private
    */
   _mapAlignment() {
+    // Handle shorthand enum syntax (e.g. ".center")
+    let value = this.alignment;
+    if (typeof value === 'string' && value.startsWith('.')) {
+      value = value.substring(1);
+    }
+
     const map = {
       start: 'flex-start',
       end: 'flex-end',
@@ -518,7 +536,7 @@ class Wrap extends Widget {
       spaceAround: 'space-around',
       spaceEvenly: 'space-evenly'
     };
-    return map[this.alignment] || 'flex-start';
+    return map[value] || 'flex-start';
   }
 
   /**
@@ -526,6 +544,12 @@ class Wrap extends Widget {
    * @private
    */
   _mapRunAlignment() {
+    // Handle shorthand enum syntax (e.g. ".center")
+    let value = this.runAlignment;
+    if (typeof value === 'string' && value.startsWith('.')) {
+      value = value.substring(1);
+    }
+
     const map = {
       start: 'flex-start',
       end: 'flex-end',
@@ -534,7 +558,7 @@ class Wrap extends Widget {
       spaceAround: 'space-around',
       spaceEvenly: 'space-evenly'
     };
-    return map[this.runAlignment] || 'flex-start';
+    return map[value] || 'flex-start';
   }
 
   build(context) {

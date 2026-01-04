@@ -1,7 +1,7 @@
 {
   "version": 3,
   "sources": ["../src/index.js"],
-  "sourcesContent": ["export * from \"./core/core.js\";\r\nexport * from \"./material/material.js\";\r\nexport * from \"./widgets/widgets.js\";"],
-  "mappings": "AAAA,WAAc,iBACd,WAAc,yBACd,WAAc",
-  "names": []
+  "sourcesContent": ["export { BorderRadius } from \"./utils/geometry.js\";\r\n\r\nexport * from \"./core/core.js\";\r\nexport * from \"./material/material.js\";\r\nexport * from \"./widgets/widgets.js\";\r\n"],
+  "mappings": "AAAA,OAAS,gBAAAA,MAAoB,sBAE7B,WAAc,iBACd,WAAc,yBACd,WAAc",
+  "names": ["BorderRadius"]
 }

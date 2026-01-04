@@ -22,6 +22,7 @@ class FileCodeGen {
   late Set<String> usedWidgets;
   late Set<String> usedHelpers;
   late Set<String> usedTypes;
+  late Set<String> definedNames; // ✅ NEW: Track locally defined names
   late Map<String, List<String>> classDependencies;
 
   late ValidationReport? validationReport;
@@ -50,6 +51,7 @@ class FileCodeGen {
     usedWidgets = {};
     usedHelpers = {};
     usedTypes = {};
+    definedNames = {};
     classDependencies = {};
   }
 
@@ -97,16 +99,23 @@ class FileCodeGen {
       usedWidgets.clear();
       usedHelpers.clear();
       usedTypes.clear();
+      definedNames.clear();
       classDependencies.clear();
     });
 
     // Analyze classes
     for (final cls in dartFile.classDeclarations) {
+      await _lock.protect(() async {
+        definedNames.add(cls.name);
+      });
       await _analyzeClassAsync(cls);
     }
 
     // Analyze functions
     for (final func in dartFile.functionDeclarations) {
+      await _lock.protect(() async {
+        definedNames.add(func.name);
+      });
       await _analyzeFunctionAsync(func);
     }
 
@@ -114,6 +123,7 @@ class FileCodeGen {
     for (final variable in dartFile.variableDeclarations) {
       _analyzeExpression(variable.initializer);
       await _lock.protect(() async {
+        definedNames.add(variable.name);
         usedTypes.add(variable.type.displayName());
       });
     }
@@ -147,15 +157,9 @@ class FileCodeGen {
     });
 
     for (final method in cls.methods) {
-      if (method.name == 'build') {
-        await _analyzeBuildMethodAsync(method);
-      }
-
       if (method.body != null) {
-        if (method.body is BlockStmt) {
-          _analyzeStatement(method.body as BlockStmt);
-        } else if (method.body is ExpressionIR) {
-          _analyzeExpression(method.body as ExpressionIR);
+        for (final stmt in method.body!.statements) {
+          _analyzeStatement(stmt);
         }
       }
     }
@@ -170,75 +174,8 @@ class FileCodeGen {
     });
 
     if (func.body != null) {
-      if (func.body is BlockStmt) {
-        _analyzeStatement(func.body as BlockStmt);
-      } else if (func.body is ExpressionIR) {
-        _analyzeExpression(func.body as ExpressionIR);
-      }
-    }
-  }
-
-  Future<void> _analyzeBuildMethodAsync(MethodDecl method) async {
-    if (method.body == null) return;
-
-    if (method.body is BlockStmt) {
-      final block = method.body as BlockStmt;
-      for (final stmt in block.statements) {
-        if (stmt is ReturnStmt && stmt.expression != null) {
-          await _detectWidgetsInExpressionAsync(stmt.expression!);
-        }
-      }
-    } else if (method.body is ExpressionIR) {
-      await _detectWidgetsInExpressionAsync(method.body as ExpressionIR);
-    }
-  }
-
-  Future<void> _detectWidgetsInExpressionAsync(ExpressionIR expr) async {
-    if (expr is InstanceCreationExpressionIR) {
-      final widgetName = expr.type.displayName();
-      await _lock.protect(() async {
-        usedWidgets.add(widgetName);
-      });
-
-      for (final arg in expr.arguments) {
-        await _detectWidgetsInExpressionAsync(arg);
-      }
-
-      for (final arg in expr.namedArguments.values) {
-        await _detectWidgetsInExpressionAsync(arg);
-      }
-    } else if (expr is MethodCallExpressionIR) {
-      for (final arg in expr.arguments) {
-        await _detectWidgetsInExpressionAsync(arg);
-      }
-      for (final arg in expr.namedArguments.values) {
-        await _detectWidgetsInExpressionAsync(arg);
-      }
-    } else if (expr is ListExpressionIR) {
-      for (final elem in expr.elements) {
-        await _detectWidgetsInExpressionAsync(elem);
-      }
-    } else if (expr is ConditionalExpressionIR) {
-      await _detectWidgetsInExpressionAsync(expr.thenExpression);
-      await _detectWidgetsInExpressionAsync(expr.elseExpression);
-    } else if (expr is PropertyAccessExpressionIR) {
-      if (expr.target is IdentifierExpressionIR) {
-        final targetName = (expr.target as IdentifierExpressionIR).name;
-        // Heuristic: Class names are capitalized
-        if (targetName.isNotEmpty &&
-            targetName[0].toUpperCase() == targetName[0]) {
-          await _lock.protect(() async {
-            usedWidgets.add(targetName);
-          });
-        }
-      }
-      // Check identifier if it looks like a class/enum (e.g. MainAxisAlignment)
-    } else if (expr is IdentifierExpressionIR) {
-      // Heuristic: Class names are capitalized
-      if (expr.name.isNotEmpty && expr.name[0].toUpperCase() == expr.name[0]) {
-        await _lock.protect(() async {
-          usedWidgets.add(expr.name);
-        });
+      for (final stmt in func.body!.statements) {
+        _analyzeStatement(stmt);
       }
     }
   }
@@ -278,7 +215,7 @@ class FileCodeGen {
   Future<String> _generateHeaderAsync() async {
     return '''
 // ============================================================================
-// Generated from Dart IR - Advanced Code Generation (Phase 4+5)
+// Generated from Dart IR - Advanced Code Generation (Phase 10)
 // WARNING: Do not edit manually - changes will be lost
 // Generated at: ${DateTime.now()}
 //
@@ -306,20 +243,28 @@ class FileCodeGen {
       code.writeln('  Key,');
       code.writeln('} from \'@flutterjs/runtime\';');
 
+      // Ensure Icons is imported if Icon is used (safety fallback)
+      if (usedWidgets.contains('Icon')) {
+        usedWidgets.add('Icons');
+      }
+
       // Sort widgets to ensure deterministic output
-      final sortedWidgets = usedWidgets.toList()..sort();
+      final sortedWidgets =
+          usedWidgets.where((w) => !definedNames.contains(w)).toSet().toList()
+            ..sort();
 
       if (sortedWidgets.isNotEmpty) {
         code.writeln('import {');
         for (final widget in sortedWidgets) {
           // Skip runtime types if they accidentally got into usedWidgets
-          if ([
-            'Widget',
-            'State',
-            'BuildContext',
-            'Key',
-            'runApp',
-          ].contains(widget))
+          if (widget.startsWith('_') ||
+              [
+                'Widget',
+                'State',
+                'BuildContext',
+                'Key',
+                'runApp',
+              ].contains(widget))
             continue;
           code.writeln('  $widget,');
         }
@@ -690,21 +635,43 @@ class FileCodeGen {
   // HELPER METHODS
   // =========================================================================
 
-  void _analyzeStatement(BlockStmt block) {
-    for (final stmt in block.statements) {
-      if (stmt is IfStmt) {
-        if (stmt.thenBranch is BlockStmt) {
-          _analyzeStatement(stmt.thenBranch as BlockStmt);
-        }
-        if (stmt.elseBranch is BlockStmt) {
-          _analyzeStatement(stmt.elseBranch as BlockStmt);
-        }
-      } else if (stmt is ExpressionStmt) {
-        _analyzeExpression(stmt.expression);
-      } else if (stmt is VariableDeclarationStmt) {
-        if (stmt.initializer != null) {
-          _analyzeExpression(stmt.initializer!);
-        }
+  void _analyzeStatement(StatementIR stmt) {
+    if (stmt is BlockStmt) {
+      for (final s in stmt.statements) _analyzeStatement(s);
+    } else if (stmt is IfStmt) {
+      _analyzeExpression(stmt.condition);
+      _analyzeStatement(stmt.thenBranch);
+      if (stmt.elseBranch != null) _analyzeStatement(stmt.elseBranch!);
+    } else if (stmt is ReturnStmt) {
+      if (stmt.expression != null) _analyzeExpression(stmt.expression);
+    } else if (stmt is ExpressionStmt) {
+      _analyzeExpression(stmt.expression);
+    } else if (stmt is VariableDeclarationStmt) {
+      if (stmt.initializer != null) {
+        _analyzeExpression(stmt.initializer!);
+      }
+    } else if (stmt is ForStmt) {
+      if (stmt.initialization != null && stmt.initialization is StatementIR) {
+        _analyzeStatement(stmt.initialization as StatementIR);
+      } else if (stmt.initialization is ExpressionIR) {
+        _analyzeExpression(stmt.initialization as ExpressionIR);
+      }
+      if (stmt.condition != null) _analyzeExpression(stmt.condition);
+      for (final u in stmt.updaters) _analyzeExpression(u);
+      _analyzeStatement(stmt.body);
+    } else if (stmt is ForEachStmt) {
+      _analyzeExpression(stmt.iterable);
+      _analyzeStatement(stmt.body);
+    } else if (stmt is WhileStmt) {
+      _analyzeExpression(stmt.condition);
+      _analyzeStatement(stmt.body);
+    } else if (stmt is SwitchStmt) {
+      _analyzeExpression(stmt.expression);
+      for (final c in stmt.cases) {
+        for (final s in c.statements) _analyzeStatement(s);
+      }
+      if (stmt.defaultCase != null) {
+        for (final s in stmt.defaultCase!.statements) _analyzeStatement(s);
       }
     }
   }
@@ -724,9 +691,17 @@ class FileCodeGen {
   }
 
   void _detectWidgetsInExpression(ExpressionIR expr) {
+    void addWidget(String name) {
+      if (name.isEmpty) return;
+      final rootName = name.split('.').first;
+      // Heuristic: Class names are capitalized
+      if (rootName.isNotEmpty && rootName[0].toUpperCase() == rootName[0]) {
+        usedWidgets.add(rootName);
+      }
+    }
+
     if (expr is InstanceCreationExpressionIR) {
-      final widgetName = expr.type.displayName();
-      usedWidgets.add(widgetName);
+      addWidget(expr.type.displayName());
 
       for (final arg in expr.arguments) {
         _detectWidgetsInExpression(arg);
@@ -736,6 +711,13 @@ class FileCodeGen {
         _detectWidgetsInExpression(arg);
       }
     } else if (expr is MethodCallExpressionIR) {
+      // ✅ NEW: Detect widget constructors by capitalized method name
+      if (expr.methodName.isNotEmpty) {
+        addWidget(expr.methodName);
+      }
+      if (expr.target != null) {
+        _detectWidgetsInExpression(expr.target!);
+      }
       for (final arg in expr.arguments) {
         _detectWidgetsInExpression(arg);
       }
@@ -752,15 +734,10 @@ class FileCodeGen {
     } else if (expr is PropertyAccessExpressionIR) {
       if (expr.target is IdentifierExpressionIR) {
         final targetName = (expr.target as IdentifierExpressionIR).name;
-        if (targetName.isNotEmpty &&
-            targetName[0].toUpperCase() == targetName[0]) {
-          usedWidgets.add(targetName);
-        }
+        addWidget(targetName);
       }
     } else if (expr is IdentifierExpressionIR) {
-      if (expr.name.isNotEmpty && expr.name[0].toUpperCase() == expr.name[0]) {
-        usedWidgets.add(expr.name);
-      }
+      addWidget(expr.name);
     }
   }
 
