@@ -1,119 +1,9 @@
 import { ProxyWidget } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Alignment } from '../../utils/utils.js';
-import { Clip } from './clip_widgets.js';
 
-// ============================================================================
-// SIZE CLASS
-// ============================================================================
-
-class Size {
-    constructor(width = 0, height = 0) {
-        this.width = width;
-        this.height = height;
-    }
-
-    static get zero() {
-        return new Size(0, 0);
-    }
-
-    static get infinite() {
-        return new Size(Infinity, Infinity);
-    }
-
-    static square(dimension) {
-        return new Size(dimension, dimension);
-    }
-
-    get isEmpty() {
-        return this.width === 0 && this.height === 0;
-    }
-
-    get isInfinite() {
-        return this.width === Infinity || this.height === Infinity;
-    }
-
-    toString() {
-        return `Size(${this.width}, ${this.height})`;
-    }
-
-    equals(other) {
-        if (!other || !(other instanceof Size)) {
-            return false;
-        }
-        return this.width === other.width && this.height === other.height;
-    }
-}
-
-// ============================================================================
-// BOX CONSTRAINTS CLASS
-// ============================================================================
-
-class BoxConstraints {
-    constructor(minWidth = 0, maxWidth = Infinity, minHeight = 0, maxHeight = Infinity) {
-        this.minWidth = minWidth;
-        this.maxWidth = maxWidth;
-        this.minHeight = minHeight;
-        this.maxHeight = maxHeight;
-    }
-
-    static tight(size) {
-        return new BoxConstraints(size.width, size.width, size.height, size.height);
-    }
-
-    static loose(size) {
-        return new BoxConstraints(0, size.width, 0, size.height);
-    }
-
-    static expand({ width = Infinity, height = Infinity } = {}) {
-        return new BoxConstraints(0, width, 0, height);
-    }
-
-    static tightFor({ width = null, height = null } = {}) {
-        return new BoxConstraints(
-            width ?? 0,
-            width ?? Infinity,
-            height ?? 0,
-            height ?? Infinity
-        );
-    }
-
-    get isTight() {
-        return this.minWidth === this.maxWidth && this.minHeight === this.maxHeight;
-    }
-
-    get isNormalized() {
-        return this.minWidth <= this.maxWidth && this.minHeight <= this.maxHeight;
-    }
-
-    constrain(size) {
-        return new Size(
-            Math.max(this.minWidth, Math.min(this.maxWidth, size.width)),
-            Math.max(this.minHeight, Math.min(this.maxHeight, size.height))
-        );
-    }
-
-    widthConstraints() {
-        return new BoxConstraints(this.minWidth, this.maxWidth, 0, Infinity);
-    }
-
-    heightConstraints() {
-        return new BoxConstraints(0, Infinity, this.minHeight, this.maxHeight);
-    }
-
-    copyWith({ minWidth, maxWidth, minHeight, maxHeight } = {}) {
-        return new BoxConstraints(
-            minWidth ?? this.minWidth,
-            maxWidth ?? this.maxWidth,
-            minHeight ?? this.minHeight,
-            maxHeight ?? this.maxHeight
-        );
-    }
-
-    toString() {
-        return `BoxConstraints(${this.minWidth}..${this.maxWidth}, ${this.minHeight}..${this.maxHeight})`;
-    }
-}
+import { Size } from '../../utils/size.js';
+import { BoxConstraints } from '../../utils/box_constraints.js';
 
 // ============================================================================
 // OVERFLOW BOX FIT ENUM
@@ -290,7 +180,7 @@ class SizedBox extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new SizedBoxElement(this,parent, runtime);
+        return new SizedBoxElement(this, parent, runtime);
     }
 }
 
@@ -394,7 +284,7 @@ class ConstrainedBox extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new ConstrainedBoxElement(this,parent, runtime);
+        return new ConstrainedBoxElement(this, parent, runtime);
     }
 }
 
@@ -496,7 +386,7 @@ class LimitedBox extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new LimitedBoxElement(this,parent, runtime);
+        return new LimitedBoxElement(this, parent, runtime);
     }
 }
 
@@ -642,7 +532,7 @@ class OverflowBox extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new OverflowBoxElement(this,parent, runtime);
+        return new OverflowBoxElement(this, parent, runtime);
     }
 }
 
@@ -768,7 +658,7 @@ class SizedOverflowBox extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new SizedOverflowBoxElement(this,parent, runtime);
+        return new SizedOverflowBoxElement(this, parent, runtime);
     }
 }
 
@@ -861,7 +751,7 @@ class Offstage extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new OffstageElement(this,parent, runtime);
+        return new OffstageElement(this, parent, runtime);
     }
 }
 
@@ -1013,7 +903,7 @@ class FractionallySizedBox extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new FractionallySizedBoxElement(this,parent, runtime);
+        return new FractionallySizedBoxElement(this, parent, runtime);
     }
 }
 

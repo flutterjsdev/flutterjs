@@ -1,132 +1,7 @@
 import { ProxyWidget } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 
-// ============================================================================
-// EDGE INSETS CLASS
-// Represents padding/margin on all four sides
-// ============================================================================
-
-class EdgeInsets {
-    constructor(top = 0, right = 0, bottom = 0, left = 0) {
-        this.top = top;
-        this.right = right;
-        this.bottom = bottom;
-        this.left = left;
-    }
-
-    /**
-     * Create EdgeInsets with same value on all sides
-     */
-    static all(value) {
-        return new EdgeInsets(value, value, value, value);
-    }
-
-    /**
-     * Create EdgeInsets with symmetric values
-     */
-    static symmetric({ vertical = 0, horizontal = 0 } = {}) {
-        return new EdgeInsets(vertical, horizontal, vertical, horizontal);
-    }
-
-    /**
-     * Create EdgeInsets with only specified values
-     */
-    static only({ top = 0, right = 0, bottom = 0, left = 0 } = {}) {
-        return new EdgeInsets(top, right, bottom, left);
-    }
-
-    /**
-     * Create EdgeInsets with left and right only
-     */
-    static fromLTRB(left, top, right, bottom) {
-        return new EdgeInsets(top, right, bottom, left);
-    }
-
-    /**
-     * Create zero EdgeInsets
-     */
-    static get zero() {
-        return new EdgeInsets(0, 0, 0, 0);
-    }
-
-    /**
-     * Convert to CSS padding string
-     */
-    toCSSString() {
-        // CSS padding: top right bottom left
-        return `${this.top}px ${this.right}px ${this.bottom}px ${this.left}px`;
-    }
-
-    /**
-     * Convert to CSS shorthand if possible
-     */
-    toCSSShorthand() {
-        const { top, right, bottom, left } = this;
-
-        // All sides equal
-        if (top === right && right === bottom && bottom === left) {
-            return `${top}px`;
-        }
-
-        // Top/bottom equal and left/right equal
-        if (top === bottom && right === left) {
-            return `${top}px ${right}px`;
-        }
-
-        // Use full form
-        return this.toCSSString();
-    }
-
-    /**
-     * Get total horizontal padding (left + right)
-     */
-    get horizontal() {
-        return this.left + this.right;
-    }
-
-    /**
-     * Get total vertical padding (top + bottom)
-     */
-    get vertical() {
-        return this.top + this.bottom;
-    }
-
-    /**
-     * Check if all values are zero
-     */
-    get isZero() {
-        return this.top === 0 && this.right === 0 && this.bottom === 0 && this.left === 0;
-    }
-
-    /**
-     * Clone with updated values
-     */
-    copyWith({ top, right, bottom, left } = {}) {
-        return new EdgeInsets(
-            top ?? this.top,
-            right ?? this.right,
-            bottom ?? this.bottom,
-            left ?? this.left
-        );
-    }
-
-    /**
-     * Check equality
-     */
-    equals(other) {
-        if (!other || !(other instanceof EdgeInsets)) {
-            return false;
-        }
-        return this.top === other.top &&
-               this.right === other.right &&
-               this.bottom === other.bottom &&
-               this.left === other.left;
-    }
-
-    toString() {
-        return `EdgeInsets(${this.top}, ${this.right}, ${this.bottom}, ${this.left})`;
-    }
-}
+import { EdgeInsets } from '../../utils/edge_insets.js';
 
 // ============================================================================
 // PADDING WIDGET
@@ -241,7 +116,7 @@ class Padding extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new PaddingElement(this,parent, runtime);
+        return new PaddingElement(this, parent, runtime);
     }
 }
 

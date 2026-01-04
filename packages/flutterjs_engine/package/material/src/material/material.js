@@ -12,16 +12,9 @@ export {
     DecoratedBoxElement,
     RenderDecoratedBox,
     ColoredBox,
-    EdgeInsets,
-    BoxConstraints,
     BoxDecoration,
     Decoration,
-    DecorationPosition,
-    Padding,
-    ClipPath,
-    ConstrainedBox,
-    LimitedBox,
-    Transform
+    DecorationPosition
 } from "./container.js";
 
 export { Icon, IconData, IconThemeData, Icons } from "./icon.js";
@@ -56,9 +49,25 @@ export {
 } from "./floating_action_button.js";
 
 export {
-  GestureDetector,
-  GestureDetectorElement
+    GestureDetector,
+    GestureDetectorElement
 } from "./gesture_detector.js";
+
+
+
+export {
+    Card
+} from "../widgets/compoment/card.js";
+
+export {
+    Divider
+} from "../widgets/compoment/divider.js";
+
+
+
+
+
+
 
 
 

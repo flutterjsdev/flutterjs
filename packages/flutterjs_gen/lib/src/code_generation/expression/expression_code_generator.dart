@@ -599,6 +599,45 @@ class ExpressionCodeGen {
   String _generateUnknownExpression(UnknownExpressionIR expr) {
     print('⚠️  UnknownExpressionIR detected: ${expr.source}');
 
+    // Handle Dart 3.0+ shorthand enum/method syntax (.center, .fromSeed, etc.)
+    if (expr.source != null && expr.source!.startsWith('.')) {
+      // CHECK: Is it a method call? (contains '(')
+      if (expr.source!.contains('(')) {
+        // Specific mapping for common shorthand constructors
+        if (expr.source!.startsWith('.fromSeed')) {
+          var call = expr.source!;
+          // Hack: Wrap named arguments in {} for JS
+          // e.g. .fromSeed(seedColor: red) -> .fromSeed({seedColor: red})
+          if (call.contains('(') && call.endsWith(')')) {
+            final start = call.indexOf('(');
+            final args = call.substring(start + 1, call.length - 1);
+
+            // If args has ':' (named args) and not already wrapped
+            if (args.contains(':') && !args.trim().startsWith('{')) {
+              final methodPart = call.substring(0, start);
+              final wrappedCall = 'ColorScheme$methodPart({$args})';
+              print(
+                '   Converting shorthand method with JS args: $wrappedCall',
+              );
+              return wrappedCall;
+            }
+          }
+          print(
+            '   Converting shorthand method: ${expr.source} → ColorScheme${expr.source}',
+          );
+          return 'ColorScheme${expr.source}';
+        }
+        // Add other shorthand constructors here if needed
+      }
+      // It's a property/enum access (e.g. .center)
+      else {
+        print(
+          '   Converting shorthand to string: ${expr.source} → "${expr.source}"',
+        );
+        return '"${expr.source}"'; // Output as string literal for JS runtime to process
+      }
+    }
+
     // Try to extract usable info from the unknown expression
     if (expr.source != null && expr.source!.isNotEmpty) {
       print('   Fallback: Using source text: "${expr.source}"');
@@ -682,12 +721,75 @@ class ExpressionCodeGen {
   // =========================================================================
 
   String _generateIdentifier(IdentifierExpressionIR expr) {
-    return expr.name;
+    final name = expr.name;
+
+    // ✅ Check if we're inside a class method (not top-level)
+    if (_currentFunctionContext != null &&
+        !_currentFunctionContext!.isTopLevel) {
+      // Add 'this.' prefix for:
+      // 1. Private fields (start with _)
+      // 2. The 'widget' property (for StatefulWidget state classes)
+      // 3. Properties accessed via 'widget.' (e.g. widget.title)
+      if (name.startsWith('_') ||
+          name == 'widget' ||
+          name.startsWith('widget.')) {
+        return 'this.$name';
+      }
+    }
+
+    return name;
   }
 
   String _generatePropertyAccess(PropertyAccessExpressionIR expr) {
     // ✅ FIX: Never parenthesize property access chains
-    final target = generate(expr.target, parenthesize: false);
+    var target = generate(expr.target, parenthesize: false);
+
+    // ✅ FORCE FIX for 'widget' -> 'this.widget' if identifier generation missed it
+    if (target == 'widget') {
+      if (_currentFunctionContext != null &&
+          !_currentFunctionContext!.isTopLevel) {
+        target = 'this.widget';
+      } else {
+        // Even if context is missing, 'widget' property access is almost always 'this.widget' in State classes
+        // But be careful not to break local vars.
+        // Assuming 'widget' is valid property.
+        target = 'this.widget';
+      }
+    }
+
+    // ✅ NEW: Handle Dart 3.0+ shorthand enum syntax (.center, .start, etc.)
+    // When target is empty OR whitespace-only, this is likely shorthand enum access
+    if (target.isEmpty || target.trim().isEmpty) {
+      // Check if property name matches a known enum member
+      final propertyName = expr.propertyName;
+
+      // Try to infer the enum type from context and map it
+      // For now, check common Flutter enum members
+      final knownEnumMembers = {
+        'center', 'start', 'end', 'stretch', 'baseline', // Alignment
+        'spaceBetween', 'spaceAround', 'spaceEvenly', // MainAxis
+        'horizontal', 'vertical', // Axis
+        'max', 'min', // Size
+        'left', 'right', 'justify', // TextAlign
+        'clip', 'fade', 'ellipsis', 'visible', // TextOverflow
+        'bold', 'normal', 'w100', 'w200', 'w300', // FontWeight
+        'w400', 'w500', 'w600', 'w700', 'w800', 'w900',
+        'fill', 'contain', 'cover', 'none', 'scaleDown', // BoxFit
+        'up', 'down', // VerticalDirection
+        'rtl', 'ltr', // TextDirection
+      };
+
+      if (knownEnumMembers.contains(propertyName)) {
+        print(
+          '✔️ Detected shorthand enum syntax: .$propertyName → "$propertyName"',
+        );
+        return '"$propertyName"';
+      }
+
+      // Unknown shorthand - output as-is with warning
+      print('⚠️  Unknown shorthand property access: .$propertyName');
+      return '.$propertyName';
+    }
 
     if (_isValidIdentifier(expr.propertyName)) {
       return '$target.${expr.propertyName}';

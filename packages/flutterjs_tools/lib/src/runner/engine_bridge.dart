@@ -313,6 +313,7 @@ class FlutterJSEngineBridge {
       );
 
       _isRunning = true;
+      final readyCompleter = Completer<void>();
 
       // Listen to stdout
       _engineProcess!.stdout
@@ -322,6 +323,11 @@ class FlutterJSEngineBridge {
               _outputController.add(data);
               if (config.verbose) {
                 stdout.write(data);
+              }
+              if (!readyCompleter.isCompleted &&
+                  (data.contains('Development server running!') ||
+                      data.contains('Failed to start dev server'))) {
+                readyCompleter.complete();
               }
             },
             onError: (error) {
@@ -343,10 +349,14 @@ class FlutterJSEngineBridge {
         if (config.verbose) {
           print('\n⚡ FlutterJS Engine exited with code: $exitCode');
         }
+        if (!readyCompleter.isCompleted) readyCompleter.complete();
       });
 
-      // Wait a bit for the server to start
-      await Future.delayed(const Duration(milliseconds: 1500));
+      // Wait for build completion (up to 60s)
+      await readyCompleter.future.timeout(
+        const Duration(seconds: 60),
+        onTimeout: () => null,
+      );
 
       if (!config.verbose) {
         print('\n✅ FlutterJS Dev Server started');

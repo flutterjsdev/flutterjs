@@ -1,0 +1,2 @@
+class i{constructor(t=0,h=0){this.width=t,this.height=h}static get zero(){return new i(0,0)}static get infinite(){return new i(1/0,1/0)}static square(t){return new i(t,t)}get isEmpty(){return this.width===0&&this.height===0}get isInfinite(){return this.width===1/0||this.height===1/0}toString(){return`Size(${this.width}, ${this.height})`}equals(t){return!t||!(t instanceof i)?!1:this.width===t.width&&this.height===t.height}}export{i as Size};
+//# sourceMappingURL=size.js.map

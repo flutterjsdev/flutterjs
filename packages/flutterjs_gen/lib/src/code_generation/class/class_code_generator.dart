@@ -178,26 +178,46 @@ class ClassCodeGen {
 
     buffer.write('class ${cls.name}');
 
-    // Type parameters if any
-    if (cls.typeParameters.isNotEmpty) {
-      final typeParams = cls.typeParameters.map((t) => t.name).join(', ');
-      buffer.write('<$typeParams>');
-    }
+    // ✅ REMOVED: Type parameters - not valid JavaScript syntax
+    // TypeScript-style generics like <T> are not valid in plain JS
+    // if (cls.typeParameters.isNotEmpty) {
+    //   final typeParams = cls.typeParameters.map((t) => t.name).join(', ');
+    //   buffer.write('<$typeParams>');
+    // }
 
-    // Inheritance
+    // Inheritance - ✅ Strip generic type parameters from superclass
     if (cls.superclass != null) {
-      buffer.write(' extends ${cls.superclass!.displayName()}');
+      final superclassName = cls.superclass!.displayName();
+      // Remove generic type arguments: State<MyHomePage> -> State
+      final baseClassName = superclassName.contains('<')
+          ? superclassName.substring(0, superclassName.indexOf('<'))
+          : superclassName;
+      buffer.write(' extends $baseClassName');
     }
 
-    // Interfaces
+    // Interfaces - ✅ Strip generic type parameters
     if (cls.interfaces.isNotEmpty) {
-      final interfaces = cls.interfaces.map((i) => i.displayName()).join(', ');
+      final interfaces = cls.interfaces
+          .map((i) {
+            final name = i.displayName();
+            return name.contains('<')
+                ? name.substring(0, name.indexOf('<'))
+                : name;
+          })
+          .join(', ');
       buffer.write(' implements $interfaces');
     }
 
-    // Mixins
+    // Mixins - ✅ Strip generic type parameters
     if (cls.mixins.isNotEmpty) {
-      final mixins = cls.mixins.map((m) => m.displayName()).join(', ');
+      final mixins = cls.mixins
+          .map((m) {
+            final name = m.displayName();
+            return name.contains('<')
+                ? name.substring(0, name.indexOf('<'))
+                : name;
+          })
+          .join(', ');
       buffer.write(' with $mixins');
     }
 

@@ -1,5 +1,5 @@
 import { Widget, } from '../../core/widget_element.js';
-import {Element} from "@flutterjs/runtime"
+import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
 import { TextDirection } from '../../utils/utils.js';
 
@@ -609,6 +609,11 @@ class RichText extends Widget {
   _mapTextAlign(textAlign, textDirection) {
     const isRTL = textDirection === TextDirection.rtl;
 
+    // Handle shorthand string: ".center" -> "center"
+    if (typeof textAlign === 'string' && textAlign.startsWith('.')) {
+      textAlign = textAlign.substring(1);
+    }
+
     switch (textAlign) {
       case TextAlign.start:
         return isRTL ? 'right' : 'left';
@@ -639,7 +644,7 @@ class RichText extends Widget {
   }
 
   createElement(parent, runtime) {
-    return new RichTextElement(this,parent, runtime);
+    return new RichTextElement(this, parent, runtime);
   }
 }
 
