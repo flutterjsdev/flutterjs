@@ -16,7 +16,7 @@ import 'dependency_resolver.dart';
 import 'type_registry.dart';
 import 'dart:async';
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:dev_tools/dev_tools.dart'; // ADD THIS
+import 'package:flutterjs_dev_tools/dev_tools.dart'; // ADD THIS
 
 /// Advanced multi-pass project analyzer
 class ProjectAnalyzer {

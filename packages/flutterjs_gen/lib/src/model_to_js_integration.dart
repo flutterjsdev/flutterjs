@@ -269,14 +269,17 @@ class ModelToJSPipeline {
   String _generateImports(DartFile dartFile) {
     final buffer = StringBuffer();
 
-    buffer.writeln('import Flutter from \'flutter-js-framework\';');
     buffer.writeln('import {');
+    buffer.writeln('  runApp,');
     buffer.writeln('  Widget,');
     buffer.writeln('  State,');
     buffer.writeln('  StatefulWidget,');
     buffer.writeln('  StatelessWidget,');
     buffer.writeln('  BuildContext,');
-    buffer.writeln('} from \'flutter-js-framework/widgets\';');
+    buffer.writeln('} from \'@flutterjs/runtime\';');
+
+    // Add generic import for material potentially used
+    buffer.writeln('import * as Material from \'@flutterjs/material\';');
 
     return buffer.toString();
   }

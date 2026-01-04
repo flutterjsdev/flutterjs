@@ -12,10 +12,7 @@ environment:
 dependencies:
   analyzer: ^8.4.1
   path: ^1.9.0
-  dev_utils:
-    path: ../dev_utils
-  flutterjs_analyzer:
-    path: ../flutterjs_analyzer  
+  flutterjs_dev_utils: any
 
 dev_dependencies:
   lints: ^6.0.0

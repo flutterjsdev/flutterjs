@@ -6,12 +6,12 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 workspace:
   - examples/counter/
-  - packages/dev_utils/
+  - packages/flutterjs_dev_utils/
   - packages/flutterjs_tools/
   - packages/flutterjs_gen/
   - packages/flutterjs_analyzer/
   - packages/flutterjs_core/
-  - packages/dev_tools/
+  - packages/flutterjs_dev_tools/
 
 environment:
   sdk: ^3.10.0-227.0.dev
@@ -21,37 +21,15 @@ dependencies:
   path: ^1.9.0
   analyzer: ^8.4.1
   args:
-  flutterjs_analyzer:
-    path: packages/flutterjs_analyzer
-  flutterjs_core:
-    path: packages/flutterjs_core
-  flutterjs_gen:
-    path: packages/flutterjs_gen
-  flutterjs_tools:
-    path: packages/flutterjs_tools
-  dev_utils:
-    path: packages/dev_utils    
-  
+  flutterjs_analyzer: any
+  flutterjs_core: any
+  flutterjs_gen: any
+  flutterjs_tools: any
+  flutterjs_dev_utils: any    
+  flutterjs_dev_tools: any    
+
 
 dev_dependencies:
   lints: ^6.0.0
   test: ^1.25.6
-  melos: ^6.3.0
 
-melos:
-  scripts:
-    bootstrap:
-      run: melos bootstrap
-      description: Bootstrap all Dart packages.
-
-    init:
-      run: dart run tool/init.dart
-      description: Initialize all dependencies for Dart and JavaScript packages.
-
-    test:all:
-      run: melos exec --dir-exists="test" -- dart test
-      description: Run tests for all Dart packages.
-    
-    analyze:all:
-      run: melos exec -- dart analyze
-      description: Analyze all Dart packages.

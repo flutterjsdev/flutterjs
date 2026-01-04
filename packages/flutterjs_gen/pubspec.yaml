@@ -10,8 +10,7 @@ environment:
 # Add regular dependencies here.
 dependencies:
   path: ^1.9.0
-  flutterjs_core:
-    path: ../flutterjs_core
+  flutterjs_core: any
 
 dev_dependencies:
   lints: ^6.0.0

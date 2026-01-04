@@ -112,7 +112,7 @@ project/
 │
 ├── analysis_options.yaml         # Shared lint rules
 ├── pubspec.yaml                  # Root workspace
-├── melos.yaml                    # (Optional) Multi-package manager
+
 └── README.md
 ```
 
@@ -257,27 +257,7 @@ class AnalyzeCommand {
 }
 ```
 
-## Optional: Use Melos for Package Management
 
-If you want automated scripting for all packages:
-
-```yaml
-# melos.yaml
-name: my_project
-packages:
-  - packages/**
-
-scripts:
-  test:all:
-    run: melos exec -- dart test
-    description: Run tests for all packages
-  
-  analyze:all:
-    run: melos exec -- dart analyze
-    description: Analyze all packages
-```
-
-Then run: `melos test:all` to test everything.
 
 ## Migration Path
 

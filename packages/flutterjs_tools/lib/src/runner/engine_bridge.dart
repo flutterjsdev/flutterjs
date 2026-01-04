@@ -135,11 +135,37 @@ class FlutterJSEngineBridge {
   FlutterJSEngineBridge(this.config);
 
   /// Get the path to the engine binary for the current platform
+  /// Prefers Node.js source (bin/index.js) over bundled executable
   String? _getEnginePath() {
-    // The engine binaries are in packages/flutterjs_engine/dist/
-    // We need to find this relative to the current package location
+    // First, try to find the Node.js source files (preferred method)
+    // This avoids ES module issues with pkg bundler
+    final sourceBasePaths = <String?>[
+      // Relative to project root (when running from flutterjs repo)
+      path.join(config.projectPath, '..', '..', 'packages', 'flutterjs_engine'),
+      // Absolute path for the flutterjs repository
+      'C:/Jay/_Plugin/flutterjs/packages/flutterjs_engine',
+    ];
 
-    // Try multiple possible locations
+    for (final basePath in sourceBasePaths.whereType<String>()) {
+      final sourceEntryPoint = path.join(basePath, 'bin', 'index.js');
+      final normalizedPath = path.normalize(sourceEntryPoint);
+
+      if (config.verbose) {
+        print('  Checking Node.js source: $normalizedPath');
+      }
+
+      if (File(normalizedPath).existsSync()) {
+        // Verify node is available
+        if (_isNodeAvailable()) {
+          if (config.verbose) {
+            print('  ✓ Using Node.js source: $normalizedPath');
+          }
+          return normalizedPath;
+        }
+      }
+    }
+
+    // Fallback: Try bundled binaries
     final nullablePaths = <String?>[
       // Relative to project root (when running from flutterjs repo)
       path.join(
@@ -166,7 +192,7 @@ class FlutterJSEngineBridge {
       final normalizedPath = path.normalize(fullPath);
 
       if (config.verbose) {
-        print('  Checking: $normalizedPath');
+        print('  Checking bundled binary: $normalizedPath');
       }
 
       if (File(normalizedPath).existsSync()) {
@@ -177,14 +203,24 @@ class FlutterJSEngineBridge {
     return null;
   }
 
+  /// Check if Node.js is available in the system
+  bool _isNodeAvailable() {
+    try {
+      final result = Process.runSync('node', ['--version']);
+      return result.exitCode == 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /// Get the binary name for the current platform
   String _getPlatformBinaryName() {
     if (Platform.isWindows) {
-      return 'flutter_js.exe';
+      return 'flutterjs-win.exe';
     } else if (Platform.isMacOS) {
-      return 'flutter_js-macos';
+      return 'flutterjs-macos';
     } else if (Platform.isLinux) {
-      return 'flutter_js-linux';
+      return 'flutterjs-linux';
     } else {
       throw UnsupportedError(
         'Unsupported platform: ${Platform.operatingSystem}',
@@ -247,10 +283,31 @@ class FlutterJSEngineBridge {
         args.add('--verbose');
       }
 
+      // Determine if we're running Node.js source or bundled executable
+      final isJsSource = enginePath.endsWith('.js');
+      final String executable;
+      final List<String> processArgs;
+
+      if (isJsSource) {
+        // Run with Node.js
+        executable = 'node';
+        processArgs = [enginePath, ...args];
+        if (config.verbose) {
+          print('   Mode: Node.js (ES modules)');
+        }
+      } else {
+        // Run bundled executable directly
+        executable = enginePath;
+        processArgs = args;
+        if (config.verbose) {
+          print('   Mode: Bundled executable');
+        }
+      }
+
       // Start the process
       _engineProcess = await Process.start(
-        enginePath,
-        args,
+        executable,
+        processArgs,
         workingDirectory: config.projectPath,
         mode: ProcessStartMode.normal,
       );
@@ -665,6 +722,31 @@ module.exports = {
   <noscript>
     <p>This application requires JavaScript to run.</p>
   </noscript>
+  
+  <!-- Import Map for Module Resolution -->
+  <script type="importmap">
+  {
+    "imports": {
+      "flutter-js-framework": "/node_modules/@flutterjs/runtime/index.js",
+      "flutter-js-framework/widgets": "/node_modules/@flutterjs/runtime/widgets.js",
+      "@flutterjs/runtime": "/node_modules/@flutterjs/runtime/index.js",
+      "@flutterjs/material": "/node_modules/@flutterjs/material/index.js",
+      "@flutterjs/vdom": "/node_modules/@flutterjs/vdom/index.js"
+    }
+  }
+  </script>
+  
+  <!-- Load and Run App -->
+  <script type="module">
+    import { main } from './src/main.fjs';
+    
+    // Run the app when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => main());
+    } else {
+      main();
+    }
+  </script>
 </body>
 </html>
 ''';
@@ -799,10 +881,10 @@ npm-debug.log*
   /// Find the engine binary path
   String? _findEnginePath(String fromDir, bool verbose) {
     final binaryName = Platform.isWindows
-        ? 'flutter_js.exe'
+        ? 'flutterjs-win.exe'
         : Platform.isMacOS
-        ? 'flutter_js-macos'
-        : 'flutter_js-linux';
+        ? 'flutterjs-macos'
+        : 'flutterjs-linux';
 
     final possiblePaths = <String?>[
       // Relative to fromDir going up to find packages

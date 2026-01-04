@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:flutterjs_tools/command.dart';
-import 'package:dev_tools/dev_tools.dart';
+import 'package:flutterjs_dev_tools/dev_tools.dart';
 
 /// ============================================================================
 /// Flutter.js CLI Entry Point

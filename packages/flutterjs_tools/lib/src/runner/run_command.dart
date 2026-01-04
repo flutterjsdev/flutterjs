@@ -7,7 +7,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:dev_tools/dev_tools.dart';
+import 'package:flutterjs_dev_tools/dev_tools.dart';
 import 'package:args/command_runner.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart';
 import 'package:flutterjs_tools/src/runner/code_pipleiline.dart';

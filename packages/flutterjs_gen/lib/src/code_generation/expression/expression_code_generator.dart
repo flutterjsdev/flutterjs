@@ -954,7 +954,8 @@ class ExpressionCodeGen {
         expr.methodName[0].toUpperCase() == expr.methodName[0];
 
     if (isWidgetCall) {
-      return '${expr.methodName}$typeArgStr($args)';
+      // ✅ FIX: Add 'new' keyword for widget constructors (implicitly detected by Capitalized name)
+      return 'new ${expr.methodName}$typeArgStr($args)';
     }
 
     // ✅ NEW: Use context from the function declaration
@@ -1030,9 +1031,9 @@ class ExpressionCodeGen {
         ? '.${expr.constructorName}'
         : '';
     final args = _generateArgumentList(expr.arguments, expr.namedArguments);
-    final constKeyword = expr.isConst ? 'const ' : '';
+    // Note: JavaScript doesn't have 'const' for object instantiation, only 'new'
 
-    return '${constKeyword}new $typeName$constructorName($args)';
+    return 'new $typeName$constructorName($args)';
   }
 
   /// Handles ConstructorCallExpressionIR (has String className)
@@ -1049,10 +1050,8 @@ class ExpressionCodeGen {
       expr.namedArguments,
     );
 
-    // ✅ Only add const if isConstant is true
-    final constKeyword = expr.isConstant ? 'const ' : '';
-
-    return '${constKeyword}new ${expr.className}$constructorName($args)';
+    // Note: JavaScript doesn't have 'const' for object instantiation, only 'new'
+    return 'new ${expr.className}$constructorName($args)';
   }
 
   String _generateArgumentList(

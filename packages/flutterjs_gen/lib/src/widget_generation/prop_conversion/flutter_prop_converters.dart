@@ -467,26 +467,17 @@ class FlutterPropConverter {
   // =========================================================================
 
   ConversionResult convertMainAxisAlignment(ExpressionIR expr) {
-    // MainAxisAlignment.start -> 'flex-start'
-    // MainAxisAlignment.center -> 'center'
-    // MainAxisAlignment.end -> 'flex-end'
-    // MainAxisAlignment.spaceBetween -> 'space-between'
-    // MainAxisAlignment.spaceAround -> 'space-around'
-    // MainAxisAlignment.spaceEvenly -> 'space-evenly'
+    // MainAxisAlignment.start -> MainAxisAlignment.start
+    // MainAxisAlignment.center -> MainAxisAlignment.center
+    // Note: Keep Flutter-style enum syntax for familiarity
 
     if (expr is PropertyAccessExpressionIR) {
       final name = expr.propertyName;
-      const mapping = {
-        'start': 'flex-start',
-        'end': 'flex-end',
-        'center': 'center',
-        'spaceBetween': 'space-between',
-        'spaceAround': 'space-around',
-        'spaceEvenly': 'space-evenly',
-      };
-
-      final css = mapping[name] ?? 'flex-start';
-      return ConversionResult(code: "'$css'", dartType: 'MainAxisAlignment');
+      // Use Flutter-style enum syntax
+      return ConversionResult(
+        code: 'MainAxisAlignment.$name',
+        dartType: 'MainAxisAlignment',
+      );
     }
 
     return ConversionResult(
@@ -500,23 +491,17 @@ class FlutterPropConverter {
   // =========================================================================
 
   ConversionResult convertCrossAxisAlignment(ExpressionIR expr) {
-    // CrossAxisAlignment.start -> 'flex-start'
-    // CrossAxisAlignment.center -> 'center'
-    // CrossAxisAlignment.end -> 'flex-end'
-    // CrossAxisAlignment.stretch -> 'stretch'
+    // CrossAxisAlignment.start -> CrossAxisAlignment.start
+    // CrossAxisAlignment.center -> CrossAxisAlignment.center
+    // Note: Keep Flutter-style enum syntax for familiarity
 
     if (expr is PropertyAccessExpressionIR) {
       final name = expr.propertyName;
-      const mapping = {
-        'start': 'flex-start',
-        'end': 'flex-end',
-        'center': 'center',
-        'stretch': 'stretch',
-        'baseline': 'baseline',
-      };
-
-      final css = mapping[name] ?? 'stretch';
-      return ConversionResult(code: "'$css'", dartType: 'CrossAxisAlignment');
+      // Use Flutter-style enum syntax
+      return ConversionResult(
+        code: 'CrossAxisAlignment.$name',
+        dartType: 'CrossAxisAlignment',
+      );
     }
 
     return ConversionResult(

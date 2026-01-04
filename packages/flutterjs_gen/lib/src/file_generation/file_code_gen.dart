@@ -221,6 +221,25 @@ class FileCodeGen {
     } else if (expr is ConditionalExpressionIR) {
       await _detectWidgetsInExpressionAsync(expr.thenExpression);
       await _detectWidgetsInExpressionAsync(expr.elseExpression);
+    } else if (expr is PropertyAccessExpressionIR) {
+      if (expr.target is IdentifierExpressionIR) {
+        final targetName = (expr.target as IdentifierExpressionIR).name;
+        // Heuristic: Class names are capitalized
+        if (targetName.isNotEmpty &&
+            targetName[0].toUpperCase() == targetName[0]) {
+          await _lock.protect(() async {
+            usedWidgets.add(targetName);
+          });
+        }
+      }
+      // Check identifier if it looks like a class/enum (e.g. MainAxisAlignment)
+    } else if (expr is IdentifierExpressionIR) {
+      // Heuristic: Class names are capitalized
+      if (expr.name.isNotEmpty && expr.name[0].toUpperCase() == expr.name[0]) {
+        await _lock.protect(() async {
+          usedWidgets.add(expr.name);
+        });
+      }
     }
   }
 
@@ -276,51 +295,36 @@ class FileCodeGen {
   Future<String> _generateSmartImportsAsync() async {
     var code = StringBuffer();
 
-    const allWidgets = {
-      'Container': 'Basic container widget',
-      'Text': 'Text display widget',
-      'Row': 'Horizontal layout',
-      'Column': 'Vertical layout',
-      'Center': 'Centering widget',
-      'Padding': 'Padding widget',
-      'Stack': 'Overlapping widgets',
-      'Expanded': 'Flexible space widget',
-      'SizedBox': 'Fixed size box',
-      'Scaffold': 'Material scaffold',
-      'AppBar': 'App bar widget',
-      'FloatingActionButton': 'FAB widget',
-      'ListView': 'List view widget',
-      'GridView': 'Grid view widget',
-      'Card': 'Card widget',
-      'Icon': 'Icon widget',
-      'Image': 'Image widget',
-      'Button': 'Button widget',
-      'TextField': 'Text input',
-      'Form': 'Form widget',
-    };
-
     await _lock.protect(() async {
-      code.writeln('import Flutter from \'flutter-js-framework\';');
       code.writeln('import {');
-      code.writeln('  // Core Framework');
+      code.writeln('  runApp,');
       code.writeln('  Widget,');
       code.writeln('  State,');
       code.writeln('  StatefulWidget,');
       code.writeln('  StatelessWidget,');
       code.writeln('  BuildContext,');
       code.writeln('  Key,');
+      code.writeln('} from \'@flutterjs/runtime\';');
 
-      final usedWidgetsList =
-          usedWidgets.where((w) => allWidgets.containsKey(w)).toList()..sort();
+      // Sort widgets to ensure deterministic output
+      final sortedWidgets = usedWidgets.toList()..sort();
 
-      if (usedWidgetsList.isNotEmpty) {
-        code.writeln('  // Used Widgets');
-        for (final widget in usedWidgetsList) {
-          code.writeln('  $widget, // ${allWidgets[widget]}');
+      if (sortedWidgets.isNotEmpty) {
+        code.writeln('import {');
+        for (final widget in sortedWidgets) {
+          // Skip runtime types if they accidentally got into usedWidgets
+          if ([
+            'Widget',
+            'State',
+            'BuildContext',
+            'Key',
+            'runApp',
+          ].contains(widget))
+            continue;
+          code.writeln('  $widget,');
         }
+        code.writeln('} from \'@flutterjs/material\';');
       }
-
-      code.writeln('} from \'flutter-js-framework/widgets\';');
     });
 
     return code.toString();
@@ -745,6 +749,18 @@ class FileCodeGen {
     } else if (expr is ConditionalExpressionIR) {
       _detectWidgetsInExpression(expr.thenExpression);
       _detectWidgetsInExpression(expr.elseExpression);
+    } else if (expr is PropertyAccessExpressionIR) {
+      if (expr.target is IdentifierExpressionIR) {
+        final targetName = (expr.target as IdentifierExpressionIR).name;
+        if (targetName.isNotEmpty &&
+            targetName[0].toUpperCase() == targetName[0]) {
+          usedWidgets.add(targetName);
+        }
+      }
+    } else if (expr is IdentifierExpressionIR) {
+      if (expr.name.isNotEmpty && expr.name[0].toUpperCase() == expr.name[0]) {
+        usedWidgets.add(expr.name);
+      }
     }
   }
 
