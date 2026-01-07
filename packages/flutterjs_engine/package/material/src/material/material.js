@@ -38,9 +38,12 @@ export {
 export {
     MaterialApp,
     ThemeData,
+    Theme,
     Navigator,
     Route
 } from "./material_app.js";
+
+export { ColorScheme } from "./color_scheme.js";
 
 export {
     FloatingActionButton,

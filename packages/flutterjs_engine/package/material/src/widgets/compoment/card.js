@@ -1,7 +1,7 @@
 import { StatelessWidget } from '../../core/widget_element.js';
-import { Container, BoxDecoration, EdgeInsets } from '../../material/container.js';
+import { Container, BoxDecoration } from '../../material/container.js';
+import { EdgeInsets, BorderRadius } from '../../utils/utils.js';
 import { Colors } from '../../material/color.js';
-import { BorderRadius } from '../../utils/utils.js';
 
 class Card extends StatelessWidget {
     constructor({

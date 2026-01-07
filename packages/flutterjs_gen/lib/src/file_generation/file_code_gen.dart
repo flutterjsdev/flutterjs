@@ -241,11 +241,31 @@ class FileCodeGen {
       code.writeln('  StatelessWidget,');
       code.writeln('  BuildContext,');
       code.writeln('  Key,');
-      code.writeln('} from \'@flutterjs/runtime\';');
+      code.writeln('} from \'@flutterjs/material\';');
 
       // Ensure Icons is imported if Icon is used (safety fallback)
       if (usedWidgets.contains('Icon')) {
         usedWidgets.add('Icons');
+      }
+
+      // ✅ NEW: Ensure Theme/Material related classes are imported
+      if (usedWidgets.contains('MaterialApp') ||
+          usedWidgets.contains('Theme')) {
+        usedWidgets.add('ThemeData');
+        usedWidgets.add('ColorScheme');
+        usedWidgets.add('Colors');
+        usedWidgets.add('Theme'); // ✅ Explicitly add Theme
+      }
+
+      // ✅ NEW: Ensure Icon/Icons are imported
+      if (usedWidgets.contains('Icon') ||
+          usedWidgets.contains('Icons') ||
+          usedWidgets.contains('FloatingActionButton') ||
+          usedWidgets.contains('IconButton')) {
+        usedWidgets.add('Icon');
+        usedWidgets.add('Icons');
+        usedWidgets.add('IconData');
+        usedWidgets.add('FloatingActionButton');
       }
 
       // Sort widgets to ensure deterministic output

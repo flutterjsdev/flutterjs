@@ -154,4 +154,4 @@ class PaddingElement extends ProxyWidget.constructor.prototype.constructor {
     }
 }
 
-export { Padding, RenderPadding, EdgeInsets };
+export { Padding, RenderPadding };

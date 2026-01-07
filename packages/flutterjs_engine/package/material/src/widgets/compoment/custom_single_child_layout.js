@@ -2,8 +2,6 @@ import { ProxyWidget, Widget } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Size } from '../../utils/size.js';
 import { BoxConstraints } from '../../utils/box_constraints.js';
-import { Size } from '../../utils/size.js';
-import { BoxConstraints } from '../../utils/box_constraints.js';
 
 
 

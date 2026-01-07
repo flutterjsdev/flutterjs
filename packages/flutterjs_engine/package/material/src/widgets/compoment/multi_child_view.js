@@ -1,53 +1,16 @@
 
 import { Widget, } from '../../core/widget_element.js';
-import {Element} from "@flutterjs/runtime"
+import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
-import { Axis, TextDirection, VerticalDirection, Clip } from '../../utils/utils.js';
+import { Axis, TextDirection, VerticalDirection, Clip, MainAxisAlignment, CrossAxisAlignment, FlexFit, WrapAlignment, WrapCrossAlignment } from '../../utils/utils.js';
 
 // ============================================================================
 // ENUMS
 // ============================================================================
 
-const MainAxisAlignment = {
-  start: 'start',
-  end: 'end',
-  center: 'center',
-  spaceBetween: 'spaceBetween',
-  spaceAround: 'spaceAround',
-  spaceEvenly: 'spaceEvenly'
-};
-
 const MainAxisSize = {
   min: 'min',
   max: 'max'
-};
-
-const CrossAxisAlignment = {
-  start: 'start',
-  end: 'end',
-  center: 'center',
-  stretch: 'stretch',
-  baseline: 'baseline'
-};
-
-const FlexFit = {
-  tight: 'tight',
-  loose: 'loose'
-};
-
-const WrapAlignment = {
-  start: 'start',
-  end: 'end',
-  center: 'center',
-  spaceBetween: 'spaceBetween',
-  spaceAround: 'spaceAround',
-  spaceEvenly: 'spaceEvenly'
-};
-
-const WrapCrossAlignment = {
-  start: 'start',
-  end: 'end',
-  center: 'center'
 };
 
 // ============================================================================
@@ -170,7 +133,7 @@ class Flex extends Widget {
       return true;
     }
     return this.crossAxisAlignment === CrossAxisAlignment.start ||
-           this.crossAxisAlignment === CrossAxisAlignment.end;
+      this.crossAxisAlignment === CrossAxisAlignment.end;
   }
 
   /**
@@ -361,7 +324,7 @@ class Flex extends Widget {
   }
 
   createElement(parent, runtime) {
-    return new FlexElement(this,parent, runtime);
+    return new FlexElement(this, parent, runtime);
   }
 }
 
@@ -456,7 +419,7 @@ class Flexible extends Widget {
   }
 
   createElement(parent, runtime) {
-    return new FlexibleElement(this,parent, runtime);
+    return new FlexibleElement(this, parent, runtime);
   }
 }
 
@@ -612,7 +575,7 @@ class Wrap extends Widget {
   }
 
   createElement(parent, runtime) {
-    return new WrapElement(this,parent, runtime);
+    return new WrapElement(this, parent, runtime);
   }
 }
 
@@ -743,7 +706,7 @@ class Flow extends Widget {
   }
 
   createElement(parent, runtime) {
-    return new FlowElement(this,parent, runtime);
+    return new FlowElement(this, parent, runtime);
   }
 }
 
@@ -772,10 +735,5 @@ export {
   Flow,
   FlowElement,
   FlowDelegate,
-  MainAxisAlignment,
-  MainAxisSize,
-  CrossAxisAlignment,
-  FlexFit,
-  WrapAlignment,
-  WrapCrossAlignment
+  MainAxisSize
 };

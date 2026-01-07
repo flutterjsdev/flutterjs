@@ -1,7 +1,7 @@
 {
   "version": 3,
   "sources": ["../src/index.js"],
-  "sourcesContent": ["export { BorderRadius } from \"./utils/geometry.js\";\r\n\r\nexport * from \"./core/core.js\";\r\nexport * from \"./material/material.js\";\r\nexport * from \"./widgets/widgets.js\";\r\n"],
-  "mappings": "AAAA,OAAS,gBAAAA,MAAoB,sBAE7B,WAAc,iBACd,WAAc,yBACd,WAAc",
-  "names": ["BorderRadius"]
+  "sourcesContent": ["export { BorderRadius } from \"./utils/geometry.js\";\r\n\r\n// ============================================================================\r\n// FLUTTERJS UNIFIED EXPORT (Material Layer)\r\n// \r\n// This package acts as the main entry point for FlutterJS apps using Material Design.\r\n// It re-exports the core runtime (@flutterjs/runtime) so developers (and generators)\r\n// only need to import from this single package.\r\n// ============================================================================\r\n\r\n// 1. Re-Export Core Runtime Primitives\r\nexport { BuildContext, runApp } from '@flutterjs/runtime';\r\n\r\n// 2. Export Material Components\r\nexport * from \"./core/core.js\";\r\nexport * from \"./material/material.js\";\r\n\r\nexport * from \"./widgets/widgets.js\";\r\nexport * from \"./utils/utils.js\";\r\n"],
+  "mappings": "AAAA,OAAS,gBAAAA,MAAoB,sBAW7B,OAAS,gBAAAC,EAAc,UAAAC,MAAc,qBAGrC,WAAc,iBACd,WAAc,yBAEd,WAAc,uBACd,WAAc",
+  "names": ["BorderRadius", "BuildContext", "runApp"]
 }

@@ -1,7 +1,7 @@
 // ============================================================================
 // Generated from Dart IR - Advanced Code Generation (Phase 10)
 // WARNING: Do not edit manually - changes will be lost
-// Generated at: 2026-01-05 01:05:01.273078
+// Generated at: 2026-01-08 01:33:56.320882
 //
 // Smart Features Enabled:
 // ✓ Intelligent import detection
@@ -20,13 +20,14 @@ import {
   StatelessWidget,
   BuildContext,
   Key,
-} from '@flutterjs/runtime';
+} from '@flutterjs/material';
 import {
   AppBar,
   BorderRadius,
   BoxDecoration,
   Card,
   Center,
+  ColorScheme,
   Colors,
   Column,
   Container,
@@ -35,11 +36,15 @@ import {
   EdgeInsets,
   FloatingActionButton,
   FontWeight,
+  Icon,
+  IconData,
+  Icons,
   MaterialApp,
   Padding,
   Scaffold,
   Text,
   TextStyle,
+  Theme,
   ThemeData,
 } from '@flutterjs/material';
 
@@ -89,6 +94,7 @@ class MyApp extends StatelessWidget {
    * @param {any|null} [key]
    */
   constructor({ key = undefined } = {}) {
+    super(key);
     this.key = key;
   }
 
@@ -111,6 +117,7 @@ class MyHomePage extends StatefulWidget {
    * @param {any|null} title
    */
   constructor({ key = undefined, title } = {}) {
+    super(key);
     this.key = key;
     this.title = title;
   }
@@ -132,9 +139,9 @@ class _MyHomePageState extends State {
   /**
 
    */
-  _incrementCounter() {
+  _incrementCounter = () => {
   this.setState(() => this._counter++);
-  }
+  };
 
   /**
    * @param {BuildContext} [context]
@@ -155,7 +162,7 @@ class _MyHomePageState extends State {
 
  */
 function main() {
-runApp(new MyApp());
+  return new MyApp();
 }
 
 const buildUserCard = (name = undefined, age = undefined) => new Card({ margin: EdgeInsets.all(12), child: new Padding({ padding: EdgeInsets.all(16), child: new Column({ crossAxisAlignment: CrossAxisAlignment.start, children: [new Text(`Name: ${name}`, { style: new TextStyle({ fontSize: 18 }) }), new Text(`Age: ${age}`)] }) }) });

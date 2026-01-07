@@ -186,6 +186,75 @@ class FunctionCodeGen {
       buffer.writeln(indenter.line('// Empty function body'));
     } else {
       for (final stmt in func.body!.statements) {
+        // ✅ DEBUG: Inspect main function statements
+        if (func.name == 'main') {
+          print('[FunctionCodeGen] 🔍 Inspecting stmt: ${stmt.runtimeType}');
+          if (stmt is ExpressionStmt) {
+            if (stmt.expression is FunctionCallExpr) {
+              print(
+                '  -> FunctionCallExpr: "${(stmt.expression as FunctionCallExpr).functionName}"',
+              );
+            } else {
+              try {
+                final tempCode = exprGen.generate(stmt.expression);
+                print('  -> Expression Code: "$tempCode"');
+              } catch (e) {
+                print('  -> Error generating code snippet: $e');
+              }
+            }
+          }
+        }
+
+        bool isRunApp = false;
+        if (func.name == 'main') {
+          if (_isRunAppCall(stmt)) {
+            isRunApp = true;
+          } else if (stmt is ExpressionStmt) {
+            // Fallback: Check string generation
+            try {
+              final code = exprGen.generate(stmt.expression);
+              if (code.trim().startsWith('runApp(')) {
+                isRunApp = true;
+                print('[FunctionCodeGen] ⚠️ Detected runApp via string check');
+              }
+            } catch (_) {}
+          }
+        }
+
+        // ✅ SPECIAL HANDLING: main()
+        if (isRunApp) {
+          print(
+            '[FunctionCodeGen] 🔄 Transforming main() runApp call to return statement',
+          );
+
+          String? widgetCode;
+
+          // Try to extract from AST first
+          if (stmt is ExpressionStmt && stmt.expression is FunctionCallExpr) {
+            final callExpr = stmt.expression as FunctionCallExpr;
+            if (callExpr.arguments.isNotEmpty) {
+              widgetCode = exprGen.generate(callExpr.arguments.first);
+            }
+          }
+
+          // Fallback: extract from string
+          if (widgetCode == null && stmt is ExpressionStmt) {
+            final fullCode = exprGen.generate(
+              stmt.expression,
+            ); // runApp(new MyApp())
+            final startParams = fullCode.indexOf('(');
+            final endParams = fullCode.lastIndexOf(')');
+            if (startParams != -1 && endParams != -1) {
+              widgetCode = fullCode.substring(startParams + 1, endParams);
+            }
+          }
+
+          if (widgetCode != null) {
+            buffer.writeln(indenter.line('return $widgetCode;'));
+            continue;
+          }
+        }
+
         // ✅ Pass function context
         buffer.writeln(
           stmtGen.generateWithContext(stmt, functionContext: func),
@@ -256,7 +325,26 @@ class FunctionCodeGen {
 
     // Method name and parameters
     final params = paramGen.generate(method.parameters);
-    buffer.writeln('${method.name}($params) {');
+
+    // ✅ FIXED: Use arrow functions for private methods to preserve 'this' context in callbacks
+    // Exception: Generators cannot be arrow functions
+    final isPrivate = method.name.startsWith('_');
+    final useArrowFunction =
+        isPrivate &&
+        !method.isGetter &&
+        !method.isSetter &&
+        !method.isGenerator;
+
+    if (useArrowFunction) {
+      // Arrow function syntax: _methodName = (params) => {
+      // Async handling: _methodName = async (params) => {
+      buffer.write('${method.name} = ');
+      if (method.isAsync) buffer.write('async ');
+      buffer.writeln('($params) => {');
+    } else {
+      // Standard method syntax
+      buffer.writeln('${method.name}($params) {');
+    }
 
     indenter.indent();
 
@@ -276,7 +364,13 @@ class FunctionCodeGen {
     }
 
     indenter.dedent();
-    buffer.write(indenter.line('}'));
+
+    // Check if we need semicolon (for class fields) or not (for methods)
+    if (useArrowFunction) {
+      buffer.write(indenter.line('};'));
+    } else {
+      buffer.write(indenter.line('}'));
+    }
 
     return buffer.toString().trim();
   }
@@ -299,9 +393,14 @@ class FunctionCodeGen {
     buffer.writeln('constructor$constructorName($params) {');
     indenter.indent();
 
-    // ✅ NEW: Handle super() call if this is a subclass constructor
-    if (ctor.superCall != null) {
-      buffer.writeln(indenter.line('super();'));
+    // ✅ NEW: Handle super() call with arguments from super parameters
+    final superParams = ctor.parameters
+        .where((p) => p.origin == ParameterOrigin.superParam)
+        .map((p) => p.name)
+        .join(', ');
+
+    if (ctor.superCall != null || superParams.isNotEmpty) {
+      buffer.writeln(indenter.line('super($superParams);'));
     }
 
     for (final param in ctor.parameters) {
@@ -560,5 +659,15 @@ class FunctionCodeGen {
 
   void clearErrors() {
     errors.clear();
+  }
+
+  // ✅ HELPER: Check if statement is runApp(...)
+  bool _isRunAppCall(StatementIR stmt) {
+    if (stmt is ExpressionStmt && stmt.expression is FunctionCallExpr) {
+      final call = stmt.expression as FunctionCallExpr;
+      // Fixed: FunctionCallExpr uses functionName property, not function expression
+      return call.functionName == 'runApp';
+    }
+    return false;
   }
 }
