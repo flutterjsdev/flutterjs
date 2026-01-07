@@ -13,12 +13,7 @@ export {
     Flow,
     FlowElement,
     FlowDelegate,
-    MainAxisAlignment,
-    MainAxisSize,
-    CrossAxisAlignment,
-    FlexFit,
-    WrapAlignment,
-    WrapCrossAlignment
+    MainAxisSize
 } from "./compoment/multi_child_view.js";
 
 export {
@@ -31,28 +26,24 @@ export {
     RenderStack,
     Positioned,
     PositionedElement,
-    StackParentData,
-    Alignment,
-    AlignmentDirectional,
-    StackFit
+    StackParentData
 } from "./compoment/stack.js";
 
 export {
-    Padding, RenderPadding, EdgeInsets
+    Padding, RenderPadding
 } from "./compoment/padding.js";
 
-export{
-  RichText,
-  RichTextElement,
-  RenderParagraph,
-  TextSpan,
-  WidgetSpan,
-  InlineSpan,
-  TextStyle,
-  StrutStyle,
-  TextScaler,
-  TextAlign,
-  TextOverflow,
-  TextWidthBasis,
-  TextBaseline
+export {
+    RichText,
+    RichTextElement,
+    RenderParagraph,
+    TextSpan,
+    WidgetSpan,
+    InlineSpan,
+    StrutStyle,
+    TextScaler,
+    TextAlign,
+    TextOverflow,
+    TextWidthBasis,
+    TextBaseline
 } from "./compoment/rich_text.js";

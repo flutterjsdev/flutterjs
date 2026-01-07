@@ -1,41 +1,7 @@
 import { Widget } from '../../core/widget_element.js';
-import {Element} from "@flutterjs/runtime"
+import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
-import { Clip, TextDirection, VerticalDirection } from '../../utils/utils.js';
-
-// ============================================================================
-// ALIGNMENT ENUMS
-// ============================================================================
-
-const Alignment = {
-  topLeft: 'topLeft',
-  topCenter: 'topCenter',
-  topRight: 'topRight',
-  centerLeft: 'centerLeft',
-  center: 'center',
-  centerRight: 'centerRight',
-  bottomLeft: 'bottomLeft',
-  bottomCenter: 'bottomCenter',
-  bottomRight: 'bottomRight'
-};
-
-const AlignmentDirectional = {
-  topStart: 'topStart',
-  topCenter: 'topCenter',
-  topEnd: 'topEnd',
-  centerStart: 'centerStart',
-  center: 'center',
-  centerEnd: 'centerEnd',
-  bottomStart: 'bottomStart',
-  bottomCenter: 'bottomCenter',
-  bottomEnd: 'bottomEnd'
-};
-
-const StackFit = {
-  loose: 'loose',
-  expand: 'expand',
-  passthrough: 'passthrough'
-};
+import { Clip, TextDirection, VerticalDirection, Alignment, AlignmentDirectional, StackFit } from '../../utils/utils.js';
 
 // ============================================================================
 // STACK PARENT DATA
@@ -56,9 +22,9 @@ class StackParentData {
    * Check if child is positioned
    */
   isPositioned() {
-    return this.left !== null || this.top !== null || 
-           this.right !== null || this.bottom !== null ||
-           this.width !== null || this.height !== null;
+    return this.left !== null || this.top !== null ||
+      this.right !== null || this.bottom !== null ||
+      this.width !== null || this.height !== null;
   }
 
   debugInfo() {
@@ -328,7 +294,7 @@ class Positioned extends Widget {
   }
 
   createElement(parent, runtime) {
-    return new PositionedElement(this,parent, runtime);
+    return new PositionedElement(this, parent, runtime);
   }
 }
 
@@ -370,8 +336,8 @@ class Stack extends Widget {
   _debugCheckHasDirectionality(context) {
     if (process.env.NODE_ENV !== 'development') return true;
 
-    const isDirectional = this.alignment.includes && 
-                         this.alignment.includes('Directional');
+    const isDirectional = this.alignment.includes &&
+      this.alignment.includes('Directional');
 
     if (isDirectional && this.textDirection === null) {
       console.warn(
@@ -515,7 +481,7 @@ class Stack extends Widget {
    * Create element
    */
   createElement(parent, runtime) {
-    return new StackElement(this,parent, runtime);
+    return new StackElement(this, parent, runtime);
   }
 }
 
@@ -531,8 +497,5 @@ export {
   RenderStack,
   Positioned,
   PositionedElement,
-  StackParentData,
-  Alignment,
-  AlignmentDirectional,
-  StackFit
+  StackParentData
 };

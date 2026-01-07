@@ -665,7 +665,6 @@ export {
   TextSpan,
   WidgetSpan,
   InlineSpan,
-  TextStyle,
   StrutStyle,
   TextScaler,
   TextAlign,

@@ -1,4 +1,4 @@
-import { Offset } from './offset.js';
+import { Offset } from './geometry.js';
 export class BoxShadow {
   constructor({
     color = '#000000',

@@ -4,6 +4,7 @@
 // Utils (added 2 days ago)
 // ===================================================================
 export * from './property/alignment.js';
+export * from './property/alignment_directional.js';
 export * from './property/axis.js';
 export * from './border.js';
 // export * from './border_radius.js';
@@ -19,13 +20,13 @@ export * from './property/font_weight.js';
 export * from './input_decoration.js';
 export * from './linear_gradient.js';
 export * from './property/main_axis_alignment.js';
-export * from './offset.js';
+// export * from './offset.js'; // Commented out: Offset is exported from geometry.js to avoid conflict
 // export * from './radius.js';
 // export * from './rect.js';
 // export * from './size.js';
 export * from './property/text_align.js';
 export * from './property/text_overflow.js';
-export * from './text_style.js';
+
 export * from './property/text_direction.js';
 
 

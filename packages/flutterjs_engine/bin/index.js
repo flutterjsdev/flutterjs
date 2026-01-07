@@ -249,7 +249,7 @@ program
   .action(async (options) => {
     try {
       const globalOpts = program.opts();
-      const projectContext = loadProjectContext(globalOpts.config);
+      const projectContext = await loadProjectContext(globalOpts.config);
       await analyze({ ...options, ...globalOpts }, projectContext);
     } catch (error) {
       handleError(error, program.opts());
@@ -268,7 +268,7 @@ program
   .action(async (options) => {
     try {
       const globalOpts = program.opts();
-      const projectContext = loadProjectContext(globalOpts.config);
+      const projectContext = await loadProjectContext(globalOpts.config);
       await clean({ ...options, ...globalOpts }, projectContext);
     } catch (error) {
       handleError(error, program.opts());
@@ -286,7 +286,7 @@ program
   .action(async (options) => {
     try {
       const globalOpts = program.opts();
-      const projectContext = loadProjectContext(globalOpts.config);
+      const projectContext = await loadProjectContext(globalOpts.config);
       await doctor({ ...options, ...globalOpts }, projectContext);
     } catch (error) {
       handleError(error, program.opts());

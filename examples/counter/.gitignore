@@ -16,21 +16,33 @@ migrate_working_dir/
 *.ipr
 *.iws
 .idea/
-build/analysis_output/
-build/flutterjs/reports/
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+
+# VS Code
+.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
 /coverage/
+
+# FlutterJS Generated Artifacts - ✅ NEW
+build/
+.dev/
+dist/
+node_modules/
+flutterjs.config.js
+package.json
+package-lock.json
+public/index.html
+
+# Generated JS files in source (if any)
+src/**/*.js
+!src/**/*.dart
 
 # Symbolication related
 app.*.symbols

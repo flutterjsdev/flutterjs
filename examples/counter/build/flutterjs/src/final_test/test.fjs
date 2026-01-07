@@ -1,7 +1,7 @@
 // ============================================================================
 // Generated from Dart IR - Advanced Code Generation (Phase 10)
 // WARNING: Do not edit manually - changes will be lost
-// Generated at: 2026-01-05 01:05:01.101543
+// Generated at: 2026-01-08 01:33:56.134623
 //
 // Smart Features Enabled:
 // ✓ Intelligent import detection
@@ -20,10 +20,11 @@ import {
   StatelessWidget,
   BuildContext,
   Key,
-} from '@flutterjs/runtime';
+} from '@flutterjs/material';
 import {
   AppBar,
   ChangeNotifierProvider,
+  ColorScheme,
   Colors,
   Column,
   CrossAxisAlignment,
@@ -32,6 +33,7 @@ import {
   Expanded,
   FloatingActionButton,
   Icon,
+  IconData,
   Icons,
   ListView,
   MainAxisAlignment,
@@ -41,6 +43,7 @@ import {
   Scaffold,
   SizedBox,
   Text,
+  Theme,
   ThemeData,
 } from '@flutterjs/material';
 

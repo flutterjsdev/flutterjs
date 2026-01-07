@@ -12,6 +12,7 @@ workspace:
   - packages/flutterjs_analyzer/
   - packages/flutterjs_core/
   - packages/flutterjs_dev_tools/
+  - packages/PubJS/
 
 environment:
   sdk: ^3.10.0-227.0.dev

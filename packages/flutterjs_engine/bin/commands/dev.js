@@ -515,7 +515,7 @@ export class DevServer {
       console.log(chalk.gray(`🗺️  Serving source maps from: /maps`));
     }
 
-    // Static files from .dev build directory
+    // Serve .dev build directory as root (for index.html, app.js, etc.)
     this.app.use(express.static(this.buildDir, {
       maxAge: 0,
       etag: false,
@@ -666,13 +666,12 @@ export class DevServer {
     // SPA fallback
     this.app.get(/^(?!\/api\/).*/, (req, res) => {
       const indexPath = path.join(this.buildDir, 'index.html');
-
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
       } else {
         res.status(404).json({
           error: 'Not found',
-          path: req.url,
+          message: 'index.html not found in .dev/. Run build first.',
         });
       }
     });
@@ -680,9 +679,11 @@ export class DevServer {
     // Error handler
     this.app.use((err, req, res, next) => {
       console.error(chalk.red('Server error:'), err.message);
+      console.error(chalk.red('Stack:'), err.stack);
       res.status(500).json({
         error: 'Internal server error',
-        message: this.config.debugMode ? err.message : 'Unknown error',
+        message: err.message, // Always show the real error
+        stack: this.config.debugMode ? err.stack : undefined,
       });
     });
   }

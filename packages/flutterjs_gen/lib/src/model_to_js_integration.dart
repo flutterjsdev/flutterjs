@@ -276,7 +276,8 @@ class ModelToJSPipeline {
     buffer.writeln('  StatefulWidget,');
     buffer.writeln('  StatelessWidget,');
     buffer.writeln('  BuildContext,');
-    buffer.writeln('} from \'@flutterjs/runtime\';');
+    buffer.writeln('  Key,');
+    buffer.writeln('} from \'@flutterjs/material\';');
 
     // Add generic import for material potentially used
     buffer.writeln('import * as Material from \'@flutterjs/material\';');

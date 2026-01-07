@@ -1,5 +1,5 @@
 import { BoxShadow } from './box_shadow.js';
-import { Offset } from './offset.js';
+import { Offset } from './geometry.js';
 
 /**
  * Material Design 3 Shadow System (Elevation)
@@ -23,7 +23,7 @@ export class ShadowsTheme {
     return {
       // Elevation 0 - No shadow
       0: [],
-      
+
       // Elevation 1 - Subtle shadow
       1: [
         new BoxShadow({
@@ -33,7 +33,7 @@ export class ShadowsTheme {
           spreadRadius: 0
         })
       ],
-      
+
       // Elevation 2
       2: [
         new BoxShadow({
@@ -49,7 +49,7 @@ export class ShadowsTheme {
           spreadRadius: 0
         })
       ],
-      
+
       // Elevation 3
       3: [
         new BoxShadow({
@@ -65,7 +65,7 @@ export class ShadowsTheme {
           spreadRadius: 0
         })
       ],
-      
+
       // Elevation 4
       4: [
         new BoxShadow({
@@ -81,7 +81,7 @@ export class ShadowsTheme {
           spreadRadius: 0
         })
       ],
-      
+
       // Elevation 5
       5: [
         new BoxShadow({
@@ -97,7 +97,7 @@ export class ShadowsTheme {
           spreadRadius: 0
         })
       ],
-      
+
       // Elevation 6
       6: [
         new BoxShadow({
@@ -113,7 +113,7 @@ export class ShadowsTheme {
           spreadRadius: 0
         })
       ],
-      
+
       // Elevation 8
       8: [
         new BoxShadow({
@@ -129,7 +129,7 @@ export class ShadowsTheme {
           spreadRadius: 0
         })
       ],
-      
+
       // Elevation 12
       12: [
         new BoxShadow({
@@ -145,7 +145,7 @@ export class ShadowsTheme {
           spreadRadius: 0
         })
       ],
-      
+
       // Elevation 16
       16: [
         new BoxShadow({
@@ -161,7 +161,7 @@ export class ShadowsTheme {
           spreadRadius: 0
         })
       ],
-      
+
       // Elevation 24
       24: [
         new BoxShadow({
@@ -192,13 +192,13 @@ export class ShadowsTheme {
   getShadow(elevation) {
     // Clamp elevation to valid range
     const level = Math.max(0, Math.min(24, elevation));
-    
+
     // Map to available elevation levels
     const levels = [0, 1, 2, 3, 4, 5, 6, 8, 12, 16, 24];
-    const closest = levels.reduce((prev, curr) => 
+    const closest = levels.reduce((prev, curr) =>
       Math.abs(curr - level) < Math.abs(prev - level) ? curr : prev
     );
-    
+
     return this._shadows[closest] || [];
   }
 
@@ -213,7 +213,7 @@ export class ShadowsTheme {
   getShadowCSS(elevation) {
     const shadows = this.getShadow(elevation);
     if (shadows.length === 0) return 'none';
-    
+
     return shadows
       .map(shadow => shadow.toCSSString())
       .join(', ');
@@ -265,10 +265,10 @@ export class ShadowsTheme {
    */
   static reducedMotion() {
     const theme = new ShadowsTheme();
-    
+
     // Reduce shadow intensity
     Object.keys(theme._shadows).forEach(level => {
-      theme._shadows[level] = theme._shadows[level].map(shadow => 
+      theme._shadows[level] = theme._shadows[level].map(shadow =>
         new BoxShadow({
           color: shadow.color.replace(/[\d.]+\)/, match => {
             const opacity = parseFloat(match);
@@ -280,7 +280,7 @@ export class ShadowsTheme {
         })
       );
     });
-    
+
     return theme;
   }
 
@@ -294,13 +294,13 @@ export class ShadowsTheme {
    */
   toCSSVariables() {
     let css = ':root {\n';
-    
+
     const levels = [0, 1, 2, 3, 4, 5, 6, 8, 12, 16, 24];
     levels.forEach(level => {
       const shadowCSS = this.getShadowCSS(level);
       css += `  --shadow-${level}: ${shadowCSS};\n`;
     });
-    
+
     css += '}';
     return css;
   }

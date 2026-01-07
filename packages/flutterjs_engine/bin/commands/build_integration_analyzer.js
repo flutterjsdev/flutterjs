@@ -93,9 +93,9 @@ class BuildAnalyzer {
       const analysisResult = await analyzer.analyze();
       const widgets = this.normalizeWidgets(analysisResult.widgets);
 
-      // ✅ IMPORTANT: Always ensure @flutterjs/vdom is in imports
-      // vdom is the core virtual DOM implementation required by all widgets
-      const imports = this.ensureVdomImport(analysisResult.imports || []);
+      // ✅ IMPORTANT: Always ensure core packages (@flutterjs/vdom, @flutterjs/runtime) are in imports
+      // These are required by the runtime bootstrap and widget system
+      const imports = this.ensureCoreImports(analysisResult.imports || []);
 
       this.integration.analysis = {
         sourcePath,
@@ -131,13 +131,13 @@ class BuildAnalyzer {
   }
 
   /**
-   * ✅ NEW: Ensure @flutterjs/vdom is always in imports
-   * vdom is required by all Flutter widgets and must be available
+   * ✅ NEW: Ensure core packages are always in imports
+   * vdom and runtime are required by all Flutter widgets and bootstrap
    */
-  ensureVdomImport(imports) {
+  ensureCoreImports(imports) {
     // Handle different import formats
     let importObject = {};
-    
+
     if (Array.isArray(imports)) {
       // Format: ['@flutterjs/runtime', '@flutterjs/material', ...]
       for (const item of imports) {
@@ -152,13 +152,16 @@ class BuildAnalyzer {
       importObject = { ...imports };
     }
 
-    // ✅ Always add vdom as a required dependency
-    const vdomImport = '@flutterjs/vdom';
-    if (!importObject[vdomImport]) {
-      importObject[vdomImport] = [];
-      
-      if (this.config.debugMode) {
-        console.log(chalk.yellow(`  ℹ️  Auto-added @flutterjs/vdom to imports (required core dependency)\n`));
+    // ✅ Always add vdom and runtime as required dependencies
+    const corePackages = ['@flutterjs/vdom', '@flutterjs/runtime'];
+
+    for (const pkg of corePackages) {
+      if (!importObject[pkg]) {
+        importObject[pkg] = [];
+
+        if (this.config.debugMode) {
+          console.log(chalk.yellow(`  ℹ️  Auto-added ${pkg} to imports (required core dependency)`));
+        }
       }
     }
 

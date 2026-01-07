@@ -11,17 +11,20 @@
 
 import { StatelessWidget, ErrorWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
-import { StatefulElement, StatelessElement } from '@flutterjs/runtime';
+import { StatefulElement, StatelessElement, InheritedWidget } from '@flutterjs/runtime';
 
 // ============================================================================
 // THEME DATA
 // ============================================================================
+
+import { ColorScheme } from './color_scheme.js';
 
 class ThemeData {
   constructor({
     brightness = 'light',
     primaryColor = '#2196F3',
     primarySwatch = null,
+    colorScheme = null,
     accentColor = '#FF4081',
     scaffoldBackgroundColor = '#FAFAFA',
     canvasColor = '#FFF',
@@ -38,6 +41,8 @@ class ThemeData {
   } = {}) {
     console.log('🎨 ThemeData constructor called', { primaryColor, primarySwatch });
     this.brightness = brightness;
+
+    // Legacy support
     this.primaryColor = primaryColor;
     this.primarySwatch = primarySwatch;
     this.accentColor = accentColor;
@@ -53,6 +58,28 @@ class ThemeData {
     this.textTheme = textTheme;
     this.fontFamily = fontFamily;
     this.appBarTheme = appBarTheme;
+
+    // ColorScheme support
+    if (colorScheme) {
+      this.colorScheme = colorScheme;
+      // Sync legacy properties if not explicitly provided
+      if (!primaryColor) this.primaryColor = colorScheme.primary;
+      if (!scaffoldBackgroundColor) this.scaffoldBackgroundColor = colorScheme.background;
+      if (!cardColor) this.cardColor = colorScheme.surface;
+    } else {
+      // Create default color scheme based on brightness and primary color
+      this.colorScheme = brightness === 'dark'
+        ? ColorScheme.dark()
+        : ColorScheme.light();
+
+      // Override primary if provided
+      if (primaryColor && primaryColor !== '#2196F3') { // Check if different from default
+        this.colorScheme = ColorScheme.fromSeed({
+          seedColor: primaryColor,
+          brightness: brightness
+        });
+      }
+    }
 
     // Initialize default TextTheme if not provided
     const isDark = brightness === 'dark';
@@ -80,6 +107,7 @@ class ThemeData {
   static dark() {
     return new ThemeData({
       brightness: 'dark',
+      colorScheme: ColorScheme.dark(),
       primaryColor: '#1F1F1F',
       scaffoldBackgroundColor: '#121212',
       canvasColor: '#1E1E1E',
@@ -92,11 +120,36 @@ class ThemeData {
   static light() {
     return new ThemeData({
       brightness: 'light',
+      colorScheme: ColorScheme.light(),
       primaryColor: '#2196F3',
       scaffoldBackgroundColor: '#FAFAFA',
       canvasColor: '#FFF',
       cardColor: '#FFF'
     });
+  }
+}
+
+// ============================================================================
+// THEME INHERITED WIDGET
+// ============================================================================
+
+class Theme extends InheritedWidget {
+  constructor({ data, child, key } = {}) {
+    super({ child, key });
+    this.data = data;
+  }
+
+  updateShouldNotify(oldWidget) {
+    return this.data !== oldWidget.data;
+  }
+
+  static of(context) {
+    if (!context || !context.dependOnInheritedWidgetOfExactType) {
+      console.warn('Theme.of() called with invalid context');
+      return new ThemeData();
+    }
+    const widget = context.dependOnInheritedWidgetOfExactType(Theme);
+    return widget ? widget.data : new ThemeData();
   }
 }
 
@@ -507,5 +560,6 @@ export {
   MaterialApp,
   ThemeData,
   Navigator,
-  Route
+  Route,
+  Theme
 };

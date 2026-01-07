@@ -15,6 +15,7 @@
     "./focus_manager": "./dist/focus_manager.js",
     "./gesture_recognizer": "./dist/gesture_recognizer.js",
     "./inherited_element": "./dist/inherited_element.js",
+    "./key": "./dist/key.js",
     "./memory_manager": "./dist/memory_manager.js",
     "./runtime_engine": "./dist/runtime_engine.js",
     "./service_registry": "./dist/service_registry.js",

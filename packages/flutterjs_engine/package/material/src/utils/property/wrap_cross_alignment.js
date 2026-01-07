@@ -6,3 +6,5 @@ const WrapCrossAlignment = Object.freeze({
   end: 'end',
   center: 'center'
 });
+
+export { WrapCrossAlignment };

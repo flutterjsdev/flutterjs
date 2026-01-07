@@ -1,5 +1,6 @@
 import { StatelessWidget } from '../../core/widget_element.js';
-import { Container, EdgeInsets } from '../../material/container.js';
+import { Container } from '../../material/container.js';
+import { EdgeInsets } from '../../utils/utils.js';
 import { SizedBox } from './sized_box.js';
 import { Center } from './center.js';
 import { Colors } from '../../material/color.js';
