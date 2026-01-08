@@ -11,6 +11,7 @@
     "./material/color": "./dist/material/color.js",
     "./material/color_scheme": "./dist/material/color_scheme.js",
     "./material/container": "./dist/material/container.js",
+    "./material/elevated_button": "./dist/material/elevated_button.js",
     "./material/floating_action_button": "./dist/material/floating_action_button.js",
     "./material/gesture_detector": "./dist/material/gesture_detector.js",
     "./material/icon": "./dist/material/icon.js",
@@ -98,6 +99,7 @@
     "./widgets/compoment/sliver_box_adapter": "./dist/widgets/compoment/sliver_box_adapter.js",
     "./widgets/compoment/stack": "./dist/widgets/compoment/stack.js",
     "./widgets/compoment/transform": "./dist/widgets/compoment/transform.js",
+    "./widgets/navigator": "./dist/widgets/navigator.js",
     "./widgets/widgets": "./dist/widgets/widgets.js"
   },
   "files": [

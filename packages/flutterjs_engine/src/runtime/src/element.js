@@ -886,10 +886,10 @@ class StatefulElement extends Element {
       }
 
       // ✅ Check if it's a widget and build recursively
+      let childElement = this._children[0];
+
       if (isWidget(result)) {
         console.log('🔄 State.build() returned a Widget, building recursively:', result.constructor.name);
-
-        let childElement = this._children[0];
 
         // ✅ RECONCILIATION: Check if we can reuse the existing element
         if (childElement && childElement.widget.constructor === result.constructor && childElement.widget.key === result.key) {

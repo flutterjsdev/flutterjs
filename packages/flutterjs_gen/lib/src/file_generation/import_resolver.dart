@@ -30,6 +30,7 @@ class ImportResolver {
     'Scaffold': 'package:flutter/material.dart',
     'AppBar': 'package:flutter/material.dart',
     'Text': 'package:flutter/material.dart',
+    'TextStyle': 'package:flutter/material.dart',
     'Container': 'package:flutter/material.dart',
     'Column': 'package:flutter/material.dart',
     'Row': 'package:flutter/material.dart',
@@ -47,6 +48,8 @@ class ImportResolver {
     'ListTile': 'package:flutter/material.dart',
     'ListView': 'package:flutter/material.dart',
     'Divider': 'package:flutter/material.dart',
+    'ElevatedButton': 'package:flutter/material.dart',
+    'MainAxisAlignment': 'package:flutter/material.dart',
   };
 
   // STAGE 2: Configuration (Dart Library -> JS Package)

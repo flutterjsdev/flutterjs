@@ -268,6 +268,15 @@ class FileCodeGen {
         usedWidgets.add('FloatingActionButton');
       }
 
+      // ✅ NEW: Ensure TextStyle is imported if Text is used
+      if (usedWidgets.contains('Text')) {
+        usedWidgets.add('TextStyle');
+      }
+
+      if (usedWidgets.contains('TextStyle')) {
+        usedWidgets.add('TextStyle');
+      }
+
       // Sort widgets to ensure deterministic output
       final sortedWidgets =
           usedWidgets.where((w) => !definedNames.contains(w)).toSet().toList()
@@ -730,14 +739,33 @@ class FileCodeGen {
       for (final arg in expr.namedArguments.values) {
         _detectWidgetsInExpression(arg);
       }
+    } else if (expr is ConstructorCallExpressionIR) {
+      // Handle ConstructorCallExpressionIR (used for Text, TextStyle, SizedBox, etc.)
+      addWidget(expr.className);
+
+      for (final arg in expr.positionalArguments) {
+        _detectWidgetsInExpression(arg);
+      }
+
+      for (final arg in expr.namedArguments.values) {
+        _detectWidgetsInExpression(arg);
+      }
     } else if (expr is MethodCallExpressionIR) {
-      // ✅ NEW: Detect widget constructors by capitalized method name
+      // Detect widget constructors by capitalized method name
       if (expr.methodName.isNotEmpty) {
         addWidget(expr.methodName);
       }
+
+      // For static method calls like Navigator.of(), detect the class name
       if (expr.target != null) {
+        // If target is an identifier (e.g., Navigator in Navigator.of()), add it
+        if (expr.target is IdentifierExpressionIR) {
+          final targetName = (expr.target as IdentifierExpressionIR).name;
+          addWidget(targetName);
+        }
         _detectWidgetsInExpression(expr.target!);
       }
+
       for (final arg in expr.arguments) {
         _detectWidgetsInExpression(arg);
       }
@@ -758,6 +786,13 @@ class FileCodeGen {
       }
     } else if (expr is IdentifierExpressionIR) {
       addWidget(expr.name);
+    } else if (expr is FunctionExpressionIR) {
+      // Analyze lambda/function bodies for widget usage
+      if (expr.body != null) {
+        for (final stmt in expr.body!.statements) {
+          _analyzeStatement(stmt);
+        }
+      }
     }
   }
 

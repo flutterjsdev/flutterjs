@@ -1,0 +1,1 @@
+{"timestamp":"2026-01-09T01:36:33.501130","total_issues":2,"issues":[{"type":"AnalysisIssue","message":"[IssueSeverity.error] Import file not found: /packages/flutter/lib/material.dart (INVE0000)"},{"type":"AnalysisIssue","message":"[IssueSeverity.hint] Import \"package:flutter/material.dart\" may be unused (UNUSED_IMPORT)"}]}

@@ -633,10 +633,12 @@ class PackageInstaller {
   // FIXED:
   getDestinationPath(packageName) {
     // ✅ For @flutterjs/* packages, use node_modules/@flutterjs structure
+    // We use projectRoot to ensure a single, shared node_modules level
+    // This avoids creating a duplicate node_modules inside .dev/
     if (packageName.startsWith('@flutterjs/')) {
       const scopedName = packageName.split('/')[1];
       return path.join(
-        this.outputBase,
+        this.projectRoot, // Changed from outputBase to projectRoot
         'node_modules',
         '@flutterjs',
         scopedName

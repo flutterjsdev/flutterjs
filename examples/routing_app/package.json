@@ -1,0 +1,16 @@
+{
+    "name": "routing_app",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "dev": "flutterjs dev",
+        "build": "flutterjs build"
+    },
+    "dependencies": {
+        "@flutterjs/material": "file:../../packages/flutterjs_engine/package/material",
+        "@flutterjs/runtime": "file:../../packages/flutterjs_engine/src/runtime"
+    },
+    "devDependencies": {
+        "flutterjs": "file:../../packages/flutterjs_engine"
+    }
+}
