@@ -20,10 +20,4 @@ export 'src/model_to_js_diagnostic.dart';
 export 'src/model_to_js_integration.dart';
 export 'src/validation_optimization/js_optimizer.dart';
 
-export 'src/ir_validation/ir_post_deserialize_validator.dart';
-export 'src/ir_validation/ir_type_system_analyzer.dart';
-export 'src/ir_validation/ir_control_flow_analyzer.dart';
-export 'src/ir_validation/ir_scope_analyzer.dart';
-export 'src/ir_validation/phase0_orchestrator.dart';
-
 export 'src/file_generation/runtime_requirements.dart';

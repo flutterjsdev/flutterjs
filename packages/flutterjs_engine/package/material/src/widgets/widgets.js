@@ -34,6 +34,10 @@ export {
 } from "./compoment/padding.js";
 
 export {
+    SizedBox
+} from "./compoment/sized_box.js";
+
+export {
     RichText,
     RichTextElement,
     RenderParagraph,

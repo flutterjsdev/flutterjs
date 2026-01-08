@@ -5,6 +5,7 @@ node_modules/
 dist/
 .dev/
 .debug/
+build/
 
 # Generated files
 .flutter_js/

@@ -7,7 +7,7 @@
  */
 import { VNode } from './vnode.js';
 import { StyleConverter } from './style_converter.js';
-import { StatelessElement, StatefulElement, State,InheritedElement } from '@flutterjs/runtime';
+import { StatelessElement, StatefulElement, State, InheritedElement } from '@flutterjs/runtime';
 
 class VNodeBuilder {
   constructor(options = {}) {
@@ -57,9 +57,9 @@ class VNodeBuilder {
 
     // Check if it's a StatelessWidget
     // Has build() but NOT createState() and NOT a State instance
-    if (typeof widget.build === 'function' && 
-        typeof widget.createState !== 'function' &&
-        !(widget instanceof State)) {
+    if (typeof widget.build === 'function' &&
+      typeof widget.createState !== 'function' &&
+      !(widget instanceof State)) {
       return 'STATELESS_WIDGET';
     }
 
@@ -269,7 +269,11 @@ class VNodeBuilder {
         }
 
         // Check if it's another widget (recursively build)
-        if (builtWidget && typeof builtWidget === 'object' && typeof builtWidget.build === 'function') {
+        // ✅ FIXED: Allow any widget type (Stateless, Stateful, Inherited)
+        if (builtWidget && typeof builtWidget === 'object' &&
+          (typeof builtWidget.build === 'function' ||
+            typeof builtWidget.createState === 'function' ||
+            typeof builtWidget.updateShouldNotify === 'function')) {
           if (this.debugMode) {
             console.log(`${indent}🔄 Got nested Widget: ${builtWidget.constructor.name}, recursively building...`);
           }
@@ -387,7 +391,11 @@ class VNodeBuilder {
         }
 
         // Check if it's another widget
-        if (builtWidget && typeof builtWidget === 'object' && typeof builtWidget.build === 'function') {
+        // ✅ FIXED: Allow any widget type (Stateless, Stateful, Inherited)
+        if (builtWidget && typeof builtWidget === 'object' &&
+          (typeof builtWidget.build === 'function' ||
+            typeof builtWidget.createState === 'function' ||
+            typeof builtWidget.updateShouldNotify === 'function')) {
           if (this.debugMode) {
             console.log(`${indent}🔄 Got nested Widget: ${builtWidget.constructor.name}`);
           }

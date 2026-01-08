@@ -137,37 +137,101 @@ class FlutterJSEngineBridge {
   /// Get the path to the engine binary for the current platform
   /// Prefers Node.js source (bin/index.js) over bundled executable
   String? _getEnginePath() {
-    // First, try to find the Node.js source files (preferred method)
-    // This avoids ES module issues with pkg bundler
-    final sourceBasePaths = <String?>[
-      // Relative to project root (when running from flutterjs repo)
-      path.join(config.projectPath, '..', '..', 'packages', 'flutterjs_engine'),
-      // Absolute path for the flutterjs repository
-      'C:/Jay/_Plugin/flutterjs/packages/flutterjs_engine',
-    ];
-
-    for (final basePath in sourceBasePaths.whereType<String>()) {
-      final sourceEntryPoint = path.join(basePath, 'bin', 'index.js');
-      final normalizedPath = path.normalize(sourceEntryPoint);
-
-      if (config.verbose) {
-        print('  Checking Node.js source: $normalizedPath');
+    // 1. Check FLUTTERJS_ENGINE_ROOT environment variable
+    final envEngineRoot = Platform.environment['FLUTTERJS_ENGINE_ROOT'];
+    if (envEngineRoot != null) {
+      // Check for source
+      final envSource = path.join(envEngineRoot, 'bin', 'index.js');
+      if (File(envSource).existsSync() && _isNodeAvailable()) {
+        if (config.verbose) print('  ✓ Using engine from env: $envSource');
+        return path.normalize(envSource);
       }
-
-      if (File(normalizedPath).existsSync()) {
-        // Verify node is available
-        if (_isNodeAvailable()) {
-          if (config.verbose) {
-            print('  ✓ Using Node.js source: $normalizedPath');
-          }
-          return normalizedPath;
-        }
+      // Check for binary
+      final binaryName = _getPlatformBinaryName();
+      final envBinary = path.join(envEngineRoot, 'dist', binaryName);
+      if (File(envBinary).existsSync()) {
+        if (config.verbose)
+          print('  ✓ Using engine binary from env: $envBinary');
+        return path.normalize(envBinary);
       }
     }
 
-    // Fallback: Try bundled binaries
+    // 2. Check relative to script location (if running from source/dev)
+    try {
+      final scriptPath = Platform.script.toFilePath();
+      if (config.verbose) print('  Script path: $scriptPath');
+
+      Directory current = File(scriptPath).parent;
+      for (int i = 0; i < 6; i++) {
+        // Check if we are in 'bin' parallel to 'packages'
+        final candidate = path.join(
+          current.path,
+          'packages',
+          'flutterjs_engine',
+          'bin',
+          'index.js',
+        );
+        if (File(candidate).existsSync() && _isNodeAvailable()) {
+          if (config.verbose)
+            print(
+              '  ✓ Found engine relative to script (packages sibling): $candidate',
+            );
+          return path.normalize(candidate);
+        }
+
+        // Check if we are inside 'packages' directory
+        if (path.basename(current.path) == 'packages') {
+          final engineSource = path.join(
+            current.path,
+            'flutterjs_engine',
+            'bin',
+            'index.js',
+          );
+          if (File(engineSource).existsSync() && _isNodeAvailable()) {
+            return path.normalize(engineSource);
+          }
+        }
+
+        if (current.parent.path == current.path) break;
+        current = current.parent;
+      }
+    } catch (e) {
+      if (config.verbose) print('  Error checking script location: $e');
+    }
+
+    // 3. Search upwards from project root for 'packages' directory
+    try {
+      Directory current = Directory(config.projectPath);
+      for (int i = 0; i < 8; i++) {
+        // Search up to 8 levels
+        final candidatePkg = path.join(
+          current.path,
+          'packages',
+          'flutterjs_engine',
+        );
+        final candidateSource = path.join(candidatePkg, 'bin', 'index.js');
+
+        if (config.verbose) {
+          // print('  Checking up-tree: $candidateSource');
+        }
+
+        if (File(candidateSource).existsSync() && _isNodeAvailable()) {
+          if (config.verbose)
+            print(
+              '  ✓ Found engine by searching up from project: $candidateSource',
+            );
+          return path.normalize(candidateSource);
+        }
+
+        if (current.parent.path == current.path) break;
+        current = current.parent;
+      }
+    } catch (e) {
+      if (config.verbose) print('  Error searching up from project: $e');
+    }
+
+    // 4. Fallback: Try bundled binaries (relative)
     final nullablePaths = <String?>[
-      // Relative to project root (when running from flutterjs repo)
       path.join(
         config.projectPath,
         '..',
@@ -176,8 +240,6 @@ class FlutterJSEngineBridge {
         'flutterjs_engine',
         'dist',
       ),
-      // Absolute path for the flutterjs repository
-      'C:/Jay/_Plugin/flutterjs/packages/flutterjs_engine/dist',
       // Installed globally (future)
       _getGlobalInstallPath(),
       // In PATH (if installed globally)
@@ -250,10 +312,11 @@ class FlutterJSEngineBridge {
 
     if (enginePath == null) {
       return EngineBridgeResult.failure(
-        'FlutterJS engine not found. Searched locations:\n'
-        '  - packages/flutterjs_engine/dist/\n'
-        '  - C:/Jay/_Plugin/flutterjs/packages/flutterjs_engine/dist/\n'
-        '\nMake sure the engine binaries are built:\n'
+        'FlutterJS engine not found.\n'
+        'Searched locations included:\n'
+        '  - packages/flutterjs_engine/dist/ (relative)\n'
+        '  - Environment variable FLUTTERJS_ENGINE_ROOT\n'
+        '\nMake sure the engine binaries are built or you are in the correct directory:\n'
         '  cd packages/flutterjs_engine\n'
         '  npm run build:windows  (or build:linux / build:macos)',
       );

@@ -2,16 +2,12 @@
  * ============================================================================
  * FIXED MaterialApp - Properly Handles StatefulWidget → State Connection
  * ============================================================================
- * 
- * The issue was MaterialApp was calling createState() directly without
- * going through an Element, so state._mount() never got called.
- * 
- * Solution: Use runtime's VNodeBuilder to properly create Elements
  */
 
-import { StatelessWidget, ErrorWidget } from '../core/widget_element.js';
+import { StatelessWidget, ErrorWidget, StatefulWidget, State } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { StatefulElement, StatelessElement, InheritedWidget } from '@flutterjs/runtime';
+import { Navigator, Route } from '../widgets/navigator.js';
 
 // ============================================================================
 // THEME DATA
@@ -39,7 +35,7 @@ class ThemeData {
     fontFamily = 'Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI"',
     appBarTheme = null
   } = {}) {
-    console.log('🎨 ThemeData constructor called', { primaryColor, primarySwatch });
+    // console.log('🎨 ThemeData constructor called', { primaryColor, primarySwatch });
     this.brightness = brightness;
 
     // Legacy support
@@ -154,69 +150,10 @@ class Theme extends InheritedWidget {
 }
 
 // ============================================================================
-// ROUTE & NAVIGATION
-// ============================================================================
-
-class Route {
-  constructor({ name = '/', builder = null, settings = {} } = {}) {
-    this.name = name;
-    this.builder = builder;
-    this.settings = settings;
-  }
-}
-
-class Navigator {
-  constructor({ routes = {}, initialRoute = '/', onGenerateRoute = null, onUnknownRoute = null } = {}) {
-    this.routes = routes;
-    this.initialRoute = initialRoute;
-    this.onGenerateRoute = onGenerateRoute;
-    this.onUnknownRoute = onUnknownRoute;
-    this.routeStack = [];
-    this.currentRoute = initialRoute;
-  }
-
-  pushNamed(routeName, { arguments: args = null } = {}) {
-    this.currentRoute = routeName;
-    this.routeStack.push(routeName);
-  }
-
-  pop() {
-    if (this.routeStack.length > 1) {
-      this.routeStack.pop();
-      this.currentRoute = this.routeStack[this.routeStack.length - 1];
-      return true;
-    }
-    return false;
-  }
-
-  getCurrentPage(context) {
-    const routeName = this.currentRoute;
-
-    if (this.routes[routeName]) {
-      return this.routes[routeName](context);
-    }
-
-    if (this.onGenerateRoute) {
-      const routeSettings = { name: routeName };
-      const route = this.onGenerateRoute(routeSettings);
-      if (route) return route.builder(context);
-    }
-
-    if (this.onUnknownRoute) {
-      const routeSettings = { name: routeName };
-      const route = this.onUnknownRoute(routeSettings);
-      return route.builder(context);
-    }
-
-    return null;
-  }
-}
-
-// ============================================================================
 // MATERIAL APP - FIXED VERSION
 // ============================================================================
 
-class MaterialApp extends StatelessWidget {
+class MaterialApp extends StatefulWidget {
   constructor({
     key = null,
     title = '',
@@ -238,7 +175,6 @@ class MaterialApp extends StatelessWidget {
     super(key);
 
     this.title = title;
-    console.log('🏗️ MaterialApp constructor - theme passed:', theme);
     this.theme = theme || ThemeData.light();
     this.darkTheme = darkTheme || ThemeData.dark();
     this.themeMode = themeMode;
@@ -254,19 +190,9 @@ class MaterialApp extends StatelessWidget {
     this.locale = locale;
     this.builder = builder;
 
-    // ✅ ELEMENT CACHE: Store page element to prevent remounting
-    this._pageElement = null;
-    this._cachedPageWidget = null;
-
-    this.navigator = new Navigator({
-      routes: this.routes,
-      initialRoute: this.initialRoute,
-      onGenerateRoute: this.onGenerateRoute,
-      onUnknownRoute: this.onUnknownRoute
-    });
-
-    if (this.home) {
-      this.navigator.routes['/'] = (context) => this.home;
+    // Normalize routes
+    if (this.home && !this.routes['/']) {
+      this.routes['/'] = (context) => this.home;
     }
 
     if (typeof document !== 'undefined') {
@@ -274,24 +200,29 @@ class MaterialApp extends StatelessWidget {
     }
   }
 
+  createState() {
+    return new MaterialAppState();
+  }
+}
+
+class MaterialAppState extends State {
   _getTheme() {
-    if (this.themeMode === 'dark') {
-      return this.darkTheme;
+    const wm = this.widget;
+    if (wm.themeMode === 'dark') {
+      return wm.darkTheme;
     }
-    if (this.themeMode === 'light') {
-      return this.theme;
+    if (wm.themeMode === 'light') {
+      return wm.theme;
     }
     if (typeof window !== 'undefined' && window.matchMedia) {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      return isDark ? this.darkTheme : this.theme;
+      return isDark ? wm.darkTheme : wm.theme;
     }
-    return this.theme;
+    return wm.theme;
   }
 
   _applyTheme(theme) {
     if (typeof document === 'undefined') return;
-
-    console.log('🖌️ _applyTheme called. Primary:', theme.primaryColor, 'Card:', theme.cardColor);
 
     // Safeguards for undefined theme properties
     const primary = theme.primaryColor || '#2196F3'; // Default blue
@@ -323,234 +254,21 @@ class MaterialApp extends StatelessWidget {
     document.body.style.color = onSurface;
   }
 
-  /**
-   * Check if object is a Widget
-   */
-  _isWidget(obj) {
-    if (!obj || typeof obj !== 'object') return false;
-    return (
-      typeof obj.build === 'function' ||
-      typeof obj.createState === 'function'
-    );
-  }
-
-  /**
-   * ✅ FIXED: Build widget to VNode by REUSING Elements
-   * This prevents remounting and preserves state
-   */
-  _buildWidgetToVNode(widget, context) {
-    console.log('🔨 _buildWidgetToVNode called for:', widget?.constructor?.name);
-
-    if (!widget) {
-      console.log('  → widget is null, returning null');
-      return null;
-    }
-
-    // Already a VNode
-    if (widget && widget.tag !== undefined) {
-      console.log('  → Already a VNode');
-      return widget;
-    }
-
-    // String or number
-    if (typeof widget === 'string' || typeof widget === 'number') {
-      console.log('  → String/number, converting');
-      return String(widget);
-    }
-
-    // Is a Widget - need to build it THROUGH AN ELEMENT
-    if (this._isWidget(widget)) {
-      console.log('  → Is a Widget, checking if can reuse element...');
-
-      try {
-        let element;
-        const runtime = context.runtime || context.element?.runtime;
-        if (!runtime) {
-          throw new Error('Runtime not available in context');
-        }
-
-        // ✅ CHECK IF WE CAN REUSE EXISTING ELEMENT
-        if (this._pageElement &&
-          this._cachedPageWidget &&
-          widget.constructor === this._cachedPageWidget.constructor) {
-          console.log('♻️ REUSING existing element, calling rebuild()');
-
-          // Update the widget reference (important for props changes)
-          this._pageElement.updateWidget(widget);
-          this._cachedPageWidget = widget;
-
-          // Rebuild (this calls state.build() on EXISTING state)
-          const result = this._pageElement.build();
-          console.log('    → Rebuild returned:', result?.tag || typeof result);
-
-          // Recursively build if still a widget
-          if (this._isWidget(result)) {
-            console.log('    → Result is still a widget, recursing...');
-            return this._buildWidgetToVNode(result, { ...context, runtime });
-          }
-
-          return result;
-        }
-
-        // ✅ StatefulWidget: Create NEW StatefulElement (first time only)
-        if (typeof widget.createState === 'function') {
-          console.log('🆕 Creating NEW StatefulElement (first mount)');
-
-          // Create StatefulElement
-          element = new StatefulElement(widget, null, runtime);
-          console.log('    → StatefulElement created');
-
-          // ✅ CRITICAL: Mount the element (this calls state._mount())
-          if (!element.mounted) {
-            console.log('    → Mounting element...');
-            element.mount();
-            console.log('    → Element mounted');
-            console.log('    → State._widget:', element.state?._widget?.constructor?.name);
-            console.log('    → State.widget.title:', element.state?.widget?.title);
-          }
-
-          // ✅ CACHE THE ELEMENT
-          this._pageElement = element;
-          this._cachedPageWidget = widget;
-
-          // Build the element to get VNode
-          const result = element.build();
-          console.log('    → StatefulElement.build() returned:', result?.tag || typeof result);
-
-          // Recursively build if still a widget
-          if (this._isWidget(result)) {
-            console.log('    → Result is still a widget, recursing...');
-            return this._buildWidgetToVNode(result, { ...context, runtime });
-          }
-
-          return result;
-        }
-        // ✅ StatelessWidget: Create StatelessElement
-        else if (typeof widget.build === 'function') {
-          console.log('    → StatelessWidget detected, creating StatelessElement');
-
-          element = new StatelessElement(widget, null, runtime);
-
-          if (!element.mounted) {
-            element.mount();
-          }
-
-          const result = element.build();
-          console.log('    → StatelessElement.build() returned:', result?.tag || typeof result);
-
-          // Recursively build if still a widget
-          if (this._isWidget(result)) {
-            console.log('    → Result is still a widget, recursing...');
-            return this._buildWidgetToVNode(result, { ...context, runtime });
-          }
-
-          return result;
-        }
-      } catch (error) {
-        console.error('  ❌ Error building widget:', error);
-        throw error;
-      }
-    }
-
-    console.log('  → Unknown type, returning null');
-    return null;
-  }
-
-  /**
-   * ✅ BUILD METHOD
-   */
   build(context) {
-    console.log('📖 MaterialApp.build() START');
-
     const currentTheme = this._getTheme();
     this._applyTheme(currentTheme);
 
-    // Get the home widget (e.g., MyHomePage - StatefulWidget)
-    let pageWidget = this.navigator.getCurrentPage(context);
-    console.log('📄 Current page widget:', pageWidget?.constructor?.name);
-
-    if (!pageWidget) {
-      console.warn('⚠️ No page widget found');
-      pageWidget = this._buildEmptyPage();
-    }
-
-    // ✅ BUILD the page widget to a VNode (properly through Element)
-    let pageVNode;
-    try {
-      pageVNode = this._buildWidgetToVNode(pageWidget, context);
-      console.log('✅ pageVNode after building:', pageVNode?.tag || typeof pageVNode);
-    } catch (error) {
-      console.error('❌ Failed to build page widget:', error);
-      pageVNode = this._buildErrorPageVNode(error, context);
-    }
-
-    if (!pageVNode) {
-      console.error('❌ pageVNode is null');
-      pageVNode = this._buildEmptyPageVNode();
-    }
-
-    // Wrap with theme container and return VNode
-    const result = new VNode({
-      tag: 'div',
-      props: {
-        style: {
-          width: '100%',
-          height: '100%',
-          backgroundColor: currentTheme.scaffoldBackgroundColor,
-          color: currentTheme.brightness === 'dark' ? '#FFF' : '#000',
-          fontFamily: currentTheme.fontFamily,
-          margin: 0,
-          padding: 0,
-          boxSizing: 'border-box',
-          minHeight: '100vh'
-        },
-        'data-app': 'MaterialApp',
-        'data-theme': currentTheme.brightness
-      },
-      children: [pageVNode]
-    });
-
-    console.log('✅ MaterialApp.build() returning VNode');
-    return result;
-  }
-
-  /**
-   * Empty widget
-   */
-  _buildEmptyPage() {
-    return new StatelessWidget({
-      build: () => this._buildEmptyPageVNode()
-    });
-  }
-
-  /*
-   * Error page VNode
-   */
-  _buildErrorPageVNode(error, context) {
-    const errorWidget = new ErrorWidget({
-      message: `Application Error:\n${error?.message || error?.toString() || 'Unknown error'}`,
-      error: error
-    });
-
-    // Create element and build
-    const runtime = context?.runtime || context?.element?.runtime;
-    const element = new StatelessElement(errorWidget, null, runtime);
-    if (!element.mounted) element.mount();
-    return element.build();
-  }
-
-  /**
-   * Empty page VNode
-   */
-  _buildEmptyPageVNode() {
-    return new VNode({
-      tag: 'div',
-      props: { style: { padding: '20px', textAlign: 'center' } },
-      children: ['No page configured']
+    return new Theme({
+      data: currentTheme,
+      child: new Navigator({
+        initialRoute: this.widget.initialRoute,
+        routes: this.widget.routes,
+        onGenerateRoute: this.widget.onGenerateRoute,
+        onUnknownRoute: this.widget.onUnknownRoute
+      })
     });
   }
 }
-
 
 // ============================================================================
 // EXPORTS

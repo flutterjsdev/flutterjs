@@ -6,13 +6,14 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
 workspace:
   - examples/counter/
+  - examples/routing_app/
   - packages/flutterjs_dev_utils/
   - packages/flutterjs_tools/
   - packages/flutterjs_gen/
   - packages/flutterjs_analyzer/
   - packages/flutterjs_core/
   - packages/flutterjs_dev_tools/
-  - packages/PubJS/
+  - packages/pubjs/
 
 environment:
   sdk: ^3.10.0-227.0.dev
