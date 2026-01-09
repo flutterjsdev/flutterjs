@@ -1,4 +1,4 @@
-import { ProxyWidget } from '../../core/widget_element.js';
+import { ProxyWidget, ProxyElement } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Alignment } from '../../utils/utils.js';
 
@@ -107,65 +107,7 @@ class SizedBox extends ProxyWidget {
         });
     }
 
-    /**
-     * Build the widget
-     */
-    build(context) {
-        if (!this._renderObject) {
-            this._renderObject = this.createRenderObject(context);
-        } else {
-            this.updateRenderObject(context, this._renderObject);
-        }
 
-        let childVNode = null;
-        if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
-        }
-
-        const elementId = context.element.getElementId();
-        const widgetPath = context.element.getWidgetPath();
-
-        const style = {
-            boxSizing: 'border-box',
-            flexShrink: 0
-        };
-
-        // Apply width
-        if (this.width !== null && this.width !== undefined) {
-            if (this.width === Infinity) {
-                style.width = '100%';
-                style.flex = '1 1 auto';
-            } else {
-                style.width = `${this.width}px`;
-            }
-        }
-
-        // Apply height
-        if (this.height !== null && this.height !== undefined) {
-            if (this.height === Infinity) {
-                style.height = '100%';
-                style.flex = '1 1 auto';
-            } else {
-                style.height = `${this.height}px`;
-            }
-        }
-
-        return new VNode({
-            tag: 'div',
-            props: {
-                style,
-                'data-element-id': elementId,
-                'data-widget-path': widgetPath,
-                'data-widget': 'SizedBox',
-                'data-width': this.width,
-                'data-height': this.height
-            },
-            children: childVNode ? [childVNode] : [],
-            key: this.key
-        });
-    }
 
     /**
      * Debug properties
@@ -184,9 +126,53 @@ class SizedBox extends ProxyWidget {
     }
 }
 
-class SizedBoxElement extends ProxyWidget.constructor.prototype.constructor {
+class SizedBoxElement extends ProxyElement {
     performRebuild() {
-        return this.widget.build(this.context);
+        const elementId = this.getElementId();
+        const widgetPath = this.getWidgetPath();
+
+        const style = {
+            boxSizing: 'border-box',
+            flexShrink: 0
+        };
+
+        // Apply width
+        if (this.widget.width !== null && this.widget.width !== undefined) {
+            if (this.widget.width === Infinity) {
+                style.width = '100%';
+                style.flex = '1 1 auto';
+            } else {
+                style.width = `${this.widget.width}px`;
+            }
+        }
+
+        // Apply height
+        if (this.widget.height !== null && this.widget.height !== undefined) {
+            if (this.widget.height === Infinity) {
+                style.height = '100%';
+                style.flex = '1 1 auto';
+            } else {
+                style.height = `${this.widget.height}px`;
+            }
+        }
+
+        // Get child VNode from parent class (this handles the widget lifecycle)
+        const childVNode = super.performRebuild();
+
+        // Wrap child VNode (or create empty div if no child)
+        return new VNode({
+            tag: 'div',
+            props: {
+                style,
+                'data-element-id': elementId,
+                'data-widget-path': widgetPath,
+                'data-widget': 'SizedBox',
+                'data-width': this.widget.width,
+                'data-height': this.widget.height
+            },
+            children: childVNode ? [childVNode] : [],
+            key: this.widget.key
+        });
     }
 }
 
@@ -228,51 +214,7 @@ class ConstrainedBox extends ProxyWidget {
      */
     updateRenderObject(context, renderObject) {
         renderObject.additionalConstraints = this.constraints;
-    }
-
-    /**
-     * Build the widget
-     */
-    build(context) {
-        if (!this._renderObject) {
-            this._renderObject = this.createRenderObject(context);
-        } else {
-            this.updateRenderObject(context, this._renderObject);
-        }
-
-        let childVNode = null;
-        if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
-        }
-
-        const elementId = context.element.getElementId();
-        const widgetPath = context.element.getWidgetPath();
-
-        const style = {
-            minWidth: `${this.constraints.minWidth}px`,
-            maxWidth: `${this.constraints.maxWidth}px`,
-            minHeight: `${this.constraints.minHeight}px`,
-            maxHeight: `${this.constraints.maxHeight}px`,
-            boxSizing: 'border-box'
-        };
-
-        return new VNode({
-            tag: 'div',
-            props: {
-                style,
-                'data-element-id': elementId,
-                'data-widget-path': widgetPath,
-                'data-widget': 'ConstrainedBox',
-                'data-constraints': this.constraints.toString()
-            },
-            children: childVNode ? [childVNode] : [],
-            key: this.key
-        });
-    }
-
-    /**
+    }/**
      * Debug properties
      */
     debugFillProperties(properties) {
@@ -284,13 +226,7 @@ class ConstrainedBox extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new ConstrainedBoxElement(this, parent, runtime);
-    }
-}
-
-class ConstrainedBoxElement extends ProxyWidget.constructor.prototype.constructor {
-    performRebuild() {
-        return this.widget.build(this.context);
+        return new ProxyElement(this, parent, runtime);
     }
 }
 
@@ -330,50 +266,7 @@ class LimitedBox extends ProxyWidget {
     updateRenderObject(context, renderObject) {
         renderObject.maxWidth = this.maxWidth;
         renderObject.maxHeight = this.maxHeight;
-    }
-
-    /**
-     * Build the widget
-     */
-    build(context) {
-        if (!this._renderObject) {
-            this._renderObject = this.createRenderObject(context);
-        } else {
-            this.updateRenderObject(context, this._renderObject);
-        }
-
-        let childVNode = null;
-        if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
-        }
-
-        const elementId = context.element.getElementId();
-        const widgetPath = context.element.getWidgetPath();
-
-        const style = {
-            maxWidth: this.maxWidth === Infinity ? 'none' : `${this.maxWidth}px`,
-            maxHeight: this.maxHeight === Infinity ? 'none' : `${this.maxHeight}px`,
-            boxSizing: 'border-box'
-        };
-
-        return new VNode({
-            tag: 'div',
-            props: {
-                style,
-                'data-element-id': elementId,
-                'data-widget-path': widgetPath,
-                'data-widget': 'LimitedBox',
-                'data-max-width': this.maxWidth,
-                'data-max-height': this.maxHeight
-            },
-            children: childVNode ? [childVNode] : [],
-            key: this.key
-        });
-    }
-
-    /**
+    }/**
      * Debug properties
      */
     debugFillProperties(properties) {
@@ -386,13 +279,7 @@ class LimitedBox extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new LimitedBoxElement(this, parent, runtime);
-    }
-}
-
-class LimitedBoxElement extends ProxyWidget.constructor.prototype.constructor {
-    performRebuild() {
-        return this.widget.build(this.context);
+        return new ProxyElement(this, parent, runtime);
     }
 }
 
@@ -447,58 +334,7 @@ class OverflowBox extends ProxyWidget {
         renderObject.minHeight = this.minHeight;
         renderObject.maxHeight = this.maxHeight;
         renderObject.fit = this.fit;
-    }
-
-    /**
-     * Build the widget
-     */
-    build(context) {
-        if (!this._renderObject) {
-            this._renderObject = this.createRenderObject(context);
-        } else {
-            this.updateRenderObject(context, this._renderObject);
-        }
-
-        let childVNode = null;
-        if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
-        }
-
-        const elementId = context.element.getElementId();
-        const widgetPath = context.element.getWidgetPath();
-
-        const style = {
-            position: 'relative',
-            overflow: 'visible',
-            display: 'flex',
-            alignItems: this._getAlignmentValue('vertical'),
-            justifyContent: this._getAlignmentValue('horizontal')
-        };
-
-        // Apply size constraints
-        if (this.minWidth !== null) style.minWidth = `${this.minWidth}px`;
-        if (this.maxWidth !== null) style.maxWidth = `${this.maxWidth}px`;
-        if (this.minHeight !== null) style.minHeight = `${this.minHeight}px`;
-        if (this.maxHeight !== null) style.maxHeight = `${this.maxHeight}px`;
-
-        return new VNode({
-            tag: 'div',
-            props: {
-                style,
-                'data-element-id': elementId,
-                'data-widget-path': widgetPath,
-                'data-widget': 'OverflowBox',
-                'data-fit': this.fit,
-                'data-alignment': this.alignment.toString()
-            },
-            children: childVNode ? [childVNode] : [],
-            key: this.key
-        });
-    }
-
-    /**
+    }/**
      * Get alignment value for flex
      * @private
      */
@@ -532,13 +368,7 @@ class OverflowBox extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new OverflowBoxElement(this, parent, runtime);
-    }
-}
-
-class OverflowBoxElement extends ProxyWidget.constructor.prototype.constructor {
-    performRebuild() {
-        return this.widget.build(this.context);
+        return new ProxyElement(this, parent, runtime);
     }
 }
 
@@ -581,54 +411,7 @@ class SizedOverflowBox extends ProxyWidget {
     updateRenderObject(context, renderObject) {
         renderObject.requestedSize = this.size;
         renderObject.alignment = this.alignment;
-    }
-
-    /**
-     * Build the widget
-     */
-    build(context) {
-        if (!this._renderObject) {
-            this._renderObject = this.createRenderObject(context);
-        } else {
-            this.updateRenderObject(context, this._renderObject);
-        }
-
-        let childVNode = null;
-        if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
-        }
-
-        const elementId = context.element.getElementId();
-        const widgetPath = context.element.getWidgetPath();
-
-        const style = {
-            position: 'relative',
-            overflow: 'visible',
-            width: `${this.size.width}px`,
-            height: `${this.size.height}px`,
-            display: 'flex',
-            alignItems: this._getAlignmentValue('vertical'),
-            justifyContent: this._getAlignmentValue('horizontal')
-        };
-
-        return new VNode({
-            tag: 'div',
-            props: {
-                style,
-                'data-element-id': elementId,
-                'data-widget-path': widgetPath,
-                'data-widget': 'SizedOverflowBox',
-                'data-size': this.size.toString(),
-                'data-alignment': this.alignment.toString()
-            },
-            children: childVNode ? [childVNode] : [],
-            key: this.key
-        });
-    }
-
-    /**
+    }/**
      * Get alignment value for flex
      * @private
      */
@@ -658,13 +441,7 @@ class SizedOverflowBox extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new SizedOverflowBoxElement(this, parent, runtime);
-    }
-}
-
-class SizedOverflowBoxElement extends ProxyWidget.constructor.prototype.constructor {
-    performRebuild() {
-        return this.widget.build(this.context);
+        return new ProxyElement(this, parent, runtime);
     }
 }
 
@@ -697,49 +474,7 @@ class Offstage extends ProxyWidget {
      */
     updateRenderObject(context, renderObject) {
         renderObject.offstage = this.offstage;
-    }
-
-    /**
-     * Build the widget
-     */
-    build(context) {
-        if (!this._renderObject) {
-            this._renderObject = this.createRenderObject(context);
-        } else {
-            this.updateRenderObject(context, this._renderObject);
-        }
-
-        let childVNode = null;
-        if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
-        }
-
-        const elementId = context.element.getElementId();
-        const widgetPath = context.element.getWidgetPath();
-
-        const style = {
-            display: this.offstage ? 'none' : 'block',
-            position: 'relative'
-        };
-
-        return new VNode({
-            tag: 'div',
-            props: {
-                style,
-                'data-element-id': elementId,
-                'data-widget-path': widgetPath,
-                'data-widget': 'Offstage',
-                'data-offstage': this.offstage,
-                'aria-hidden': this.offstage ? 'true' : 'false'
-            },
-            children: childVNode ? [childVNode] : [],
-            key: this.key
-        });
-    }
-
-    /**
+    }/**
      * Debug properties
      */
     debugFillProperties(properties) {
@@ -751,13 +486,7 @@ class Offstage extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new OffstageElement(this, parent, runtime);
-    }
-}
-
-class OffstageElement extends ProxyWidget.constructor.prototype.constructor {
-    performRebuild() {
-        return this.widget.build(this.context);
+        return new ProxyElement(this, parent, runtime);
     }
 }
 
@@ -808,67 +537,7 @@ class FractionallySizedBox extends ProxyWidget {
         renderObject.alignment = this.alignment;
         renderObject.widthFactor = this.widthFactor;
         renderObject.heightFactor = this.heightFactor;
-    }
-
-    /**
-     * Build the widget
-     */
-    build(context) {
-        if (!this._renderObject) {
-            this._renderObject = this.createRenderObject(context);
-        } else {
-            this.updateRenderObject(context, this._renderObject);
-        }
-
-        let childVNode = null;
-        if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
-        }
-
-        const elementId = context.element.getElementId();
-        const widgetPath = context.element.getWidgetPath();
-
-        const style = {
-            position: 'relative',
-            display: 'flex',
-            alignItems: this._getAlignmentValue('vertical'),
-            justifyContent: this._getAlignmentValue('horizontal'),
-            overflow: 'visible'
-        };
-
-        // Apply width factor
-        if (this.widthFactor !== null) {
-            style.width = `${this.widthFactor * 100}%`;
-        } else {
-            style.width = '100%';
-        }
-
-        // Apply height factor
-        if (this.heightFactor !== null) {
-            style.height = `${this.heightFactor * 100}%`;
-        } else {
-            style.height = '100%';
-        }
-
-        return new VNode({
-            tag: 'div',
-            props: {
-                style,
-                'data-element-id': elementId,
-                'data-widget-path': widgetPath,
-                'data-widget': 'FractionallySizedBox',
-                'data-width-factor': this.widthFactor,
-                'data-height-factor': this.heightFactor,
-                'data-alignment': this.alignment.toString()
-            },
-            children: childVNode ? [childVNode] : [],
-            key: this.key
-        });
-    }
-
-    /**
+    }/**
      * Get alignment value for flex
      * @private
      */
@@ -903,13 +572,7 @@ class FractionallySizedBox extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new FractionallySizedBoxElement(this, parent, runtime);
-    }
-}
-
-class FractionallySizedBoxElement extends ProxyWidget.constructor.prototype.constructor {
-    performRebuild() {
-        return this.widget.build(this.context);
+        return new ProxyElement(this, parent, runtime);
     }
 }
 
