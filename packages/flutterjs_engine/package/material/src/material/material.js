@@ -67,15 +67,5 @@ export {
 } from "../widgets/compoment/divider.js";
 
 export {
-    ElevatedButton,
-    ElevatedButtonElement
+    ElevatedButton
 } from "./elevated_button.js";
-
-
-
-
-
-
-
-
-

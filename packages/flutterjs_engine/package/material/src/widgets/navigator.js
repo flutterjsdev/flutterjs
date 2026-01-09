@@ -133,7 +133,18 @@ class NavigatorState extends State {
 
         // Build the page
         if (route.builder) {
-            return route.builder(context);
+            const page = route.builder(context);
+
+            // CRITICAL FIX: Add a key based on route name to force rebuild when route changes
+            // This prevents "Widget unchanged, reusing existing vnode" issue
+            if (page && route.settings && route.settings.name) {
+                // If the page widget doesn't have a key, add one based on the route name
+                if (!page.key) {
+                    page.key = `route_${route.settings.name}_${this._history.length}_${Date.now()}`;
+                }
+            }
+
+            return page;
         }
 
         return null;
