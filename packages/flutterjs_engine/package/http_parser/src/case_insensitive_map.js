@@ -2,6 +2,8 @@
 export class CaseInsensitiveMap extends Map {
     constructor(other) {
         super();
+        this._lowerCaseMap = new Map(); // Maps lower-case key to original key
+
         if (other) {
             if (other instanceof Map) {
                 other.forEach((value, key) => this.set(key, value));
@@ -13,12 +15,21 @@ export class CaseInsensitiveMap extends Map {
 
     set(key, value) {
         if (typeof key === 'string') {
-            // Inefficient but functional MVP: store original key if needed, or just lower case map
-            // For standard http usage, we generally just need to lookup by case insensitive key
-            // But we might need to preserve case.
-            // Let's mimic Dart: "The map preserves the case of the original keys"
-            // This is trickier with native Map.
-            // We'll use a secondary map store for lookups.
+            const lowerKey = key.toLowerCase();
+            // If we already have this key (case-insensitive), we need to update the value
+            // but preserve strict "original casing" rule for the main map?
+            // Dart: "If the map previously contained a mapping for a key that equals [key] 
+            // (case-insensitively), valid access uses the new key's case."
+            // Wait, Dart 'http' says: "The map preserves the case of the *original* keys"
+            // actually standard CaseInsensitiveMap usually normalizes access but preserves insertion case or updates it.
+
+            // Let's remove any old key that matches
+            if (this._lowerCaseMap.has(lowerKey)) {
+                const oldKey = this._lowerCaseMap.get(lowerKey);
+                super.delete(oldKey);
+            }
+
+            this._lowerCaseMap.set(lowerKey, key);
             return super.set(key, value);
         }
         return super.set(key, value);
@@ -26,11 +37,9 @@ export class CaseInsensitiveMap extends Map {
 
     get(key) {
         if (typeof key === 'string') {
-            // Search for key case-insensitively
-            for (const k of this.keys()) {
-                if (typeof k === 'string' && k.toLowerCase() === key.toLowerCase()) {
-                    return super.get(k);
-                }
+            const lowerKey = key.toLowerCase();
+            if (this._lowerCaseMap.has(lowerKey)) {
+                return super.get(this._lowerCaseMap.get(lowerKey));
             }
         }
         return super.get(key);
@@ -38,15 +47,25 @@ export class CaseInsensitiveMap extends Map {
 
     has(key) {
         if (typeof key === 'string') {
-            for (const k of this.keys()) {
-                if (typeof k === 'string' && k.toLowerCase() === key.toLowerCase()) {
-                    return true;
-                }
-            }
-            return false;
+            return this._lowerCaseMap.has(key.toLowerCase());
         }
         return super.has(key);
     }
 
-    // TODO: Improve performance for O(1) lookup
+    delete(key) {
+        if (typeof key === 'string') {
+            const lowerKey = key.toLowerCase();
+            if (this._lowerCaseMap.has(lowerKey)) {
+                const originalKey = this._lowerCaseMap.get(lowerKey);
+                this._lowerCaseMap.delete(lowerKey);
+                return super.delete(originalKey);
+            }
+        }
+        return super.delete(key);
+    }
+
+    clear() {
+        this._lowerCaseMap.clear();
+        super.clear();
+    }
 }
