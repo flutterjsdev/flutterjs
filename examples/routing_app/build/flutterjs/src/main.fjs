@@ -1,7 +1,7 @@
 // ============================================================================
 // Generated from Dart IR - Advanced Code Generation (Phase 10)
 // WARNING: Do not edit manually - changes will be lost
-// Generated at: 2026-01-10 00:37:52.993610
+// Generated at: 2026-01-10 20:20:20.703495
 //
 // Smart Features Enabled:
 // ✓ Intelligent import detection
@@ -92,7 +92,7 @@ class HomeScreen extends StatelessWidget {
    */
   // @override
   build(context = undefined) {
-  return new Scaffold({ appBar: new AppBar({ title: new Text("Home Screen") }), body: new Center({ child: new Column({ mainAxisAlignment: MainAxisAlignment.center, children: [new Text("Welcome to Home Screen", { style: new TextStyle({ fontSize: 20 }) }), new SizedBox({ height: 20 }), new ElevatedButton({ onPressed: () => Navigator.of(context).pushNamed("/details"), child: new Text("Go to Details") })] }) }) });
+  return new Scaffold({ backgroundColor: Colors.blue, appBar: new AppBar({ title: new Text("Home Screen") }), body: new Center({ child: new Column({ mainAxisAlignment: MainAxisAlignment.center, children: [new Text("Welcome to Home Screen", { style: new TextStyle({ fontSize: 20 }) }), new SizedBox({ height: 20 }), new ElevatedButton({ onPressed: () => Navigator.of(context).pushNamed("/details"), child: new Text("Go to Details") })] }) }) });
   }
 
 }
@@ -112,7 +112,7 @@ class DetailsScreen extends StatelessWidget {
    */
   // @override
   build(context = undefined) {
-  return new Scaffold({ appBar: new AppBar({ title: new Text("Details Screen"), automaticallyImplyLeading: true }), body: new Center({ child: new Column({ mainAxisAlignment: MainAxisAlignment.center, children: [new Text("This is the Details Screen", { style: new TextStyle({ fontSize: 20 }) }), new SizedBox({ height: 20 }), new ElevatedButton({ onPressed: () => Navigator.of(context).pop(), child: new Text("Go Back") })] }) }) });
+  return new Scaffold({ backgroundColor: Colors.blue, appBar: new AppBar({ title: new Text("Details Screen"), automaticallyImplyLeading: true }), body: new Center({ child: new Column({ mainAxisAlignment: MainAxisAlignment.center, children: [new Text("This is the Details Screen", { style: new TextStyle({ fontSize: 20 }) }), new SizedBox({ height: 20 }), new ElevatedButton({ onPressed: () => Navigator.of(context).pop(), child: new Text("Go Back") })] }) }) });
   }
 
 }

@@ -190,6 +190,13 @@ class MaterialApp extends StatefulWidget {
     this.locale = locale;
     this.builder = builder;
 
+    // Deep linking support: If in browser, use current URL as initial route
+    if (typeof window !== 'undefined' && window.location && window.location.pathname) {
+      if (initialRoute === '/' && window.location.pathname !== '/') {
+        this.initialRoute = window.location.pathname;
+      }
+    }
+
     // Normalize routes
     if (this.home && !this.routes['/']) {
       this.routes['/'] = (context) => this.home;
@@ -252,6 +259,18 @@ class MaterialAppState extends State {
     document.body.style.backgroundColor = background;
     document.body.style.fontFamily = theme.fontFamily;
     document.body.style.color = onSurface;
+
+    // ✅ Ensure full screen layout
+    root.style.height = '100%';
+    root.style.width = '100%';
+    root.style.margin = '0';
+    root.style.padding = '0';
+
+    document.body.style.height = '100%';
+    document.body.style.width = '100%';
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
+    document.body.style.overflow = 'hidden'; // Prevent body scroll, Scaffold handles it
   }
 
   build(context) {

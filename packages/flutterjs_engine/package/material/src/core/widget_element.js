@@ -389,6 +389,13 @@ class ProxyElement extends Element {
         childElement.mount(this);
       }
 
+      // ✅ FIX: Reuse existing VNode if child already built during mount
+      // ProxyElement creates a NEW element every time, and mount() triggers a build.
+      // We must not trigger performRebuild() again or we get duplication.
+      if (childElement && childElement._vnode) {
+        return childElement._vnode;
+      }
+
       if (childElement && typeof childElement.performRebuild === 'function') {
         return childElement.performRebuild();
       }

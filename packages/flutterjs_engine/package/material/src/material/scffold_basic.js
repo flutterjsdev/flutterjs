@@ -374,6 +374,7 @@ class Scaffold extends Widget {
   build(context) {
     const elementId = context.element.getElementId();
     const widgetPath = context.element.getWidgetPath();
+    console.log(`[Scaffold] 🏗️ Building Scaffold ${elementId} at ${widgetPath}`);
 
     let appBarHeight = this.appBar ? 56 : 0;
     let bodyTop = appBarHeight;
@@ -386,58 +387,68 @@ class Scaffold extends Widget {
     // Build app bar
     let appBarVNode = null;
     if (this.appBar) {
-      const appBarElement = this.appBar.createElement(context.element, context.element.runtime);
-      appBarElement.mount(context.element);
-      appBarVNode = appBarElement.performRebuild();
+      let appBarElement = this.appBar.createElement(context.element, context.element.runtime);
+      context.element.addChild(appBarElement);
+      appBarElement.mount();
+      appBarVNode = appBarElement.vnode;
     }
 
     // Build body
     let bodyVNode = null;
     if (this.body) {
-      const bodyElement = this.body.createElement(context.element, context.element.runtime);
-      bodyElement.mount(context.element);
-      bodyVNode = bodyElement.performRebuild();
+      let bodyElement = this.body.createElement(context.element, context.element.runtime);
+      context.element.addChild(bodyElement);
+      bodyElement.mount();
+      bodyVNode = bodyElement.vnode;
     }
 
     // Build bottom navigation bar
     let bottomNavVNode = null;
     if (this.bottomNavigationBar) {
-      const bottomNavElement = this.bottomNavigationBar.createElement(context.element, context.element.runtime);
-      bottomNavElement.mount(context.element);
-      bottomNavVNode = bottomNavElement.performRebuild();
+      let bottomNavElement = this.bottomNavigationBar.createElement(context.element, context.element.runtime);
+      context.element.addChild(bottomNavElement);
+      bottomNavElement.mount();
+      bottomNavVNode = bottomNavElement.vnode;
     }
 
     // Build floating action button
     let fabVNode = null;
     if (this.floatingActionButton) {
-      const fabElement = this.floatingActionButton.createElement(context.element, context.element.runtime);
-      fabElement.mount(context.element);
-      fabVNode = fabElement.performRebuild();
+      let fabElement = this.floatingActionButton.createElement(context.element, context.element.runtime);
+      context.element.addChild(fabElement);
+      fabElement.mount();
+      fabVNode = fabElement.vnode;
     }
 
     // Build drawer
     let drawerVNode = null;
     if (this.drawer) {
-      const drawerElement = this.drawer.createElement(context.element, context.element.runtime);
-      drawerElement.mount(context.element);
-      drawerVNode = drawerElement.performRebuild();
+      let drawerElement = this.drawer.createElement(context.element, context.element.runtime);
+      context.element.addChild(drawerElement);
+      drawerElement.mount();
+      drawerVNode = drawerElement.vnode;
     }
 
     // Build end drawer
     let endDrawerVNode = null;
     if (this.endDrawer) {
-      const endDrawerElement = this.endDrawer.createElement(context.element, context.element.runtime);
-      endDrawerElement.mount(context.element);
-      endDrawerVNode = endDrawerElement.performRebuild();
+      let endDrawerElement = this.endDrawer.createElement(context.element, context.element.runtime);
+      context.element.addChild(endDrawerElement);
+      endDrawerElement.mount();
+      endDrawerVNode = endDrawerElement.vnode;
     }
 
     const scaffoldStyle = {
       display: 'flex',
       flexDirection: 'column',
       width: '100%',
-      height: '100%',
+      minHeight: '100vh', // ✅ Force full viewport height
+      height: '100%',     // Fallback
       position: 'relative',
-      backgroundColor: this.backgroundColor
+      backgroundColor: this.backgroundColor,
+      boxSizing: 'border-box',
+      margin: 0,
+      padding: 0
     };
 
     const appBarContainerStyle = {
@@ -665,22 +676,13 @@ class ScaffoldElement extends ScaffoldState {
   }
 
   mount(parent = null) {
-    if (this.mounted) return;
-
-    if (parent) {
-      this._parent = parent;
-    }
-
-    this._mounted = true;
-
-    // Create proper context
-    this.context = {
+    // Setup context first so it's available for performRebuild
+    this._context = {
       element: this,
       runtime: this.runtime,
-      parent: this.parent,
-      // Add any other needed context properties
+      parent: parent || this.parent,
       findAncestorStateOfType: (stateType) => {
-        let current = this.parent;
+        let current = parent || this.parent;
         while (current) {
           if (current instanceof stateType) {
             return current;
@@ -690,6 +692,9 @@ class ScaffoldElement extends ScaffoldState {
         return null;
       }
     };
+
+    // Delegate to base Element to handle _mounted, _parent, and performRebuild
+    super.mount(parent);
   }
 
   getElementId() {
@@ -715,7 +720,7 @@ class ScaffoldElement extends ScaffoldState {
 
     // ✅ CRITICAL: Make sure context exists before calling build
     if (!this.context) {
-      this.context = {
+      this._context = {
         element: this,
         runtime: this.runtime,
         parent: this.parent
@@ -729,7 +734,7 @@ class ScaffoldElement extends ScaffoldState {
   build(context) {
     // Ensure context is set
     if (context) {
-      this.context = context;
+      this._context = context;
     }
     return this.performRebuild();
   }
@@ -757,9 +762,10 @@ class AppBar extends StatelessWidget {
     if (this.title) {
       if (this.title.createElement) {
         // It's a widget - build it
-        const titleElement = this.title.createElement(context.element, context.element.runtime);
-        titleElement.mount(context.element);
-        titleVNode = titleElement.performRebuild();
+        let titleElement = this.title.createElement(context.element, context.element.runtime);
+        context.element.addChild(titleElement);
+        titleElement.mount();
+        titleVNode = titleElement.vnode;
       } else {
         // It's a string - wrap in VNode
         titleVNode = new VNode({

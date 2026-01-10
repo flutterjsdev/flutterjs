@@ -34,9 +34,9 @@ npm install -g flutter_js
 ### Option 2: Download Pre-Built Executable
 
 Download the executable for your platform:
-- **Windows**: `flutter_js.exe`
-- **macOS**: `flutter_js-macos`
-- **Linux**: `flutter_js-linux`
+- **Windows**: `flutterjs.exe`
+- **macOS**: `flutterjs-macos`
+- **Linux**: `flutterjs-linux`
 
 See [Releases](https://github.com/jaypal1046/flutterjs/releases) page.
 
@@ -44,7 +44,7 @@ See [Releases](https://github.com/jaypal1046/flutterjs/releases) page.
 
 ```bash
 git clone https://github.com/jaypal1046/flutterjs.git
-cd flutter_js
+cd flutterjs
 npm install
 npm run build:all
 ```
@@ -56,17 +56,17 @@ npm run build:all
 **Windows:**
 ```cmd
 REM Run as Administrator
-mkdir "C:\Program Files\flutter_js"
-copy "dist\flutter_js.exe" "C:\Program Files\flutter_js\"
-copy "dist\flutter_js.bat" "C:\Program Files\flutter_js\"
+mkdir "C:\Program Files\flutterjs"
+copy "dist\flutterjs.exe" "C:\Program Files\flutter_js\"
+copy "dist\flutterjs.bat" "C:\Program Files\flutter_js\"
 setx PATH "%PATH%;C:\Program Files\flutter_js"
 ```
 Then restart Command Prompt.
 
 **macOS/Linux:**
 ```bash
-sudo cp dist/flutter_js-macos /usr/local/bin/flutter_js
-sudo chmod +x /usr/local/bin/flutter_js
+sudo cp dist/flutterjs-macos /usr/local/bin/flutterjs
+sudo chmod +x /usr/local/bin/flutterjs
 ```
 
 ### Method 2: Run Directly from dist Folder
@@ -74,27 +74,27 @@ sudo chmod +x /usr/local/bin/flutter_js
 **Windows:**
 ```cmd
 cd dist
-flutter_js.exe init my-app
-flutter_js.exe dev
+flutterjs.exe init my-app
+flutterjs.exe dev
 ```
 
 **macOS/Linux:**
 ```bash
 cd dist
-./flutter_js-macos init my-app
-./flutter_js-macos dev
+./flutterjs-macos init my-app
+./flutterjs-macos dev
 ```
 
 ### Method 3: Use Full File Path
 
 **Windows:**
 ```cmd
-"C:\path\to\flutter_js\dist\flutter_js.exe" init my-app
+"C:\path\to\flutterjs\dist\flutterjs.exe" init my-app
 ```
 
 **macOS/Linux:**
 ```bash
-/path/to/flutter_js/dist/flutter_js-macos init my-app
+/path/to/flutterjs/dist/flutterjs-macos init my-app
 ```
 
 ## 🎯 Quick Start
