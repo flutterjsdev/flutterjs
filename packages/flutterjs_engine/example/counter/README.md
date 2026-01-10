@@ -43,7 +43,7 @@ counter/
 ├── src/
 │   └── main.dart         # Your Flutter/Dart code
 ├── assets/               # Images, fonts, etc.
-├── .flutter_js/          # Generated files (gitignore this)
+├── .flutterjs/          # Generated files (gitignore this)
 │   └── app.generated.js
 ├── dist/                 # Production build
 └── package.json

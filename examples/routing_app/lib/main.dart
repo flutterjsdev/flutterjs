@@ -27,6 +27,8 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.blue,
+
       appBar: AppBar(title: const Text('Home Screen')),
       body: Center(
         child: Column(
@@ -56,6 +58,7 @@ class DetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.blue,
       appBar: AppBar(
         title: const Text('Details Screen'),
         automaticallyImplyLeading: true,

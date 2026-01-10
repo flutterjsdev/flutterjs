@@ -3,7 +3,7 @@
 // ============================================================================
 //
 // This module provides the bridge between the Dart CLI and the FlutterJS
-// JavaScript engine (flutter_js.exe / flutter-js-linux / flutter-js-macos).
+// JavaScript engine (flutterjs.exe / flutter-js-linux / flutter-js-macos).
 //
 // Architecture:
 //   Dart CLI runs: dart run flutterjs.dart run --to-js --serve
@@ -14,7 +14,7 @@
 //       v  Creates: flutterjs.config.js, package.json, public/index.html
 //   EngineBridgeManager.startAfterBuild()
 //       |
-//       v  Spawns: flutter_js.exe dev (from build/flutterjs/)
+//       v  Spawns: flutterjs.exe dev (from build/flutterjs/)
 //   Browser opens at http://localhost:3000
 //
 // Project Structure (auto-generated in build/flutterjs/):
@@ -496,8 +496,8 @@ class FlutterJSEngineBridge {
 ///
 /// Flow:
 /// 1. Dart CLI generates .fjs files to build/flutterjs/lib/
-/// 2. EngineBridgeManager.initProject() runs flutter_js.exe init in build/flutterjs/
-/// 3. EngineBridgeManager.startAfterBuild() runs flutter_js.exe dev from build/flutterjs/
+/// 2. EngineBridgeManager.initProject() runs flutterjs.exe init in build/flutterjs/
+/// 3. EngineBridgeManager.startAfterBuild() runs flutterjs.exe dev from build/flutterjs/
 class EngineBridgeManager {
   FlutterJSEngineBridge? _bridge;
   String? _lastEnginePath;
@@ -916,7 +916,7 @@ dist/
 .debug/
 
 # Generated files
-.flutter_js/
+.flutterjs/
 .cache/
 
 # OS files

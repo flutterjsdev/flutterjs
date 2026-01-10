@@ -97,23 +97,32 @@ class InheritedElement extends Element {
     if (childWidget && typeof childWidget === 'object' &&
       (childWidget.build || childWidget.createState || childWidget.render)) {
 
-      const childElement = this.runtime.createElement(childWidget, this);
+      // Reuse existing element if possible
+      if (this._childElement) {
+        if (this._childElement.shouldRebuild(this._childElement.widget, childWidget)) {
+          this._childElement.updateWidget(childWidget);
+        } else {
+          this._childElement.widget = childWidget;
+          this._childElement.markNeedsBuild();
+        }
+      } else {
+        // Create new element
+        this._childElement = this.runtime.createElement(childWidget, this);
+        if (!this._childElement) {
+          throw new Error('Failed to create element from child widget');
+        }
 
-      if (!childElement) {
-        throw new Error('Failed to create element from child widget');
+        // Register properly
+        this.addChild(this._childElement);
+
+        // Mount
+        if (!this._childElement.mounted) {
+          this._childElement.mount();
+        }
       }
 
-      // Mount the child element
-      if (!childElement.mounted) {
-        childElement.mount();
-      }
-
-      // Build it to get VNode
-      const childVNode = childElement.build();
-
-      if (!childVNode) {
-        throw new Error('Child element build returned null');
-      }
+      // Return the child's VNode (from the stable element)
+      const childVNode = this._childElement.vnode || this._childElement.build();
 
       return {
         tag: 'div',

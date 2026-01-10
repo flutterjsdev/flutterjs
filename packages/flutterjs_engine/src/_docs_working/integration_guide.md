@@ -33,7 +33,7 @@ FlutterJS is a framework that brings Flutter's reactive widget architecture to t
 ## 📦 File Structure
 
 ```
-flutter_js/
+flutterjs/
 ├── core/
 │   ├── widget.js              # Base Widget, Element, StatelessWidget, StatefulWidget
 │   ├── state_fixed.js         # ✅ FIXED State class with reactive updates

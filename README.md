@@ -403,7 +403,7 @@ The Dart CLI executes a multi-phase pipeline:
 │  • Write .fjs files                                             │
 ├─────────────────────────────────────────────────────────────────┤
 │  PHASE 7: Dev Server (--serve flag)                             │
-│  • Spawn flutter_js.exe dev server                              │
+│  • Spawn flutterjs.exe dev server                              │
 │  • Open browser automatically                                   │
 │  • Hot reload on file changes                                   │
 └─────────────────────────────────────────────────────────────────┘
@@ -445,7 +445,7 @@ FlutterJS uses a **bridge architecture** to connect the Dart CLI with the JavaSc
 │                     │                                           │
 │                     ▼ Process.start()                           │
 │  ┌─────────────────────────────────────────────────────────┐    │
-│  │  flutter_js.exe dev --port 3000                          │   │
+│  │  flutterjs.exe dev --port 3000                          │   │
 │  │                                                          │   │
 │  │  • Serves .fjs files via Express.js                      │   │
 │  │  • Hot Module Replacement (HMR)                          │   │
@@ -470,9 +470,9 @@ The engine bridge automatically detects your platform and uses the appropriate b
 
 | Platform | Binary |
 |----------|--------|
-| Windows | `flutter_js.exe` |
-| macOS | `flutter_js-macos` |
-| Linux | `flutter_js-linux` |
+| Windows | `flutterjs.exe` |
+| macOS | `flutterjs-macos` |
+| Linux | `flutterjs-linux` |
 
 Binaries are located in: `packages/flutterjs_engine/dist/`
 
@@ -496,7 +496,7 @@ The bridge is designed to evolve to a full IPC (Inter-Process Communication) mod
 
 ```dart
 // Future IPC implementation
-Process.start('flutter_js.exe', ['dev', '--ipc']);
+Process.start('flutterjs.exe', ['dev', '--ipc']);
 // stdin:  {"method": "reload", "files": ["main.fjs"]}
 // stdout: {"status": "ok", "reloadedCount": 1}
 ```

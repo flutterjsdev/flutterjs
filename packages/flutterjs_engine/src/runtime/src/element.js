@@ -163,7 +163,8 @@ class Element extends Diagnosticable {
     this._depth = parent ? (parent._depth || 0) + 1 : 0;
 
     this.key = widget.key;
-    this._id = Element.generateId();
+    this._id = `el_${Element._nextId++}`;
+    console.log(`[Element] 🆕 Created ${this._id} for ${widget?.constructor?.name}`);
 
     this._buildCount = 0;
     this._lastBuildTime = 0;
@@ -288,6 +289,10 @@ class Element extends Diagnosticable {
       });
 
       this.didMount();
+
+      // Mark that initial mount is complete
+      // This prevents applyChanges from running on the first rebuild after mount
+      this._initialMountComplete = true;
     } catch (error) {
       this._mounted = false;
       throw new Error(`Failed to mount ${this.constructor.name}: ${error.message}`);
@@ -308,14 +313,30 @@ class Element extends Diagnosticable {
     try {
       this._building = true;
 
+      console.log(`🔄 [Element.rebuild] START for ${this._id} (${this.widget?.constructor?.name})`);
+      console.log(`   _shouldPatch BEFORE performRebuild:`, this._shouldPatch);
+
       const oldVNode = this._vnode;
+      console.log(`   oldVNode:`, oldVNode?.tag, oldVNode?._element);
 
       this._vnode = this.performRebuild();
 
+      console.log(`   newVNode:`, this._vnode?.tag, this._vnode?._element);
+      console.log(`   _shouldPatch AFTER performRebuild:`, this._shouldPatch);
+
       // Only apply changes if this element is responsible for patching
-      if (this._shouldPatch) {
+      // AND this is not the first rebuild after mount
+      if (this._shouldPatch && this._initialMountComplete) {
+        console.log(`✅ [Element.rebuild] Calling applyChanges for ${this._id}`);
         this.applyChanges(oldVNode, this._vnode);
       } else {
+        if (!this._initialMountComplete) {
+          console.log(`⏭️ [Element.rebuild] Skipping applyChanges for ${this._id} (first rebuild after mount)`);
+        } else if (!oldVNode) {
+          console.log(`⏭️ [Element.rebuild] Skipping applyChanges for ${this._id} (initial mount, oldVNode is null)`);
+        } else {
+          console.log(`⏭️ [Element.rebuild] Skipping applyChanges for ${this._id} (_shouldPatch = false)`);
+        }
         // If delegating, we still need to update our DOM reference from the child's result
         if (this._vnode && this._vnode._element) {
           this._domNode = this._vnode._element;
@@ -332,8 +353,121 @@ class Element extends Diagnosticable {
   }
 
   applyChanges(oldVNode, newVNode) {
+    console.log(`[Element.applyChanges] START for ${this._id} (${this.widget?.constructor.name})`);
+    console.log(`  oldVNode:`, {
+      tag: oldVNode?.tag,
+      hasElement: !!oldVNode?._element,
+      element: oldVNode?._element?.tagName
+    });
+    console.log(`  newVNode:`, {
+      tag: newVNode?.tag,
+      hasElement: !!newVNode?._element,
+      element: newVNode?._element?.tagName
+    });
+
     if (this.runtime.config && this.runtime.config.debugMode) {
       console.log(`[Element] Applied changes to ${this._id}`);
+    }
+
+    // ✅ CRITICAL FIX: Handle case where BOTH VNodes have no DOM elements
+    // This happens with Navigator - the VNodes are wrappers without real DOM
+    // IMPORTANT: Only do this AFTER the first applyChanges (not during initial render)
+    if (this._hasAppliedChanges && oldVNode && newVNode && !oldVNode?._element && !newVNode?._element && this.runtime.renderer) {
+      // Check if VNodes are actually different (children changed)
+      const oldChildren = oldVNode.children || [];
+      const newChildren = newVNode.children || [];
+      const childrenChanged = oldChildren.length !== newChildren.length ||
+        JSON.stringify(oldChildren) !== JSON.stringify(newChildren);
+
+      if (childrenChanged) {
+        console.log(`[Element] 🔄 Both VNodes have no DOM but children changed - forcing full re-render`);
+
+        try {
+          // Find the root DOM node from this element or parent
+          let targetElement = this._domNode;
+
+          if (!targetElement && this._parent) {
+            // Try to get parent's DOM node
+            targetElement = this._parent._domNode;
+          }
+
+          if (!targetElement) {
+            // Last resort: find from document
+            const rootElement = document.getElementById('root');
+            if (rootElement && rootElement.firstChild) {
+              targetElement = rootElement.firstChild;
+            }
+          }
+
+          if (targetElement) {
+            console.log(`[Element] 🎨 Found target element, rendering new VNode`);
+
+            // Clear the target and render new VNode
+            targetElement.innerHTML = '';
+            this.runtime.renderer.render(newVNode, targetElement);
+
+            // Update VNode reference
+            newVNode._element = targetElement.firstChild;
+            if (newVNode._element) {
+              newVNode._element._vnode = newVNode;
+              this._domNode = newVNode._element;
+            }
+
+            console.log(`[Element] ✅ Successfully re-rendered for VNode change`);
+            return;
+          } else {
+            console.warn(`[Element] ⚠️ Could not find target element for re-render`);
+          }
+        } catch (error) {
+          console.error(`[Element] ❌ Failed to re-render:`, error);
+        }
+      } else {
+        console.log(`[Element] ℹ️ Both VNodes have no DOM but children unchanged - skipping re-render`);
+      }
+    }
+
+    // ✅ CRITICAL FIX: Handle case where new VNode has no DOM element
+    // This happens when widget type changes (e.g., HomeScreen → DetailsScreen)
+    // IMPORTANT: Only apply during navigation (when mounted), NOT during initial mount
+    if (this._mounted && oldVNode && oldVNode._element && !newVNode._element && this.runtime.renderer) {
+      console.log(`[Element] 🔄 Widget type changed - rendering new VNode and replacing DOM`);
+
+      try {
+        const oldDomNode = oldVNode._element;
+        const parentNode = oldDomNode.parentNode;
+
+        if (parentNode) {
+          // Create temporary container to render new VNode
+          const tempContainer = document.createElement('div');
+
+          // Render new VNode to temp container
+          this.runtime.renderer.render(newVNode, tempContainer);
+
+          // Get the rendered DOM node
+          const newDomNode = tempContainer.firstChild;
+
+          if (newDomNode) {
+            // Replace old DOM with new DOM
+            parentNode.replaceChild(newDomNode, oldDomNode);
+
+            // Update VNode's DOM reference
+            newVNode._element = newDomNode;
+            newDomNode._vnode = newVNode;
+
+            // Update element's DOM reference
+            if (this._domNode === oldDomNode) {
+              this._domNode = newDomNode;
+            }
+
+            console.log(`[Element] ✅ Successfully replaced DOM for widget type change`);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error(`[Element] ❌ Failed to replace DOM for widget type change:`, error);
+      }
+    } else if (oldVNode && oldVNode._element && newVNode._element) {
+      console.log(`[Element] ℹ️ Both VNodes have DOM elements - using normal patching`);
     }
 
     // ✅ DIRECT DOM PATCHING to preserve state
@@ -407,6 +541,9 @@ class Element extends Diagnosticable {
         console.error(`[Element] Failed to patch DOM for ${this._id}:`, e);
       }
     }
+
+    // Mark that applyChanges has been called at least once
+    this._hasAppliedChanges = true;
   }
 
   markNeedsBuild() {
@@ -420,6 +557,9 @@ class Element extends Diagnosticable {
     }
 
     this._dirty = true;
+
+    console.log(`🔍 [Element.markNeedsBuild] Called for ${this._id} (${this.widget?.constructor?.name})`);
+    console.trace('Call stack:');
 
     if (this.runtime && this.runtime.markNeedsBuild) {
       this.runtime.markNeedsBuild(this);
@@ -722,38 +862,28 @@ class StatelessElement extends Element {
           this._children = [];
         }
 
+        // ✅ CRITICAL FIX: We need to patch the DOM because we're replacing the child
+        this._shouldPatch = true;
+
         // Create element for this widget
         childElement = this._createElementForWidget(result);
 
         console.log('✅ Created child element:', childElement.constructor.name);
 
-        // Set parent before building
-        childElement._parent = this;
-        childElement._depth = this._depth + 1;
-        childElement._mounted = true;
-
         // ✅ Add to children array so unmount() works
         this._children = [childElement];
 
-        console.log('✅ Set up child element parent/depth');
+        // ✅ CRITICAL: Use mount() to properly initialize the child element
+        // This handles parent ref, depth, context, and state initialization
+        childElement.mount(this);
 
-        // Recursively build the child element to get VNode
-        const childVNode = childElement.build();
-
-        // Also ensure vnode is set on child
-        childElement.vnode = childVNode;
-
-        console.log('✅ Child element.build() returned:', {
-          hasTag: childVNode?.tag !== undefined,
-          type: typeof childVNode,
-          isRealVNode: isRealVNode(childVNode)
-        });
+        const childVNode = childElement.vnode;
 
         if (!childVNode) {
           throw new Error('Child element.build() returned null');
         }
 
-        this._shouldPatch = false; // We delegated to child, child already patched
+        console.log('✅ Built new child widget, applyChanges will update DOM');
         return childVNode;
       }
 
@@ -918,27 +1048,25 @@ class StatefulElement extends Element {
           this._children = [];
         }
 
-        this._shouldPatch = false; // Child will patch (when built)
+        // ✅ CRITICAL FIX: We need to patch the DOM because we're replacing the child
+        this._shouldPatch = true;
 
         childElement = this._createElementForWidget(result);
-
-        // Set up parent/depth without calling mount
-        childElement._parent = this;
-        childElement._depth = this._depth + 1;
-        childElement._mounted = true;
 
         // ✅ Add to children array so unmount() works
         this._children = [childElement];
 
-        const childVNode = childElement.build();
+        // ✅ CRITICAL: Use mount() to properly initialize the child element
+        childElement.mount(this);
 
-        // Also ensure vnode is set on child
-        childElement.vnode = childVNode;
+        const childVNode = childElement.vnode;
+
 
         if (!childVNode) {
           throw new Error('Child element.build() returned null');
         }
 
+        console.log('✅ Built new child widget, applyChanges will update DOM');
         return childVNode;
       }
 
@@ -975,6 +1103,12 @@ class StatefulElement extends Element {
    * This ensures this.widget is available in State
    */
   mount() {
+    // ✅ CRITICAL FIX: Prevent double mounting
+    if (this._mounted) {
+      console.warn(`[StatefulElement] ${this._id} already mounted, skipping duplicate mount`);
+      return;
+    }
+
     console.log('🚀 StatefulElement.mount() called');
     console.log('   Widget:', this.widget?.constructor?.name);
     console.log('   State:', this.state?.constructor?.name);
@@ -1168,6 +1302,9 @@ class ComponentElement extends Element {
     return this.build();
   }
 }
+
+// Initialize static ID counter
+Element._nextId = 0;
 
 export {
   Element,

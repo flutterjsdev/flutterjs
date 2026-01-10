@@ -18,6 +18,7 @@ class VNodeBuilder {
     if (this.debugMode && !this.runtime) {
       console.warn('[VNodeBuilder] ⚠️ No runtime provided - Element creation will fail');
     }
+    console.log('[[[ DEBUG_VNODE_FIX_APPLIED_TIMESTAMP ]]] VNodeBuilder initialized');
   }
 
   /**
@@ -361,8 +362,9 @@ class VNodeBuilder {
           );
         }
 
-        // Build element
-        const builtWidget = element.build();
+        // ✅ FIXED: Do NOT call build() again if mount() already did it
+        // Element.mount() calls performRebuild() which calls build() and sets element.vnode
+        const builtWidget = element.vnode;
 
         if (!builtWidget) {
           throw this.createError(
@@ -510,26 +512,10 @@ class VNodeBuilder {
           element.mount();
         }
 
-        const builtWidget = element.build();
-
-        if (widget.child) {
-          const childVNode = this.build(widget.child, {
-            ...context,
-            parentElement: element,
-            runtime: this.runtime
-          });
-
-          if (builtWidget && childVNode) {
-            if (!builtWidget.children) {
-              builtWidget.children = [];
-            }
-            builtWidget.children.push(childVNode);
-          }
-
-          return builtWidget || childVNode;
-        }
-
-        return builtWidget ? this.build(builtWidget, context) : null;
+        // ✅ FIXED: Do NOT manually build widget.child
+        // InheritedElement.mount() -> build() already handles the child
+        // Manually building it causes duplication (nested or appended)
+        return element.vnode;
 
       } finally {
         this.buildStack.pop();
