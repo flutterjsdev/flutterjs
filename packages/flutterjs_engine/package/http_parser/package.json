@@ -1,0 +1,12 @@
+{
+    "name": "@flutterjs/http_parser",
+    "version": "1.0.0",
+    "type": "module",
+    "main": "src/index.js",
+    "dependencies": {
+        "@flutterjs/core": "1.0.0"
+    },
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    }
+}
