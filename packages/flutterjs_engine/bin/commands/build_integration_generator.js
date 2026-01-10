@@ -180,6 +180,18 @@ class BuildGenerator {
 
 
   async _copySourceMapsFromPackages() {
+    // ✅ FIX: Don't copy source maps in development mode
+    // The dev server serves node_modules directly from project root
+    // DEBUG: Print mode
+    console.log(chalk.magenta(`DEBUG: _copySourceMapsFromPackages mode=${this.config.mode}`));
+
+    if (this.config.mode === 'development' || this.config.mode === 'dev') {
+      if (this.config.debugMode) {
+        console.log(chalk.gray(`  ℹ️  Skipping source map copy (development mode)`));
+      }
+      return;
+    }
+
     const nodeModulesDir = path.join(this.projectRoot, 'node_modules', '@flutterjs');
     const outputNodeModulesDir = path.join(this.integration.buildOutput.outputDir, 'node_modules', '@flutterjs');
 
@@ -444,7 +456,7 @@ html, body {
 
 
   genreateWidgetTracker() {
-   return `
+    return `
    /**
  * ============================================================================
  * IMPROVED WIDGET TRACKER
