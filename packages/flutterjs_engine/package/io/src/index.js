@@ -1,3 +1,5 @@
 
 export * from './websocket.js';
-// Add basic IoSink, etc if needed later
+export * from './http_status.js';
+export * from './http_headers.js';
+export * from './socket_exception.js';
