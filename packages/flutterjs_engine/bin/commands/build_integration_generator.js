@@ -87,9 +87,19 @@ class BuildGenerator {
         manifest: {},
       };
 
+      // ✅ 0. Copy all source files (renaming .fjs -> .js)
+      // This ensures all multi-file assets are available
+      await this._copySourceFiles(outputDir);
+
       // ✅ 1. Write transformed code
+      // This OVERWRITES the copied main.js with the transformed version
       const mainPath = path.join(outputDir, "main.js");
-      const transformedCode = this.integration.transformed?.transformedCode || "";
+      let transformedCode = this.integration.transformed?.transformedCode || "";
+
+      // ✅ REWRITE IMPORTS: .fjs -> .js
+      // Since we renamed the files on disk, we must update the imports
+      transformedCode = transformedCode.replace(/\.fjs(['"])/g, '.js$1');
+
       await fs.promises.writeFile(mainPath, transformedCode, "utf-8");
       files.push({ name: "main.js", size: transformedCode.length });
 
@@ -175,6 +185,73 @@ class BuildGenerator {
     } catch (error) {
       spinner.fail(chalk.red(`✗ Output generation failed: ${error.message}`));
       throw error;
+    }
+  }
+
+  /**
+   * ✅ NEW: Copy source files so multi-file apps work
+   * Renames .fjs -> .js AND rewrites imports
+   * Preserves directory structure
+   */
+  async _copySourceFiles(outputDir) {
+    if (!this.integration.analysis || !this.integration.analysis.sourcePath) {
+      return;
+    }
+
+    const srcDir = path.dirname(this.integration.analysis.sourcePath);
+    console.log(chalk.blue(`\n  Copying source files from: ${srcDir}`));
+
+    const copyRecursive = async (currentPath, targetPath) => {
+      // Don't traverse into node_modules or hidden dirs
+      if (currentPath.includes('node_modules') || path.basename(currentPath).startsWith('.')) {
+        return;
+      }
+
+      const entries = await fs.promises.readdir(currentPath, { withFileTypes: true });
+
+      await fs.promises.mkdir(targetPath, { recursive: true });
+
+      let count = 0;
+
+      for (const entry of entries) {
+        const srcPath = path.join(currentPath, entry.name);
+
+        if (entry.isDirectory()) {
+          const destPath = path.join(targetPath, entry.name);
+          await copyRecursive(srcPath, destPath);
+        } else if (entry.isFile()) {
+          // Rename .fjs -> .js
+          let finalDest = path.join(targetPath, entry.name);
+          let isFjs = false;
+
+          if (entry.name.endsWith('.fjs')) {
+            finalDest = path.join(targetPath, entry.name.replace(/\.fjs$/, '.js'));
+            isFjs = true;
+          } else if (entry.name.endsWith('.dart') || entry.name === 'flutterjs.config.js') {
+            // Skip Dart files and config
+            continue;
+          }
+
+          // Read content, replace imports if FJS, write to dest
+          if (isFjs) {
+            let content = await fs.promises.readFile(srcPath, 'utf-8');
+            content = content.replace(/\.fjs(['"])/g, '.js$1');
+            await fs.promises.writeFile(finalDest, content, 'utf-8');
+          } else {
+            await fs.promises.copyFile(srcPath, finalDest);
+          }
+
+          count++;
+        }
+      }
+      return count;
+    };
+
+    try {
+      await copyRecursive(srcDir, outputDir);
+      console.log(chalk.gray(`  ✓ Source files copied, renamed (.fjs -> .js), and imports updated`));
+    } catch (e) {
+      console.warn(chalk.yellow(`  ⚠ Error copying source files: ${e.message}`));
     }
   }
 

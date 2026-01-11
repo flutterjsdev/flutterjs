@@ -99,6 +99,7 @@ const String kVersion = '2.0.0';
 const String kAppName = 'Flutter.js';
 
 Future<void> main(List<String> args) async {
+  print('🦖 FLUTTERJS CLI - DEBUG MODE ACTIVE 🦖');
   // Parse verbose flags early
   final bool veryVerbose = args.contains('-vv');
   final bool verbose =

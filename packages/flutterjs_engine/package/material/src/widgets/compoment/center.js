@@ -1,9 +1,9 @@
-import { Widget, StatelessWidget, ProxyElement } from '../../core/widget_element.js';
+import { Widget, StatelessWidget } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
-
+import { Element } from '@flutterjs/runtime';
 import { Alignment } from '../../utils/utils.js';
 
-class Align extends StatelessWidget {
+class Align extends Widget {
   constructor({
     key = null,
     alignment = Alignment.center,
@@ -18,27 +18,31 @@ class Align extends StatelessWidget {
     this.child = child;
   }
 
+  /**
+   * Build widget tree - called by AlignElement
+   */
   build(context) {
     const inlineStyles = this._getInlineStyles();
     const elementId = context.element.getElementId();
     const widgetPath = context.element.getWidgetPath();
 
-    const childWidget = this.child instanceof Widget
-      ? this._buildChild(this.child, context)
-      : this.child;
+    let childVNode = null;
+    if (this.child) {
+      const childElement = this.child.createElement(context.element, context.element.runtime);
+      childElement.mount(context.element);
+      childVNode = childElement.performRebuild();
+    }
 
     return new VNode({
       tag: 'div',
       props: {
-        // className: 'fjs-align', // Removed to test VDOM style bug
         style: inlineStyles,
         'data-element-id': elementId,
         'data-widget-path': widgetPath,
-        'data-identification': context.element.getIdentificationStrategy(),
         'data-widget': 'Align',
-        'data-alignment': this.alignment
+        'data-alignment': this.alignment?.toString()
       },
-      children: childWidget ? [childWidget] : [],
+      children: childVNode ? [childVNode] : [],
       key: this.key
     });
   }
@@ -65,6 +69,7 @@ class Align extends StatelessWidget {
   }
 
   _getAlignmentStyles() {
+    const alignmentStr = this.alignment?.toString() || 'center';
     const alignmentMap = {
       'top-left': { justifyContent: 'flex-start', alignItems: 'flex-start' },
       'top-center': { justifyContent: 'center', alignItems: 'flex-start' },
@@ -77,19 +82,11 @@ class Align extends StatelessWidget {
       'bottom-right': { justifyContent: 'flex-end', alignItems: 'flex-end' }
     };
 
-    return alignmentMap[this.alignment] || alignmentMap['center'];
+    return alignmentMap[alignmentStr] || alignmentMap['center'];
   }
 
-  _buildChild(child, context) {
-    if (!child) return null;
-
-    if (child instanceof Widget) {
-      const childElement = child.createElement(context.element, context.element.runtime);
-      childElement.mount(context.element);
-      return childElement.performRebuild();
-    }
-
-    return child;
+  createElement(parent, runtime) {
+    return new AlignElement(this, parent, runtime);
   }
 
   debugFillProperties(properties) {
@@ -100,6 +97,12 @@ class Align extends StatelessWidget {
     if (this.child) {
       properties.push({ name: 'child', value: this.child.constructor.name });
     }
+  }
+}
+
+class AlignElement extends Element {
+  performRebuild() {
+    return this.widget.build(this.context);
   }
 }
 

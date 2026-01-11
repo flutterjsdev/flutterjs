@@ -374,7 +374,6 @@ class Scaffold extends Widget {
   build(context) {
     const elementId = context.element.getElementId();
     const widgetPath = context.element.getWidgetPath();
-    console.log(`[Scaffold] 🏗️ Building Scaffold ${elementId} at ${widgetPath}`);
 
     let appBarHeight = this.appBar ? 56 : 0;
     let bodyTop = appBarHeight;
@@ -775,6 +774,17 @@ class AppBar extends StatelessWidget {
       }
     }
 
+    // ✅ FIX: Resolve background color
+    let bgColor = this.backgroundColor;
+    if (bgColor && typeof bgColor.toCSSString === 'function') {
+      bgColor = bgColor.toCSSString();
+    } else if (bgColor && typeof bgColor === 'object' && bgColor.value) {
+      // Fallback for Color objects without toCSSString (shouldn't happen but safe)
+      const value = bgColor.value;
+      const hex = value.toString(16).padStart(8, '0');
+      bgColor = `#${hex.slice(2)}`;
+    }
+
     // ✅ FIX: Use VNode constructor correctly with OBJECT parameter
     return new VNode({
       tag: 'div',  // ✅ CORRECT: tag is inside the config object
@@ -783,7 +793,7 @@ class AppBar extends StatelessWidget {
         'data-widget': 'AppBar'
       },
       style: {
-        backgroundColor: this.backgroundColor || 'var(--md-sys-color-primary)',
+        backgroundColor: bgColor || 'var(--md-sys-color-primary)',
         color: '#FFFFFF',
         padding: '16px',
         fontSize: '20px',

@@ -109,8 +109,10 @@ function isRealVNode(obj) {
   const hasChildren = Array.isArray(obj.children) || obj.children === null || obj.children === undefined;
   const hasProps = obj.props === null || obj.props === undefined || typeof obj.props === 'object';
 
-  // VNode should NOT have build() or createState() methods
-  const isNotWidget = typeof obj.build !== 'function' && typeof obj.createState !== 'function';
+  // VNode should NOT have build() or createState() or createElement() methods
+  const isNotWidget = typeof obj.build !== 'function' &&
+    typeof obj.createState !== 'function' &&
+    typeof obj.createElement !== 'function';
 
   // All conditions must be true
   return hasTag && hasChildren && hasProps && isNotWidget;
@@ -125,7 +127,8 @@ function isWidget(obj) {
   return (
     typeof obj.build === 'function' ||
     typeof obj.createState === 'function' ||
-    typeof obj.render === 'function'
+    typeof obj.render === 'function' ||
+    typeof obj.createElement === 'function' // ✅ Added for ProxyWidgets (SizedBox, ConstrainedBox)
   );
 }
 

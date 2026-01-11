@@ -1,6 +1,6 @@
 {
   "name": "@flutterjs/material",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Material Design widget handlers for Flutter.js",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,6 +16,7 @@
     "./material/gesture_detector": "./dist/material/gesture_detector.js",
     "./material/icon": "./dist/material/icon.js",
     "./material/image": "./dist/material/image.js",
+    "./material/list_view": "./dist/material/list_view.js",
     "./material/material": "./dist/material/material.js",
     "./material/material_app": "./dist/material/material_app.js",
     "./material/scffold_basic": "./dist/material/scffold_basic.js",

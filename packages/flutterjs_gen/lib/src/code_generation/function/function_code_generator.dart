@@ -73,24 +73,34 @@ class FunctionCodeGen {
   final List<CodeGenError> errors = [];
   final FlutterPropConverter propConverter;
   final ParameterCodeGen paramGen;
+  ClassDecl? _currentClassContext;
 
   FunctionCodeGen({
     FunctionGenConfig? config,
     StatementCodeGen? stmtGen,
     ExpressionCodeGen? exprGen,
-    ParameterCodeGen? paramGen, // ✅ ADD THIS
+    ParameterCodeGen? paramGen,
     FlutterPropConverter? propConverter,
+    ClassDecl? currentClassContext, // ✅ Add this
   }) : propConverter = propConverter ?? FlutterPropConverter(),
        config = config ?? const FunctionGenConfig(),
        stmtGen = stmtGen ?? StatementCodeGen(),
+       _currentClassContext = currentClassContext,
        paramGen =
            paramGen ??
-           ParameterCodeGen(
-             // ✅ ADD THIS
-             exprGen: exprGen ?? ExpressionCodeGen(),
-           ),
-       exprGen = exprGen ?? ExpressionCodeGen() {
+           ParameterCodeGen(exprGen: exprGen ?? ExpressionCodeGen()),
+       exprGen =
+           exprGen ??
+           ExpressionCodeGen(currentClassContext: currentClassContext) {
     indenter = Indenter(this.config.indent);
+  }
+
+  // ✅ Add method to set context dynamically if needed
+  void setClassContext(ClassDecl? cls) {
+    _currentClassContext = cls;
+    exprGen.setClassContext(cls);
+    // ✅ FIX: Also propogate context to StatementCodeGen's expression generator
+    stmtGen.exprGen.setClassContext(cls);
   }
 
   /// Generate JavaScript code from a function declaration
@@ -123,9 +133,17 @@ class FunctionCodeGen {
   }
 
   /// Generate code for a constructor
-  String generateConstructor(ConstructorDecl ctor, String className) {
+  String generateConstructor(
+    ConstructorDecl ctor,
+    String className, {
+    bool hasSuperclass = false,
+  }) {
     try {
-      return _generateConstructor(ctor, className);
+      return _generateConstructor(
+        ctor,
+        className,
+        hasSuperclass: hasSuperclass,
+      );
     } catch (e) {
       final error = CodeGenError(
         message: 'Failed to generate constructor for $className: $e',
@@ -375,7 +393,11 @@ class FunctionCodeGen {
     return buffer.toString().trim();
   }
 
-  String _generateConstructor(ConstructorDecl ctor, String className) {
+  String _generateConstructor(
+    ConstructorDecl ctor,
+    String className, {
+    bool hasSuperclass = false,
+  }) {
     final buffer = StringBuffer();
 
     // ✅ NEW: Generate JSDoc for constructor
@@ -399,8 +421,20 @@ class FunctionCodeGen {
         .map((p) => p.name)
         .join(', ');
 
+    bool generatedSuper = false;
     if (ctor.superCall != null || superParams.isNotEmpty) {
       buffer.writeln(indenter.line('super($superParams);'));
+      generatedSuper = true;
+    } else if (hasSuperclass) {
+      // ✅ FIX: Force super() call if superclass exists and not generated yet
+      // Check if 'key' parameter is available to pass to super (common for Widgets)
+      final hasKey = ctor.parameters.any((p) => p.name == 'key');
+      if (hasKey) {
+        buffer.writeln(indenter.line('super(key);'));
+      } else {
+        buffer.writeln(indenter.line('super();'));
+      }
+      generatedSuper = true;
     }
 
     for (final param in ctor.parameters) {

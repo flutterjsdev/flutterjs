@@ -222,10 +222,13 @@ class Flex extends Widget {
     };
 
     // Build child VNodes
-    const childVNodes = this.children.map((childWidget) => {
+    const childVNodes = this.children.map((childWidget, idx) => {
+      console.log(`[Flex.build] Building child ${idx}:`, childWidget?.constructor?.name, 'has createElement:', typeof childWidget?.createElement);
       const childElement = childWidget.createElement(context.element, context.element.runtime);
+      console.log(`[Flex.build] Child ${idx} element:`, childElement?.constructor?.name);
       childElement.mount(context.element);
       const childVNode = childElement.performRebuild();
+      console.log(`[Flex.build] Child ${idx} VNode:`, childVNode?.constructor?.name, 'tag:', childVNode?.tag);
 
       // Check if child is Flexible/Expanded
       let childStyle = {};
@@ -409,7 +412,13 @@ class Flexible extends Widget {
   }
 
   build(context) {
-    return this.child;
+    // ✅ Must build child to VNode, not return raw Widget
+    if (!this.child) {
+      return null;
+    }
+    const childElement = this.child.createElement(context.element, context.element.runtime);
+    childElement.mount(context.element);
+    return childElement.performRebuild();
   }
 
   debugFillProperties(properties) {

@@ -10,6 +10,8 @@ import { ClipPath } from '../widgets/compoment/clip.js';
 import { ConstrainedBox, LimitedBox } from '../widgets/compoment/sized_box.js';
 import { Transform } from '../widgets/compoment/transform.js';
 
+
+
 // ============================================================================
 // ENUMS
 // ============================================================================
@@ -374,7 +376,7 @@ class Container extends StatelessWidget {
 
     // Apply padding
     const effectivePadding = this._getPaddingIncludingDecoration();
-    if (effectivePadding !== null) {
+    if (effectivePadding != null) {  // != catches both null and undefined
       current = new Padding({
         padding: effectivePadding,
         child: current

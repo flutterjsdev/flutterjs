@@ -153,25 +153,17 @@ class GestureDetector extends StatelessWidget {
    * Initialize gesture recognizers on mount
    */
   _initializeRecognizers(elementId) {
-    console.log(`[GestureDetector] _initializeRecognizers for ${elementId}. Current count: ${this.recognizers.length}`);
     if (this.recognizers.length > 0) return; // Already initialized
 
     // Tap gesture
     if (this.onTap || this.onTapDown || this.onTapUp) {
-      console.log('[GestureDetector] Creating TapRecognizer', {
-        hasOnTap: !!this.onTap,
-        hasOnTapDown: !!this.onTapDown,
-        hasOnTapUp: !!this.onTapUp
-      });
       const tapRecognizer = new TapRecognizer(
         (event) => {
-          console.log('[GestureDetector] Tap Recognized!', event);
           if (this.onTap) this.onTap(event);
           if (this.onTapUp) this.onTapUp(event);
         },
         { maxDuration: 300, maxMovement: 10 }
       );
-      console.log('[GestureDetector] Added TapRecognizer');
       this.recognizers.push(tapRecognizer);
     }
 
@@ -271,10 +263,7 @@ class GestureDetector extends StatelessWidget {
    * Route events to recognizers
    */
   _routeEvent(eventType, event, elementId) {
-    console.log(`[GestureDetector] _routeEvent: ${eventType}`, event);
     this._initializeRecognizers(elementId);
-    console.log(`[GestureDetector] recognizers count: ${this.recognizers.length}`);
-    console.log(`[GestureDetector] onTap present: ${!!this.onTap}`);
 
     this.recognizers.forEach(recognizer => {
       if (!recognizer.isDisposed) {
@@ -286,7 +275,6 @@ class GestureDetector extends StatelessWidget {
   // ========== MOUSE EVENTS ==========
 
   _handleMouseDown(e, elementId) {
-    console.log('[GestureDetector] _handleMouseDown', e);
     this._routeEvent('mousedown', e, elementId);
     if (this.onTapDown) {
       this.onTapDown({
@@ -298,7 +286,6 @@ class GestureDetector extends StatelessWidget {
   }
 
   _handleMouseUp(e, elementId) {
-    console.log('[GestureDetector] _handleMouseUp', e);
     this._routeEvent('mouseup', e, elementId);
   }
 
@@ -318,7 +305,6 @@ class GestureDetector extends StatelessWidget {
   // ========== TOUCH EVENTS ==========
 
   _handleTouchStart(e, elementId) {
-    console.log('[GestureDetector] _handleTouchStart', e);
     this._routeEvent('touchstart', e, elementId);
     if (this.onTapDown) {
       const touch = e.touches[0];
@@ -331,7 +317,6 @@ class GestureDetector extends StatelessWidget {
   }
 
   _handleTouchEnd(e, elementId) {
-    console.log('[GestureDetector] _handleTouchEnd', e);
     this._routeEvent('touchend', e, elementId);
   }
 
