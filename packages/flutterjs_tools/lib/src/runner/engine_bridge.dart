@@ -733,7 +733,7 @@ module.exports = {
     "version": "1.0.0",
     "configFile": "flutterjs.config.js",
     "entry": {
-      "main": "src/main.fjs",
+      "main": "src/main.js",
       "rootWidget": "MyApp",
       "entryFunction": "main"
     },

@@ -101,6 +101,9 @@ class ClassCodeGen {
     buffer.write(_generateClassHeader(cls));
     buffer.writeln(' {');
 
+    // ✅ Set class context for function generation
+    funcGen.setClassContext(cls);
+
     indenter.indent();
 
     // Fields (as class properties)
@@ -115,6 +118,7 @@ class ClassCodeGen {
         final ctorCode = funcGen.generateConstructor(
           cls.constructors[i],
           cls.name,
+          hasSuperclass: cls.superclass != null, // ✅ Fix: Pass supervision info
         );
         buffer.writeln(indenter.apply(ctorCode));
         if (i < cls.constructors.length - 1) {

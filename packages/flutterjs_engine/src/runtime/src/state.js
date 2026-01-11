@@ -412,6 +412,14 @@ class State {
       widgetType: this._widget?.constructor?.name || 'none'
     };
   }
+
+  /**
+   * Print to console (Flutter compatibility)
+   * The transpiler maps Dart's print() to this.print() in State methods
+   */
+  print(message) {
+    console.log(message);
+  }
 }
 
 // ============================================================================

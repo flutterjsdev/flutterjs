@@ -1,0 +1,164 @@
+// ============================================================================
+// Generated from Dart IR - Advanced Code Generation (Phase 10)
+// WARNING: Do not edit manually - changes will be lost
+// Generated at: 2026-01-11 20:48:29.125410
+//
+// Smart Features Enabled:
+// ✓ Intelligent import detection
+// ✓ Unused widget filtering
+// ✓ Dependency-aware helper generation
+// ✓ Type-aware imports
+// ✓ Validation & Optimization (Phase 5)
+// ============================================================================
+
+
+import {
+  Alignment,
+  BorderRadius,
+  BoxDecoration,
+  BoxShadow,
+  BoxShape,
+  BuildContext,
+  Colors,
+  Column,
+  Container,
+  CrossAxisAlignment,
+  EdgeInsets,
+  Expanded,
+  FontWeight,
+  Icons,
+  Key,
+  MainAxisAlignment,
+  Offset,
+  Row,
+  SizedBox,
+  State,
+  StatefulWidget,
+  StatelessWidget,
+  Text,
+  TextStyle,
+  Theme,
+  ThemeData,
+  Widget,
+  runApp,
+} from '@flutterjs/material';
+import * as _import_0 from '../models/data_model.fjs';
+import * as _import_1 from './action_button.fjs';
+
+// Merging local imports for symbol resolution
+const __merged_imports = Object.assign({}, _import_0, _import_1);
+function _filterNamespace(ns, show, hide) {
+  let res = Object.assign({}, ns);
+  if (show && show.length > 0) {
+    const newRes = {};
+    show.forEach(k => { if (res[k]) newRes[k] = res[k]; });
+    res = newRes;
+  }
+  if (hide && hide.length > 0) {
+    hide.forEach(k => delete res[k]);
+  }
+  return res;
+}
+
+const {
+  ActionButton,
+  User,
+} = __merged_imports;
+
+
+// ===== RUNTIME HELPERS (3) =====
+
+function listCast(list, expectedType) {
+  return list.map(item => {
+    if (!(item instanceof expectedType)) {
+      throw new TypeError(`Item must be of type ${expectedType.name}`);
+    }
+    return item;
+  });
+}
+
+function mapCast(map, expectedKeyType, expectedValueType) {
+  const result = new Map();
+  for (const [key, value] of map) {
+    if (!(key instanceof expectedKeyType)) {
+      throw new TypeError(`Key must be of type ${expectedKeyType.name}`);
+    }
+    if (!(value instanceof expectedValueType)) {
+      throw new TypeError(`Value must be of type ${expectedValueType.name}`);
+    }
+    result.set(key, value);
+  }
+  return result;
+}
+
+function typeAssertion(value, expectedType, variableName) {
+  if (!(value instanceof expectedType)) {
+    throw new TypeError(`${variableName} must be of type ${expectedType.name}`);
+  }
+  return value;
+}
+
+
+
+
+
+
+
+// ===== CLASSES =====
+
+class UserProfileCard extends StatefulWidget {
+  user = null;
+
+  /**
+   * @param {Key?|null} [key]
+   * @param {any|null} user
+   */
+  constructor({ key = undefined, user } = {}) {
+    super(key);
+    this.key = key;
+    this.user = user;
+  }
+
+  /**
+
+   * @returns {State<UserProfileCard>}
+   */
+  // @override
+  createState() {
+  return new _UserProfileCardState();
+  }
+
+}
+
+class _UserProfileCardState extends State {
+  _isFollowing = false;
+
+  /**
+
+   */
+  _toggleFollow = () => {
+  this.setState(() => this._isFollowing = (!this._isFollowing));
+  this.print(`Follow status for ${this.widget.user.name}: ${this._isFollowing}`);
+  };
+
+  /**
+   * @param {BuildContext} [context]
+   * @returns {Widget}
+   */
+  // @override
+  build(context = undefined) {
+  return new Container({ margin: EdgeInsets.all(10), padding: EdgeInsets.all(16), decoration: new BoxDecoration({ color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [new BoxShadow({ color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: new Offset(0, 4) })] }), child: new Row({ children: [new Container({ width: 60, height: 60, decoration: new BoxDecoration({ shape: BoxShape.circle, color: Colors.grey.shade300 }), padding: EdgeInsets.all(18), child: new Text(this.widget.user.name[0], { style: new TextStyle({ fontSize: 24, fontWeight: FontWeight.bold }) }) }), new SizedBox({ width: 16 }), new Expanded({ child: new Column({ crossAxisAlignment: CrossAxisAlignment.start, children: [new Text(this.widget.user.name, { style: new TextStyle({ fontSize: 18, fontWeight: FontWeight.bold }) }), new SizedBox({ height: 4 }), new Text(this.widget.user.role, { style: new TextStyle({ color: Colors.grey.shade600 }) })] }) }), new ActionButton({ label: (this._isFollowing) ? ("Unfollow") : ("Follow"), onPressed: this._toggleFollow, color: (this._isFollowing) ? (Colors.red) : (Colors.blue) })] }) });
+  }
+
+}
+
+
+
+
+
+// ===== EXPORTS =====
+
+export {
+  UserProfileCard,
+};
+

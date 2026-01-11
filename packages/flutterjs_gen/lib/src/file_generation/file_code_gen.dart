@@ -7,6 +7,7 @@ import 'package:flutterjs_gen/flutterjs_gen.dart';
 import 'package:flutterjs_gen/src/file_generation/runtime_requirements.dart';
 import '../widget_generation/stateless_widget/stateless_widget_js_code_gen.dart';
 import '../utils/indenter.dart';
+import 'import_resolver.dart';
 
 class FileCodeGen {
   final ExpressionCodeGen exprCodeGen;
@@ -190,7 +191,7 @@ class FileCodeGen {
     // Generate each section sequentially to avoid buffer corruption
     code.writeln(await _generateHeaderAsync());
     code.writeln();
-    code.writeln(await _generateSmartImportsAsync());
+    code.writeln(await _generateSmartImportsAsync(dartFile));
     code.writeln();
 
     code.writeln(await _generateRequiredHelpersAsync());
@@ -229,20 +230,10 @@ class FileCodeGen {
 ''';
   }
 
-  Future<String> _generateSmartImportsAsync() async {
+  Future<String> _generateSmartImportsAsync(DartFile dartFile) async {
     var code = StringBuffer();
 
     await _lock.protect(() async {
-      code.writeln('import {');
-      code.writeln('  runApp,');
-      code.writeln('  Widget,');
-      code.writeln('  State,');
-      code.writeln('  StatefulWidget,');
-      code.writeln('  StatelessWidget,');
-      code.writeln('  BuildContext,');
-      code.writeln('  Key,');
-      code.writeln('} from \'@flutterjs/material\';');
-
       // Ensure Icons is imported if Icon is used (safety fallback)
       if (usedWidgets.contains('Icon')) {
         usedWidgets.add('Icons');
@@ -277,27 +268,249 @@ class FileCodeGen {
         usedWidgets.add('TextStyle');
       }
 
+      // -----------------------------------------------------------------------
+      // UNIFIED MATERIAL IMPORTS
+      // -----------------------------------------------------------------------
+
+      final materialImports = <String>{
+        'runApp',
+        'Widget',
+        'State',
+        'StatefulWidget',
+        'StatelessWidget',
+        'BuildContext',
+        'Key',
+      };
+
       // Sort widgets to ensure deterministic output
       final sortedWidgets =
           usedWidgets.where((w) => !definedNames.contains(w)).toSet().toList()
             ..sort();
 
-      if (sortedWidgets.isNotEmpty) {
+      // Helper to check core symbols
+      final resolver = ImportResolver();
+
+      for (final widget in sortedWidgets) {
+        // Skip runtime types if they accidentally got into usedWidgets
+        if (widget.startsWith('_') || materialImports.contains(widget))
+          continue;
+
+        // Only import if it's a known core widget
+        if (resolver.isKnownCore(widget) ||
+            widget == 'ThemeData' ||
+            widget == 'ColorScheme' ||
+            widget == 'Colors' ||
+            widget == 'Theme' ||
+            widget == 'Icon' ||
+            widget == 'Icons' ||
+            widget == 'IconData' ||
+            widget == 'FloatingActionButton' ||
+            widget == 'TextStyle') {
+          materialImports.add(widget);
+        }
+      }
+
+      if (materialImports.isNotEmpty) {
+        // ✅ Restored & Expanded inference logic
+        materialImports.addAll({
+          'Theme',
+          'Colors',
+          'Icons',
+          'ThemeData',
+          'EdgeInsets',
+          'BorderRadius',
+          'BoxDecoration',
+          'TextStyle',
+          'BoxShadow',
+          'Offset',
+          'FontWeight',
+          'BoxShape',
+          'Alignment',
+          'CrossAxisAlignment',
+          'MainAxisAlignment',
+        });
+
         code.writeln('import {');
-        for (final widget in sortedWidgets) {
-          // Skip runtime types if they accidentally got into usedWidgets
-          if (widget.startsWith('_') ||
-              [
-                'Widget',
-                'State',
-                'BuildContext',
-                'Key',
-                'runApp',
-              ].contains(widget))
-            continue;
-          code.writeln('  $widget,');
+        final sortedImports = materialImports.toList()..sort();
+        for (final symbol in sortedImports) {
+          code.writeln('  $symbol,');
         }
         code.writeln('} from \'@flutterjs/material\';');
+      }
+
+      // -----------------------------------------------------------------------
+      // LOCAL / PACKAGE IMPORTS (Namespace Strategy)
+      // -----------------------------------------------------------------------
+
+      final localNamespaces = <String>[];
+      int importCounter = 0;
+
+      // Filter for relevant imports (ignore flutter/material/core as they are handled above)
+      for (final importStmt in dartFile.imports) {
+        final uri = importStmt.uri;
+
+        // Skip Core libs (handled by SmartImport logic above)
+        if (uri.startsWith('dart:') ||
+            uri.startsWith('package:flutter/') ||
+            uri == 'package:flutterjs/material.dart') {
+          continue;
+        }
+
+        // Determine JS Path
+        String jsPath = uri;
+        if (uri.startsWith('package:')) {
+          // Heuristic: If it's a package import, check if it's THIS package or external
+          // For now, assuming external packages are peer directories or node_modules
+          // But user said: "import is local ... full path and reference path"
+          // Simple strategy: Convert package:foo/bar.dart -> package/foo/bar.dart.js (or ./ if local)
+
+          // For local project (multi_file_test), imports are like package:multi_file_test/file.dart
+          // We need to resolve this relative to current file.
+          // However, simple relative imports are safer if possible.
+          // If the import IS relative (starts with .), use it directly.
+          if (!uri.startsWith('.')) {
+            // It is a package import. Let's just blindly import it from the packages directory structure
+            // assuming the build system lays it out.
+            // BUT user said "respective file already available at same location but .js"
+            // This implies if we import `utils.dart` (relative), `utils.js` is there.
+            // If we import `package:my_app/utils.dart`, and we are in `lib/main.dart`, that IS `utils.dart`.
+
+            // TRICKY: We don't easily know "current package name" here without more context.
+            // Fallback: Just treat it as a path that exists.
+            // APPEND .js extension (or replace .dart with .js)
+            if (jsPath.endsWith('.dart')) {
+              jsPath = jsPath.substring(0, jsPath.length - 5) + '.fjs';
+            } else {
+              jsPath += '.js';
+            }
+          }
+        } else {
+          // Relative import
+          if (jsPath.endsWith('.dart')) {
+            jsPath = jsPath.substring(0, jsPath.length - 5) + '.fjs';
+          } else {
+            jsPath += '.js';
+          }
+        }
+
+        // Ensure explicit relative path (e.g. 'models/file.js' -> './models/file.js')
+        // Valid for any path that doesn't start with '.', '/', or '@' (scoped packages)
+        if (!jsPath.startsWith('.') &&
+            !jsPath.startsWith('/') &&
+            !jsPath.startsWith('@')) {
+          jsPath = './$jsPath';
+        }
+
+        // Generate Namespace Import
+        final namespaceVar = '_import_${importCounter++}';
+        localNamespaces.add(namespaceVar);
+
+        if (importStmt.prefix != null) {
+          code.writeln('import * as ${importStmt.prefix} from \'$jsPath\';');
+          localNamespaces.removeLast(); // Don't merge prefixed imports
+        } else {
+          code.writeln('import * as $namespaceVar from \'$jsPath\';');
+
+          // Apply show/hide filters if present
+          if (importStmt.showList.isNotEmpty ||
+              importStmt.hideList.isNotEmpty) {
+            final show = importStmt.showList.map((s) => "'$s'").toList();
+            final hide = importStmt.hideList.map((s) => "'$s'").toList();
+            // Overwrite the namespace variable with the filtered version
+            // We do this by re-assigning it to a new filtered const if possible,
+            // but 'import * as' creates a constant module object.
+            // So we create a NEW variable and replace the old one in localNamespaces
+
+            final filteredVar = '${namespaceVar}_filtered';
+            code.writeln(
+              'const $filteredVar = _filterNamespace($namespaceVar, [${show.join(', ')}], [${hide.join(', ')}]);',
+            );
+
+            // Update the list to use the filtered variable instead of the raw import
+            localNamespaces.removeLast();
+            localNamespaces.add(filteredVar);
+          }
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // RUNTIME SYMBOL RESOLUTION
+      // -----------------------------------------------------------------------
+
+      // Merge all unprefixed namespaces to resolve top-level symbols
+      if (localNamespaces.isNotEmpty) {
+        code.writeln();
+        code.writeln('// Merging local imports for symbol resolution');
+        code.writeln(
+          'const __merged_imports = Object.assign({}, ${localNamespaces.join(", ")});',
+        );
+
+        // Filter function for show/hide support
+        code.writeln('''
+function _filterNamespace(ns, show, hide) {
+  let res = Object.assign({}, ns);
+  if (show && show.length > 0) {
+    const newRes = {};
+    show.forEach(k => { if (res[k]) newRes[k] = res[k]; });
+    res = newRes;
+  }
+  if (hide && hide.length > 0) {
+    hide.forEach(k => delete res[k]);
+  }
+  return res;
+}
+''');
+
+        // Destructure required symbols
+        // Symbols that are used but not defined locally and not in core
+
+        // Primitives and basic types to ignore
+        const ignoredTypes = {
+          'int',
+          'double',
+          'num',
+          'String',
+          'bool',
+          'void',
+          'dynamic',
+          'Object',
+          'List',
+          'Map',
+          'Set',
+          'Function',
+          'null',
+        };
+
+        // Symbols that need resolution (Used but not defined, not resolved by core)
+        final requiredSymbols = <String>{};
+
+        // Collect all potential symbols and strip generics (e.g., List<User> -> List)
+        final candidates = <String>{...usedWidgets, ...usedTypes};
+        for (var symbol in candidates) {
+          if (symbol.contains('<')) {
+            symbol = symbol.substring(0, symbol.indexOf('<'));
+          }
+          requiredSymbols.add(symbol);
+        }
+
+        requiredSymbols.removeAll(definedNames);
+        requiredSymbols.removeAll(materialImports);
+        requiredSymbols.removeAll(ignoredTypes);
+
+        if (requiredSymbols.isNotEmpty) {
+          code.writeln('const {');
+          for (final symbol in requiredSymbols.toList()..sort()) {
+            // Skip Likely noise
+            if (symbol.contains('.'))
+              continue; // Prefixed usage (Prefix.Symbol)
+
+            // Skip private symbols (starting with _) - they are class members, not imports
+            if (symbol.startsWith('_')) continue;
+
+            code.writeln('  $symbol,');
+          }
+          code.writeln('} = __merged_imports;');
+        }
       }
     });
 
@@ -527,14 +740,20 @@ class FileCodeGen {
     code.writeln('export {');
 
     for (final cls in dartFile.classDeclarations) {
+      // Skip private classes (starting with _) - they are not publicly accessible
+      if (cls.name.startsWith('_')) continue;
       code.writeln('  ${cls.name},');
     }
 
     for (final func in dartFile.functionDeclarations) {
+      // Skip private functions (starting with _)
+      if (func.name.startsWith('_')) continue;
       code.writeln('  ${func.name},');
     }
 
     for (final variable in dartFile.variableDeclarations) {
+      // Skip private variables (starting with _)
+      if (variable.name.startsWith('_')) continue;
       code.writeln('  ${variable.name},');
     }
 
@@ -708,15 +927,14 @@ class FileCodeGen {
   void _analyzeExpression(ExpressionIR? expr) {
     if (expr == null) return;
 
-    if (expr is InstanceCreationExpressionIR) {
-      _detectWidgetsInExpression(expr);
-    } else if (expr is MethodCallExpressionIR) {
-      _detectWidgetsInExpression(expr);
-    } else if (expr is TypeCheckExpr) {
+    if (expr is TypeCheckExpr) {
       usedTypes.add(expr.typeToCheck.displayName());
     } else if (expr is CastExpressionIR) {
       usedTypes.add(expr.targetType.displayName());
     }
+
+    // Always detect widgets in any expression
+    _detectWidgetsInExpression(expr);
   }
 
   void _detectWidgetsInExpression(ExpressionIR expr) {

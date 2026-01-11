@@ -49,7 +49,14 @@ class ImportResolver {
     'ListView': 'package:flutter/material.dart',
     'Divider': 'package:flutter/material.dart',
     'ElevatedButton': 'package:flutter/material.dart',
+    'Expanded': 'package:flutter/material.dart',
+    'Flexible': 'package:flutter/material.dart',
+    'Stack': 'package:flutter/material.dart',
+    'Positioned': 'package:flutter/material.dart',
+    'Spacer': 'package:flutter/material.dart',
+    'SingleChildScrollView': 'package:flutter/material.dart',
     'MainAxisAlignment': 'package:flutter/material.dart',
+    'CrossAxisAlignment': 'package:flutter/material.dart',
   };
 
   // STAGE 2: Configuration (Dart Library -> JS Package)
@@ -130,5 +137,10 @@ class ImportResolver {
       }
     }
     return null;
+  }
+
+  /// Checks if the symbol is a known core Flutter/Dart symbol.
+  bool isKnownCore(String symbol) {
+    return _symbolToLibrary.containsKey(symbol);
   }
 }

@@ -693,7 +693,7 @@ class SetupManager {
 
       // Create output directories
       // build/flutterjs/ is the JS project root (where flutterjs.exe will run)
-      // build/flutterjs/src/ is where .fjs files go (matches JS CLI's entry.main: 'src/main.fjs')
+      // build/flutterjs/src/ is where .js files go (matches JS CLI's entry.main: 'src/main.js')
       // build/reports/ is for Dart CLI reports (separate from JS project)
       final buildDir = path.join(absoluteProjectPath, 'build');
       final flutterJsDir = path.join(buildDir, 'flutterjs');

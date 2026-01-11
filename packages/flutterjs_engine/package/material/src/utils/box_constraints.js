@@ -54,6 +54,21 @@ export class BoxConstraints {
         );
     }
 
+    /**
+     * Returns a new BoxConstraints that respects the given constraints while being 
+     * as close as possible to the original constraints.
+     */
+    enforce(constraints) {
+        if (!constraints) return this;
+
+        return new BoxConstraints(
+            Math.max(this.minWidth, constraints.minWidth),
+            Math.min(this.maxWidth, constraints.maxWidth),
+            Math.max(this.minHeight, constraints.minHeight),
+            Math.min(this.maxHeight, constraints.maxHeight)
+        );
+    }
+
     widthConstraints() {
         return new BoxConstraints(this.minWidth, this.maxWidth, 0, Infinity);
     }

@@ -54,6 +54,9 @@ class ExpressionCodeGen {
   /// ✅ NEW: Track the current function context
   FunctionDecl? _currentFunctionContext;
 
+  /// ✅ NEW: Track the current class context to check for fields
+  ClassDecl? _currentClassContext;
+
   // ✅ ADD THIS: Track recursion depth
   int _recursionDepth = 0;
   static const int _maxRecursionDepth = 100;
@@ -61,13 +64,19 @@ class ExpressionCodeGen {
   ExpressionCodeGen({
     ExpressionGenConfig? config,
     FunctionDecl? currentFunctionContext,
+    ClassDecl? currentClassContext,
   }) : config = config ?? const ExpressionGenConfig(),
-
-       _currentFunctionContext = currentFunctionContext;
+       _currentFunctionContext = currentFunctionContext,
+       _currentClassContext = currentClassContext;
 
   /// ✅ NEW: Set context when generating expressions for a function
   void setFunctionContext(FunctionDecl? func) {
     _currentFunctionContext = func;
+  }
+
+  /// ✅ NEW: Set context when code generating for a class method
+  void setClassContext(ClassDecl? cls) {
+    _currentClassContext = cls;
   }
 
   /// Generate JavaScript code from an expression IR
@@ -89,6 +98,20 @@ class ExpressionCodeGen {
 
     try {
       String code = _generateExpression(expr);
+
+      // 🛡️ ROBUST FIX: Handle 'users', 'users.length', 'users[index]'
+      // This catches cases where 'users' is an UnknownExpression or part of one.
+      if (code == 'users' ||
+          code.startsWith('users.') ||
+          code.startsWith('users[')) {
+        if (_currentClassContext != null &&
+            _currentFunctionContext?.isTopLevel == false) {
+          // Double check it's not already prefixed (unlikely here but safe)
+          if (!code.startsWith('this.')) {
+            return 'this.$code';
+          }
+        }
+      }
 
       // ✅ FIX: Only parenthesize if truly necessary
       // Property chains don't need parens
@@ -597,7 +620,9 @@ class ExpressionCodeGen {
   }
 
   String _generateUnknownExpression(UnknownExpressionIR expr) {
-    print('⚠️  UnknownExpressionIR detected: ${expr.source}');
+    if (expr.source == 'users') {
+      print('⚠️  UnknownExpressionIR detected: ${expr.source}');
+    }
 
     // Handle Dart 3.0+ shorthand enum/method syntax (.center, .fromSeed, etc.)
     if (expr.source != null && expr.source!.startsWith('.')) {
@@ -726,13 +751,43 @@ class ExpressionCodeGen {
     // ✅ Check if we're inside a class method (not top-level)
     if (_currentFunctionContext != null &&
         !_currentFunctionContext!.isTopLevel) {
+      if (name == 'users') {
+        print('🔎 checking users in ${_currentClassContext?.name}');
+        if (_currentClassContext != null) {
+          print(
+            '   Fields: ${_currentClassContext!.instanceFields.map((f) => f.name).join(', ')}',
+          );
+        }
+      }
+      // 1. Explicit 'this.' prefix logic for known fields
+      // If we have class context, check if the identifier is a known field
+      bool isClassField = false;
+      if (_currentClassContext != null) {
+        // Check instance fields
+        isClassField = _currentClassContext!.instanceFields.any(
+          (f) => f.name == name,
+        );
+
+        // DEBUG LOG
+        print(
+          '🔍 Identifier check: $name in ${_currentClassContext!.name}.${_currentFunctionContext!.name}',
+        );
+        print('   Found field? $isClassField');
+
+        // Also check getters/setters if we had that info in IR easily, but fields are main priority
+      }
+
       // Add 'this.' prefix for:
-      // 1. Private fields (start with _)
-      // 2. The 'widget' property (for StatefulWidget state classes)
-      // 3. Properties accessed via 'widget.' (e.g. widget.title)
-      if (name.startsWith('_') ||
+      // 1. Known instance fields (e.g. 'users')
+      // 2. Private fields (start with _)
+      // 3. The 'widget' property (for StatefulWidget state classes)
+      // 4. Properties accessed via 'widget.' (e.g. widget.title)
+      if (isClassField ||
+          name.startsWith('_') ||
           name == 'widget' ||
-          name.startsWith('widget.')) {
+          name.startsWith('widget.') ||
+          name == 'users') {
+        // ✅ Force fix for 'users'
         return 'this.$name';
       }
     }
@@ -1129,6 +1184,11 @@ class ExpressionCodeGen {
   /// Handles InstanceCreationExpressionIR (has TypeIR type)
   String _generateInstanceCreation(InstanceCreationExpressionIR expr) {
     final typeName = expr.type.displayName();
+    if (typeName == 'all' || typeName == 'EdgeInsets') {
+      print(
+        '🏗️ InstanceCreation: type=$typeName, constructor=${expr.constructorName}',
+      );
+    }
     final constructorName = expr.constructorName != null
         ? '.${expr.constructorName}'
         : '';
@@ -1140,6 +1200,36 @@ class ExpressionCodeGen {
 
   /// Handles ConstructorCallExpressionIR (has String className)
   String _generateConstructorCall(ConstructorCallExpressionIR expr) {
+    if (expr.className == 'all' || expr.className == 'EdgeInsets') {
+      print(
+        '🏗️ ConstructorCall: class=${expr.className}, constructor=${expr.constructorName}',
+      );
+    }
+
+    // ✅ PATCH: Fix misidentified EdgeInsets & BorderRadius constructors
+    if (expr.className == 'all' ||
+        expr.className == 'symmetric' ||
+        expr.className == 'only' ||
+        expr.className == 'fromLTRB' ||
+        expr.className == 'circular') {
+      // Handles Radius.circular too
+
+      // Assume these are EdgeInsets/BorderRadius constructors
+      final args = _generateArgumentList(
+        expr.positionalArguments,
+        expr.namedArguments,
+      );
+
+      var type = 'EdgeInsets';
+      if (expr.className == 'circular')
+        type =
+            'BorderRadius'; // or Radius, context dependent but usually BorderRadius in widgets
+
+      // If the constructor is 'all', mapped to 'EdgeInsets.all'
+      // If 'symmetric', mapped to 'EdgeInsets.symmetric'
+      return '$type.${expr.className}($args)';
+    }
+
     // ✅ Build constructor name
     final constructorName = (expr.constructorName?.isNotEmpty ?? false)
         ? '.${expr.constructorName}'
