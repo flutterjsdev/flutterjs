@@ -2,6 +2,7 @@ import 'package:args/command_runner.dart';
 import 'analyzer/analyze_command.dart';
 import 'builder/build_command.dart';
 import 'cleaner/clean_command.dart';
+import 'commands/create_command.dart';
 import 'docs_command.dart';
 // import '../../flutterjs_gen/lib/init_project/init_project.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart';
@@ -152,6 +153,7 @@ class FlutterJSCommandRunner extends CommandRunner<void> {
 
   void _addCommands() {
     // addCommand(InitProject(verbose: verbose, verboseHelp: verboseHelp));
+    addCommand(CreateCommand());
     addCommand(BuildCommand(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(RunCommand(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(AnalyzeCommand(verbose: verbose, verboseHelp: verboseHelp));

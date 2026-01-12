@@ -1,20 +1,84 @@
 /// Represents information about a package in the registry.
 class PackageInfo {
-  final String name; // Original pubspec name
-  final String npmPackageName; // npm scoped name (@flutterjs/name)
-  final String version; // Latest version
-  final String? tarballUrl; // npm tarball download URL
+  final String name; // Original package name
+  final String
+  npmPackageName; // npm scoped name (@flutterjs/name) - for compatibility
+  final String version; // Version
+  final String? tarballUrl; // npm tarball download URL (deprecated)
+  final String? archiveUrl; // pub.dev archive URL
 
   PackageInfo({
     required this.name,
     required this.npmPackageName,
     required this.version,
     this.tarballUrl,
+    this.archiveUrl,
   });
+
+  /// Create PackageInfo from pub.dev API JSON response
+  ///
+  /// Parses the latest version information from pub.dev API.
+  ///
+  /// Example JSON structure:
+  /// ```json
+  /// {
+  ///   "name": "http",
+  ///   "latest": {
+  ///     "version": "1.1.0",
+  ///     "archive_url": "https://pub.dartlang.org/packages/http/versions/1.1.0.tar.gz",
+  ///     "pubspec": { ... }
+  ///   }
+  /// }
+  /// ```
+  factory PackageInfo.fromPubDevJson(
+    Map<String, dynamic> json,
+    String originalName,
+  ) {
+    // Get latest version info
+    final latest = json['latest'] as Map<String, dynamic>?;
+    final latestVersion = latest?['version'] as String? ?? '1.0.0';
+    final archiveUrl = latest?['archive_url'] as String?;
+
+    return PackageInfo(
+      name: originalName,
+      npmPackageName: '@flutterjs/$originalName', // Convention
+      version: latestVersion,
+      archiveUrl: archiveUrl,
+    );
+  }
+
+  /// Create PackageInfo from pub.dev version-specific JSON
+  ///
+  /// Parses a specific version entry from the versions list.
+  ///
+  /// Example JSON structure:
+  /// ```json
+  /// {
+  ///   "version": "1.1.0",
+  ///   "archive_url": "https://pub.dartlang.org/packages/http/versions/1.1.0.tar.gz",
+  ///   "pubspec": { ... }
+  /// }
+  /// ```
+  factory PackageInfo.fromPubDevVersionJson(
+    Map<String, dynamic> json,
+    String originalName,
+  ) {
+    final version = json['version'] as String;
+    final archiveUrl = json['archive_url'] as String?;
+
+    return PackageInfo(
+      name: originalName,
+      npmPackageName: '@flutterjs/$originalName',
+      version: version,
+      archiveUrl: archiveUrl,
+    );
+  }
 
   /// Create PackageInfo from npm registry JSON response
   factory PackageInfo.fromNpmJson(
-      Map<String, dynamic> json, String originalName) {
+    Map<String, dynamic> json,
+    String originalName,
+  ) {
     final npmName = json['name'] as String;
 
     // Get latest version from dist-tags
@@ -39,7 +103,7 @@ class PackageInfo {
   }
 
   /// Legacy support for old registry format (deprecated)
-  @Deprecated('Use fromNpmJson instead')
+  @Deprecated('Use fromNpmJson or fromPubDevJson instead')
   factory PackageInfo.fromJson(Map<String, dynamic> json) {
     final name = json['name'] as String;
     final flutterjsMapping =
@@ -52,6 +116,9 @@ class PackageInfo {
       version: version,
     );
   }
+
+  /// Get the download URL (prefers archiveUrl over tarballUrl)
+  String? get downloadUrl => archiveUrl ?? tarballUrl;
 }
 
 class PackageOption {
