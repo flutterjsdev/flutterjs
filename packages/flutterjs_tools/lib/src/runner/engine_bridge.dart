@@ -626,6 +626,7 @@ module.exports = {
   // Dependencies Configuration
   dependencies: {
     npm: {},
+    pubDev: {}, // pub.dev packages with version overrides
     custom: {},
     cdn: {
       roboto: 'https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap',
