@@ -1,115 +1,80 @@
-# FlutterJS Engine
+# FlutterJS Engine & CLI
 
-<p align="center">
-  <strong>Same Flutter Code. Real HTML Output.</strong>
-</p>
+**Package**: `flutterjs_engine` (npm: `flutterjs`)  
+**Purpose**: The JavaScript runtime and Node.js CLI for FlutterJS.
 
-<p align="center">
-  <em>For when your Flutter app needs to be found by Google.</em>
-</p>
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node Version](https://img.shields.io/badge/node-%3E%3D14.0.0-green.svg)](https://nodejs.org)
-[![npm version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://www.npmjs.com/package/flutterjs)
+> [!NOTE]
+> This package provides the **JavaScript runtime** (widgets, rendering) and the **Node.js CLI** (build, dev server).
+> It is different from `flutterjs_core` (Dart compiler) and `flutterjs_tools` (Dart CLI).
 
 ---
 
-## The Problem with Flutter Web
+## 🚀 Features
 
-| Issue | Reality |
-|-------|---------|
-| 📦 **Huge bundles** | 2-5+ MB for basic apps |
-| 🔍 **No SEO** | Canvas = invisible to Google |
-| 🐢 **Slow load** | WASM initialization takes seconds |
-| ♿ **Poor a11y** | No semantic HTML |
-
----
-
-## The FlutterJS Solution
-
-Compile your Flutter/Dart code to **semantic HTML + CSS + JavaScript** instead of Canvas/WASM.
-
-| Metric | Flutter Web | FlutterJS |
-|--------|-------------|-----------|
-| Code | Dart/Flutter | Dart/Flutter ✓ |
-| Output | Canvas pixels | Real HTML |
-| Bundle | 2-5 MB | ~50-100 KB |
-| SEO | ❌ None | ✓ Full |
-| Load Time | 3-8s | <1s |
-| SSR | ❌ No | ✓ Yes |
+- **Zero External Dependencies** - Minimal footprint
+- **Multiple Render Modes** - SSR, CSR, and Hybrid rendering
+- **Development Server** - Hot-reload enabled
+- **Production Build** - Minification, obfuscation, tree-shaking
+- **Asset Management** - Automatic optimization
+- **SEO Ready** - Semantic HTML output
 
 ---
 
-## Quick Start
-
-### Installation
+## 🔧 Installation
 
 ```bash
 npm install -g flutterjs
 ```
 
-### Create Project
+---
 
+## 🎯 Quick Start
+
+### 1. Create Project
 ```bash
 flutterjs init my-app
 cd my-app
+npm install
 ```
 
-### Write Flutter Code
-
-```dart
-// src/main.dart
-import 'package:flutter/material.dart';
-
-void main() => runApp(MyApp());
-
-class MyApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(title: Text('FlutterJS')),
-        body: Center(child: Text('Hello World!')),
-      ),
-    );
-  }
-}
-```
-
-### Run
-
+### 2. Run Dev Server
 ```bash
-flutterjs dev       # Dev server at localhost:3000
-flutterjs build     # Production build
+npm run dev
+```
+Opens at `http://localhost:3000` with hot reload.
+
+### 3. Build for Production
+```bash
+npm run build
 ```
 
 ---
 
-## CLI Commands
+## 📖 CLI Commands
 
-| Command | Description |
-|---------|-------------|
-| `flutterjs init <name>` | Create new project |
-| `flutterjs dev` | Development server |
-| `flutterjs build` | Production build |
-| `flutterjs preview` | Preview production build |
+### `flutterjs init <name>`
+Create a new project with scaffolding.
 
-### Build Modes
+### `flutterjs dev`
+Start development server.
+- `--port <port>`: Custom port
+- `--open`: Open browser
 
-```bash
-flutterjs build --mode ssr      # Server-side rendering
-flutterjs build --mode csr      # Client-side rendering
-flutterjs build --mode hybrid   # Best of both
-```
+### `flutterjs build`
+Build for production.
+- `--mode <ssr|csr|hybrid>`: Render mode
+- `--no-minify`: Disable minification
+
+### `flutterjs preview`
+Preview production build locally.
 
 ---
 
-## Configuration
+## ⚙️ Configuration (flutter.config.js)
 
 ```javascript
-// flutter.config.js
 module.exports = {
-  mode: 'csr',  // 'ssr' | 'csr' | 'hybrid'
+  mode: 'csr', // 'ssr', 'csr', 'hybrid'
   
   build: {
     output: 'dist',
@@ -125,49 +90,48 @@ module.exports = {
 
 ---
 
-## Project Structure
+## 🎨 Render Modes
+
+| Mode | Description | Best For |
+|------|-------------|----------|
+| **CSR** (Client-Side) | Runs in browser | Dashboards, SPAs |
+| **SSR** (Server-Side) | Pre-renders on server | Blogs, Content sites |
+| **Hybrid** | SSR + Hydration | E-commerce, Landing pages |
+
+---
+
+## 📂 Project Structure
 
 ```
 my-app/
-├── flutter.config.js
+├── flutter.config.js    # Configuration
 ├── src/
-│   └── main.dart
-├── assets/
-├── .flutter_js/
-└── dist/
+│   └── main.fjs        # Application code
+├── assets/             # Static files
+└── dist/               # Build output
 ```
 
 ---
 
-## Supported Widgets
+## 🔗 Architecture
 
-- **Layout**: Container, Row, Column, Stack, Center, Padding, SizedBox
-- **Material**: Scaffold, AppBar, ElevatedButton, Text, Icon, Card
-- **State**: StatefulWidget, setState, InheritedWidget
+This package contains two main parts:
 
----
+### 1. Runtime (`src/runtime/`)
+The JavaScript framework that runs in the browser.
+- Widget system (`Widget`, `StatelessWidget`)
+- Rendering engine (`VDOM`, `Diffing`)
+- State management (`setState`)
 
-## Who Should Use FlutterJS?
-
-✅ **Use FlutterJS for:**
-- SEO-critical sites (blogs, e-commerce)
-- Low-bandwidth markets
-- Performance-critical landing pages
-- Accessible web apps
-
-❌ **Use Flutter Web for:**
-- Complex apps (games, graphics)
-- Internal tools (SEO doesn't matter)
+### 2. CLI (`src/cli/`)
+The Node.js tools for building and serving.
+- Webpack-like bundler (custom implementation)
+- Dev server with HMR
+- Scaffolding tools
 
 ---
 
-## Links
+## See Also
 
-- **GitHub**: [flutterjsdev/flutterjs](https://github.com/flutterjsdev/flutterjs)
-- **Issues**: [Report bugs](https://github.com/flutterjsdev/flutterjs/issues)
-
----
-
-<p align="center">
-  <strong>Write Flutter. Ship the Web.</strong>
-</p>
+- [Technical Documentation](docs/README.md)
+- [Main FlutterJS Documentation](../../docs/README.md)
