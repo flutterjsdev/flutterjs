@@ -4,6 +4,9 @@ version: 1.0.0
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # repository: https://github.com/my_org/my_repo
 
+executables:
+  flutterjs: flutterjs
+
 workspace:
   - examples/counter/
   - examples/routing_app/

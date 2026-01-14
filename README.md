@@ -88,13 +88,12 @@ FlutterJS compiles your Flutter/Dart code to **semantic HTML + CSS + JavaScript*
 npm install -g flutterjs
 ```
 
-### Option 2: From Source
+### Option 2: From Source (Development)
 
 ```bash
 git clone https://github.com/flutterjsdev/flutterjs.git
-cd flutterjs/packages/flutterjs_engine
-npm install
-npm link
+cd flutterjs
+dart pub global activate --source path .
 ```
 
 ---

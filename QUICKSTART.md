@@ -4,19 +4,20 @@ This guide shows you the **easiest ways** to run FlutterJS commands without typi
 
 ## 🎯 Quick Commands
 
-### Option 1: Using Wrapper Scripts (Easiest!)
+### Option 1: Global CLI (Recommended)
 
-**PowerShell (Recommended for Windows):**
-```powershell
-# From the flutterjs root directory
-.\flutterjs.ps1 run --to-js --serve
+First, activate the CLI globally:
+```bash
+dart pub global activate --source path .
+```
 
-# With verbose logging
-.\flutterjs.ps1 -v run --to-js --serve
+Then run commands from anywhere:
+```bash
+# Run dev server
+flutterjs run --to-js --serve
 
-# Other commands
-.\flutterjs.ps1 doctor
-.\flutterjs.ps1 build
+# Build for production
+flutterjs build
 ```
 
 **Command Prompt (cmd.exe):**
@@ -108,8 +109,8 @@ Most commands should be run from:
 
 ## 💡 Tips
 
-1. **Use `.\flutterjs.ps1`** for the quickest development workflow on Windows.
-2. **Access from anywhere**: Add `C:\Jay\_Plugin\flutterjs` to your PATH
+1. **Use Global CLI**: `flutterjs` is the fastest way to work.
+2. **Access from anywhere**: Provide full paths if running outside a project, or just cd in.
 3. **Check logs**: Use `-v` if something goes wrong.
 
 ---
@@ -118,10 +119,10 @@ Most commands should be run from:
 
 ```bash
 # Start development (simplest way)
-.\flutterjs.ps1 run --to-js --serve
+flutterjs run --to-js --serve
 
 # Build (production)
-.\flutterjs.ps1 build
+flutterjs build
 
 # Rebuild engine after changes
 cd packages/flutterjs_engine
