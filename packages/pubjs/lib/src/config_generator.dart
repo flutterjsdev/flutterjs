@@ -1,43 +1,46 @@
-import 'dart:convert';
 import 'dart:io';
+import 'package:path/path.dart' as p;
 
-/// Updates the flutterjs.config.json file with resolved mappings.
 class ConfigGenerator {
-  /// Updates the `flutterjs.config.json` at [projectPath] with [newMappings].
+  /// Generates a default `flutterjs.config.js` in the project root.
   ///
-  /// [newMappings] is a map of `package:name` -> `js_implementation`.
-  /// e.g. `{'package:http': '@flutterjs/http'}`.
-  Future<void> updateConfig(
-      String projectPath, Map<String, String> newMappings) async {
-    final configFile = File('$projectPath/flutterjs.config.json');
-    Map<String, dynamic> config = {};
+  /// Populates 'packages' map based on [dependencies] from pubspec.yaml.
+  Future<void> createDefaultConfig(
+    String projectPath,
+    Map<dynamic, dynamic> dependencies,
+  ) async {
+    final configPath = p.join(projectPath, 'flutterjs.config.js');
+    final configFile = File(configPath);
 
     if (await configFile.exists()) {
-      try {
-        final content = await configFile.readAsString();
-        config = jsonDecode(content) as Map<String, dynamic>;
-      } catch (e) {
-        print('Error reading existing config: $e');
-        // Retrieve empty config or throw? For now gracefully start fresh or partial.
+      return;
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('module.exports = {');
+    buffer.writeln('  packages: {');
+
+    for (final entry in dependencies.entries) {
+      final name = entry.key;
+      // Skip SDK and flutter itself
+      if (name == 'flutter' ||
+          (entry.value is Map && entry.value['sdk'] != null)) {
+        continue;
       }
+
+      // For now, initiate all as null (unknown/to-be-configured)
+      // The user can then fill in: 'flutterjs_pkg:version' OR { path: '...' }
+      // If we wanted to be smarter, we could check registry here, but
+      // strict mode philosophy puts burden on user configuration for explicit clarity.
+      buffer.writeln(
+        "    '$name': null, // TODO: Set to 'flutterjs_$name:version' or { path: './...' }",
+      );
     }
 
-    // Ensure 'packages' key exists
-    if (!config.containsKey('packages')) {
-      config['packages'] = <String, dynamic>{};
-    }
+    buffer.writeln('  }');
+    buffer.writeln('};');
 
-    final packages = config['packages'] as Map<String, dynamic>;
-
-    // Merge new mappings
-    // We only overwrite or add.
-    for (final entry in newMappings.entries) {
-      packages[entry.key] = entry.value;
-    }
-
-    // Write back
-    const encoder = JsonEncoder.withIndent('  ');
-    await configFile.writeAsString(encoder.convert(config));
-    print('Updated flutterjs.config.json with ${newMappings.length} mappings.');
+    await configFile.writeAsString(buffer.toString());
+    print('Created default configuration: $configPath');
   }
 }
