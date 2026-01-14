@@ -2,40 +2,57 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'model/package_info.dart';
 import 'pub_dev_client.dart';
+import 'flutterjs_registry_client.dart';
 
 /// Responsible for fetching package mapping data from pub.dev or npm registry.
 ///
-/// This class now primarily delegates to PubDevClient for standard packages.
+/// This class now delegates to PubDevClient but first checks for FlutterJS overrides.
 class RegistryClient {
   static const String _npmRegistry = 'https://registry.npmjs.org';
   static const String _defaultScope = '@flutterjs';
 
   final http.Client _client;
   final PubDevClient _pubDevClient;
+  final FlutterJSRegistryClient _flutterJSRegistry;
   final String scope;
 
   RegistryClient({
     http.Client? client,
     PubDevClient? pubDevClient,
+    FlutterJSRegistryClient? flutterJSRegistry,
     this.scope = _defaultScope,
   }) : _client = client ?? http.Client(),
-       _pubDevClient = pubDevClient ?? PubDevClient();
+       _pubDevClient = pubDevClient ?? PubDevClient(),
+       _flutterJSRegistry = flutterJSRegistry ?? FlutterJSRegistryClient();
 
   /// Fetches the package info from pub.dev (preferred) or npm registry.
   ///
-  /// Tries pub.dev first. If not found, fallsback to npm for external packages.
-  ///
+  /// Checks FlutterJS registry for overrides specifically for generic package names like 'http'.
   /// Returns null if the package is not found or if there is an error.
   Future<PackageInfo?> fetchPackageInfo(String packageName) async {
-    // Try pub.dev first
-    final pubDevInfo = await _pubDevClient.fetchPackageInfo(packageName);
+    // 1. Check for FlutterJS Registry alias (e.g. http -> flutterjs_http)
+    final replacement = await _flutterJSRegistry.getReplacementPackage(
+      packageName,
+    );
+    final targetPackageName = replacement ?? packageName;
+
+    if (replacement != null) {
+      print(
+        'Note: "$packageName" maps to "$replacement" in FlutterJS registry.',
+      );
+    }
+
+    // 2. Try pub.dev with the TARGET name
+    final pubDevInfo = await _pubDevClient.fetchPackageInfo(targetPackageName);
     if (pubDevInfo != null) {
+      // If we swapped names, we might want to wrap the result to reflect the original requested name
+      // but functionality-wise, returning the actual info is usually best.
       return pubDevInfo;
     }
 
-    // Fallback to npm for external packages
-    print('Package $packageName not found on pub.dev, trying npm...');
-    return await _fetchFromNpm(packageName);
+    // 3. Fallback to npm for external packages
+    print('Package $targetPackageName not found on pub.dev, trying npm...');
+    return await _fetchFromNpm(targetPackageName);
   }
 
   /// Fetches package from npm registry (for external packages)
