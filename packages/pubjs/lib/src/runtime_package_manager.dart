@@ -7,36 +7,36 @@ import 'npm_client.dart';
 import 'package_downloader.dart';
 import 'model/package_info.dart';
 import 'config_resolver.dart';
+import 'config_generator.dart';
+import 'flutterjs_registry_client.dart';
 
 /// Runtime package manager for FlutterJS
 ///
 /// Handles package resolution, caching, and downloading from pub.dev or npm
-/// at runtime. Stores packages in project-level directory:
-/// `build/flutterjs/node_modules/@flutterjs/`
+/// at runtime. Enforces strict registry checking.
 class RuntimePackageManager {
   final PubDevClient _pubDevClient;
   final NpmClient _npmClient;
   final PackageDownloader _downloader;
   final ConfigResolver _configResolver;
+  final ConfigGenerator _configGenerator;
+  final FlutterJSRegistryClient _registryClient;
 
   RuntimePackageManager({
     PubDevClient? pubDevClient,
     NpmClient? npmClient,
     PackageDownloader? downloader,
     ConfigResolver? configResolver,
+    ConfigGenerator? configGenerator,
+    FlutterJSRegistryClient? registryClient,
   }) : _pubDevClient = pubDevClient ?? PubDevClient(),
        _npmClient = npmClient ?? NpmClient(),
        _downloader = downloader ?? PackageDownloader(),
-       _configResolver = configResolver ?? ConfigResolver();
+       _configResolver = configResolver ?? ConfigResolver(),
+       _configGenerator = configGenerator ?? ConfigGenerator(),
+       _registryClient = registryClient ?? FlutterJSRegistryClient();
 
   /// Resolves and installs all dependencies for a FlutterJS project
-  ///
-  /// Reads pubspec.yaml, merges with flutterjs.config.js overrides,
-  /// and installs packages to build/flutterjs/node_modules/@flutterjs/
-  ///
-  /// [projectPath] - Root directory of the FlutterJS project
-  /// [buildPath] - Build directory (usually projectPath/build/flutterjs)
-  /// [verbose] - Enable verbose logging
   Future<bool> resolveProjectDependencies({
     required String projectPath,
     required String buildPath,
@@ -44,8 +44,6 @@ class RuntimePackageManager {
   }) async {
     if (verbose) {
       print('🔍 Resolving FlutterJS project dependencies...');
-      print('   Project: $projectPath');
-      print('   Build: $buildPath');
     }
 
     try {
@@ -62,93 +60,141 @@ class RuntimePackageManager {
       final pubspec = loadYaml(pubspecContent) as Map;
       final dependencies = pubspec['dependencies'] as Map? ?? {};
 
-      if (verbose) {
-        print('   Found ${dependencies.length} dependencies in pubspec.yaml');
-      }
-
       // 2. Read flutterjs.config.js overrides
-      final configPath = p.join(buildPath, 'flutterjs.config.js');
-      final configOverrides = await _configResolver.resolvePubDevDependencies(
+      final configPath = p.join(projectPath, 'flutterjs.config.js');
+      // Use the new package config resolver
+      final userPackageConfigs = await _configResolver.resolvePackageConfig(
         configPath,
       );
 
-      if (configOverrides.isNotEmpty && verbose) {
-        print('   Found ${configOverrides.length} version overrides in config');
-      }
-
       // 3. Resolve each dependency
-      final nodeModulesPath = p.join(buildPath, 'node_modules', '@flutterjs');
-      await Directory(nodeModulesPath).create(recursive: true);
+      final nodeModulesFlutterJS = p.join(
+        buildPath,
+        'node_modules',
+        '@flutterjs',
+      );
+      await Directory(nodeModulesFlutterJS).create(recursive: true);
 
-      int installedCount = 0;
-      int cachedCount = 0;
+      // Pre-fetch registry to check for all packages
+      final registry = await _registryClient.fetchRegistry();
+      if (registry == null) {
+        print(
+          '⚠️  Warning: Could not fetch FlutterJS Registry. Only local paths will work.',
+        );
+      }
+      final registryPackages = (registry?['packages'] as List?) ?? [];
+
+      bool configurationNeeded = false;
 
       for (final entry in dependencies.entries) {
-        final packageName = entry.key as String;
+        final String packageName = entry.key as String;
 
-        // Skip Flutter SDK dependencies
-        if (entry.value is Map && (entry.value as Map)['sdk'] != null) {
+        // Skip Flutter SDK
+        if (entry.value is Map && (entry.value as Map)['sdk'] != null) continue;
+        if (packageName == 'flutter') continue;
+
+        // Check User Config for this package
+        final userConfig = userPackageConfigs[packageName];
+
+        // A. Local Path (Highest Priority)
+        // defined in config as { path: '...' }
+        if (userConfig != null && userConfig.path != null) {
+          if (verbose) print('   🔗 $packageName (Local Config)');
+
+          final sourcePath = userConfig.path!;
+          final absoluteSource = p.isAbsolute(sourcePath)
+              ? sourcePath
+              : p.normalize(p.join(projectPath, sourcePath));
+
+          if (!await Directory(absoluteSource).exists()) {
+            print(
+              '❌ Error: Local path for $packageName does not exist: $absoluteSource',
+            );
+            return false;
+          }
+
+          await _linkLocalPackage(
+            packageName,
+            absoluteSource,
+            nodeModulesFlutterJS,
+          );
           continue;
         }
 
-        // Check for version override in config
-        final version = configOverrides[packageName];
+        // B. Registry Override (from Config) OR Registry Lookup (Default)
+        // If config has string 'flutterjs_pkg:ver', use that.
+        // Else check registry.json for mapping.
 
-        // Check if this is an external package (has flutterjs metadata)
-        final isExternal = await _isExternalPackage(packageName, projectPath);
+        String? targetFlutterJsPackage;
+        String? targetVersion;
 
-        if (isExternal) {
-          // External package - fetch from npm
-          if (verbose) {
-            print('   📦 $packageName (external, from npm)');
-          }
-
-          final success = await _installExternalPackage(
-            packageName,
-            nodeModulesPath,
-            version,
-            verbose,
-          );
-
-          if (success) {
-            installedCount++;
-          }
+        if (userConfig != null && userConfig.flutterJsPackage != null) {
+          // Explicit override from config
+          targetFlutterJsPackage = userConfig.flutterJsPackage;
+          targetVersion = userConfig.version; // Might be null
+          if (verbose)
+            print(
+              '   📦 $packageName -> $targetFlutterJsPackage (Config Override)',
+            );
         } else {
-          // Standard pub.dev package
-          if (verbose) {
-            print('   📦 $packageName');
-          }
+          // Registry Lookup
+          dynamic registryEntry;
+          try {
+            registryEntry = registryPackages.firstWhere(
+              (pkg) => pkg['name'] == packageName,
+            );
+          } catch (_) {}
 
+          if (registryEntry != null) {
+            targetFlutterJsPackage = registryEntry['flutterjs_package'];
+            if (verbose)
+              print('   📦 $packageName -> $targetFlutterJsPackage (Registry)');
+          }
+        }
+
+        // Proceed to install if we have a target name
+        if (targetFlutterJsPackage != null) {
           final isCached = await _isPackageCached(
-            packageName,
-            nodeModulesPath,
-            version,
+            targetFlutterJsPackage,
+            nodeModulesFlutterJS,
+            targetVersion,
           );
 
           if (isCached) {
-            if (verbose) {
-              print('      ✓ Using cached version');
-            }
-            cachedCount++;
+            if (verbose) print('      ✓ Using cached');
           } else {
             final success = await _installPubDevPackage(
-              packageName,
-              nodeModulesPath,
-              version,
+              targetFlutterJsPackage,
+              nodeModulesFlutterJS,
+              targetVersion,
               verbose,
             );
-
-            if (success) {
-              installedCount++;
-            }
+            if (!success) return false;
           }
+          continue;
         }
+
+        // C. FALLBACK: Unknown & Unconfigured -> FAIL
+        // If the key exists in config but value is null, it means user hasn't configured it yet.
+        print('\n❌ MISSING CONFIGURATION: "$packageName"');
+        configurationNeeded = true;
       }
 
-      if (verbose) {
-        print('✅ Dependency resolution complete');
-        print('   Installed: $installedCount');
-        print('   Cached: $cachedCount');
+      if (configurationNeeded) {
+        final configFile = File(configPath);
+        if (!await configFile.exists()) {
+          print('\n🛠️  Creating default flutterjs.config.js...');
+          // Pass full dependencies map to generator
+          await _configGenerator.createDefaultConfig(projectPath, dependencies);
+          print(
+            '👉 Please edit flutterjs.config.js to configure "$dependencies".',
+          );
+        } else {
+          print(
+            '👉 Please update flutterjs.config.js for the missing packages.',
+          );
+        }
+        return false;
       }
 
       return true;
@@ -157,6 +203,61 @@ class RuntimePackageManager {
       return false;
     }
   }
+
+  Future<void> _linkLocalPackage(
+    String packageName,
+    String source,
+    String destDir,
+  ) async {
+    // For now, implementing copy to avoid symlink permission issues on Windows
+    final target = p.join(
+      destDir,
+      'flutterjs_$packageName',
+    ); // Convention? Or just name?
+    // Actually, if it's local, we might want to keep the name generic or prefixed.
+    // Let's map it to 'flutterjs_$packageName' to match the system,
+    // OR just use the packageName if the user imported it as such?
+    // FlutterJS logic usually imports 'package:flutterjs_http/...'
+    // But wait, the Dart import is 'package:http'.
+    // The rewriting logic expects 'package:flutterjs_http'.
+    // So we should install it as 'flutterjs_$packageName' if possible,
+    // or relying on the compiler to handle the name.
+    // For safety, let's install it as 'flutterjs_$packageName'.
+
+    final installName = 'flutterjs_$packageName';
+    final targetDir = Directory(p.join(destDir, installName));
+
+    if (await targetDir.exists()) {
+      await targetDir.delete(recursive: true);
+    }
+
+    // Simple copy (inefficient but safe)
+    // In real dev, we want symlinks.
+    // Try creating a junction/symlink first?
+    try {
+      await Link(targetDir.path).create(source);
+    } catch (e) {
+      // Fallback to copy if link fails
+      await _copyDirectory(Directory(source), targetDir);
+    }
+  }
+
+  Future<void> _copyDirectory(Directory source, Directory destination) async {
+    await destination.create(recursive: true);
+    await for (final entity in source.list(recursive: false)) {
+      if (entity is Directory) {
+        final newDirectory = Directory(
+          p.join(destination.path, p.basename(entity.path)),
+        );
+        await _copyDirectory(entity, newDirectory);
+      } else if (entity is File) {
+        await entity.copy(p.join(destination.path, p.basename(entity.path)));
+      }
+    }
+  }
+
+  // ... (Keep existing helper methods like _isPackageCached, _installPubDevPackage, etc.)
+  // We need to copy them back because we replaced the whole class.
 
   /// Checks if a package is cached locally
   Future<bool> _isPackageCached(
@@ -171,7 +272,6 @@ class RuntimePackageManager {
       return false;
     }
 
-    // Check version in package.json if version specified
     if (requestedVersion != null) {
       final packageJsonPath = p.join(packagePath, 'package.json');
       final packageJsonFile = File(packageJsonPath);
@@ -181,19 +281,14 @@ class RuntimePackageManager {
           final content = await packageJsonFile.readAsString();
           final json = Map<String, dynamic>.from(loadYaml(content) as Map);
           final cachedVersion = json['version'] as String?;
-
-          // Simple version match (can be enhanced with semver later)
           if (cachedVersion != null && requestedVersion == cachedVersion) {
             return true;
           }
         } catch (e) {
-          // If we can't read/parse, treat as not cached
           return false;
         }
       }
     }
-
-    // If no version specified, just check existence
     return true;
   }
 
@@ -205,7 +300,6 @@ class RuntimePackageManager {
     bool verbose,
   ) async {
     try {
-      // Fetch package info
       final packageInfo = version != null
           ? await _pubDevClient.fetchPackageVersion(packageName, version)
           : await _pubDevClient.fetchPackageInfo(packageName);
@@ -224,14 +318,12 @@ class RuntimePackageManager {
         print('      Downloading v${packageInfo.version}...');
       }
 
-      // Download and extract
       final packagePath = p.join(nodeModulesPath, packageName);
       await _downloader.downloadAndExtract(
         packageInfo.archiveUrl!,
         packagePath,
       );
 
-      // Create package.json for compatibility
       await _createPackageJson(packagePath, packageInfo);
 
       if (verbose) {
@@ -245,33 +337,6 @@ class RuntimePackageManager {
     }
   }
 
-  /// Installs an external package from npm
-  Future<bool> _installExternalPackage(
-    String packageName,
-    String nodeModulesPath,
-    String? version,
-    bool verbose,
-  ) async {
-    // For external packages, use npm to install
-    // This will be implemented when we have the npm integration ready
-    if (verbose) {
-      print('      External package installation not yet implemented');
-    }
-    return false;
-  }
-
-  /// Checks if a package is external (has flutterjs metadata in pubspec)
-  Future<bool> _isExternalPackage(
-    String packageName,
-    String projectPath,
-  ) async {
-    // Check if package pubspec has flutterjs.npm_package field
-    // This would require fetching the package pubspec from pub.dev
-    // For now, return false (treat all as standard packages)
-    return false;
-  }
-
-  /// Creates a package.json file for a pub.dev package
   Future<void> _createPackageJson(
     String packagePath,
     PackageInfo packageInfo,
@@ -290,7 +355,6 @@ class RuntimePackageManager {
     );
   }
 
-  /// Cleans the package cache
   Future<void> cleanCache(String buildPath) async {
     final nodeModulesPath = p.join(buildPath, 'node_modules', '@flutterjs');
     final dir = Directory(nodeModulesPath);
