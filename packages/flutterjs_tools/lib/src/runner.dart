@@ -9,6 +9,7 @@ import 'package:flutterjs_gen/flutterjs_gen.dart';
 import 'model/package_profile.dart';
 import 'runner/run_command.dart';
 import 'version_command.dart';
+import 'commands/publish_command.dart';
 
 /// ============================================================================
 /// FlutterJSCommandRunner
@@ -160,6 +161,7 @@ class FlutterJSCommandRunner extends CommandRunner<void> {
     addCommand(DocsCommand(verbose: verbose, verboseHelp: verboseHelp));
     addCommand(CleanCommand(verbose: verbose));
     addCommand(VersionCommand());
+    addCommand(PublishCommand());
   }
 
   @override
