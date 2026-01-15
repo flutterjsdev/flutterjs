@@ -9,6 +9,7 @@ import 'model/package_info.dart';
 import 'config_resolver.dart';
 import 'config_generator.dart';
 import 'flutterjs_registry_client.dart';
+import 'package_builder.dart';
 
 /// Runtime package manager for FlutterJS
 ///
@@ -212,6 +213,7 @@ class RuntimePackageManager {
     required String projectPath,
     required String buildPath,
     bool verbose = false,
+    Map<String, String>? preResolvedSdkPackages,
   }) async {
     if (verbose) {
       print('🔍 Resolving FlutterJS project dependencies...');
@@ -255,6 +257,32 @@ class RuntimePackageManager {
       }
       final registryPackages = (registry?['packages'] as List?) ?? [];
 
+      // 🎁 NEW: Resolve SDK packages locally first (or use pre-resolved)
+      final sdkPackages =
+          preResolvedSdkPackages ?? await _resolveSDKPackages(projectPath);
+      if (verbose && sdkPackages.isNotEmpty) {
+        if (preResolvedSdkPackages == null)
+          print('   💡 Found ${sdkPackages.length} local SDK packages');
+      }
+
+      // 🎁 NEW: Explicitly link ALL SDK packages found in monorepo
+      // This ensures scoped packages (e.g. @flutterjs/runtime) are available in node_modules
+      for (final sdkPkg in sdkPackages.entries) {
+        final pkgName = sdkPkg.key;
+        final relPath = sdkPkg.value;
+        final absPath = p.join(projectPath, relPath);
+
+        // If package is scoped (e.g. @flutterjs/runtime), strip scope because destDir already includes @flutterjs
+        var linkName = pkgName;
+        if (linkName.startsWith('@flutterjs/')) {
+          linkName = linkName.substring('@flutterjs/'.length);
+        }
+
+        if (verbose)
+          print('   🔗 Pre-linking SDK package: $pkgName -> $linkName');
+        await _linkLocalPackage(linkName, absPath, nodeModulesFlutterJS);
+      }
+
       bool configurationNeeded = false;
 
       for (final entry in dependencies.entries) {
@@ -263,6 +291,20 @@ class RuntimePackageManager {
         // Skip Flutter SDK
         if (entry.value is Map && (entry.value as Map)['sdk'] != null) continue;
         if (packageName == 'flutter') continue;
+
+        // 0. SDK Package Override (Highest Priority for Monorepo Dev)
+        if (sdkPackages.containsKey(packageName)) {
+          if (verbose) print('   🔗 $packageName (Local SDK)');
+          final relativePath = sdkPackages[packageName]!;
+          final absoluteSource = p.join(projectPath, relativePath);
+
+          await _linkLocalPackage(
+            packageName,
+            absoluteSource,
+            nodeModulesFlutterJS,
+          );
+          continue;
+        }
 
         // Check User Config for this package
         final userConfig = userPackageConfigs[packageName];
@@ -375,51 +417,148 @@ class RuntimePackageManager {
     }
   }
 
+  /// Complete package preparation: download, build, and verify manifests
+  ///
+  /// This is the ONE METHOD that CLI should call to prepare all packages.
+  /// It orchestrates the full flow:
+  /// 1. Resolve and download dependencies
+  /// 2. Build SDK packages (generate exports.json)
+  /// 3. Verify all manifests exist
+  ///
+  /// [projectPath] - Root directory of the project
+  /// [buildPath] - Build directory (e.g., build/flutterjs)
+  /// [force] - Force rebuild even if packages are up-to-date
+  /// [verbose] - Print detailed progress
+  Future<bool> preparePackages({
+    required String projectPath,
+    required String buildPath,
+    bool force = false,
+    bool verbose = false,
+  }) async {
+    print('\n📦 Preparing FlutterJS packages...\n');
+
+    // 🎁 Resolve SDK paths once for everyone
+    final sdkPaths = await _resolveSDKPackages(projectPath);
+
+    // PHASE 2: Build SDK packages (Build FIRST so artifacts exist when copied)
+    if (verbose)
+      print(
+        '\nPhase 1: Building SDK packages...',
+      ); // Renamed to Phase 1 in log logic
+
+    final builder = PackageBuilder();
+    final buildStats = await builder.buildSDKPackages(
+      projectRoot: projectPath,
+      buildPath: buildPath,
+      force: force,
+      verbose: verbose,
+      parallel: true, // 🎁 Parallel builds enabled
+      sdkPaths: sdkPaths,
+    );
+
+    if (buildStats.failedCount > 0) {
+      if (verbose)
+        print('❌ Build failed with ${buildStats.failedCount} errors');
+      return false;
+    }
+
+    // PHASE 1: Resolve Dependencies (Link/Copy built packages)
+    if (verbose)
+      print('\nPhase 2: Resolving dependencies...'); // Renamed to Phase 2
+
+    final resolved = await resolveProjectDependencies(
+      projectPath: projectPath,
+      buildPath: buildPath,
+      verbose: verbose,
+      preResolvedSdkPackages: sdkPaths,
+    );
+
+    if (!resolved) {
+      print('❌ Dependency resolution failed');
+      return false;
+    }
+
+    // 🎁 Show detailed build report
+    if (verbose) {
+      buildStats.printReport();
+    }
+
+    // PHASE 3: Verify manifests exist
+    if (verbose) {
+      print('\nPhase 3: Verifying manifests...');
+      final manifestsOk = await _verifyManifests(buildPath);
+      if (!manifestsOk) {
+        print('⚠️  Some manifests missing, but continuing...');
+      }
+    }
+
+    print('\n✅ All packages ready!\n');
+    return true;
+  }
+
+  /// Verify that all expected manifests exist
+  Future<bool> _verifyManifests(String buildPath) async {
+    final manifestDir = Directory(
+      p.join(buildPath, 'node_modules', '@flutterjs'),
+    );
+
+    if (!await manifestDir.exists()) {
+      return false;
+    }
+
+    var foundCount = 0;
+    await for (final entity in manifestDir.list()) {
+      if (entity is Directory) {
+        final manifestFile = File(p.join(entity.path, 'exports.json'));
+        if (await manifestFile.exists()) {
+          foundCount++;
+        }
+      }
+    }
+
+    print('   ✓ Found $foundCount package manifests');
+    return foundCount > 0;
+  }
+
   Future<void> _linkLocalPackage(
     String packageName,
     String source,
     String destDir,
   ) async {
-    // For now, implementing copy to avoid symlink permission issues on Windows
-    final target = p.join(
-      destDir,
-      'flutterjs_$packageName',
-    ); // Convention? Or just name?
-    // Actually, if it's local, we might want to keep the name generic or prefixed.
-    // Let's map it to 'flutterjs_$packageName' to match the system,
-    // OR just use the packageName if the user imported it as such?
-    // FlutterJS logic usually imports 'package:flutterjs_http/...'
-    // But wait, the Dart import is 'package:http'.
-    // The rewriting logic expects 'package:flutterjs_http'.
-    // So we should install it as 'flutterjs_$packageName' if possible,
-    // or relying on the compiler to handle the name.
-    // For safety, let's install it as 'flutterjs_$packageName'.
-
-    final installName = 'flutterjs_$packageName';
+    // Use exact package name for node_modules resolution
+    final installName = packageName;
     final targetDir = Directory(p.join(destDir, installName));
 
     if (await targetDir.exists()) {
       await targetDir.delete(recursive: true);
     }
 
-    // Simple copy (inefficient but safe)
-    // In real dev, we want symlinks.
-    // Try creating a junction/symlink first?
     try {
-      await Link(targetDir.path).create(source);
+      if (Platform.isWindows) {
+        // Windows often has issues with symlinks, default to copy
+        await _copyDirectory(Directory(source), targetDir);
+      } else {
+        await Link(targetDir.path).create(source);
+      }
     } catch (e) {
       // Fallback to copy if link fails
-      await _copyDirectory(Directory(source), targetDir);
+      try {
+        await _copyDirectory(Directory(source), targetDir);
+      } catch (copyError) {
+        print('      ❌ Copy failed: $copyError');
+      }
     }
   }
 
   Future<void> _copyDirectory(Directory source, Directory destination) async {
     await destination.create(recursive: true);
     await for (final entity in source.list(recursive: false)) {
+      final name = p.basename(entity.path);
+      if (name == 'node_modules' || name == '.git' || name == '.dart_tool')
+        continue;
+
       if (entity is Directory) {
-        final newDirectory = Directory(
-          p.join(destination.path, p.basename(entity.path)),
-        );
+        final newDirectory = Directory(p.join(destination.path, name));
         await _copyDirectory(entity, newDirectory);
       } else if (entity is File) {
         await entity.copy(p.join(destination.path, p.basename(entity.path)));

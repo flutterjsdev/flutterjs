@@ -1,0 +1,286 @@
+{
+  "package": "@flutterjs/runtime",
+  "version": "0.1.0",
+  "exports": [
+    {
+      "name": "BuildContext",
+      "path": "./dist/build_context.js",
+      "type": "alias"
+    },
+    {
+      "name": "Diagnosticable",
+      "path": "./dist/element.js",
+      "type": "class"
+    },
+    {
+      "name": "Element",
+      "path": "./dist/element.js",
+      "type": "alias"
+    },
+    {
+      "name": "StatelessElement",
+      "path": "./dist/element.js",
+      "type": "alias"
+    },
+    {
+      "name": "StatefulElement",
+      "path": "./dist/element.js",
+      "type": "alias"
+    },
+    {
+      "name": "ComponentElement",
+      "path": "./dist/element.js",
+      "type": "alias"
+    },
+    {
+      "name": "DiagnosticLevel",
+      "path": "./dist/element.js",
+      "type": "alias"
+    },
+    {
+      "name": "isRealVNode",
+      "path": "./dist/element.js",
+      "type": "alias"
+    },
+    {
+      "name": "isWidget",
+      "path": "./dist/element.js",
+      "type": "alias"
+    },
+    {
+      "name": "EventSystem",
+      "path": "./dist/event_system.js",
+      "type": "alias"
+    },
+    {
+      "name": "SyntheticEvent",
+      "path": "./dist/event_system.js",
+      "type": "alias"
+    },
+    {
+      "name": "FlutterJSRuntime",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "runApp",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "getRuntime",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "updateApp",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "hotReload",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "renderToString",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "hydrate",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "getMetrics",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "getPerformanceReport",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "clearMetrics",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "on",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "off",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "getConfig",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "dispose",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "isInitialized",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "isMounted",
+      "path": "./dist/flutterjs_runtime.js",
+      "type": "class"
+    },
+    {
+      "name": "FocusManager",
+      "path": "./dist/focus_manager.js",
+      "type": "alias"
+    },
+    {
+      "name": "GestureRecognizer",
+      "path": "./dist/gesture_recognizer.js",
+      "type": "alias"
+    },
+    {
+      "name": "TapRecognizer",
+      "path": "./dist/gesture_recognizer.js",
+      "type": "alias"
+    },
+    {
+      "name": "LongPressRecognizer",
+      "path": "./dist/gesture_recognizer.js",
+      "type": "alias"
+    },
+    {
+      "name": "SwipeRecognizer",
+      "path": "./dist/gesture_recognizer.js",
+      "type": "alias"
+    },
+    {
+      "name": "PanRecognizer",
+      "path": "./dist/gesture_recognizer.js",
+      "type": "alias"
+    },
+    {
+      "name": "ScaleRecognizer",
+      "path": "./dist/gesture_recognizer.js",
+      "type": "alias"
+    },
+    {
+      "name": "GestureArena",
+      "path": "./dist/gesture_recognizer.js",
+      "type": "alias"
+    },
+    {
+      "name": "GestureManager",
+      "path": "./dist/gesture_recognizer.js",
+      "type": "alias"
+    },
+    {
+      "name": "InheritedElement",
+      "path": "./dist/inherited_element.js",
+      "type": "alias"
+    },
+    {
+      "name": "InheritedWidget",
+      "path": "./dist/inherited_element.js",
+      "type": "alias"
+    },
+    {
+      "name": "ChangeNotifier",
+      "path": "./dist/inherited_element.js",
+      "type": "alias"
+    },
+    {
+      "name": "ValueNotifier",
+      "path": "./dist/inherited_element.js",
+      "type": "alias"
+    },
+    {
+      "name": "Provider",
+      "path": "./dist/inherited_element.js",
+      "type": "alias"
+    },
+    {
+      "name": "Key",
+      "path": "./dist/key.js",
+      "type": "alias"
+    },
+    {
+      "name": "ValueKey",
+      "path": "./dist/key.js",
+      "type": "alias"
+    },
+    {
+      "name": "ObjectKey",
+      "path": "./dist/key.js",
+      "type": "alias"
+    },
+    {
+      "name": "GlobalKey",
+      "path": "./dist/key.js",
+      "type": "alias"
+    },
+    {
+      "name": "MemoryManager",
+      "path": "./dist/memory_manager.js",
+      "type": "alias"
+    },
+    {
+      "name": "MemoryProfiler",
+      "path": "./dist/memory_manager.js",
+      "type": "alias"
+    },
+    {
+      "name": "RuntimeEngine",
+      "path": "./dist/runtime_engine.js",
+      "type": "alias"
+    },
+    {
+      "name": "ServiceRegistry",
+      "path": "./dist/service_registry.js",
+      "type": "alias"
+    },
+    {
+      "name": "State",
+      "path": "./dist/state.js",
+      "type": "alias"
+    },
+    {
+      "name": "TypedState",
+      "path": "./dist/state.js",
+      "type": "alias"
+    },
+    {
+      "name": "StateManager",
+      "path": "./dist/state.js",
+      "type": "alias"
+    },
+    {
+      "name": "EnhancedBuildContext",
+      "path": "./dist/state.js",
+      "type": "alias"
+    },
+    {
+      "name": "",
+      "path": "./dist/state.js",
+      "type": "alias"
+    },
+    {
+      "name": "StateTracker",
+      "path": "./dist/state_tracker.js",
+      "type": "alias"
+    },
+    {
+      "name": "UpdateBatcher",
+      "path": "./dist/update_batcher.js",
+      "type": "alias"
+    }
+  ]
+}

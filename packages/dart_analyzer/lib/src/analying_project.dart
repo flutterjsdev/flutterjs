@@ -16,7 +16,7 @@ import 'dependency_resolver.dart';
 import 'type_registry.dart';
 import 'dart:async';
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:flutterjs_dev_tools/dev_tools.dart'; // ADD THIS
+import 'package:flutterjs_dev_tools/dev_tools.dart';
 
 /// Advanced multi-pass project analyzer
 class ProjectAnalyzer {
@@ -69,6 +69,7 @@ class ProjectAnalyzer {
 
   /// Initialize the analyzer with dependency resolution
   Future<void> initialize() async {
+    print('DEBUG: ProjectAnalyzer.initialize START');
     return await debugger.observe('analyzer_initialization', () async {
       debugger.log(
         DebugLevel.info,
@@ -77,14 +78,17 @@ class ProjectAnalyzer {
       );
 
       try {
+        print('DEBUG: ProjectAnalyzer.initialize: validating structure');
         // Validate project structure
         await _validateProjectStructure();
 
+        print('DEBUG: ProjectAnalyzer.initialize: initializing output dirs');
         // Initialize build and output directories
         if (generateOutputFiles) {
           await _initializeOutputDirectories();
         }
 
+        print('DEBUG: ProjectAnalyzer.initialize: creating context collection');
         // Initialize analysis context
         final libPath = path.normalize(
           path.absolute(path.join(projectPath, 'lib')),
@@ -99,6 +103,7 @@ class ProjectAnalyzer {
           category: 'analyzer',
         );
 
+        print('DEBUG: ProjectAnalyzer.initialize: creating resolver');
         // Initialize components
         _dependencyResolver = DependencyResolver(
           projectPath,
@@ -106,12 +111,14 @@ class ProjectAnalyzer {
         );
         _typeRegistry = TypeRegistry();
 
+        print('DEBUG: ProjectAnalyzer.initialize DONE');
         debugger.log(
           DebugLevel.info,
           'Initialization complete',
           category: 'analyzer',
         );
       } catch (e, stackTrace) {
+        print('DEBUG: ProjectAnalyzer.initialize ERROR: $e');
         debugger.log(
           DebugLevel.error,
           'Failed to initialize analyzer: $e\n$stackTrace',

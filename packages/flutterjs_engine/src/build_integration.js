@@ -130,7 +130,8 @@ class BuildIntegration {
       await this.analyzer.phase2_resolveDependencies();
 
       if (this.config.installDependencies) {
-        await this.analyzer.phase3_installPackages();
+        // await this.analyzer.phase3_installPackages(); // 🧹 REMOVED: Handled by Dart
+        console.log("   (JS package installation skipped - handled by Dart)");
       }
 
       await this.analyzer.phase4_collectPackages();

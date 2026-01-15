@@ -62,12 +62,17 @@ async function buildAllFiles() {
     // ✅ Generate exports based on all built files
     generateExports(allFiles);
 
+    // 🎁 NEW: Generate exports.json for Dart analyzer
+    generateExportManifest(allFiles);
+
     console.log('✅ Build successful!\n');
 
   } catch (error) {
-    console.error('❌ Build failed:', error.message);
+    console.error('❌ Build failed:', error);
+    process.exit(1);
   }
 }
+
 
 /**
  * Auto-generate package.json exports in the exact format requested
@@ -116,6 +121,55 @@ function generateExports(sourceFiles) {
     console.log(`   "${key}": "${value}"`);
   });
   console.log();
+}
+
+/**
+ * Scan all source files and generate exports.json manifest
+ * This manifest tells the Dart code generator what symbols this package exports
+ */
+function generateExportManifest(sourceFiles) {
+  const manifest = {
+    package: '@flutterjs/runtime',
+    version: JSON.parse(readFileSync('./package.json', 'utf8')).version,
+    exports: []
+  };
+
+  const regex = /export\s+(?:class|function|const|var|let|enum)\s+([a-zA-Z0-9_$]+)/g;
+  const aliasRegex = /export\s*{\s*([^}]+)\s*}/;
+
+  for (const file of sourceFiles) {
+    const content = readFileSync(file, 'utf8');
+    const relativePath = relative(srcDir, file).replace(/\\/g, '/');
+    const importPath = `./dist/${relativePath}`;
+
+    // Match named exports: export class Foo
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+      manifest.exports.push({
+        name: match[1],
+        path: importPath,
+        type: 'class' // simplified
+      });
+    }
+
+    // Match alias exports: export { Foo, Bar as Baz }
+    const aliasMatch = content.match(aliasRegex);
+    if (aliasMatch) {
+      const exportsList = aliasMatch[1].split(',');
+      for (const exp of exportsList) {
+        const parts = exp.trim().split(/\s+as\s+/);
+        const name = parts.length > 1 ? parts[1] : parts[0];
+        manifest.exports.push({
+          name: name,
+          path: importPath,
+          type: 'alias'
+        });
+      }
+    }
+  }
+
+  writeFileSync('exports.json', JSON.stringify(manifest, null, 2));
+  console.log(`📋 Generated exports.json with ${manifest.exports.length} symbols`);
 }
 
 /**

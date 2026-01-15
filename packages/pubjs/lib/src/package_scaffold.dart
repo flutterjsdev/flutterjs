@@ -60,6 +60,10 @@ class PackageScaffold {
       await _generateReadme(packageDir, packageName, description, organization);
       await _generateChangelog(packageDir);
       await _generateLicense(packageDir);
+      await _generateBuildJs(
+        packageDir,
+        packageName,
+      ); // ✅ NEW: Generate build.js
 
       print('✅ Package created successfully!');
       print('');
@@ -68,6 +72,7 @@ class PackageScaffold {
       print('   ├── lib/                    # Dart wrapper (pub.dev)');
       print('   ├── $packageName/           # JavaScript (npm)');
       print('   │   ├── package.json');
+      print('   │   ├── build.js            # ✅ Auto-generates exports.json');
       print('   │   └── src/index.js');
       print('   ├── example/                # Flutter example');
       print('   └── README.md');
@@ -75,9 +80,10 @@ class PackageScaffold {
       print('🚀 Next steps:');
       print('   1. cd $packageDir');
       print('   2. Implement JavaScript in $packageName/src/index.js');
-      print('   3. Update example app');
-      print('   4. Publish to npm: cd $packageName && npm publish');
-      print('   5. Publish to pub.dev: dart pub publish');
+      print('   3. Build package: cd $packageName && node build.js');
+      print('   4. Update example app');
+      print('   5. Publish to npm: cd $packageName && npm publish');
+      print('   6. Publish to pub.dev: dart pub publish');
 
       return true;
     } catch (e) {
@@ -530,6 +536,113 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ''');
+  }
+
+  Future<void> _generateBuildJs(String packageDir, String packageName) async {
+    final file = File(p.join(packageDir, packageName, 'build.js'));
+    await file.writeAsString('''
+/**
+ * Build script for @flutterjs/$packageName
+ * 
+ * Generates exports.json manifest for the import resolver system
+ */
+
+import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
+import { join, extname } from 'path';
+
+const srcDir = './src';
+
+/**
+ * Get all JavaScript files recursively
+ */
+function getAllJsFiles(dir, fileList = []) {
+  const files = readdirSync(dir);
+  
+  for (const file of files) {
+    const filePath = join(dir, file);
+    const stat = statSync(filePath);
+    
+    if (stat.isDirectory()) {
+      getAllJsFiles(filePath, fileList);
+    } else if (extname(file) === '.js') {
+      fileList.push(filePath);
+    }
+  }
+  
+  return fileList;
+}
+
+/**
+ * Scan all source files and generate exports.json manifest
+ * This manifest tells the Dart code generator what symbols this package exports
+ */
+function generateExportManifest(sourceFiles) {
+  const manifest = {
+    package: '@flutterjs/$packageName',
+    version: '0.1.0',
+    exports: []
+  };
+
+  // Regex patterns to match different export types
+  const exportRegex = /export\\s*{\\s*([^}]+)\\s*}/g;
+  const exportStarRegex = /export\\s*\\*\\s*from/g;
+  const classRegex = /export\\s+class\\s+(\\w+)/g;
+  const functionRegex = /export\\s+function\\s+(\\w+)/g;
+  const constRegex = /export\\s+const\\s+(\\w+)/g;
+
+  for (const srcFile of sourceFiles) {
+    const content = readFileSync(srcFile, 'utf8');
+    
+    // Find named exports: export { Foo, Bar }
+    for (const match of content.matchAll(exportRegex)) {
+      const symbols = match[1]
+        .split(',')
+        .map(s => s.trim())
+        .map(s => s.split(/\\s+as\\s+/).pop()) // Handle "export { Foo as Bar }"
+        .filter(s => s && !s.includes('from'));
+      manifest.exports.push(...symbols);
+    }
+    
+    // Find class exports: export class Foo
+    for (const match of content.matchAll(classRegex)) {
+      manifest.exports.push(match[1]);
+    }
+    
+    // Find function exports: export function foo()
+    for (const match of content.matchAll(functionRegex)) {
+      manifest.exports.push(match[1]);
+    }
+    
+    // Find const exports: export const FOO
+    for (const match of content.matchAll(constRegex)) {
+      manifest.exports.push(match[1]);
+    }
+  }
+
+  // Remove duplicates and sort
+  manifest.exports = [...new Set(manifest.exports)].sort();
+
+  writeFileSync('./exports.json', JSON.stringify(manifest, null, 2) + '\\n');
+  console.log(`📋 Generated exports.json with \${manifest.exports.length} symbols\\n`);
+}
+
+// Main build process
+async function build() {
+  console.log('🚀 Building @flutterjs/$packageName...\\n');
+
+  const allFiles = getAllJsFiles(srcDir);
+  console.log(`📦 Found \${allFiles.length} JavaScript files\\n`);
+
+  // Generate export manifest
+  generateExportManifest(allFiles);
+
+  console.log('✅ Build successful!\\n');
+}
+
+build().catch(console.error);
+''');
+
+    print('   📋 Added build.js with export scanning');
   }
 
   String _toPascalCase(String snakeCase) {
