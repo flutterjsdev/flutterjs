@@ -1,4 +1,4 @@
-import { Size } from "./size.js";
+import { Size } from "./geometry.js";
 
 export class BoxConstraints {
     constructor(minWidth = 0, maxWidth = Infinity, minHeight = 0, maxHeight = Infinity) {
