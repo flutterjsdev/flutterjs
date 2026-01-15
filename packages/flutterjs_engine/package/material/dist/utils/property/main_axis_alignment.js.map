@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../src/utils/property/main_axis_alignment.js"],
-  "sourcesContent": ["export class MainAxisAlignment {\r\n  static start = 'flex-start';\r\n  static end = 'flex-end';\r\n  static center = 'center';\r\n  static spaceBetween = 'space-between';\r\n  static spaceAround = 'space-around';\r\n  static spaceEvenly = 'space-evenly';\r\n}"],
-  "mappings": "wKAAO,MAAMA,CAAkB,CAO/B,CANEC,EADWD,EACJ,QAAQ,cACfC,EAFWD,EAEJ,MAAM,YACbC,EAHWD,EAGJ,SAAS,UAChBC,EAJWD,EAIJ,eAAe,iBACtBC,EALWD,EAKJ,cAAc,gBACrBC,EANWD,EAMJ,cAAc",
-  "names": ["MainAxisAlignment", "__publicField"]
-}

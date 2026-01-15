@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../src/utils/property/axis.js"],
-  "sourcesContent": ["export class Axis {\r\n  static horizontal = 'horizontal';\r\n  static vertical = 'vertical';\r\n}"],
-  "mappings": "wKAAO,MAAMA,CAAK,CAGlB,CAFEC,EADWD,EACJ,aAAa,cACpBC,EAFWD,EAEJ,WAAW",
-  "names": ["Axis", "__publicField"]
-}

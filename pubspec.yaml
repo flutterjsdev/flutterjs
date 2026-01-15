@@ -14,7 +14,7 @@ workspace:
   - packages/flutterjs_dev_utils/
   - packages/flutterjs_tools/
   - packages/flutterjs_gen/
-  - packages/flutterjs_analyzer/
+  - packages/dart_analyzer/
   - packages/flutterjs_core/
   - packages/flutterjs_dev_tools/
   - packages/pubjs/
@@ -27,7 +27,7 @@ dependencies:
   path: ^1.9.0
   analyzer: ^8.4.1
   args:
-  flutterjs_analyzer: any
+  dart_analyzer: any
   flutterjs_core: any
   flutterjs_gen: any
   flutterjs_tools: any

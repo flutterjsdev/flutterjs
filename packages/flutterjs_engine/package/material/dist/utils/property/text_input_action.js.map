@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../src/utils/property/text_input_action.js"],
-  "sourcesContent": ["\r\n/**\r\n * TextInputAction - Action button on keyboard\r\n */\r\nconst TextInputAction = Object.freeze({\r\n  none: 'none',\r\n  unspecified: 'unspecified',\r\n  done: 'done',\r\n  go: 'go',\r\n  search: 'search',\r\n  send: 'send',\r\n  next: 'next',\r\n  previous: 'previous',\r\n  continueAction: 'continueAction',\r\n  join: 'join',\r\n  route: 'route',\r\n  emergencyCall: 'emergencyCall'\r\n});\r\nexport { TextInputAction };"],
-  "mappings": "AAIA,MAAMA,EAAkB,OAAO,OAAO,CACpC,KAAM,OACN,YAAa,cACb,KAAM,OACN,GAAI,KACJ,OAAQ,SACR,KAAM,OACN,KAAM,OACN,SAAU,WACV,eAAgB,iBAChB,KAAM,OACN,MAAO,QACP,cAAe,eACjB,CAAC",
-  "names": ["TextInputAction"]
-}

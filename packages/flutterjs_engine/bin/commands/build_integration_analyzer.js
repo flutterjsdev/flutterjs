@@ -39,11 +39,31 @@ class BuildAnalyzer {
     this.dependencyResolver = new DependencyResolver({
       projectRoot: buildIntegration.projectRoot,
       debugMode: this.config.debugMode,
+      config: this.config, // ✅ Pass full config for package resolution
     });
     this.packageInstaller = new PackageInstaller(
-      buildIntegration.projectRoot,
-      this.config
+      buildIntegration.projectRoot, // Assuming this.options.projectRoot was a typo and should be buildIntegration.projectRoot
+      {
+        debugMode: this.config.debugMode, // Assuming this.options.debugMode was a typo and should be this.config.debugMode
+        sdkRoot: this.config.sdkRoot, // Assuming sdkRoot should come from config
+        config: this.config // ✅ Pass config
+      }
     );
+
+    // ✅ DEBUG: Log config status
+    console.log(chalk.magenta('\n[DEBUG] BuildIntegrationAnalyzer initialized'));
+    console.log(chalk.magenta(`  Has config: ${!!this.config}`));
+    console.log(chalk.magenta(`  Has config.packages: ${!!this.config?.packages}`));
+    if (this.config?.packages) {
+      console.log(chalk.magenta(`  Config packages: ${Object.keys(this.config.packages).join(', ')}`));
+      Object.entries(this.config.packages).forEach(([name, pkg]) => {
+        if (pkg.path) {
+          console.log(chalk.magenta(`    ${name}: ${pkg.path}`));
+        }
+      });
+    }
+    console.log();
+
     this.packageCollector = new PackageCollector({
       projectRoot: buildIntegration.projectRoot,
       outputDir: this.config.outputDir,
@@ -68,6 +88,12 @@ class BuildAnalyzer {
    * ========================================================================
    */
   async phase1_analyze() {
+    console.log(chalk.red('\n========== ANALYZE AND RESOLVE CALLED =========='));
+    console.log(chalk.red(`Project: ${this.projectRoot}`));
+    console.log(chalk.red(`MainFile: ${this.pathResolver.getSourcePath()}`));
+    console.log(chalk.red(`Has Config: ${!!this.config}`));
+    console.log(chalk.red(`Has Config.packages: ${!!this.config?.packages}`));
+    console.log(chalk.red('================================================\n'));
     const spinner = ora(
       chalk.blue("📊 Phase 1: Analyzing source code...")
     ).start();
@@ -261,6 +287,18 @@ class BuildAnalyzer {
     const spinner = ora(
       chalk.blue("📋 Phase 4: Collecting packages...")
     ).start();
+
+    // ✅ SKIP in development mode
+    if (this.config.mode === 'development') {
+      spinner.info(chalk.yellow("ℹ️  Skipping package collection (dev mode)"));
+      this.integration.collection = {
+        copiedFiles: [],
+        failedFiles: [],
+        totalSize: 0,
+        session: null,
+      };
+      return;
+    }
 
     try {
       if (!this.integration.resolution || this.integration.resolution.packages.size === 0) {

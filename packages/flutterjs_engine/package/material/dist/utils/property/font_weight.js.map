@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../src/utils/property/font_weight.js"],
-  "sourcesContent": ["export class FontWeight {\r\n  static thin = '100';\r\n  static extraLight = '200';\r\n  static light = '300';\r\n  static normal = '400';\r\n  static medium = '500';\r\n  static semiBold = '600';\r\n  static bold = '700';\r\n  static extraBold = '800';\r\n  static black = '900';\r\n\r\n  static w100 = '100';\r\n  static w200 = '200';\r\n  static w300 = '300';\r\n  static w400 = '400';\r\n  static w500 = '500';\r\n  static w600 = '600';\r\n  static w700 = '700';\r\n  static w800 = '800';\r\n  static w900 = '900';\r\n}"],
-  "mappings": "wKAAO,MAAMA,CAAW,CAoBxB,CAnBEC,EADWD,EACJ,OAAO,OACdC,EAFWD,EAEJ,aAAa,OACpBC,EAHWD,EAGJ,QAAQ,OACfC,EAJWD,EAIJ,SAAS,OAChBC,EALWD,EAKJ,SAAS,OAChBC,EANWD,EAMJ,WAAW,OAClBC,EAPWD,EAOJ,OAAO,OACdC,EARWD,EAQJ,YAAY,OACnBC,EATWD,EASJ,QAAQ,OAEfC,EAXWD,EAWJ,OAAO,OACdC,EAZWD,EAYJ,OAAO,OACdC,EAbWD,EAaJ,OAAO,OACdC,EAdWD,EAcJ,OAAO,OACdC,EAfWD,EAeJ,OAAO,OACdC,EAhBWD,EAgBJ,OAAO,OACdC,EAjBWD,EAiBJ,OAAO,OACdC,EAlBWD,EAkBJ,OAAO,OACdC,EAnBWD,EAmBJ,OAAO",
-  "names": ["FontWeight", "__publicField"]
-}

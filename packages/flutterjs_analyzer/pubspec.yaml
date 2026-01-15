@@ -1,20 +1,24 @@
 name: flutterjs_analyzer
-description: A sample command-line application.
-version: 1.0.0
-resolution: workspace
-# repository: https://github.com/my_org/my_repo
+version: 0.1.0
+description: FlutterJS Analyzer - Dart widget analyzer
+
+homepage: https://github.com/flutterjs/flutterjs_analyzer
+repository: https://github.com/flutterjs/flutterjs_analyzer
+issue_tracker: https://github.com/flutterjs/flutterjs_analyzer/issues
 
 environment:
-  sdk: ^3.10.0-278.0.dev
+  sdk: '>=2.19.0 <4.0.0'
 
-# Add regular dependencies here.
 dependencies:
-  path: ^1.9.0
-  analyzer: 
-  flutterjs_dev_tools: any
-
-
+  flutter:
+    sdk: flutter
 
 dev_dependencies:
-  lints: ^6.0.0
-  test: ^1.25.6
+  flutter_test:
+    sdk: flutter
+
+# FlutterJS metadata
+flutterjs:
+  npm_package: "@flutterjs/analyzer"
+  implementation_language: "javascript"
+  js_entry: "flutterjs_analyzer/src/index.js"

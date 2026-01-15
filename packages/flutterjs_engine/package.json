@@ -31,10 +31,10 @@
     "compression": "^1.8.1",
     "cors": "^2.8.5",
     "commander": "^14.0.2",
-    "@flutterjs/analyzer": "file:./src/analyzer",
-    "@flutterjs/runtime": "file:./src/runtime",
-    "@flutterjs/vdom": "file:./src/vdom",
-    "@flutterjs/material": "file:./package/material"
+    "@flutterjs/analyzer": "file:../flutterjs_analyzer/flutterjs_analyzer",
+    "@flutterjs/runtime": "file:../flutterjs_runtime/flutterjs_runtime",
+    "@flutterjs/vdom": "file:../flutterjs_vdom/flutterjs_vdom",
+    "@flutterjs/material": "file:../flutterjs_material/flutterjs_material"
   },
   "keywords": [
     "flutter",

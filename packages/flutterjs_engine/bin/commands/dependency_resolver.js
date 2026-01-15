@@ -94,6 +94,7 @@ class DependencyResolver {
     this.options = {
       projectRoot: options.projectRoot || process.cwd(),
       debugMode: options.debugMode || false,
+      config: options.config || {}, // ✅ Store config
       ...options
     };
 
@@ -113,25 +114,25 @@ class DependencyResolver {
     let currentPath = startPath;
     const maxLevels = 20;
     let level = 0;
-    
+
     while (level < maxLevels && currentPath !== path.dirname(currentPath)) {
       const enginePath = path.join(currentPath, 'packages', 'flutterjs_engine', 'src');
-      
+
       if (this.options.debugMode && level < 5) {
         console.log(chalk.gray(`    [Level ${level}] Checking: ${enginePath}`));
       }
-      
+
       if (fs.existsSync(enginePath)) {
         if (this.options.debugMode) {
           console.log(chalk.green(`  ✔ Found flutterjs root at: ${currentPath}`));
         }
         return currentPath;
       }
-      
+
       currentPath = path.dirname(currentPath);
       level++;
     }
-    
+
     if (this.options.debugMode) {
       console.log(chalk.yellow(`  ⚠ Could not find flutterjs root, using projectRoot`));
     }
@@ -192,6 +193,8 @@ class DependencyResolver {
         errors: [],
         warnings: []
       };
+
+
 
     } catch (error) {
       console.error(chalk.red(`\n✖ Resolution error: ${error.message}\n`));
@@ -302,18 +305,54 @@ class DependencyResolver {
     const engineRoot = path.dirname(srcDir);
 
     // ✅ Search paths in priority order
-    const searchPaths = [
-      // First: Check src/ folder
+    const searchPaths = [];
+
+    // 1. Config Override (Highest Priority)
+    if (this.options.config?.packages?.[fullPackageName]) {
+      const configEntry = this.options.config.packages[fullPackageName];
+      // Supports string path or object { path: '...' }
+      const overridePath = typeof configEntry === 'string' ? configEntry : configEntry?.path;
+
+      if (overridePath) {
+        // Resolve relative paths against project root
+        const resolvedOverride = path.isAbsolute(overridePath)
+          ? overridePath
+          : path.resolve(this.projectRoot, overridePath);
+
+        searchPaths.push(resolvedOverride);
+
+        if (this.options.debugMode) {
+          console.log(chalk.cyan(`      Overriding path for ${fullPackageName}`));
+        }
+      }
+    }
+
+    // 2. Default Mappings for Core SDK Packages
+    // These are standard locations in the repo
+    const CORE_DEFAULTS = {
+      '@flutterjs/runtime': 'packages/flutterjs_runtime/flutterjs_runtime',
+      '@flutterjs/material': 'packages/flutterjs_material/flutterjs_material',
+      '@flutterjs/vdom': 'packages/flutterjs_vdom/flutterjs_vdom',
+      '@flutterjs/analyzer': 'packages/flutterjs_analyzer/flutterjs_analyzer',
+    };
+
+    if (CORE_DEFAULTS[fullPackageName]) {
+      const sdkRoot = this.findFlutterjsRoot(this.projectRoot);
+      const defaultPath = path.join(sdkRoot, CORE_DEFAULTS[fullPackageName]);
+      searchPaths.push(defaultPath);
+    }
+
+    // 2. Default Engine Locations
+    searchPaths.push(
       path.join(engineRoot, 'src', packageName),
-      // Second: Check package/ folder
       path.join(engineRoot, 'package', packageName)
-    ];
+    );
 
     let foundPath = null;
 
     for (let i = 0; i < searchPaths.length; i++) {
       const searchPath = searchPaths[i];
-      
+
       if (this.options.debugMode) {
         console.log(chalk.gray(`  [${i + 1}/${searchPaths.length}] Checking: ${searchPath}`));
       }
@@ -371,6 +410,8 @@ class DependencyResolver {
     console.log(chalk.green(`  ✔ ${fullPackageName}`));
     console.log(chalk.gray(`     └─ ${foundPath}`));
   }
+
+
 }
 
 // ============================================================================

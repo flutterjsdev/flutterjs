@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../src/utils/property/box_fit.js"],
-  "sourcesContent": ["export class BoxFit {\r\n  static fill = 'fill';\r\n  static contain = 'contain';\r\n  static cover = 'cover';\r\n  static fitWidth = 'fitWidth';\r\n  static fitHeight = 'fitHeight';\r\n  static none = 'none';\r\n  static scaleDown = 'scale-down';\r\n}"],
-  "mappings": "wKAAO,MAAMA,CAAO,CAQpB,CAPEC,EADWD,EACJ,OAAO,QACdC,EAFWD,EAEJ,UAAU,WACjBC,EAHWD,EAGJ,QAAQ,SACfC,EAJWD,EAIJ,WAAW,YAClBC,EALWD,EAKJ,YAAY,aACnBC,EANWD,EAMJ,OAAO,QACdC,EAPWD,EAOJ,YAAY",
-  "names": ["BoxFit", "__publicField"]
-}

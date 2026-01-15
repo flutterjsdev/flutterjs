@@ -14,10 +14,9 @@ import 'package:flutterjs_tools/src/runner/code_pipleiline.dart';
 import 'package:flutterjs_tools/src/runner/engine_bridge.dart';
 import 'package:flutterjs_tools/src/runner/helper.dart';
 import 'package:path/path.dart' as path;
-import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
+import 'package:dart_analyzer/dart_analyzer.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart' as com;
-import 'package:pubjs/pubjs.dart';
 
 /// ============================================================================
 /// RunCommand
@@ -552,22 +551,6 @@ class RunCommand extends Command<void> {
       print('⚠️  JS project init failed, but continuing to try dev server...');
     }
 
-    // Step 1.5: Resolve and fetch package dependencies
-    if (!config.jsonOutput) {
-      print('\n📦 Resolving package dependencies...');
-    }
-
-    final packageManager = RuntimePackageManager();
-    final packagesResolved = await packageManager.resolveProjectDependencies(
-      projectPath: context.projectPath,
-      buildPath: context.buildPath,
-      verbose: config.verbose,
-    );
-
-    if (!packagesResolved) {
-      print('⚠️  Package resolution failed, some packages may be missing...');
-    }
-
     // Step 2: Start the dev server from build/flutterjs
     if (!config.jsonOutput) {
       print('\n🚀 Starting FlutterJS Dev Server...');
@@ -587,9 +570,8 @@ class RunCommand extends Command<void> {
     }
 
     if (!config.jsonOutput) {
-      print('\n✅ Dev Server running at ${result.url}');
+      // JS server already prints the URL, so we just print project info for context
       print('   📁 Project root: ${context.buildPath}');
-      print('   📁 Source files: ${context.jsOutputPath}');
     }
   }
 

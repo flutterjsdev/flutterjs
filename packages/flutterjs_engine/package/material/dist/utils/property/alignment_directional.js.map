@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../src/utils/property/alignment_directional.js"],
-  "sourcesContent": ["/**\r\n * AlignmentDirectional - Directional alignment using start/end instead of left/right\r\n * Respects text direction (LTR/RTL)\r\n */\r\nconst AlignmentDirectional = Object.freeze({\r\n  topStart: 'topStart',\r\n  topCenter: 'topCenter',\r\n  topEnd: 'topEnd',\r\n  centerStart: 'centerStart',\r\n  center: 'center',\r\n  centerEnd: 'centerEnd',\r\n  bottomStart: 'bottomStart',\r\n  bottomCenter: 'bottomCenter',\r\n  bottomEnd: 'bottomEnd'\r\n});\r\n\r\nexport { AlignmentDirectional };\r\n"],
-  "mappings": "AAIA,MAAMA,EAAuB,OAAO,OAAO,CACzC,SAAU,WACV,UAAW,YACX,OAAQ,SACR,YAAa,cACb,OAAQ,SACR,UAAW,YACX,YAAa,cACb,aAAc,eACd,UAAW,WACb,CAAC",
-  "names": ["AlignmentDirectional"]
-}

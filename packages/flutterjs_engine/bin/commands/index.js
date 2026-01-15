@@ -84,34 +84,30 @@ function deepMergeConfig(defaults, userConfig) {
 /**
  * Load project configuration - handles both ESM and CommonJS
  */
-function loadConfigFile(configPath) {
+// Create require for loading configs
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
+/**
+ * Load project configuration - handles both ESM and CommonJS
+ */
+async function loadConfigFile(configPath) {
   try {
     if (!fs.existsSync(configPath)) {
       return null;
     }
 
-    const configCode = fs.readFileSync(configPath, 'utf-8');
-
-    // Create a safe sandbox for eval
-    const sandbox = { module: { exports: {} } };
-
-    try {
-      // Execute the config file in the sandbox
-      new Function('module', 'exports', configCode).call(sandbox, sandbox.module, sandbox.module.exports);
-      return sandbox.module.exports;
-    } catch (evalError) {
-      console.warn(
-        chalk.yellow(`⚠️  Could not parse config file: ${evalError.message}`)
-      );
-      return null;
-    }
+    // Use dynamic import to handle both ESM and CJS
+    const fileUrl = `file:///${configPath.replace(/\\/g, '/')}`;
+    const configModule = await import(fileUrl);
+    return configModule.default || configModule;
   } catch (error) {
     console.warn(chalk.yellow(`⚠️  Error loading config file: ${error.message}`));
     return null;
   }
 }
 
-function loadConfig(projectContext) {
+async function loadConfig(projectContext) {
   try {
     const configPath = path.join(projectContext.projectRoot, 'flutterjs.config.js');
 
@@ -123,7 +119,7 @@ function loadConfig(projectContext) {
     }
 
     // Try to load the actual config file
-    const userConfig = loadConfigFile(configPath);
+    const userConfig = await loadConfigFile(configPath);
 
     if (userConfig && typeof userConfig === 'object') {
       // Deep merge user config with defaults
@@ -187,7 +183,7 @@ export async function build(options, projectContext) {
   try {
     // Validate configuration
     spinner.text = 'Validating configuration...';
-    const config = loadConfig(projectContext);
+    const config = await loadConfig(projectContext);
 
     // Resolve entry file path
     const entryFile = config.entry?.main || 'lib/main.fjs';
@@ -285,7 +281,7 @@ export async function dev(options, projectContext) {
   try {
     // Load configuration
     spinner.text = 'Loading project configuration...';
-    const config = loadConfig(projectContext);
+    const config = await loadConfig(projectContext);
 
     // Resolve entry file path
     const entryFile = config.entry?.main || 'lib/main.fjs';
@@ -546,7 +542,7 @@ export async function analyze(options, projectContext) {
   const spinner = ora('Running code analysis...').start();
 
   try {
-    const config = loadConfig(projectContext);
+    const config = await loadConfig(projectContext);
 
     // Resolve entry file path
     const entryFile = config.entry?.main || 'lib/main.fjs';

@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../src/utils/property/shape_border.js"],
-  "sourcesContent": ["/**\r\n * ShapeBorder - Border shape\r\n */\r\nconst ShapeBorder = Object.freeze({\r\n  rectangle: 'rectangle',\r\n  roundedRectangle: 'roundedRectangle',\r\n  circle: 'circle',\r\n  stadium: 'stadium',\r\n  beveledRectangle: 'beveledRectangle',\r\n  continuousRectangle: 'continuousRectangle'\r\n});\r\nexport { ShapeBorder };"],
-  "mappings": "AAGA,MAAMA,EAAc,OAAO,OAAO,CAChC,UAAW,YACX,iBAAkB,mBAClB,OAAQ,SACR,QAAS,UACT,iBAAkB,mBAClB,oBAAqB,qBACvB,CAAC",
-  "names": ["ShapeBorder"]
-}

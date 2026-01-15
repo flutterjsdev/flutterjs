@@ -62,13 +62,14 @@ class ImportResolver {
   // STAGE 2: Configuration (Dart Library -> JS Package)
   // Default mappings that mimic Flutter's structure.
   static const Map<String, String> _defaultLibraryToPackage = {
-    // We map both runtime and material to @flutterjs/material by default
-    // because @flutterjs/material is the Unified Entry Point.
-    // Users can override this to split them if needed.
-    'package:flutter/runtime.dart': '@flutterjs/material',
+    // Core Runtime
+    'package:flutter/runtime.dart': '@flutterjs/runtime',
+
+    // Core Widgets & Material
     'package:flutter/material.dart': '@flutterjs/material',
-    'package:flutter/widgets.dart': '@flutterjs/material',
-    'package:flutter/cupertino.dart': '@flutterjs/material', // Fallback for now
+    'package:flutter/widgets.dart':
+        '@flutterjs/material', // Most widgets are in material package for now
+    'package:flutter/cupertino.dart': '@flutterjs/material',
   };
 
   final Map<String, String> _libraryToPackageMap;

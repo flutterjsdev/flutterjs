@@ -149,6 +149,7 @@ class PackageResolver {
   constructor(projectRoot, options = {}) {
     this.projectRoot = projectRoot;
     this.debugMode = options.debugMode || false;
+    this.config = options.config || {}; // ✅ Add config
 
     // ✅ FIX: Find the correct SDK root by searching upward
     this.sdkRoot = this.findSDKRootUpward(projectRoot);
@@ -160,7 +161,8 @@ class PackageResolver {
       console.log(`  Project Root: ${projectRoot}`);
       console.log(`  SDK Root: ${this.sdkRoot}`);
       console.log(`  Node Modules: ${this.nodeModulesRoot}`);
-      console.log(`  Local Packages: ${this.localPackagesRoot}\n`);
+      console.log(`  Local Packages: ${this.localPackagesRoot}`);
+      console.log(`  Has Config: ${!!this.config.packages}\n`);
     }
   }
 
@@ -196,7 +198,7 @@ class PackageResolver {
   }
 
   /**
-   * ✅ FIXED: Search for SDK packages including flutterjs_engine structure
+   * ✅ FIXED: Search for SDK packages root (repo/packages)
    */
   findSDKRootUpward(startPath) {
     let current = startPath;
@@ -206,99 +208,91 @@ class PackageResolver {
       if (visited.has(current)) break;
       visited.add(current);
 
-      // ✅ CORRECTED: Check packages/flutterjs_engine/src and packages/flutterjs_engine/package
-
-      // Check packages/flutterjs_engine/src/
-      const srcPath = path.join(current, 'packages', 'flutterjs_engine', 'src');
-      if (fs.existsSync(srcPath)) {
-        const contents = fs.readdirSync(srcPath);
-        const hasPackages = contents.some(item => {
-          const itemPath = path.join(srcPath, item);
-          return fs.existsSync(path.join(itemPath, 'package.json'));
-        });
-
-        if (hasPackages) {
+      // Check if we are in the repo root by looking for 'packages' folder
+      const packagesPath = path.join(current, 'packages');
+      if (fs.existsSync(packagesPath) && fs.statSync(packagesPath).isDirectory()) {
+        // Check if it contains flutterjs_engine (strong indicator of repo root)
+        if (fs.existsSync(path.join(packagesPath, 'flutterjs_engine'))) {
           if (this.debugMode) {
-            console.log(`[PackageResolver] Found SDK packages at: ${srcPath}`);
+            console.log(`[PackageResolver] Found SDK packages root at: ${packagesPath}`);
           }
-          return srcPath;
+          return packagesPath;
         }
       }
 
-      // Check packages/flutterjs_engine/package/
-      const packagePath = path.join(current, 'packages', 'flutterjs_engine', 'package');
-      if (fs.existsSync(packagePath)) {
-        const contents = fs.readdirSync(packagePath);
-        const hasPackages = contents.some(item => {
-          const itemPath = path.join(packagePath, item);
-          return fs.existsSync(path.join(itemPath, 'package.json'));
-        });
-
-        if (hasPackages) {
-          if (this.debugMode) {
-            console.log(`[PackageResolver] Found SDK packages at: ${packagePath}`);
-          }
-          return packagePath;
-        }
-      }
-
-      // Fallback: Check /src at project root
-      const projectSrcPath = path.join(current, 'src');
-      if (fs.existsSync(projectSrcPath)) {
-        const contents = fs.readdirSync(projectSrcPath);
-        const hasPackages = contents.some(item => {
-          const itemPath = path.join(projectSrcPath, item);
-          return fs.existsSync(path.join(itemPath, 'package.json'));
-        });
-
-        if (hasPackages) {
-          if (this.debugMode) {
-            console.log(`[PackageResolver] Found SDK packages at: ${projectSrcPath}`);
-          }
-          return projectSrcPath;
-        }
-      }
-
-      // Check node_modules
-      const nodeModulesPath = path.join(current, 'node_modules', '@flutterjs');
-      if (fs.existsSync(nodeModulesPath)) {
-        if (this.debugMode) {
-          console.log(`[PackageResolver] Found SDK at: ${nodeModulesPath}`);
-        }
-        return nodeModulesPath;
-      }
-
+      // Move up
       const parent = path.dirname(current);
       if (parent === current) break;
       current = parent;
     }
 
+    // Fallback to node_modules if not found (e.g. running outside repo)
     return path.join(startPath, 'node_modules', '@flutterjs');
   }
-
 
   /**
    * Resolve package from any source (auto-detect)
    */
   resolve(packageName) {
+    console.log(chalk.red(`\n[PackageResolver.resolve] Called for: ${packageName}`));
+    console.log(chalk.red(`  Has config: ${!!this.config}`));
+    console.log(chalk.red(`  Has config.packages: ${!!this.config?.packages}`));
+
+    if (this.config?.packages) {
+      console.log(chalk.red(`  Config packages: ${Object.keys(this.config.packages).join(', ')}`));
+      console.log(chalk.red(`  Looking for: ${packageName}`));
+      console.log(chalk.red(`  Found in config: ${!!this.config.packages[packageName]}`));
+      if (this.config.packages[packageName]) {
+        console.log(chalk.red(`  Config path: ${this.config.packages[packageName].path}`));
+      }
+    }
+
     if (this.debugMode) {
       console.log(`[PackageResolver] Resolving: ${packageName}`);
     }
 
-    // Try SDK first (@flutterjs/*)
-    if (packageName.startsWith('@flutterjs/')) {
-      const sdkPath = this.resolveSdk(packageName);
-      if (sdkPath) {
+    // Using resolveSdk to leverage listSdkPackages cache would be better, 
+    // but for now let's keep the resolving logic consistent.
+
+    // (We rely on resolveSdk which uses sdkRoot)
+    const sdkPath = this.resolveSdk(packageName);
+    if (sdkPath) {
+      console.log(chalk.green(`  ✅ Found in SDK: ${sdkPath}`));
+      if (this.debugMode) {
+        console.log(`  ✅ Found in SDK: ${sdkPath}`);
+      }
+      return { path: sdkPath, source: 'sdk' };
+    }
+
+    // Config...
+    if (this.config?.packages?.[packageName]?.path) {
+      let configPath = this.config.packages[packageName].path;
+      console.log(chalk.green(`  [CONFIG] Raw path from config: ${configPath}`));
+
+      // Resolve relative paths relative to project root
+      if (!path.isAbsolute(configPath)) {
+        configPath = path.resolve(this.projectRoot, configPath);
+        console.log(chalk.green(`  [CONFIG] Resolved to absolute: ${configPath}`));
+      }
+
+      console.log(chalk.green(`  [CONFIG] Checking if exists: ${configPath}`));
+      console.log(chalk.green(`  [CONFIG] Looking for package.json at: ${path.join(configPath, 'package.json')}`));
+
+      if (fs.existsSync(path.join(configPath, 'package.json'))) {
+        console.log(chalk.green(`  ✅ Found in config: ${configPath}`));
         if (this.debugMode) {
-          console.log(`  ✅ Found in SDK: ${sdkPath}`);
+          console.log(`  ✅ Found in config: ${configPath}`);
         }
-        return { path: sdkPath, source: 'sdk' };
+        return { path: configPath, source: 'config' };
+      } else {
+        console.log(chalk.yellow(`  ⚠️  Config path doesn't have package.json: ${path.join(configPath, 'package.json')}`));
       }
     }
 
-    // Try node_modules
+    // Node modules...
     const registryPath = this.resolveRegistry(packageName);
     if (registryPath) {
+      console.log(chalk.green(`  ✅ Found in npm: ${registryPath}`));
       if (this.debugMode) {
         console.log(`  ✅ Found in npm: ${registryPath}`);
       }
@@ -308,67 +302,71 @@ class PackageResolver {
     // Try Local
     const localPath = this.resolveLocal(packageName);
     if (localPath) {
+      console.log(chalk.green(`  ✅ Found locally: ${localPath}`));
       if (this.debugMode) {
         console.log(`  ✅ Found locally: ${localPath}`);
       }
       return { path: localPath, source: 'local' };
     }
 
+    console.log(chalk.red(`  ❌ Not found anywhere!`));
     if (this.debugMode) {
       console.log(`  ❌ Not found`);
     }
     return null;
   }
 
+  // Re-implementing specific resolve methods to be safer
+
   /**
    * Resolve SDK package (@flutterjs/*)
    */
   resolveSdk(packageName) {
-    if (!packageName.startsWith('@flutterjs/')) {
-      return null;
+    if (!packageName.startsWith('@flutterjs/')) return null;
+
+    // List all SDK packages to find the matching one
+    // We cache this to avoid re-scanning every time? 
+    // For simplicity, we scan. Performance impact is low (10-20 dirs).
+    // Or we can check specific known paths.
+
+    // 1. Check if sdkRoot is the 'packages' folder (repo mode)
+    if (path.basename(this.sdkRoot) === 'packages') {
+      const pkgName = packageName.replace('@flutterjs/', '');
+
+      // Try direct match: /packages/flutterjs_runtime
+      // But the folder might be 'flutterjs_runtime' and package name '@flutterjs/runtime'
+      // And inside might be a nested 'flutterjs_runtime' folder or just package.json?
+      // Based on Step 531: packages/flutterjs_material/flutterjs_material/package.json
+      // So structure is: packages/flutterjs_NAME/flutterjs_NAME/package.json
+
+      // Try: packages/flutterjs_NAME/flutterjs_NAME
+      const candidate1 = path.join(this.sdkRoot, `flutterjs_${pkgName}`, `flutterjs_${pkgName}`);
+      if (fs.existsSync(path.join(candidate1, 'package.json'))) return candidate1;
+
+      // Try: packages/flutterjs_NAME
+      const candidate2 = path.join(this.sdkRoot, `flutterjs_${pkgName}`);
+      if (fs.existsSync(path.join(candidate2, 'package.json'))) return candidate2;
+
+      // Try: packages/NAME
+      const candidate3 = path.join(this.sdkRoot, pkgName);
+      if (fs.existsSync(path.join(candidate3, 'package.json'))) return candidate3;
     }
 
-    const pkgName = packageName.replace('@flutterjs/', '');
-
-    // Try the found SDK root
-    let pkgPath = path.join(this.sdkRoot, pkgName);
-    if (fs.existsSync(path.join(pkgPath, 'package.json'))) {
-      return pkgPath;
-    }
-
-    // Try node_modules fallback
-    pkgPath = path.join(this.nodeModulesRoot, packageName);
-    if (fs.existsSync(path.join(pkgPath, 'package.json'))) {
-      return pkgPath;
-    }
+    // 2. Check node_modules fallback
+    const npmPath = path.join(this.nodeModulesRoot, packageName);
+    if (fs.existsSync(path.join(npmPath, 'package.json'))) return npmPath;
 
     return null;
   }
 
-  /**
-   * Resolve Registry package (npm)
-   */
   resolveRegistry(packageName) {
     const pkgPath = path.join(this.nodeModulesRoot, packageName);
-
-    if (fs.existsSync(path.join(pkgPath, 'package.json'))) {
-      return pkgPath;
-    }
-
-    return null;
+    return fs.existsSync(path.join(pkgPath, 'package.json')) ? pkgPath : null;
   }
 
-  /**
-   * Resolve Local package
-   */
   resolveLocal(packageName) {
     const pkgPath = path.join(this.localPackagesRoot, packageName);
-
-    if (fs.existsSync(path.join(pkgPath, 'package.json'))) {
-      return pkgPath;
-    }
-
-    return null;
+    return fs.existsSync(path.join(pkgPath, 'package.json')) ? pkgPath : null;
   }
 
   /**
@@ -376,39 +374,66 @@ class PackageResolver {
    */
   listSdkPackages() {
     const packages = [];
+    if (!fs.existsSync(this.sdkRoot)) return packages;
 
-    if (!fs.existsSync(this.sdkRoot)) {
-      return packages;
-    }
-
-    try {
-      const items = fs.readdirSync(this.sdkRoot);
-
-      for (const item of items) {
-        const itemPath = path.join(this.sdkRoot, item);
-        const stat = fs.statSync(itemPath);
-
-        if (stat.isDirectory()) {
-          const pkgJsonPath = path.join(itemPath, 'package.json');
-          if (fs.existsSync(pkgJsonPath)) {
+    // If sdkRoot is node_modules/@flutterjs (fallback)
+    if (this.sdkRoot.includes('node_modules')) {
+      // ... standard readdir ...
+      try {
+        const items = fs.readdirSync(this.sdkRoot);
+        for (const item of items) {
+          const p = path.join(this.sdkRoot, item);
+          if (fs.existsSync(path.join(p, 'package.json'))) {
             try {
-              const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
-              packages.push({
-                name: pkgJson.name || `@flutterjs/${item}`,
-                version: pkgJson.version || '1.0.0',
-                path: itemPath,
-                description: pkgJson.description || ''
-              });
+              const pkgJson = JSON.parse(fs.readFileSync(path.join(p, 'package.json'), 'utf-8'));
+              packages.push({ name: pkgJson.name || `@flutterjs/${item}`, path: p, version: pkgJson.version || '1.0.0' });
             } catch (error) {
               // Skip invalid package.json
             }
           }
         }
+      } catch (e) {
+        if (this.debugMode) {
+          console.warn(`Could not list SDK packages from node_modules: ${e.message}`);
+        }
+      }
+      return packages;
+    }
+
+    // Repo mode: sdkRoot is 'packages' folder
+    try {
+      const folders = fs.readdirSync(this.sdkRoot);
+      for (const folder of folders) {
+        // Look for flutterjs_*
+        if (!folder.startsWith('flutterjs_')) continue;
+
+        const folderPath = path.join(this.sdkRoot, folder);
+        if (!fs.statSync(folderPath).isDirectory()) continue;
+
+        // Check for nested package: packages/flutterjs_material/flutterjs_material/package.json
+        const nestedPath = path.join(folderPath, folder);
+        if (fs.existsSync(path.join(nestedPath, 'package.json'))) {
+          try {
+            const pkg = JSON.parse(fs.readFileSync(path.join(nestedPath, 'package.json'), 'utf-8'));
+            packages.push({ name: pkg.name, path: nestedPath, version: pkg.version });
+          } catch (e) {
+            if (this.debugMode) console.warn(`Error parsing package.json for ${nestedPath}: ${e.message}`);
+          }
+          continue;
+        }
+
+        // Check flat package: packages/flutterjs_engine/package.json
+        if (fs.existsSync(path.join(folderPath, 'package.json'))) {
+          try {
+            const pkg = JSON.parse(fs.readFileSync(path.join(folderPath, 'package.json'), 'utf-8'));
+            packages.push({ name: pkg.name, path: folderPath, version: pkg.version });
+          } catch (e) {
+            if (this.debugMode) console.warn(`Error parsing package.json for ${folderPath}: ${e.message}`);
+          }
+        }
       }
     } catch (error) {
-      if (this.debugMode) {
-        console.warn(`Could not list SDK packages: ${error.message}`);
-      }
+      if (this.debugMode) console.warn(`Error listing SDK packages from repo 'packages' folder: ${error.message}`);
     }
 
     return packages;
@@ -428,14 +453,29 @@ class PackageInstaller {
       packagesDir: options.packagesDir || 'packages',
       overwrite: options.overwrite !== false,
       validatePackages: options.validatePackages !== false,
+      config: options.config || {}, // ✅ Add config
       ...options
     };
 
     // Initialize resolver
     this.resolver = new PackageResolver(projectRoot, {
       debugMode: this.options.debugMode,
-      sdkRoot: options.sdkRoot
+      sdkRoot: options.sdkRoot,
+      config: this.options.config // ✅ Pass config
     });
+
+    // ✅ DEBUG: Log what config PackageInstaller received
+    console.log(chalk.magenta('\n[DEBUG] PackageInstaller constructor'));
+    console.log(chalk.magenta(`  projectRoot: ${projectRoot}`));
+    console.log(chalk.magenta(`  Has options.config: ${!!this.options.config}`));
+    if (this.options.config) {
+      console.log(chalk.magenta(`  Config keys: ${Object.keys(this.options.config).join(', ')}`));
+      console.log(chalk.magenta(`  Has config.packages: ${!!this.options.config.packages}`));
+      if (this.options.config.packages) {
+        console.log(chalk.magenta(`  Packages in config: ${Object.keys(this.options.config.packages).join(', ')}`));
+      }
+    }
+    console.log();
 
     // Setup output paths
     this.outputBase = path.join(projectRoot, this.options.outputDir);
@@ -496,6 +536,12 @@ class PackageInstaller {
 
       // Copy package files
       const fileCopyResults = await this.copyPackageFiles(resolved.path, destPath);
+
+      if (fileCopyResults.errors && fileCopyResults.errors.length > 0) {
+        console.warn(chalk.yellow(`[PackageInstaller] Warnings during copy for ${packageName}:`));
+        fileCopyResults.errors.forEach(e => console.warn(chalk.yellow(`  - ${e.file}: ${e.error}`)));
+        result.warnings.push(...fileCopyResults.errors.map(e => `${e.file}: ${e.error}`));
+      }
 
       result.filesCount = fileCopyResults.copied;
       result.size = fileCopyResults.totalSize;
@@ -709,52 +755,7 @@ class PackageInstaller {
    * Get all package files recursively
    */
   async getAllPackageFiles(packagePath) {
-    const files = [];
-    const ignore = new Set([
-      '.git',
-      '.github',
-      'build',
-      'coverage',
-      '.DS_Store',
-      '.env',
-      '.gitignore',
-      'package-lock.json',
-      'yarn.lock',
-      'pnpm-lock.yaml',
-      'README.md',
-      'LICENSE'
-    ]);
-
-    async function traverse(dir) {
-      try {
-        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-
-        for (const entry of entries) {
-          // Skip hidden and ignored
-          if (entry.name.startsWith('.') || ignore.has(entry.name)) {
-            continue;
-          }
-
-          const fullPath = path.join(dir, entry.name);
-
-          if (entry.isFile()) {
-            // Include: .js, .json, .css, .html
-            if (/\.(js|json|css|html|svg|ttf|woff|woff2)$/i.test(entry.name)) {
-              files.push({ path: fullPath, name: entry.name });
-            }
-          } else if (entry.isDirectory()) {
-            await traverse(fullPath);
-          }
-        }
-      } catch (error) {
-        console.warn(chalk.yellow(`Warning: Could not read ${dir}`));
-      }
-    }
-
-    await traverse(packagePath);
-    return files;
-  }
-  async getAllPackageFiles(packagePath) {
+    console.log(`[DEBUG] getAllPackageFiles called for: ${packagePath}`);
     const files = [];
 
     // ✅ FIXED: Only skip truly unnecessary directories
@@ -842,21 +843,15 @@ class PackageInstaller {
             const isRelevantFile = /\.(js|mjs|cjs|ts|tsx|jsx|json|css|scss|less|html|svg|png|jpg|jpeg|gif|woff|woff2|ttf|otf|eot|md|txt)$/i.test(entry.name);
             const isNotSkipped = !skipExtensions.has(ext);
 
-            if (isRelevantFile && isNotSkipped) {
-              files.push(fullPath);
 
-              // Debug logging (optional)
-              if (false) {  // Set to true for debugging
-                console.log(chalk.gray(`${indent}  ✓ ${relPath}`));
-              }
+            if (isRelevantFile && isNotSkipped) {
+              files.push({ path: fullPath, name: entry.name });
+              // console.log(chalk.gray(`${indent}  ✓ ${relPath}`));
+            } else {
+              // console.log(chalk.gray(`${indent}  - Skipped: ${relPath} (Req:${isRelevantFile} !Skip:${isNotSkipped})`));
             }
           } else if (entry.isDirectory()) {
-            // ✅ RECURSIVELY traverse ALL directories
-            // This will enter src/, dist/, lib/, etc.
-            if (false) {  // Set to true for debugging
-              console.log(chalk.gray(`${indent}  📁 ${relPath}/`));
-            }
-
+            console.log(chalk.gray(`${indent}  📁 ${relPath}/`));
             await traverse(fullPath, depth + 1);
           }
         }
