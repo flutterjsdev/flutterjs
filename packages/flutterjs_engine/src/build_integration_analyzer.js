@@ -1,3 +1,4 @@
+console.log("HELLO FROM BUILD ANALYZER - VERIFYING EXECUTION");
 /**
  * ============================================================================
  * BuildAnalyzer - Analysis Pipeline (Phases 1-7)
@@ -23,7 +24,7 @@ import ora from "ora";
 import { PathResolver } from "./path-resolver.js";
 import { Analyzer } from "@flutterjs/analyzer/analyzer";
 import { DependencyResolver } from "./dependency_resolver.js";
-import { PackageInstaller } from "./flutterjs_package_installer.js";
+// import { PackageInstaller } from "./flutterjs_package_installer.js"; // REMOVED
 import { PackageCollector } from "./package_collector.js";
 import { ImportRewriter } from "./import_rewriter.js";
 import { CodeTransformer } from "./code_transformer.js";
@@ -41,14 +42,7 @@ class BuildAnalyzer {
       debugMode: this.config.debugMode,
       config: this.config, // ✅ Pass full config for package resolution
     });
-    this.packageInstaller = new PackageInstaller(
-      buildIntegration.projectRoot, // Assuming this.options.projectRoot was a typo and should be buildIntegration.projectRoot
-      {
-        debugMode: this.config.debugMode, // Assuming this.options.debugMode was a typo and should be this.config.debugMode
-        sdkRoot: this.config.sdkRoot, // Assuming sdkRoot should come from config
-        config: this.config // ✅ Pass config
-      }
-    );
+    // this.packageInstaller = new PackageInstaller(...); // REMOVED
 
     // ✅ DEBUG: Log config status
     console.log(chalk.magenta('\n[DEBUG] BuildIntegrationAnalyzer initialized'));
@@ -240,41 +234,9 @@ class BuildAnalyzer {
       chalk.blue("📦 Phase 3: Installing packages...")
     ).start();
 
-    try {
-      if (!this.integration.resolution || this.integration.resolution.packages.size === 0) {
-        spinner.info(chalk.yellow("ℹ️  No packages to install"));
-        this.integration.installation = {
-          total: 0,
-          successful: 0,
-          failed: 0,
-          results: [],
-        };
-        return;
-      }
-
-      const packageNames = Array.from(this.integration.resolution.packages.keys());
-      const sdkPackages = packageNames.filter((p) => p.startsWith("@flutterjs/"));
-      const otherPackages = packageNames.filter((p) => !p.startsWith("@flutterjs/"));
-
-      const installResults = [];
-
-      for (const pkg of [...sdkPackages, ...otherPackages]) {
-        const result = await this.packageInstaller.installPackage(pkg);
-        installResults.push(result);
-      }
-
-      this.integration.installation = {
-        total: installResults.length,
-        successful: installResults.filter((r) => r.success).length,
-        failed: installResults.filter((r) => !r.success).length,
-        results: installResults,
-      };
-
-      spinner.succeed(chalk.green(`✔ Installation complete`));
-    } catch (error) {
-      spinner.fail(chalk.red(`✖ Installation failed: ${error.message}`));
-      throw error;
-    }
+    // ✅ STUBBED: Handled by Dart
+    spinner.succeed(chalk.green(`✔ Packages prepared by Dart`));
+    return;
   }
 
   /**

@@ -6,10 +6,12 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'package:path/path.dart' as path;
 import 'package:flutterjs_tools/command.dart';
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart';
+import 'package:flutterjs_gen/src/file_generation/package_manifest.dart';
 
 // ============================================================================
 // UNIFIED PIPELINE ORCHESTRATOR
@@ -24,6 +26,9 @@ class UnifiedConversionPipeline {
 
   /// Phases 4-6: File generator
   late final FileCodeGen fileCodeGen;
+
+  /// Package registry for import resolution
+  late final PackageRegistry packageRegistry;
 
   /// Configuration
   final PipelineConfig config;
@@ -41,6 +46,11 @@ class UnifiedConversionPipeline {
     try {
       diagnosticEngine = ModelToJSDiagnosticEngine();
       integrationPipeline = ModelToJSPipeline();
+
+      // ✅ NEW: Initialize and load package registry
+      packageRegistry = PackageRegistry();
+      _loadPackageManifests();
+
       fileCodeGen = FileCodeGen(
         // Pass default generators - adjust based on your actual constructors
         exprCodeGen: ExpressionCodeGen(),
@@ -51,12 +61,39 @@ class UnifiedConversionPipeline {
         runtimeRequirements: RuntimeRequirements(),
         outputValidator: OutputValidator(''),
         jsOptimizer: JSOptimizer(''),
+        packageRegistry: packageRegistry, // ✅ Pass loaded registry
       );
 
       _log('✅ Pipeline engines initialized');
     } catch (e) {
       _log('❌ Failed to initialize pipeline engines: $e');
       rethrow;
+    }
+  }
+
+  void _loadPackageManifests() {
+    try {
+      // Manifests are in build/flutterjs/node_modules/@flutterjs/
+      // This is where preparePackages() puts them
+      final buildManifestPath = path.join(
+        config.projectPath ?? Directory.current.path,
+        'build',
+        'flutterjs',
+        'node_modules',
+        '@flutterjs',
+      );
+
+      final dir = Directory(buildManifestPath);
+      if (dir.existsSync()) {
+        final absolutePath = path.absolute(buildManifestPath);
+        _log('📦 Loading package manifests from: $absolutePath');
+        packageRegistry.loadPackagesDirectory(buildManifestPath);
+      } else {
+        _log('⚠️  No manifests found at: $buildManifestPath');
+        _log('   Make sure to run package preparation first');
+      }
+    } catch (e) {
+      _log('⚠️  Failed to load package manifests: $e');
     }
   }
 

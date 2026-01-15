@@ -1,0 +1,156 @@
+{
+  "package": "@flutterjs/vdom",
+  "version": "0.1.0",
+  "exports": [
+    {
+      "name": "Hydrator",
+      "path": "./dist/hydrator.js",
+      "type": "alias"
+    },
+    {
+      "name": "PatchApplier",
+      "path": "./dist/patch_applier.js",
+      "type": "class"
+    },
+    {
+      "name": "RenderEngine",
+      "path": "./dist/render_engine.js",
+      "type": "alias"
+    },
+    {
+      "name": "VNodeRuntime",
+      "path": "./dist/runtime_index.js",
+      "type": "class"
+    },
+    {
+      "name": "runApp",
+      "path": "./dist/runtime_index.js",
+      "type": "class"
+    },
+    {
+      "name": "getRuntime",
+      "path": "./dist/runtime_index.js",
+      "type": "class"
+    },
+    {
+      "name": "updateApp",
+      "path": "./dist/runtime_index.js",
+      "type": "class"
+    },
+    {
+      "name": "getMetrics",
+      "path": "./dist/runtime_index.js",
+      "type": "class"
+    },
+    {
+      "name": "hotReload",
+      "path": "./dist/runtime_index.js",
+      "type": "class"
+    },
+    {
+      "name": "renderToString",
+      "path": "./dist/runtime_index.js",
+      "type": "class"
+    },
+    {
+      "name": "hydrate",
+      "path": "./dist/runtime_index.js",
+      "type": "class"
+    },
+    {
+      "name": "clearMetrics",
+      "path": "./dist/runtime_index.js",
+      "type": "class"
+    },
+    {
+      "name": "SSRRenderer",
+      "path": "./dist/ssr_renderer.js",
+      "type": "alias"
+    },
+    {
+      "name": "BindingMode",
+      "path": "./dist/state_binding.js",
+      "type": "alias"
+    },
+    {
+      "name": "StateBinding",
+      "path": "./dist/state_binding.js",
+      "type": "alias"
+    },
+    {
+      "name": "StateBindingRegistry",
+      "path": "./dist/state_binding.js",
+      "type": "alias"
+    },
+    {
+      "name": "createBinding",
+      "path": "./dist/state_binding.js",
+      "type": "alias"
+    },
+    {
+      "name": "createTwoWayBinding",
+      "path": "./dist/state_binding.js",
+      "type": "alias"
+    },
+    {
+      "name": "createOneWayBinding",
+      "path": "./dist/state_binding.js",
+      "type": "alias"
+    },
+    {
+      "name": "StyleConverter",
+      "path": "./dist/style_converter.js",
+      "type": "alias"
+    },
+    {
+      "name": "UpdatePriority",
+      "path": "./dist/update_scheduler.js",
+      "type": "alias"
+    },
+    {
+      "name": "UpdateRequest",
+      "path": "./dist/update_scheduler.js",
+      "type": "alias"
+    },
+    {
+      "name": "UpdateBatch",
+      "path": "./dist/update_scheduler.js",
+      "type": "alias"
+    },
+    {
+      "name": "UpdateScheduler",
+      "path": "./dist/update_scheduler.js",
+      "type": "alias"
+    },
+    {
+      "name": "VNode",
+      "path": "./dist/vnode.js",
+      "type": "alias"
+    },
+    {
+      "name": "VNodeBuilder",
+      "path": "./dist/vnode_builder.js",
+      "type": "alias"
+    },
+    {
+      "name": "VNodeDiffer",
+      "path": "./dist/vnode_differ.js",
+      "type": "alias"
+    },
+    {
+      "name": "Patch",
+      "path": "./dist/vnode_differ.js",
+      "type": "alias"
+    },
+    {
+      "name": "PatchType",
+      "path": "./dist/vnode_differ.js",
+      "type": "alias"
+    },
+    {
+      "name": "VNodeRenderer",
+      "path": "./dist/vnode_renderer.js",
+      "type": "alias"
+    }
+  ]
+}

@@ -12,3 +12,5 @@ export 'src/config_resolver.dart';
 export 'src/runtime_package_manager.dart';
 export 'src/package_downloader.dart';
 export 'src/package_scaffold.dart';
+export 'src/package_builder.dart';
+export 'src/package_watcher.dart';

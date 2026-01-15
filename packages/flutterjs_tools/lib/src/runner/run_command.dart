@@ -17,6 +17,8 @@ import 'package:path/path.dart' as path;
 import 'package:dart_analyzer/dart_analyzer.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart' as com;
+import 'package:pubjs/pubjs.dart';
+import 'package:flutterjs_tools/src/runner/tracer.dart';
 
 /// ============================================================================
 /// RunCommand
@@ -308,16 +310,39 @@ class RunCommand extends Command<void> {
 
   @override
   Future<void> run() async {
+    final debugFile = File(
+      'c:/Jay/_Plugin/flutterjs/examples/routing_app/debug_runcheck.txt',
+    );
+    try {
+      debugFile.writeAsStringSync("DEBUG: RunCommand.run START\n");
+    } catch (e) {
+      print("DEBUG: Logs file write failed");
+    }
+
+    print("DEBUG: RunCommand.run START");
     try {
       // Parse CLI arguments
       final config = _parseConfig();
+      debugFile.writeAsStringSync(
+        "DEBUG: RunCommand parsed config\n",
+        mode: FileMode.append,
+      );
+      print("DEBUG: RunCommand parsed config");
 
       // Setup phase
+      debugFile.writeAsStringSync(
+        "DEBUG: RunCommand starting setup_phase\n",
+        mode: FileMode.append,
+      );
+      print("DEBUG: RunCommand starting setup_phase");
+      /*
       final context = await debugger.observe(
         'setup_phase',
         () => _setupContext(config),
         category: 'setup',
       );
+      */
+      final context = await _setupContext(config);
       if (context == null) exit(1);
 
       // Execute pipeline
@@ -449,6 +474,7 @@ class RunCommand extends Command<void> {
 
     // Start DevTools if enabled
     if (config.enableDevTools) {
+      print("[DEBUG] TRIGGERING devtools_startup");
       _devToolsServer = await debugger.observe(
         'devtools_startup',
         () => DevToolsManager.start(config, context),
@@ -457,11 +483,14 @@ class RunCommand extends Command<void> {
     }
 
     // Run analysis & IR generation
+    print("[DEBUG] TRIGGERING phase_1_analysis");
     final analysisResults = await debugger.observe(
       'phase_1_analysis',
       () => AnalysisPhase.execute(config, context, verbose),
       category: 'analysis',
     );
+
+    print("[DEBUG] TRIGGERING phase_2_ir_generation");
     final irResults = await debugger.observe(
       'phase_2_ir_generation',
       () =>
@@ -479,6 +508,7 @@ class RunCommand extends Command<void> {
         print('PHASES 4-6: Converting IR to JavaScript...');
       }
 
+      print("[DEBUG] TRIGGERING phase_4_6_js_conversion");
       jsResults = await debugger.observe(
         'phase_4_6_js_conversion',
         () => JSConversionPhase.execute(config, context, irResults, verbose),
@@ -708,6 +738,23 @@ class SetupManager {
       if (config.toJs) await Directory(jsOutputPath).create(recursive: true);
       if (config.generateReports) {
         await Directory(reportsPath).create(recursive: true);
+      }
+
+      // ✅ NEW: Package Preparation Phase
+      // This ensures all packages are downloaded, built, and have manifests
+      // BEFORE code generation starts (so imports can be resolved correctly)
+      if (!config.jsonOutput) print('\n📦 Preparing packages...');
+
+      final packageManager = RuntimePackageManager();
+      final packagesReady = await packageManager.preparePackages(
+        projectPath: absoluteProjectPath,
+        buildPath: flutterJsDir,
+        verbose: verbose,
+      );
+
+      if (!packagesReady) {
+        print('❌ Package preparation failed. Cannot continue.');
+        return null;
       }
 
       // Initialize parser

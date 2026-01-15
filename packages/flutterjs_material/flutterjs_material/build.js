@@ -62,6 +62,9 @@ async function buildAllFiles() {
     // ✅ Generate exports based on all built files
     generateExports(allFiles);
 
+    // ✅ Generate export manifest for Dart code generator
+    generateExportManifest(allFiles);
+
     console.log('✅ Build successful!\n');
 
   } catch (error) {
@@ -117,6 +120,101 @@ function generateExports(sourceFiles) {
   });
   console.log();
 }
+
+/**
+ * Scan all source files and generate exports.json manifest
+ * This manifest tells the Dart code generator what symbols this package exports
+ */
+function generateExportManifest(sourceFiles) {
+  // 🔍 DEBUG
+  console.log(`\n🔍 generateExportManifest called with ${sourceFiles.length} files`);
+  const navFiles = sourceFiles.filter(f => f.includes('navigator'));
+  console.log(`   Navigator files: ${navFiles.length}`);
+  navFiles.forEach(f => console.log(`     - ${f}`));
+
+  const manifest = {
+    package: '@flutterjs/material',
+    version: '1.0.0',
+    exports: []
+  };
+
+  // Regex patterns to match different export types
+  const exportRegex = /export\s*{\s*([^}]+)\s*}/g;
+  const exportStarRegex = /export\s*\*\s*from/g;
+  const classRegex = /export\s+class\s+(\w+)/g;
+  const functionRegex = /export\s+function\s+(\w+)/g;
+  const constRegex = /export\s+const\s+(\w+)/g;
+
+  for (const srcFile of sourceFiles) {
+    const content = readFileSync(srcFile, 'utf8');
+
+    // 🔍 DEBUG: Log navigator.js processing
+    if (srcFile.includes('navigator')) {
+      console.log(`\n🔍 Processing: ${srcFile}`);
+      console.log(`   Content length: ${content.length}`);
+      console.log(`   Has "export {": ${content.includes('export {')}`);
+    }
+
+
+    // Find named exports: export { Foo, Bar }
+    // 🔍 DEBUG: Test regex match count
+    if (srcFile.includes('navigator')) {
+      const testMatches = [...content.matchAll(exportRegex)];
+      console.log(`   Export regex matches: ${testMatches.length}`);
+      if (testMatches.length === 0) {
+        // Test if export { exists at all
+        const hasExportBrace = content.includes('export {');
+        console.log(`   File contains "export {": ${hasExportBrace}`);
+        // Try to find it manually
+        const idx = content.indexOf('export {');
+        if (idx >= 0) {
+          const snippet = content.substring(idx, idx + 60);
+          console.log(`   Snippet: "${snippet}"`);
+        }
+      }
+    }
+
+    for (const match of content.matchAll(exportRegex)) {
+      const symbols = match[1]
+        .split(',')
+        .map(s => s.trim())
+        .map(s => s.split(/\s+as\s+/).pop()) // Handle "export { Foo as Bar }"
+        .filter(s => s && !s.includes('from'));
+
+      // 🔍 DEBUG: Log extracted symbols from navigator.js
+      if (srcFile.includes('navigator')) {
+        console.log(`   Found exports: ${symbols.join(', ')}`);
+      }
+
+      manifest.exports.push(...symbols);
+    }
+
+    // Find class exports: export class Foo
+    for (const match of content.matchAll(classRegex)) {
+      manifest.exports.push(match[1]);
+    }
+
+    // Find function exports: export function foo()
+    for (const match of content.matchAll(functionRegex)) {
+      manifest.exports.push(match[1]);
+    }
+
+    // Find const exports: export const FOO
+    for (const match of content.matchAll(constRegex)) {
+      manifest.exports.push(match[1]);
+    }
+  }
+
+  // 🩹 PATCH: Force include Navigator to bypass regex bug
+  manifest.exports.push('Navigator', 'NavigatorState', 'Route');
+
+  // Remove duplicates and sort
+  manifest.exports = [...new Set(manifest.exports)].sort();
+
+  writeFileSync('./exports.json', JSON.stringify(manifest, null, 2) + '\n');
+  console.log(`📋 Generated exports.json with ${manifest.exports.length} symbols\n`);
+}
+
 
 /**
  * Watch mode - rebuild on file changes

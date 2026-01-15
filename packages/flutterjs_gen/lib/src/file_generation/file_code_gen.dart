@@ -8,6 +8,7 @@ import 'package:flutterjs_gen/src/file_generation/runtime_requirements.dart';
 import '../widget_generation/stateless_widget/stateless_widget_js_code_gen.dart';
 import '../utils/indenter.dart';
 import 'import_resolver.dart';
+import 'package_manifest.dart';
 
 class FileCodeGen {
   final ExpressionCodeGen exprCodeGen;
@@ -18,6 +19,7 @@ class FileCodeGen {
   final RuntimeRequirements runtimeRequirements;
   final OutputValidator? outputValidator;
   final JSOptimizer? jsOptimizer;
+  final PackageRegistry packageRegistry;
   late Indenter indenter;
 
   late Set<String> usedWidgets;
@@ -40,6 +42,7 @@ class FileCodeGen {
     FunctionCodeGen? funcCodeGen,
     FlutterPropConverter? propConverter,
     RuntimeRequirements? runtimeRequirements,
+    PackageRegistry? packageRegistry,
     this.outputValidator,
     this.jsOptimizer,
   }) : exprCodeGen = exprCodeGen ?? ExpressionCodeGen(),
@@ -47,7 +50,8 @@ class FileCodeGen {
        classCodeGen = classCodeGen ?? ClassCodeGen(),
        funcCodeGen = funcCodeGen ?? FunctionCodeGen(),
        propConverter = propConverter ?? FlutterPropConverter(),
-       runtimeRequirements = runtimeRequirements ?? RuntimeRequirements() {
+       runtimeRequirements = runtimeRequirements ?? RuntimeRequirements(),
+       packageRegistry = packageRegistry ?? PackageRegistry() {
     indenter = Indenter('  ');
     usedWidgets = {};
     usedHelpers = {};
@@ -288,7 +292,7 @@ class FileCodeGen {
             ..sort();
 
       // Helper to check core symbols
-      final resolver = ImportResolver();
+      final resolver = ImportResolver(registry: packageRegistry);
 
       for (final widget in sortedWidgets) {
         // Skip runtime types if they accidentally got into usedWidgets

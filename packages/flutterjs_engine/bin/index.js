@@ -26,7 +26,9 @@ import {
   preview,
   analyze,
   doctor,
-} from './commands/index.js';
+  analyze,
+  doctor,
+} from '../src/index.js';
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
