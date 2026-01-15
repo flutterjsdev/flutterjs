@@ -70,7 +70,6 @@
     "./utils/property/wrap_cross_alignment": "./dist/utils/property/wrap_cross_alignment.js",
     "./utils/scrollbar_theme": "./dist/utils/scrollbar_theme.js",
     "./utils/shadows_theme": "./dist/utils/shadows_theme.js",
-    "./utils/size": "./dist/utils/size.js",
     "./utils/switch_theme": "./dist/utils/switch_theme.js",
     "./utils/typography_theme": "./dist/utils/typography_theme.js",
     "./utils/utils": "./dist/utils/utils.js",
