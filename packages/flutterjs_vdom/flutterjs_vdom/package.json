@@ -1,0 +1,56 @@
+{
+  "name": "@flutterjs/vdom",
+  "version": "0.1.0",
+  "description": "FlutterJS Virtual DOM implementation",
+  "main": "dist/runtime_index.js",
+  "type": "module",
+  "exports": {
+    "./hydrator": "./dist/hydrator.js",
+    "./patch_applier": "./dist/patch_applier.js",
+    "./context_analyzer": "./dist/context_analyzer.js",
+    "./render_engine": "./dist/render_engine.js",
+    "./runtime_index": "./dist/runtime_index.js",
+    "./ssr_renderer": "./dist/ssr_renderer.js",
+    "./state_binding": "./dist/state_binding.js",
+    "./style_converter": "./dist/style_converter.js",
+    "./update_scheduler": "./dist/update_scheduler.js",
+    "./vnode": "./dist/vnode.js",
+    "./vnode_builder": "./dist/vnode_builder.js",
+    "./vnode_differ": "./dist/vnode_differ.js",
+    "./vnode_renderer": "./dist/vnode_renderer.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node build.js",
+    "test:vnode": "node ./test/vnode.test.js",
+    "test:renderer": "node ./test/vnode_renderer.test.js",
+    "test:builder": "node ./test/vnode_builder.test.js",
+    "test:hydrator": "node ./test/hydrator.test.js",
+    "test:engine": "node ./test/render_engine.test.js",
+    "test:style": "node ./test/style_converter.test.js",
+    "test:updater": "node ./test/update_scheduler.test.js",
+    "test:runtime": "node ./test/runtime.test.js",
+    "test:state": "node ./test/state_binding.test.js",
+    "test:patch": "node ./test/patch_applier.test.js"
+  },
+  "dependencies": {
+    "@flutterjs/runtime": "file:../../flutterjs_runtime/flutterjs_runtime",
+    "jest": "^29.7.0",
+    "jsdom": "^22.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.2"
+  },
+  "keywords": [
+    "flutterjs",
+    "flutterjs_vdom"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flutterjsdev/flutterjs.git"
+  }
+}

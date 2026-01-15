@@ -1,2 +1,0 @@
-var n=Object.defineProperty;var e=(a,c,s)=>c in a?n(a,c,{enumerable:!0,configurable:!0,writable:!0,value:s}):a[c]=s;var t=(a,c,s)=>(e(a,typeof c!="symbol"?c+"":c,s),s);class i{}t(i,"fill","fill"),t(i,"contain","contain"),t(i,"cover","cover"),t(i,"fitWidth","fitWidth"),t(i,"fitHeight","fitHeight"),t(i,"none","none"),t(i,"scaleDown","scale-down");export{i as BoxFit};
-//# sourceMappingURL=box_fit.js.map

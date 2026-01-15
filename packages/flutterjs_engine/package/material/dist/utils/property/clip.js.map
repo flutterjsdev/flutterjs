@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../src/utils/property/clip.js"],
-  "sourcesContent": ["export class Clip {\r\n  static none = 'none';\r\n  static hardEdge = 'hard-edge';\r\n  static antiAlias = 'antiAlias';\r\n  static antiAliasWithSaveLayer = 'antiAliasWithSaveLayer';\r\n}"],
-  "mappings": "wKAAO,MAAMA,CAAK,CAKlB,CAJEC,EADWD,EACJ,OAAO,QACdC,EAFWD,EAEJ,WAAW,aAClBC,EAHWD,EAGJ,YAAY,aACnBC,EAJWD,EAIJ,yBAAyB",
-  "names": ["Clip", "__publicField"]
-}

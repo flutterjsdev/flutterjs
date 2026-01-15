@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../src/utils/duration.js"],
-  "sourcesContent": ["export class Duration {\r\n  constructor(ms = 0) {\r\n    this.ms = ms;\r\n  }\r\n\r\n  get seconds() {\r\n    return this.ms / 1000;\r\n  }\r\n\r\n  get minutes() {\r\n    return this.ms / 60000;\r\n  }\r\n\r\n  get inMilliseconds() {\r\n    return this.ms;\r\n  }\r\n\r\n  static fromMilliseconds(ms) {\r\n    return new Duration(ms);\r\n  }\r\n\r\n  static fromSeconds(s) {\r\n    return new Duration(s * 1000);\r\n  }\r\n\r\n  static fromMinutes(m) {\r\n    return new Duration(m * 60000);\r\n  }\r\n\r\n  compareTo(other) {\r\n    return this.ms - other.ms;\r\n  }\r\n\r\n  toString() {\r\n    return `Duration(${this.ms}ms)`;\r\n  }\r\n}"],
-  "mappings": "AAAO,MAAMA,CAAS,CACpB,YAAYC,EAAK,EAAG,CAClB,KAAK,GAAKA,CACZ,CAEA,IAAI,SAAU,CACZ,OAAO,KAAK,GAAK,GACnB,CAEA,IAAI,SAAU,CACZ,OAAO,KAAK,GAAK,GACnB,CAEA,IAAI,gBAAiB,CACnB,OAAO,KAAK,EACd,CAEA,OAAO,iBAAiBA,EAAI,CAC1B,OAAO,IAAID,EAASC,CAAE,CACxB,CAEA,OAAO,YAAY,EAAG,CACpB,OAAO,IAAID,EAAS,EAAI,GAAI,CAC9B,CAEA,OAAO,YAAYE,EAAG,CACpB,OAAO,IAAIF,EAASE,EAAI,GAAK,CAC/B,CAEA,UAAUC,EAAO,CACf,OAAO,KAAK,GAAKA,EAAM,EACzB,CAEA,UAAW,CACT,MAAO,YAAY,KAAK,EAAE,KAC5B,CACF",
-  "names": ["Duration", "ms", "m", "other"]
-}

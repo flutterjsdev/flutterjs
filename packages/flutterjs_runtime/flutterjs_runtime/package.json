@@ -1,0 +1,68 @@
+{
+  "name": "@flutterjs/runtime",
+  "version": "0.1.0",
+  "description": "FlutterJS core runtime implementation",
+  "main": "./dist/runtime.js",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./build_context": "./dist/build_context.js",
+    "./element": "./dist/element.js",
+    "./event_system": "./dist/event_system.js",
+    "./flutterjs_runtime": "./dist/flutterjs_runtime.js",
+    "./focus_manager": "./dist/focus_manager.js",
+    "./gesture_recognizer": "./dist/gesture_recognizer.js",
+    "./inherited_element": "./dist/inherited_element.js",
+    "./key": "./dist/key.js",
+    "./memory_manager": "./dist/memory_manager.js",
+    "./runtime_engine": "./dist/runtime_engine.js",
+    "./service_registry": "./dist/service_registry.js",
+    "./state": "./dist/state.js",
+    "./state_tracker": "./dist/state_tracker.js",
+    "./update_batcher": "./dist/update_batcher.js"
+  },
+  "scripts": {
+    "build": "node build.js",
+    "test:buildContext": "node ./test/build_context.test.js",
+    "test:element": "node ./test/element.test.js",
+    "test:elementSystemImp": "node ./test/event_system_integration.test.js",
+    "test:event": "node ./test/event_system.test.js",
+    "test:runtime": "node ./test/flutterjs_runtime.test.js",
+    "test:focus": "node ./test/focus_manager.test.js",
+    "test:gesture": "node ./test/gesture.test.js",
+    "test:inheritentInte": "node ./test/inherited_element_integration.test.js",
+    "test:inheritedElement": "node ./test/inherited_element.test.js",
+    "test:memory": "node ./test/memory_integration.test.js",
+    "test:memoryMan": "node ./test/memory_manager.test.js",
+    "test:runtimeEng": "node ./test/runtime_engine.test.js",
+    "test:runtimeInte": "node ./test/runtime_integration.test",
+    "test:service": "node ./test/service_registry.test.js",
+    "test:stateInte": "node ./test/state_integration.test.js",
+    "test:stateTrack": "node ./test/state_tracker.test.js",
+    "test:state": "node ./test/state.test.js",
+    "test:update": "node ./test/update_batcher.test.js"
+  },
+  "dependencies": {
+    "@flutterjs/vdom": "file:../../flutterjs_vdom/flutterjs_vdom",
+    "jest": "^29.7.0",
+    "jsdom": "^22.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.2"
+  },
+  "keywords": [
+    "flutterjs",
+    "flutterjs_runtime"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flutterjsdev/flutterjs.git"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ]
+}

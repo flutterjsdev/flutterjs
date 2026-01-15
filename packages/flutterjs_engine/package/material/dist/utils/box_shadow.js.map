@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../src/utils/box_shadow.js"],
-  "sourcesContent": ["import { Offset } from './geometry.js';\r\nexport class BoxShadow {\r\n  constructor({\r\n    color = '#000000',\r\n    offset = Offset.zero(),\r\n    blurRadius = 0,\r\n    spreadRadius = 0\r\n  } = {}) {\r\n    this.color = typeof color === 'string' ? color : color.hex;\r\n    this.offset = offset;\r\n    this.blurRadius = blurRadius;\r\n    this.spreadRadius = spreadRadius;\r\n  }\r\n\r\n  toCSSString() {\r\n    return `${this.offset.dx}px ${this.offset.dy}px ${this.blurRadius}px ${this.spreadRadius}px ${this.color}`;\r\n  }\r\n\r\n  toString() {\r\n    return `BoxShadow(color: ${this.color}, blur: ${this.blurRadius})`;\r\n  }\r\n}"],
-  "mappings": "AAAA,OAAS,UAAAA,MAAc,gBAChB,MAAMC,CAAU,CACrB,YAAY,CACV,MAAAC,EAAQ,UACR,OAAAC,EAASH,EAAO,KAAK,EACrB,WAAAI,EAAa,EACb,aAAAC,EAAe,CACjB,EAAI,CAAC,EAAG,CACN,KAAK,MAAQ,OAAOH,GAAU,SAAWA,EAAQA,EAAM,IACvD,KAAK,OAASC,EACd,KAAK,WAAaC,EAClB,KAAK,aAAeC,CACtB,CAEA,aAAc,CACZ,MAAO,GAAG,KAAK,OAAO,EAAE,MAAM,KAAK,OAAO,EAAE,MAAM,KAAK,UAAU,MAAM,KAAK,YAAY,MAAM,KAAK,KAAK,EAC1G,CAEA,UAAW,CACT,MAAO,oBAAoB,KAAK,KAAK,WAAW,KAAK,UAAU,GACjE,CACF",
-  "names": ["Offset", "BoxShadow", "color", "offset", "blurRadius", "spreadRadius"]
-}

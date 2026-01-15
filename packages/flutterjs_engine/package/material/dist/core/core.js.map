@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../src/core/core.js"],
-  "sourcesContent": ["// src/core/index.js\r\n// Core widget and element classes\r\n\r\nexport {\r\n    State,\r\n    Widget,\r\n    StatelessWidget,\r\n    StatelessElement,\r\n    StatefulWidget,\r\n    StatefulElement,\r\n    ProxyWidget,\r\n    ProxyElement,\r\n    ErrorWidget,\r\n    Key,\r\n    ValueKey,\r\n    ObjectKey,\r\n    GlobalKey,\r\n    Diagnosticable\r\n} from \"./widget_element.js\";"],
-  "mappings": "AAGA,OACI,SAAAA,EACA,UAAAC,EACA,mBAAAC,EACA,oBAAAC,EACA,kBAAAC,EACA,mBAAAC,EACA,eAAAC,EACA,gBAAAC,EACA,eAAAC,EACA,OAAAC,EACA,YAAAC,EACA,aAAAC,EACA,aAAAC,EACA,kBAAAC,MACG",
-  "names": ["State", "Widget", "StatelessWidget", "StatelessElement", "StatefulWidget", "StatefulElement", "ProxyWidget", "ProxyElement", "ErrorWidget", "Key", "ValueKey", "ObjectKey", "GlobalKey", "Diagnosticable"]
-}

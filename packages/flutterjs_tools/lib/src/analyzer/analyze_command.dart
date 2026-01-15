@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
-import 'package:flutterjs_analyzer/flutterjs_analyzer.dart';
+import 'package:dart_analyzer/dart_analyzer.dart';
 
 /// ============================================================================
 /// AnalyzeCommand – Phase 1 Flutter.js Project Analyzer

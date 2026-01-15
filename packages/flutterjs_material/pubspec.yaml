@@ -1,0 +1,24 @@
+name: flutterjs_material
+version: 0.1.0
+description: FlutterJS Material Design components
+
+homepage: https://github.com/flutterjs/flutterjs_material
+repository: https://github.com/flutterjs/flutterjs_material
+issue_tracker: https://github.com/flutterjs/flutterjs_material/issues
+
+environment:
+  sdk: '>=2.19.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+# FlutterJS metadata
+flutterjs:
+  npm_package: "@flutterjs/flutterjs_material"
+  implementation_language: "javascript"
+  js_entry: "js/src/index.js"

@@ -181,9 +181,9 @@ class PackageCollector {
     this.currentSession = session;
 
     try {
-      // ✅ Create output directory: projectRoot/node_modules/@flutterjs
-      // This is where the dev server will serve from
-      const nodeModulesDir = path.join(this.projectRoot, 'node_modules', '@flutterjs');
+      // ✅ Create output directory: dist/node_modules/@flutterjs
+      // This is for the production build / distribution
+      const nodeModulesDir = this.flutterJsDir;
       await fs.promises.mkdir(nodeModulesDir, { recursive: true });
       console.log(chalk.gray(`Output ready: ${nodeModulesDir}\n`));
 

@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../src/utils/property/text_input_type.js"],
-  "sourcesContent": ["\r\n/**\r\n * TextInputType - Type of keyboard input\r\n */\r\nconst TextInputType = Object.freeze({\r\n  text: 'text',\r\n  multiline: 'multiline',\r\n  number: 'number',\r\n  phone: 'phone',\r\n  datetime: 'datetime',\r\n  emailAddress: 'emailAddress',\r\n  url: 'url',\r\n  visiblePassword: 'visiblePassword',\r\n  name: 'name',\r\n  address: 'address'\r\n});\r\nexport { TextInputType };"],
-  "mappings": "AAIA,MAAMA,EAAgB,OAAO,OAAO,CAClC,KAAM,OACN,UAAW,YACX,OAAQ,SACR,MAAO,QACP,SAAU,WACV,aAAc,eACd,IAAK,MACL,gBAAiB,kBACjB,KAAM,OACN,QAAS,SACX,CAAC",
-  "names": ["TextInputType"]
-}

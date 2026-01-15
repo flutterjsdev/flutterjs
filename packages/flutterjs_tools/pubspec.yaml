@@ -10,7 +10,7 @@ environment:
 dependencies:
   path: ^1.9.0
   flutterjs_core: any
-  flutterjs_analyzer: any
+  dart_analyzer: any
   flutterjs_dev_utils: any
   flutterjs_dev_tools: any
   flutterjs_gen: any

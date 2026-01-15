@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../src/utils/property/axis_direction.js"],
-  "sourcesContent": ["/**\r\n * AxisDirection - Direction along an axis\r\n */\r\nconst AxisDirection = Object.freeze({\r\n  // Positive X direction (left to right)\r\n  right: 'right',\r\n\r\n  // Negative X direction (right to left)\r\n  left: 'left',\r\n\r\n  // Positive Y direction (top to bottom)\r\n  down: 'down',\r\n\r\n  // Negative Y direction (bottom to top)\r\n  up: 'up'\r\n});\r\nexport { AxisDirection };"],
-  "mappings": "AAGA,MAAMA,EAAgB,OAAO,OAAO,CAElC,MAAO,QAGP,KAAM,OAGN,KAAM,OAGN,GAAI,IACN,CAAC",
-  "names": ["AxisDirection"]
-}

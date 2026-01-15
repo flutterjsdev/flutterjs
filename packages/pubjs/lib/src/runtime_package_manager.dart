@@ -36,6 +36,177 @@ class RuntimePackageManager {
        _configGenerator = configGenerator ?? ConfigGenerator(),
        _registryClient = registryClient ?? FlutterJSRegistryClient();
 
+  /// Resolves specific packages and returns their paths
+  ///
+  /// This is used by the hybrid resolution strategy where Dart resolves
+  /// only packages that don't have paths in the config.
+  ///
+  /// Returns: Map<packageName, resolvedPath>
+  Future<Map<String, String>> resolvePackages(
+    List<String> packageNames, {
+    required String projectPath,
+    bool includeSDK = false,
+    bool verbose = false,
+  }) async {
+    final resolvedPaths = <String, String>{};
+
+    if (verbose) {
+      print('📦 Resolving ${packageNames.length} packages...');
+    }
+
+    // 1. Read flutterjs.config.js for any existing configs
+    final configPath = p.join(projectPath, 'flutterjs.config.js');
+    final userPackageConfigs = await _configResolver.resolvePackageConfig(
+      configPath,
+    );
+
+    // 2. Fetch registry for package mappings
+    final registry = await _registryClient.fetchRegistry();
+    final registryPackages = (registry?['packages'] as List?) ?? [];
+
+    // 3. Resolve SDK packages if requested
+    if (includeSDK) {
+      final sdkPackages = await _resolveSDKPackages(projectPath);
+
+      // If packageNames is empty, resolve ALL SDK packages
+      if (packageNames.isEmpty) {
+        resolvedPaths.addAll(sdkPackages);
+        if (verbose) {
+          for (final pkg in sdkPackages.keys) {
+            print('   ✔ $pkg (SDK)');
+          }
+        }
+      } else {
+        // Only resolve requested SDK packages
+        for (final pkg in packageNames) {
+          if (pkg.startsWith('@flutterjs/') && sdkPackages.containsKey(pkg)) {
+            resolvedPaths[pkg] = sdkPackages[pkg]!;
+            if (verbose) print('   ✔ $pkg (SDK)');
+          }
+        }
+      }
+    }
+
+    // 4. Resolve each package
+    for (final packageName in packageNames) {
+      // Skip if already resolved (SDK)
+      if (resolvedPaths.containsKey(packageName)) continue;
+
+      // Check if user has local path override
+      final userConfig = userPackageConfigs[packageName];
+      if (userConfig != null && userConfig.path != null) {
+        final sourcePath = userConfig.path!;
+        final absolutePath = p.isAbsolute(sourcePath)
+            ? sourcePath
+            : p.normalize(p.join(projectPath, sourcePath));
+
+        if (await Directory(absolutePath).exists()) {
+          resolvedPaths[packageName] = p.relative(
+            absolutePath,
+            from: projectPath,
+          );
+          if (verbose) print('   ✔ $packageName (local)');
+        } else {
+          if (verbose) print('   ❌ $packageName (local path not found)');
+        }
+        continue;
+      }
+
+      // Try registry lookup
+      dynamic registryEntry;
+      try {
+        registryEntry = registryPackages.firstWhere(
+          (pkg) => pkg['name'] == packageName,
+        );
+      } catch (_) {}
+
+      if (registryEntry != null) {
+        final targetFlutterJsPackage = registryEntry['flutterjs_package'];
+        // For now, indicate it should be downloaded (not a local path)
+        // The actual download happens in resolveProjectDependencies
+        resolvedPaths[packageName] =
+            'node_modules/@flutterjs/$targetFlutterJsPackage';
+        if (verbose)
+          print('   ✔ $packageName -> $targetFlutterJsPackage (registry)');
+      } else {
+        if (verbose) print('   ⚠ $packageName (not found in registry)');
+      }
+    }
+
+    return resolvedPaths;
+  }
+
+  /// Resolves SDK packages (@flutterjs/*)
+  Future<Map<String, String>> _resolveSDKPackages(String projectPath) async {
+    final sdkPackages = <String, String>{};
+
+    // Search upward for packages/flutterjs_engine/
+    Directory current = Directory(projectPath);
+    for (int i = 0; i < 8; i++) {
+      final enginePaths = [
+        p.join(current.path, 'packages', 'flutterjs_engine', 'src'),
+        p.join(current.path, 'packages', 'flutterjs_engine', 'package'),
+      ];
+
+      for (final enginePath in enginePaths) {
+        final engineDir = Directory(enginePath);
+        if (await engineDir.exists()) {
+          await for (final entity in engineDir.list()) {
+            if (entity is Directory) {
+              final pkgJsonPath = p.join(entity.path, 'package.json');
+              if (await File(pkgJsonPath).exists()) {
+                final pkgName = p.basename(entity.path);
+                final relativePath = p.relative(entity.path, from: projectPath);
+                sdkPackages['@flutterjs/$pkgName'] = relativePath;
+              }
+            }
+          }
+        }
+      }
+
+      // Also scan packages/flutterjs_* for core SDK packages
+      // These have structure: packages/flutterjs_material/flutterjs_material/package.json
+      final packagesDir = p.join(current.path, 'packages');
+      if (await Directory(packagesDir).exists()) {
+        await for (final entity in Directory(packagesDir).list()) {
+          if (entity is Directory) {
+            final dirName = p.basename(entity.path);
+
+            // Check if it's a flutterjs_* package (but not engine or tools)
+            if (dirName.startsWith('flutterjs_') &&
+                dirName != 'flutterjs_engine' &&
+                dirName != 'flutterjs_tools') {
+              // Look for nested package: packages/flutterjs_material/flutterjs_material/
+              final innerPackageDir = Directory(p.join(entity.path, dirName));
+              if (await innerPackageDir.exists()) {
+                final pkgJsonPath = p.join(
+                  innerPackageDir.path,
+                  'package.json',
+                );
+                if (await File(pkgJsonPath).exists()) {
+                  // Extract package name: flutterjs_material -> material
+                  final pkgName = dirName.substring('flutterjs_'.length);
+                  final relativePath = p.relative(
+                    innerPackageDir.path,
+                    from: projectPath,
+                  );
+                  sdkPackages['@flutterjs/$pkgName'] = relativePath;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (sdkPackages.isNotEmpty) break;
+
+      if (current.parent.path == current.path) break;
+      current = current.parent;
+    }
+
+    return sdkPackages;
+  }
+
   /// Resolves and installs all dependencies for a FlutterJS project
   Future<bool> resolveProjectDependencies({
     required String projectPath,

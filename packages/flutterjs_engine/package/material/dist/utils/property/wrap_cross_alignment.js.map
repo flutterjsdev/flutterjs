@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../src/utils/property/wrap_cross_alignment.js"],
-  "sourcesContent": ["/**\r\n * WrapCrossAlignment - How children within a wrap are aligned\r\n */\r\nconst WrapCrossAlignment = Object.freeze({\r\n  start: 'start',\r\n  end: 'end',\r\n  center: 'center'\r\n});\r\n\r\nexport { WrapCrossAlignment };"],
-  "mappings": "AAGA,MAAMA,EAAqB,OAAO,OAAO,CACvC,MAAO,QACP,IAAK,MACL,OAAQ,QACV,CAAC",
-  "names": ["WrapCrossAlignment"]
-}

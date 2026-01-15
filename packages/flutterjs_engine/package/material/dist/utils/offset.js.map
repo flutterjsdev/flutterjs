@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../src/utils/offset.js"],
-  "sourcesContent": ["\r\nexport class Offset {\r\n  constructor(dx = 0, dy = 0) {\r\n    this.dx = dx;\r\n    this.dy = dy;\r\n  }\r\n\r\n  static zero() {\r\n    return new Offset(0, 0);\r\n  }\r\n\r\n  static infinite() {\r\n    return new Offset(Infinity, Infinity);\r\n  }\r\n\r\n  get distance() {\r\n    return Math.sqrt(this.dx * this.dx + this.dy * this.dy);\r\n  }\r\n\r\n  translate(translateX, translateY) {\r\n    return new Offset(this.dx + translateX, this.dy + translateY);\r\n  }\r\n\r\n  scale(scaleX, scaleY = scaleX) {\r\n    return new Offset(this.dx * scaleX, this.dy * scaleY);\r\n  }\r\n\r\n  toString() {\r\n    return `Offset(${this.dx}, ${this.dy})`;\r\n  }\r\n}"],
-  "mappings": "AACO,MAAMA,CAAO,CAClB,YAAYC,EAAK,EAAGC,EAAK,EAAG,CAC1B,KAAK,GAAKD,EACV,KAAK,GAAKC,CACZ,CAEA,OAAO,MAAO,CACZ,OAAO,IAAIF,EAAO,EAAG,CAAC,CACxB,CAEA,OAAO,UAAW,CAChB,OAAO,IAAIA,EAAO,IAAU,GAAQ,CACtC,CAEA,IAAI,UAAW,CACb,OAAO,KAAK,KAAK,KAAK,GAAK,KAAK,GAAK,KAAK,GAAK,KAAK,EAAE,CACxD,CAEA,UAAUG,EAAYC,EAAY,CAChC,OAAO,IAAIJ,EAAO,KAAK,GAAKG,EAAY,KAAK,GAAKC,CAAU,CAC9D,CAEA,MAAMC,EAAQC,EAASD,EAAQ,CAC7B,OAAO,IAAIL,EAAO,KAAK,GAAKK,EAAQ,KAAK,GAAKC,CAAM,CACtD,CAEA,UAAW,CACT,MAAO,UAAU,KAAK,EAAE,KAAK,KAAK,EAAE,GACtC,CACF",
-  "names": ["Offset", "dx", "dy", "translateX", "translateY", "scaleX", "scaleY"]
-}
