@@ -9,7 +9,7 @@ class CreateCommand extends Command<void> {
     argParser
       ..addOption(
         'package',
-        help: 'Create an external package (pub.dev + npm)',
+        help: 'Create a package (pub.dev + npm)',
         valueHelp: 'package_name',
       )
       ..addOption(
@@ -55,16 +55,19 @@ class CreateCommand extends Command<void> {
     final description = argResults!['description'] as String?;
     final organization = argResults!['org'] as String;
 
-    // Determine output directory
-    // If we're in external_package/, create here
-    // Otherwise, create in external_package/ subdirectory
-    final currentDir = Directory.current.path;
-    final outputDir = p.basename(currentDir) == 'external_package'
-        ? currentDir
-        : p.join(currentDir, 'external_package');
+    // Find the packages directory
+    final outputDir = _findPackagesDirectory();
 
-    print('');
-    print('🎨 Creating external package: $packageName');
+    if (outputDir == null) {
+      print('❌ Could not find packages directory');
+      print('   Please run this command from within the FlutterJS repository');
+      exit(1);
+    }
+
+    print('DEBUG_MARKER_1: outputDir = $outputDir');
+    print('DEBUG_MARKER_2: packageName = $packageName');
+    print('📦 Creating package: $packageName');
+
     if (description != null) {
       print('   Description: $description');
     }
@@ -84,5 +87,33 @@ class CreateCommand extends Command<void> {
     } else {
       exit(1);
     }
+  }
+
+  /// Find the packages directory by traversing up from current directory
+  String? _findPackagesDirectory() {
+    var current = Directory.current;
+
+    // Check if we're already in packages directory
+    if (p.basename(current.path) == 'packages') {
+      return current.path;
+    }
+
+    // Check if packages subdirectory exists
+    final packagesDir = Directory(p.join(current.path, 'packages'));
+    if (packagesDir.existsSync()) {
+      return packagesDir.path;
+    }
+
+    // Traverse up to find packages directory
+    while (current.parent.path != current.path) {
+      current = current.parent;
+
+      final packagesDir = Directory(p.join(current.path, 'packages'));
+      if (packagesDir.existsSync()) {
+        return packagesDir.path;
+      }
+    }
+
+    return null;
   }
 }

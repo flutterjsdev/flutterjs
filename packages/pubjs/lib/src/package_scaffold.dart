@@ -12,7 +12,7 @@ class PackageScaffold {
   /// Creates a new external package structure
   ///
   /// [packageName] - Name of the package (e.g., 'flutterjs_http')
-  /// [outputDir] - Directory where package will be created (usually 'external_package')
+  /// [outputDir] - Directory where package will be created
   /// [description] - Package description
   /// [organization] - GitHub organization (default: 'flutterjs')
   Future<bool> createPackage({
@@ -29,6 +29,7 @@ class PackageScaffold {
         return false;
       }
 
+      // Create package directly in outputDir
       final packageDir = p.join(outputDir, packageName);
       final packageDirectory = Directory(packageDir);
 

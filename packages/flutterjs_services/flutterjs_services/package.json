@@ -1,0 +1,26 @@
+{
+  "name": "@flutterjs/flutterjs_services",
+  "version": "0.1.0",
+  "description": "A FlutterJS package",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"No tests yet\"",
+    "prepublishOnly": "echo \"Ready to publish\""
+  },
+  "keywords": [
+    "flutterjs",
+    "flutterjs_services"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flutterjsdev/flutterjs.git"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ]
+}
