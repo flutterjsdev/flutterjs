@@ -5,7 +5,7 @@
  * 
  * Flutter Reference: https://api.flutter.dev/flutter/material/SwitchThemeData-class.html
  */
-export class SwitchTheme {
+export class SwitchThemeData {
   constructor({
     // Colors
     thumbColor,
@@ -14,11 +14,11 @@ export class SwitchTheme {
     overlayColor,
     focusColor,
     hoverColor,
-    
+
     // Size
     thumbSize = 4, // radius factor, 4 = 20px diameter
     trackHeight = 28,
-    
+
     // Interaction
     materialTapTargetSize = 'padded',
     splashRadius = 20,
@@ -139,7 +139,7 @@ export class SwitchTheme {
     const trackWidth = this.getTrackWidth();
     const thumbDiam = this.getThumbDiameter();
     const rightPos = trackWidth - thumbDiam - 4;
-    
+
     return {
       ...this.getThumbOffStyle(themeColors),
       backgroundColor: themeColors.onPrimary || '#FFFFFF',
@@ -187,7 +187,7 @@ export class SwitchTheme {
   /**
    * Copy this theme with updated properties
    * @param {Object} properties - Properties to override
-   * @returns {SwitchTheme} New theme instance
+   * @returns {SwitchThemeData} New theme instance
    */
   copyWith({
     thumbColor,
@@ -204,7 +204,7 @@ export class SwitchTheme {
     enableFeedback,
     animationDuration
   } = {}) {
-    return new SwitchTheme({
+    return new SwitchThemeData({
       thumbColor: thumbColor ?? this.thumbColor,
       trackColor: trackColor ?? this.trackColor,
       trackOutlineColor: trackOutlineColor ?? this.trackOutlineColor,
@@ -222,9 +222,9 @@ export class SwitchTheme {
   }
 
   /**
-   * Merge with another SwitchTheme
-   * @param {SwitchTheme} other - Theme to merge with
-   * @returns {SwitchTheme} Merged theme
+   * Merge with another SwitchThemeData
+   * @param {SwitchThemeData} other - Theme to merge with
+   * @returns {SwitchThemeData} Merged theme
    */
   merge(other) {
     if (!other) return this;
@@ -246,6 +246,6 @@ export class SwitchTheme {
   }
 
   toString() {
-    return `SwitchTheme(trackHeight: ${this.trackHeight}px, thumbSize: ${this.getThumbDiameter()}px)`;
+    return `SwitchThemeData(trackHeight: ${this.trackHeight}px, thumbSize: ${this.getThumbDiameter()}px)`;
   }
 }

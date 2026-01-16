@@ -2,7 +2,6 @@ import { Widget, } from '../../core/widget_element.js';
 import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
 import { TextDirection } from '../../utils/utils.js';
-
 // ============================================================================
 // ENUMS
 // ============================================================================
@@ -229,101 +228,6 @@ class WidgetSpan extends InlineSpan {
 // ============================================================================
 // TEXT STYLE
 // ============================================================================
-
-class TextStyle {
-  constructor({
-    color = null,
-    fontSize = 14,
-    fontWeight = 'normal',
-    fontStyle = 'normal',
-    fontFamily = null,
-    height = null,
-    letterSpacing = null,
-    wordSpacing = null,
-    textDecoration = 'none',
-    decorationColor = null,
-    decorationStyle = 'solid',
-    decorationThickness = 1,
-    backgroundColor = null,
-    foregroundColor = null,
-    shadows = [],
-    fontFeatures = [],
-    fontVariations = []
-  } = {}) {
-    this.color = color;
-    this.fontSize = fontSize;
-    this.fontWeight = fontWeight;
-    this.fontStyle = fontStyle;
-    this.fontFamily = fontFamily;
-    this.height = height;
-    this.letterSpacing = letterSpacing;
-    this.wordSpacing = wordSpacing;
-    this.textDecoration = textDecoration;
-    this.decorationColor = decorationColor;
-    this.decorationStyle = decorationStyle;
-    this.decorationThickness = decorationThickness;
-    this.backgroundColor = backgroundColor;
-    this.foregroundColor = foregroundColor;
-    this.shadows = shadows;
-    this.fontFeatures = fontFeatures;
-    this.fontVariations = fontVariations;
-  }
-
-  /**
-   * Convert to CSS style object
-   */
-  toCSSStyle() {
-    const style = {
-      fontSize: `${this.fontSize}px`,
-      fontWeight: this.fontWeight,
-      fontStyle: this.fontStyle,
-      textDecoration: this.textDecoration,
-      textDecorationColor: this.decorationColor,
-      textDecorationThickness: `${this.decorationThickness}px`,
-      textDecorationStyle: this.decorationStyle
-    };
-
-    if (this.color) style.color = this.color;
-    if (this.fontFamily) style.fontFamily = this.fontFamily;
-    if (this.height) style.lineHeight = this.height;
-    if (this.letterSpacing) style.letterSpacing = `${this.letterSpacing}px`;
-    if (this.wordSpacing) style.wordSpacing = `${this.wordSpacing}px`;
-    if (this.backgroundColor) style.backgroundColor = this.backgroundColor;
-
-    // Add shadows
-    if (this.shadows && this.shadows.length > 0) {
-      style.textShadow = this.shadows
-        .map(shadow => `${shadow.offsetX}px ${shadow.offsetY}px ${shadow.blurRadius}px ${shadow.color}`)
-        .join(', ');
-    }
-
-    return style;
-  }
-
-  /**
-   * Merge with another style
-   */
-  merge(other) {
-    if (!other) return this;
-
-    return new TextStyle({
-      color: other.color ?? this.color,
-      fontSize: other.fontSize ?? this.fontSize,
-      fontWeight: other.fontWeight ?? this.fontWeight,
-      fontStyle: other.fontStyle ?? this.fontStyle,
-      fontFamily: other.fontFamily ?? this.fontFamily,
-      height: other.height ?? this.height,
-      letterSpacing: other.letterSpacing ?? this.letterSpacing,
-      wordSpacing: other.wordSpacing ?? this.wordSpacing,
-      textDecoration: other.textDecoration ?? this.textDecoration,
-      decorationColor: other.decorationColor ?? this.decorationColor,
-      decorationStyle: other.decorationStyle ?? this.decorationStyle,
-      decorationThickness: other.decorationThickness ?? this.decorationThickness,
-      backgroundColor: other.backgroundColor ?? this.backgroundColor,
-      foregroundColor: other.foregroundColor ?? this.foregroundColor
-    });
-  }
-}
 
 // ============================================================================
 // STRUT STYLE

@@ -1,0 +1,3 @@
+DEBUG: RunCommand.run START
+DEBUG: RunCommand parsed config
+DEBUG: RunCommand starting setup_phase

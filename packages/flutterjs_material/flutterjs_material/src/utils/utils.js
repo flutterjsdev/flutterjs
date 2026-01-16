@@ -17,7 +17,7 @@ export * from './property/cross_axis_alignment.js';
 export * from './duration.js';
 export * from './edge_insets.js';
 export * from './property/font_weight.js';
-export * from './input_decoration.js';
+// export * from './input_decoration.js';
 export * from './linear_gradient.js';
 export * from './property/main_axis_alignment.js';
 // export * from './offset.js'; // Commented out: Offset is exported from geometry.js to avoid conflict

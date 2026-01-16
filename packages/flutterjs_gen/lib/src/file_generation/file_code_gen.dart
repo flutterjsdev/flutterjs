@@ -567,6 +567,16 @@ function _filterNamespace(ns, show, hide) {
 }''';
     }
 
+    // ✅ NEW: Null assertion operator (!) helper
+    if (helperName == 'nullAssert') {
+      return r'''function nullAssert(value) {
+  if (value === null || value === undefined) {
+    throw new Error("Null check operator '!' used on a null value");
+  }
+  return value;
+}''';
+    }
+
     if (helperName == 'boundsCheck') {
       return '''function boundsCheck(index, length) {
   if (index < 0 || index >= length) {

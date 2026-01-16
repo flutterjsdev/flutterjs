@@ -1,4 +1,4 @@
-import { TextStyle } from '../material/text.js';
+import { TextStyle } from '../painting/text_style.js';
 
 /**
  * Material Design 3 Typography System

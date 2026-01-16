@@ -624,6 +624,17 @@ class ExpressionCodeGen {
       print('⚠️  UnknownExpressionIR detected: ${expr.source}');
     }
 
+    // ✅ FIX: Strip postfix bang operator (!)
+    if (expr.source != null &&
+        expr.source!.endsWith('!') &&
+        expr.source!.length > 1) {
+      final source = expr.source!;
+      print(
+        '   Converting null assert: $source → ${source.substring(0, source.length - 1)}',
+      );
+      return source.substring(0, source.length - 1);
+    }
+
     // Handle Dart 3.0+ shorthand enum/method syntax (.center, .fromSeed, etc.)
     if (expr.source != null && expr.source!.startsWith('.')) {
       // CHECK: Is it a method call? (contains '(')
@@ -956,6 +967,10 @@ class ExpressionCodeGen {
     if (expr.isPrefix) {
       return '$op$operand';
     } else {
+      // ✅ FIX: Postfix '!' (null check). Use runtime helper.
+      if (op == '!') {
+        return 'nullAssert($operand)';
+      }
       return '$operand$op';
     }
   }
@@ -1129,15 +1144,9 @@ class ExpressionCodeGen {
 
   /// ✅ NEW HELPER: Generate type arguments like <CounterModel>, <List<String>>
   String _generateTypeArguments(List<TypeIR> typeArguments) {
-    if (typeArguments.isEmpty) {
-      return '';
-    }
-
-    final typeStrs = typeArguments.map((typeIR) {
-      return _generateType(typeIR);
-    }).toList();
-
-    return '<${typeStrs.join(", ")}>';
+    // ✅ FIX: JS doesn't support generic type arguments in method calls.
+    // Return empty string to strip them.
+    return '';
   }
 
   /// Generate a single TypeIR to string
@@ -1183,7 +1192,13 @@ class ExpressionCodeGen {
 
   /// Handles InstanceCreationExpressionIR (has TypeIR type)
   String _generateInstanceCreation(InstanceCreationExpressionIR expr) {
-    final typeName = expr.type.displayName();
+    var typeName = expr.type.displayName();
+
+    // ✅ FIX: Strip generics from type name for JS
+    // GlobalKey<FormState> -> GlobalKey
+    if (typeName.contains('<')) {
+      typeName = typeName.substring(0, typeName.indexOf('<'));
+    }
     if (typeName == 'all' || typeName == 'EdgeInsets') {
       print(
         '🏗️ InstanceCreation: type=$typeName, constructor=${expr.constructorName}',
