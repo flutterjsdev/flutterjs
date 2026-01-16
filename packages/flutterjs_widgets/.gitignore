@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+build/
+dist/
+.dev/
+.debug/
+
+# Generated files
+.flutterjs/
+.cache/
+
+# Dart
+.dart_tool/
+.packages
+pubspec.lock
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*

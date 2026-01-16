@@ -1,0 +1,11 @@
+# Exclude JavaScript implementation from pub.dev
+js/
+node_modules/
+dist/
+build/
+.git/
+.github/
+test/
+package-lock.json
+.vscode/
+.idea/

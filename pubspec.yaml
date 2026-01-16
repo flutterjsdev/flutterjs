@@ -1,6 +1,6 @@
 name: flutterjs
 description: A sample command-line application.
-version: 1.0.0
+version: 0.0.1
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # repository: https://github.com/my_org/my_repo
 
