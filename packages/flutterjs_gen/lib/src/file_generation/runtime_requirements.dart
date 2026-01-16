@@ -39,6 +39,7 @@ class RuntimeRequirements {
     }
 
     addHelper('typeAssertion');
+    addHelper('nullAssert');
   }
 
   bool _hasTypeChecks(DartFile dartFile) {

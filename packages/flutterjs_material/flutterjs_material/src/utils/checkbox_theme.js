@@ -7,7 +7,7 @@ import { EdgeInsets } from './edge_insets.js';
  * 
  * Flutter Reference: https://api.flutter.dev/flutter/material/CheckboxThemeData-class.html
  */
-export class CheckboxTheme {
+export class CheckboxThemeData {
   constructor({
     // Colors
     fillColor,
@@ -15,17 +15,17 @@ export class CheckboxTheme {
     hoverColor,
     overlayColor,
     focusColor,
-    
+
     // Size & Padding
     materialTapTargetSize = 'padded',
     visualDensity,
     side,
     shape,
     mouseCursor,
-    
+
     // States
     splashRadius,
-    
+
     // Interaction
     enableFeedback = true,
     animationDuration = 200
@@ -172,7 +172,7 @@ export class CheckboxTheme {
   /**
    * Copy this theme with updated properties
    * @param {Object} properties - Properties to override
-   * @returns {CheckboxTheme} New theme instance
+   * @returns {CheckboxThemeData} New theme instance
    */
   copyWith({
     fillColor,
@@ -189,7 +189,7 @@ export class CheckboxTheme {
     enableFeedback,
     animationDuration
   } = {}) {
-    return new CheckboxTheme({
+    return new CheckboxThemeData({
       fillColor: fillColor ?? this.fillColor,
       checkColor: checkColor ?? this.checkColor,
       hoverColor: hoverColor ?? this.hoverColor,
@@ -207,9 +207,9 @@ export class CheckboxTheme {
   }
 
   /**
-   * Merge with another CheckboxTheme
-   * @param {CheckboxTheme} other - Theme to merge with
-   * @returns {CheckboxTheme} Merged theme
+   * Merge with another CheckboxThemeData
+   * @param {CheckboxThemeData} other - Theme to merge with
+   * @returns {CheckboxThemeData} Merged theme
    */
   merge(other) {
     if (!other) return this;
@@ -231,6 +231,6 @@ export class CheckboxTheme {
   }
 
   toString() {
-    return `CheckboxTheme(fillColor: ${this.fillColor}, checkColor: ${this.checkColor})`;
+    return `CheckboxThemeData(fillColor: ${this.fillColor}, checkColor: ${this.checkColor})`;
   }
 }

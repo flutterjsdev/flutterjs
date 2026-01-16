@@ -26,8 +26,6 @@ import {
   preview,
   analyze,
   doctor,
-  analyze,
-  doctor,
 } from '../src/index.js';
 
 

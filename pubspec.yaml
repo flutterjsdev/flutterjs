@@ -10,6 +10,7 @@ executables:
 workspace:
   - examples/counter/
   - examples/routing_app/
+  - examples/material_demo/
   - examples/multi_file_test/
   - packages/flutterjs_dev_utils/
   - packages/flutterjs_tools/
