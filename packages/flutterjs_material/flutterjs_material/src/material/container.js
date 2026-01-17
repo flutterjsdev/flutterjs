@@ -269,18 +269,26 @@ class DecoratedBox extends Widget {
     // Build child VNode with element caching
     let childVNode = null;
     if (this.child) {
-      if (!context._childElement) {
-        context._childElement = this.child.createElement(context, context.element.runtime);
-        context._childElement.mount(context);
-      } else {
-        // Update existing element
-        if (context._childElement.update) {
-          context._childElement.update(this.child);
+      if (context._childElement) {
+        // Reconciliation: Check if we can reuse the existing element
+        if (context._childElement.widget.constructor === this.child.constructor &&
+          context._childElement.widget.key === this.child.key) {
+
+          // Reuse existing element
+          context._childElement.updateWidget(this.child);
+          if (context._childElement.dirty) {
+            context._childElement.rebuild();
+          }
         } else {
-          // Fallback
-          context._childElement = this.child.createElement(context, context.element.runtime);
-          context._childElement.mount(context);
+          // Replace element
+          context._childElement.unmount();
+          context._childElement = this.child.createElement(context.element, context.element.runtime);
+          context._childElement.mount(context.element);
         }
+      } else {
+        // Initial create
+        context._childElement = this.child.createElement(context.element, context.element.runtime);
+        context._childElement.mount(context.element);
       }
       childVNode = context._childElement.performRebuild();
     }
