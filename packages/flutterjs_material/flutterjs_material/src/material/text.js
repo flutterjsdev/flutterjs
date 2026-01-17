@@ -122,7 +122,7 @@ class Text extends StatelessWidget {
     }
 
     // Merge text style
-    if (this.style && this.style instanceof TextStyle) {
+    if (this.style && typeof this.style.toCSSString === 'function') {
       Object.assign(styles, this.style.toCSSString());
     }
 

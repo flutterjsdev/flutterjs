@@ -378,29 +378,44 @@ class ProxyElement extends Element {
   }
 
   performRebuild() {
-    if (!this.widget.child) {
+    const childWidget = this.widget.child;
+
+    if (!childWidget) {
+      if (this._childElement) {
+        this._childElement.unmount();
+        this._childElement = null;
+      }
       return null;
     }
 
     try {
-      const childElement = this.widget.child.createElement(this, this.runtime);
+      if (this._childElement) {
+        // Reconciliation: Check if we can reuse the existing element
+        const oldWidget = this._childElement.widget;
 
-      if (childElement && typeof childElement.mount === 'function') {
-        childElement.mount(this);
+        if (oldWidget.constructor === childWidget.constructor && oldWidget.key === childWidget.key) {
+          // Reuse existing element
+          this._childElement.updateWidget(childWidget);
+
+          // Ensure VNode is fresh if dirty
+          if (this._childElement.dirty) {
+            this._childElement.rebuild();
+          }
+        } else {
+          // Replace element
+          this._childElement.unmount();
+          this._childElement = childWidget.createElement(this, this.runtime);
+          this._childElement.mount(this);
+        }
+      } else {
+        // Initial create
+        this._childElement = childWidget.createElement(this, this.runtime);
+        this._childElement.mount(this);
       }
 
-      // ✅ FIX: Reuse existing VNode if child already built during mount
-      // ProxyElement creates a NEW element every time, and mount() triggers a build.
-      // We must not trigger performRebuild() again or we get duplication.
-      if (childElement && childElement._vnode) {
-        return childElement._vnode;
-      }
+      // Return the child's VNode
+      return this._childElement.vnode;
 
-      if (childElement && typeof childElement.performRebuild === 'function') {
-        return childElement.performRebuild();
-      }
-
-      return null;
     } catch (error) {
       console.error(`[ProxyElement] performRebuild failed:`, error);
       throw error;

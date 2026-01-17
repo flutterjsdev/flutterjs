@@ -89,15 +89,21 @@ class Opacity extends ProxyWidget {
         }
 
         // Build child widget
+        // Build child with element caching
         let childVNode = null;
         if (this.child) {
-            if (this.child.createElement) {
-                const childElement = this.child.createElement(context.element, context.element.runtime);
-                childElement.mount(context.element);
-                childVNode = childElement.performRebuild();
+            if (!context._childElement) {
+                context._childElement = this.child.createElement(context, context.element.runtime);
+                context._childElement.mount(context);
             } else {
-                childVNode = this.child;
+                if (context._childElement.update) {
+                    context._childElement.update(this.child);
+                } else {
+                    context._childElement = this.child.createElement(context, context.element.runtime);
+                    context._childElement.mount(context);
+                }
             }
+            childVNode = context._childElement.performRebuild();
         }
 
         // Apply opacity styling
@@ -147,7 +153,7 @@ class Opacity extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new OpacityElement(this,parent, runtime);
+        return new OpacityElement(this, parent, runtime);
     }
 }
 

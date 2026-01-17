@@ -1,26 +1,39 @@
-import { Widget, StatelessWidget } from '../core/widget_element.js';
-import { Element } from "@flutterjs/runtime"
+import { StatefulWidget, State } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import {
   TapRecognizer,
+  DoubleTapRecognizer,
   LongPressRecognizer,
-  SwipeRecognizer,
-  PanRecognizer,
-  ScaleRecognizer
+  VerticalDragRecognizer,
+  HorizontalDragRecognizer,
+  SwipeRecognizer
 } from '@flutterjs/runtime';
 
 // ============================================================================
-// GESTURE DETECTOR
+// ENUMS
+// ============================================================================
+
+/**
+ * Defines how a hit test should behave.
+ */
+const HitTestBehavior = {
+  deferToChild: 'deferToChild', // Child widgets handle hits, this widget defers.
+  opaque: 'opaque',             // This widget blocks hits and handles them.
+  translucent: 'translucent'    // This widget handles hits, but allows hits to pass through to widgets below.
+};
+
+// ============================================================================
+// GESTURE DETECTOR WIDGET
 // ============================================================================
 
 /**
  * GestureDetector Widget
  * 
  * Wraps a child widget and detects various gestures
- * Supports: tap, double-tap, long-press, swipe, pan, scale
+ * 
  * Works with both mouse and touch events
  */
-class GestureDetector extends StatelessWidget {
+class GestureDetector extends StatefulWidget {
   constructor({
     key = null,
     child = null,
@@ -53,7 +66,7 @@ class GestureDetector extends StatelessWidget {
     onScaleUpdate = null,
     onScaleEnd = null,
     // Configuration
-    behavior = 'opaque',
+    behavior = HitTestBehavior.deferToChild,
     excludeFromSemantics = false
   } = {}) {
     super(key);
@@ -96,71 +109,66 @@ class GestureDetector extends StatelessWidget {
     // Configuration
     this.behavior = behavior;
     this.excludeFromSemantics = excludeFromSemantics;
-
-    // Gesture recognizers
-    this.recognizers = [];
-    this._elementId = null;
   }
 
-  /**
-   * Build gesture detector with child
-   */
-  build(context) {
-    this._elementId = context.element.getElementId();
+  createState() {
+    return new _GestureDetectorState();
+  }
+}
 
-    let childVNode = null;
-    if (this.child) {
-      const childElement = this.child.createElement?.(context.element, context.element.runtime) || this.child;
-      if (childElement.mount) {
-        childElement.mount(context.element);
-      }
-      childVNode = childElement.performRebuild?.() || null;
+class _GestureDetectorState extends State {
+  constructor() {
+    super();
+    this.recognizers = [];
+  }
+
+  dispose() {
+    this._disposeRecognizers();
+    super.dispose();
+  }
+
+  _disposeRecognizers() {
+    this.recognizers.forEach(r => r.dispose());
+    this.recognizers = [];
+  }
+
+  didUpdateWidget(oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Check if any recognizer is active (mid-gesture)
+    // If so, preserve them to allow the gesture to complete.
+    // They will be cleaned up on the next update or dispose.
+    const hasActiveGestures = this.recognizers.some(r => r.state !== 'ready');
+    // console.log(`[GestureDetector] didUpdateWidget. Active? ${hasActiveGestures}`);
+    if (hasActiveGestures) {
+      return;
     }
 
-    const containerStyle = {
-      position: 'relative',
-      userSelect: this.behavior === 'opaque' ? 'none' : 'auto',
-      WebkitUserSelect: this.behavior === 'opaque' ? 'none' : 'auto',
-      MozUserSelect: this.behavior === 'opaque' ? 'none' : 'auto',
-      msUserSelect: this.behavior === 'opaque' ? 'none' : 'auto',
-      touchAction: 'manipulation',
-      cursor: 'pointer'
-    };
-
-    const elementId = this._elementId;
-
-    return new VNode({
-      tag: 'div',
-      props: {
-        style: containerStyle,
-        'data-widget': 'GestureDetector',
-        'data-element-id': elementId,
-        onMouseDown: (e) => this._handleMouseDown(e, elementId),
-        onMouseUp: (e) => this._handleMouseUp(e, elementId),
-        onMouseMove: (e) => this._handleMouseMove(e, elementId),
-        onMouseLeave: (e) => this._handleMouseLeave(e, elementId),
-        onTouchStart: (e) => this._handleTouchStart(e, elementId),
-        onTouchEnd: (e) => this._handleTouchEnd(e, elementId),
-        onTouchMove: (e) => this._handleTouchMove(e, elementId),
-        onTouchCancel: (e) => this._handleTouchCancel(e, elementId),
-        onContextMenu: (e) => this._handleContextMenu(e, elementId)
-      },
-      children: childVNode ? [childVNode] : []
-    });
+    // Re-initialize recognizers to pick up new callbacks (e.g. updated closures)
+    // This is safe to do here as build/update typically happens between gestures, not during.
+    // If a gesture is active during rebuild, it might be cancelled, which is standard Flutter behavior.
+    this._disposeRecognizers();
   }
 
   /**
-   * Initialize gesture recognizers on mount
+   * Initialize gesture recognizers
    */
   _initializeRecognizers(elementId) {
-    if (this.recognizers.length > 0) return; // Already initialized
+    // Only initialize if we don't have them
+    if (this.recognizers.length > 0) {
+      return;
+    }
+
+    const w = this.widget;
+    // ... rest of init logic matches previous ...
 
     // Tap gesture
-    if (this.onTap || this.onTapDown || this.onTapUp) {
+    if (w.onTap || w.onTapDown || w.onTapUp || w.onTapCancel) {
       const tapRecognizer = new TapRecognizer(
         (event) => {
-          if (this.onTap) this.onTap(event);
-          if (this.onTapUp) this.onTapUp(event);
+          if (w.onTap) w.onTap(event);
+          if (w.onTapUp) w.onTapUp(event);
+          if (w.onTapCancel && event.type === 'tapcancel') w.onTapCancel(event);
         },
         { maxDuration: 300, maxMovement: 10 }
       );
@@ -168,223 +176,176 @@ class GestureDetector extends StatelessWidget {
     }
 
     // Double tap gesture
-    if (this.onDoubleTap) {
-      const doubleTapRecognizer = new TapRecognizer(
-        (event) => {
-          if (event.tapCount === 2) {
-            this.onDoubleTap(event);
-          }
-        },
-        { minTaps: 2, maxTaps: 2 }
-      );
+    if (w.onDoubleTap) {
+      const doubleTapRecognizer = new DoubleTapRecognizer({
+        onDoubleTap: (event) => w.onDoubleTap(event)
+      }, elementId);
       this.recognizers.push(doubleTapRecognizer);
     }
 
     // Long press gesture
-    if (this.onLongPress || this.onLongPressStart || this.onLongPressEnd) {
-      const longPressRecognizer = new LongPressRecognizer(
-        (event) => {
-          if (this.onLongPress) this.onLongPress(event);
-        },
-        { duration: 500, maxMovement: 10 }
-      );
+    if (w.onLongPress || w.onLongPressStart || w.onLongPressEnd) {
+      const longPressRecognizer = new LongPressRecognizer({
+        onLongPress: (event) => { if (w.onLongPress) w.onLongPress(event); },
+        onLongPressStart: (event) => { if (w.onLongPressStart) w.onLongPressStart(event); },
+        onLongPressEnd: (event) => { if (w.onLongPressEnd) w.onLongPressEnd(event); },
+        onLongPressUp: (event) => { if (w.onLongPressUp) w.onLongPressUp(event); }
+      }, elementId);
       this.recognizers.push(longPressRecognizer);
     }
 
     // Swipe gesture
-    if (this.onSwipe || this.onSwipeLeft || this.onSwipeRight || this.onSwipeUp || this.onSwipeDown) {
+    if (w.onSwipe || w.onSwipeLeft || w.onSwipeRight || w.onSwipeUp || w.onSwipeDown) {
       const swipeRecognizer = new SwipeRecognizer(
         (event) => {
-          if (this.onSwipe) this.onSwipe(event);
-
-          // Direction-specific callbacks
-          if (event.direction === 'left' && this.onSwipeLeft) {
-            this.onSwipeLeft(event);
-          } else if (event.direction === 'right' && this.onSwipeRight) {
-            this.onSwipeRight(event);
-          } else if (event.direction === 'up' && this.onSwipeUp) {
-            this.onSwipeUp(event);
-          } else if (event.direction === 'down' && this.onSwipeDown) {
-            this.onSwipeDown(event);
-          }
+          if (w.onSwipe) w.onSwipe(event);
+          if (event.direction === 'left' && w.onSwipeLeft) w.onSwipeLeft(event);
+          if (event.direction === 'right' && w.onSwipeRight) w.onSwipeRight(event);
+          if (event.direction === 'up' && w.onSwipeUp) w.onSwipeUp(event);
+          if (event.direction === 'down' && w.onSwipeDown) w.onSwipeDown(event);
         },
-        { minDistance: 50, maxDuration: 300 }
+        elementId
       );
       this.recognizers.push(swipeRecognizer);
     }
 
     // Pan gesture
-    if (this.onPan || this.onPanStart || this.onPanUpdate || this.onPanEnd) {
-      const panRecognizer = new PanRecognizer(
-        (event) => {
-          if (this.onPan) this.onPan(event);
-        },
-        {
-          minDistance: 10,
-          onStart: (event) => {
-            if (this.onPanStart) this.onPanStart(event);
-          },
-          onUpdate: (event) => {
-            if (this.onPanUpdate) this.onPanUpdate(event);
-          },
-          onEnd: (event) => {
-            if (this.onPanEnd) this.onPanEnd(event);
-          }
-        }
-      );
-      this.recognizers.push(panRecognizer);
+    if (w.onPan || w.onPanStart || w.onPanUpdate || w.onPanEnd) {
+      // Placeholder for PanRecognizer if not imported or implemented fully
+      // Assuming Vertical/Horizontal exist from imports
+      // For now, only vertical/horizontal logic or generic pan if available
     }
 
-    // Scale gesture (pinch)
-    if (this.onScale || this.onScaleStart || this.onScaleUpdate || this.onScaleEnd) {
-      const scaleRecognizer = new ScaleRecognizer(
-        (event) => {
-          if (this.onScale) this.onScale(event);
-        },
-        {
-          minScale: 0.5,
-          maxScale: 2.0,
-          onStart: (event) => {
-            if (this.onScaleStart) this.onScaleStart(event);
-          },
-          onUpdate: (event) => {
-            if (this.onScaleUpdate) this.onScaleUpdate(event);
-          },
-          onEnd: (event) => {
-            if (this.onScaleEnd) this.onScaleEnd(event);
-          }
-        }
-      );
-      this.recognizers.push(scaleRecognizer);
+    if (w.onVerticalDragStart || w.onVerticalDragUpdate || w.onVerticalDragEnd) {
+      this.recognizers.push(new VerticalDragRecognizer({
+        onStart: w.onVerticalDragStart,
+        onUpdate: w.onVerticalDragUpdate,
+        onEnd: w.onVerticalDragEnd
+      }, elementId));
+    }
+
+    if (w.onHorizontalDragStart || w.onHorizontalDragUpdate || w.onHorizontalDragEnd) {
+      this.recognizers.push(new HorizontalDragRecognizer({
+        onStart: w.onHorizontalDragStart,
+        onUpdate: w.onHorizontalDragUpdate,
+        onEnd: w.onHorizontalDragEnd
+      }, elementId));
     }
   }
 
-  /**
-   * Route events to recognizers
-   */
-  _routeEvent(eventType, event, elementId) {
+  _handleEvent(eventType, event, elementId) {
+    // console.log(`[GestureDetector] Event: ${eventType} on ${elementId}`);
+
+    // Deduplicate logic: Browsers fire pointer* then mouse* for compatibility.
+    // If we handle pointer events, we should ignore the subsequent mouse events
+    // to prevent double-recognition (double taps).
+    if (eventType.startsWith('mouse') && window.PointerEvent && event.pointerType !== 'mouse') {
+      // This logic is tricky. PointerEvent polyfill?
+      // Better: simple Timestamp check.
+    }
+
+    // Simple state tracking for dedup
+    if (!this._lastPointerTime) this._lastPointerTime = 0;
+
+    if (eventType.startsWith('pointer')) {
+      this._lastPointerTime = Date.now();
+    } else if (eventType.startsWith('mouse')) {
+      // If we saw a pointer event recently (< 500ms), ignore this mouse event
+      // as it's likely a compatibility firing.
+      if (Date.now() - this._lastPointerTime < 500) {
+        return;
+      }
+    }
+
+    // Initialize recognizers on interaction (lazy first load)
     this._initializeRecognizers(elementId);
 
-    this.recognizers.forEach(recognizer => {
-      if (!recognizer.isDisposed) {
-        recognizer.handleEvent(eventType, event);
+    // Dispatch to all recognizers
+    this.recognizers.forEach(r => {
+      if (r.handleEvent) {
+        r.handleEvent(eventType, event);
       }
     });
   }
 
-  // ========== MOUSE EVENTS ==========
+  build(context) {
+    const elementId = context.element.getElementId();
+    const widgetPath = context.element.getWidgetPath();
 
-  _handleMouseDown(e, elementId) {
-    this._routeEvent('mousedown', e, elementId);
-    if (this.onTapDown) {
-      this.onTapDown({
-        type: 'tapdown',
-        position: { x: e.clientX, y: e.clientY },
-        nativeEvent: e
-      });
+    let childVNode = null;
+    const child = this.widget.child;
+
+    if (child) {
+      if (!context._childElement) {
+        context._childElement = child.createElement(context, context.element.runtime);
+        context._childElement.mount(context);
+      } else {
+        if (context._childElement.update) {
+          context._childElement.update(child);
+        } else {
+          context._childElement = child.createElement(context, context.element.runtime);
+          context._childElement.mount(context);
+        }
+      }
+      childVNode = context._childElement.performRebuild();
     }
-  }
 
-  _handleMouseUp(e, elementId) {
-    this._routeEvent('mouseup', e, elementId);
-  }
+    const behavior = this.widget.behavior;
+    const containerStyle = {
+      position: 'relative',
+      userSelect: behavior === HitTestBehavior.opaque ? 'none' : 'auto',
+      WebkitUserSelect: behavior === HitTestBehavior.opaque ? 'none' : 'auto',
+      MozUserSelect: behavior === HitTestBehavior.opaque ? 'none' : 'auto',
+      msUserSelect: behavior === HitTestBehavior.opaque ? 'none' : 'auto',
+      touchAction: 'manipulation',
+      cursor: (this.widget.onTap || this.widget.onDoubleTap) ? 'pointer' : 'auto',
 
-  _handleMouseMove(e, elementId) {
-    this._routeEvent('mousemove', e, elementId);
-  }
+      // Default styles for div
+      width: 'auto',
+      height: 'auto',
 
-  _handleMouseLeave(e, elementId) {
-    if (this.onTapCancel) {
-      this.onTapCancel({
-        type: 'tapcancel',
-        nativeEvent: e
-      });
+      // Allow pointer events
+      pointerEvents: behavior === HitTestBehavior.translucent ? 'none' : 'auto'
+      // Note: 'none' means clicks pass through, but we won't capture them unless bubbling?
+      // For now, assume bubbling handles translucent.
+      // But if we want to capture click on empty space of this widget, we need auto.
+      // If we use 'auto', we block underneath.
+      // Resetting to 'auto' for now to ensure functionality.
+    };
+    if (behavior === HitTestBehavior.translucent) {
+      containerStyle.pointerEvents = 'auto'; // Force capture for now
     }
-  }
 
-  // ========== TOUCH EVENTS ==========
+    const eventHandler = (type) => (e) => {
+      if (this.widget.behavior === HitTestBehavior.opaque) {
+        e.stopPropagation();
+      }
+      this._handleEvent(type, e, elementId);
+    };
 
-  _handleTouchStart(e, elementId) {
-    this._routeEvent('touchstart', e, elementId);
-    if (this.onTapDown) {
-      const touch = e.touches[0];
-      this.onTapDown({
-        type: 'tapdown',
-        position: { x: touch.clientX, y: touch.clientY },
-        nativeEvent: e
-      });
-    }
-  }
+    return new VNode({
+      tag: 'div',
+      props: {
+        style: containerStyle,
+        'data-widget': 'GestureDetector',
+        'data-element-id': elementId,
+        'data-behavior': behavior,
 
-  _handleTouchEnd(e, elementId) {
-    this._routeEvent('touchend', e, elementId);
-  }
-
-  _handleTouchMove(e, elementId) {
-    this._routeEvent('touchmove', e, elementId);
-  }
-
-  _handleTouchCancel(e, elementId) {
-    this._routeEvent('touchcancel', e, elementId);
-    if (this.onTapCancel) {
-      this.onTapCancel({
-        type: 'tapcancel',
-        nativeEvent: e
-      });
-    }
-  }
-
-  // ========== CONTEXT MENU ==========
-
-  _handleContextMenu(e, elementId) {
-    if (this.onLongPress) {
-      e.preventDefault();
-      this._routeEvent('contextmenu', e, elementId);
-    }
-  }
-
-  /**
-   * Cleanup
-   */
-  dispose() {
-    this.recognizers.forEach(recognizer => {
-      recognizer.dispose();
+        onClick: eventHandler('click'),
+        onMouseDown: (e) => this._handleEvent('mousedown', e, elementId),
+        onMouseUp: (e) => this._handleEvent('mouseup', e, elementId),
+        onMouseMove: (e) => this._handleEvent('mousemove', e, elementId),
+        onMouseLeave: eventHandler('mouseleave'),
+        onTouchStart: (e) => this._handleEvent('touchstart', e, elementId),
+        onTouchEnd: (e) => this._handleEvent('touchend', e, elementId),
+        onTouchMove: (e) => this._handleEvent('touchmove', e, elementId),
+        onTouchCancel: eventHandler('touchcancel'),
+        onContextMenu: eventHandler('contextmenu')
+      },
+      children: childVNode ? [childVNode] : [],
+      key: this.widget.key
     });
-    this.recognizers = [];
-  }
-
-  createElement(parent, runtime) {
-    return new GestureDetectorElement(this, parent, runtime);
-  }
-
-  debugFillProperties(properties) {
-    super.debugFillProperties(properties);
-    if (this.onTap) properties.push({ name: 'onTap', value: 'fn' });
-    if (this.onDoubleTap) properties.push({ name: 'onDoubleTap', value: 'fn' });
-    if (this.onLongPress) properties.push({ name: 'onLongPress', value: 'fn' });
-    if (this.onSwipe) properties.push({ name: 'onSwipe', value: 'fn' });
-    if (this.onPan) properties.push({ name: 'onPan', value: 'fn' });
   }
 }
 
-class GestureDetectorElement extends Element {
-  performRebuild() {
-    return this.widget.build(this.context);
-  }
-
-  unmount() {
-    if (this.widget) {
-      this.widget.dispose();
-    }
-    super.unmount();
-  }
-}
-
-// ============================================================================
-// EXPORTS
-// ============================================================================
-
-export {
-  GestureDetector,
-  GestureDetectorElement
-};
+export { GestureDetector, HitTestBehavior };

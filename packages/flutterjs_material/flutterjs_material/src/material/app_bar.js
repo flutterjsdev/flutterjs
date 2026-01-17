@@ -1,7 +1,8 @@
 import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
-import { Color } from '../utils/color.js';
+import { Color, MaterialColor } from '../utils/color.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
+import { Theme } from './theme.js';
 
 class AppBar extends StatelessWidget {
     constructor({
@@ -62,8 +63,46 @@ class AppBar extends StatelessWidget {
     build(context) {
         // Resolve background color
         let bgColor = this.backgroundColor;
+        const theme = Theme.of(context);
+
+        // Use Theme primary color if no background color is provided
         if (!bgColor) {
-            bgColor = '#2196F3'; // Default Material Blue
+            bgColor = theme.appBarTheme?.backgroundColor || theme.primaryColor;
+        }
+
+        // Handle MaterialColor/Color objects for Background
+        if (bgColor && typeof bgColor.toCSSString === 'function') {
+            bgColor = bgColor.toCSSString();
+        } else if (bgColor && typeof bgColor === 'object' && bgColor.value) {
+            // Fallback for plain objects that look like Colors
+            const val = bgColor.value;
+            const hex = val.toString(16).padStart(8, '0');
+            bgColor = `#${hex.slice(2)}`;
+        }
+
+        if (!bgColor) {
+            bgColor = '#2196F3'; // Fallback if theme also fails
+        }
+
+        let fgColor = this.foregroundColor;
+        if (!fgColor) {
+            fgColor = theme.appBarTheme?.foregroundColor;
+        }
+
+        if (!fgColor) {
+            // Determine contrast color
+            // Simple heuristic: if likely dark, use white.
+            // MaterialColor.isDark check or rudimentary hex brightness check
+            if (MaterialColor.isDark(bgColor) || bgColor === '#2196F3' || bgColor.toLowerCase() === '#3f51b5') { // Indigo 500 is hex 3f51b5
+                fgColor = '#FFFFFF';
+            } else {
+                fgColor = '#000000';
+            }
+        }
+
+        // Convert fgColor if it's a Color object
+        if (fgColor && typeof fgColor.toCSSString === 'function') {
+            fgColor = fgColor.toCSSString();
         }
 
         // Resolve Title
@@ -99,7 +138,7 @@ class AppBar extends StatelessWidget {
                 className: 'fjs-app-bar',
                 style: {
                     backgroundColor: bgColor,
-                    color: this.foregroundColor || '#FFFFFF',
+                    color: fgColor,
                     height: `${this.toolbarHeight}px`,
                     padding: '0 16px',
                     display: 'flex',

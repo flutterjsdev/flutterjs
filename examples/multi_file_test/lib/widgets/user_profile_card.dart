@@ -18,7 +18,7 @@ class _UserProfileCardState extends State<UserProfileCard> {
     setState(() {
       _isFollowing = !_isFollowing;
     });
-    print('Follow status for ${widget.user.name}: $_isFollowing');
+    // print('Follow status for ${widget.user.name}: $_isFollowing');
   }
 
   @override

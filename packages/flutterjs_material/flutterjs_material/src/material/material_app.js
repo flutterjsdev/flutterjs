@@ -99,6 +99,46 @@ class MaterialAppState extends State {
     const onSurface = (theme.brightness === 'dark') ? '#FFFFFF' : '#000000';
     const onBackground = (theme.brightness === 'dark') ? '#FFFFFF' : '#000000';
 
+    // Inject global styles to ensure full screen layout and Flutter-like Reset
+    if (!document.getElementById('fjs-global-style')) {
+
+      // 1. Inject Roboto Font
+      const fontLink = document.createElement('link');
+      fontLink.href = 'https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap';
+      fontLink.rel = 'stylesheet';
+      document.head.appendChild(fontLink);
+
+      // 2. Global CSS Reset & Layout
+      const style = document.createElement('style');
+      style.id = 'fjs-global-style';
+      style.innerHTML = `
+            html, body {
+                height: 100%;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+                overflow: hidden; /* App handles scrolling */
+                font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                -webkit-tap-highlight-color: transparent; /* Remove mobile tap highlight */
+            }
+            *, *::before, *::after {
+                box-sizing: border-box; /* Flutter uses border-box logic mostly */
+            }
+            p, h1, h2, h3, h4, h5, h6 {
+                margin: 0; /* Flutter text has no default margins */
+                padding: 0;
+            }
+            #app, [id^="app-"], body > div:not([id]) {
+                height: 100%;
+                width: 100%;
+                display: flex;
+                flex-direction: column;
+            }
+        `;
+      document.head.appendChild(style);
+    }
+
+    // Set variables
     const root = document.documentElement;
     root.style.setProperty('--primary-color', primary);
     root.style.setProperty('--accent-color', theme.accentColor || '#FF4081');
@@ -108,29 +148,13 @@ class MaterialAppState extends State {
     root.style.setProperty('--font-family', theme.fontFamily);
     root.style.setProperty('--text-color', onSurface);
 
-    // MD3 System Colors (Mapped from Legacy Theme with Fallbacks)
+    // MD3 System Colors
     root.style.setProperty('--md-sys-color-primary', primary);
     root.style.setProperty('--md-sys-color-on-primary', onPrimary);
     root.style.setProperty('--md-sys-color-surface', surface);
     root.style.setProperty('--md-sys-color-on-surface', onSurface);
     root.style.setProperty('--md-sys-color-background', background);
     root.style.setProperty('--md-sys-color-on-background', onBackground);
-
-    document.body.style.backgroundColor = background;
-    document.body.style.fontFamily = theme.fontFamily;
-    document.body.style.color = onSurface;
-
-    // ✅ Ensure full screen layout
-    root.style.height = '100%';
-    root.style.width = '100%';
-    root.style.margin = '0';
-    root.style.padding = '0';
-
-    document.body.style.height = '100%';
-    document.body.style.width = '100%';
-    document.body.style.margin = '0';
-    document.body.style.padding = '0';
-    document.body.style.overflow = 'hidden'; // Prevent body scroll, Scaffold handles it
   }
 
   build(context) {

@@ -261,22 +261,65 @@ class Scaffold extends Widget {
     }
 
     build(context) {
-        // We are essentially recreating the layout similar to Flutter's Scaffold
-        // AppBar, Body, FAB, BottomNav, Drawers
+        // Initialize child elements cache if not exists
+        if (!context._childElements) {
+            context._childElements = {};
+        }
+
+        const buildChild = (widget, slot) => {
+            if (!widget) {
+                if (context._childElements[slot]) {
+                    // Cleanup removed child if needed (unmount?)
+                    // context._childElements[slot].unmount(); // If unmount exists
+                    delete context._childElements[slot];
+                }
+                return null;
+            }
+
+            let childElement = context._childElements[slot];
+
+            if (!childElement) {
+                // New child
+                childElement = widget.createElement(context, context.element.runtime);
+                childElement.mount(context);
+                context._childElements[slot] = childElement;
+            } else {
+                // Update existing
+                if (childElement.update) {
+                    childElement.update(widget);
+                } else {
+                    // Fallback replace
+                    childElement = widget.createElement(context, context.element.runtime);
+                    childElement.mount(context);
+                    context._childElements[slot] = childElement;
+                }
+            }
+
+            return childElement.performRebuild();
+        };
 
         const elementId = context.element.getElementId();
 
         // Layout Dimensions
         const appBarHeight = this.appBar ? (this.appBar.toolbarHeight || 56) : 0;
-        const bottomNavHeight = this.bottomNavigationBar ? 56 : 0; // approximate, assumes standard
+        const bottomNavHeight = this.bottomNavigationBar ? 56 : 0; // approximate
 
-        // Build Children
-        const appBarVNode = this.appBar ? this.appBar.build(context) : null;
-        const bodyVNode = this.body ? this.body.build(context) : null;
-        const fabVNode = this.floatingActionButton ? this.floatingActionButton.build(context) : null;
-        const bottomNavVNode = this.bottomNavigationBar ? this.bottomNavigationBar.build(context) : null;
-        const drawerVNode = this.drawer ? this.drawer.build(context) : null;
-        const endDrawerVNode = this.endDrawer ? this.endDrawer.build(context) : null;
+        // Build Children VNodes (caching elements)
+        const appBarVNode = buildChild(this.appBar, 'appBar');
+        const bodyVNode = buildChild(this.body, 'body');
+        const fabVNode = buildChild(this.floatingActionButton, 'fab');
+        const bottomNavVNode = buildChild(this.bottomNavigationBar, 'bottomNav');
+        const drawerVNode = buildChild(this.drawer, 'drawer');
+        const endDrawerVNode = buildChild(this.endDrawer, 'endDrawer');
+
+        // SnackBar is special, handled by state
+        const currentSnackBar = context.element?.state?._currentSnackBar;
+        const snackBarVNode = currentSnackBar ? buildChild(currentSnackBar.widget, 'snackBar') : null;
+        if (!currentSnackBar && context._childElements['snackBar']) {
+            delete context._childElements['snackBar'];
+        }
+
+        // --- STYLES ---
 
         // --- STYLES ---
 
@@ -285,41 +328,53 @@ class Scaffold extends Widget {
             display: 'flex',
             flexDirection: 'column',
             width: '100%',
-            minHeight: '100%',
             height: '100%',
+            minHeight: '100vh', // Force full viewport height
             backgroundColor: this.backgroundColor,
             position: 'relative',
-            overflow: 'hidden' // Scaffold handles scrolling in body usually
+            overflow: 'hidden'
         };
 
-        // Body Container
-        const bodyStyle = {
-            flex: 1,
-            position: 'relative',
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            paddingTop: this.extendBodyBehindAppBar ? 0 : `${appBarHeight}px`,
-            paddingBottom: this.extendBody ? 0 : `${bottomNavHeight}px`
-        };
+        const isExtendedBody = this.extendBody;
+        const isExtendedAppBar = this.extendBodyBehindAppBar;
 
-        // AppBar Container (Fixed Top)
+        // AppBar Container
         const appBarStyle = {
-            position: 'absolute',
+            position: isExtendedAppBar ? 'absolute' : 'relative',
             top: 0,
             left: 0,
             right: 0,
             height: `${appBarHeight}px`,
-            zIndex: 10
+            zIndex: 10,
+            flex: '0 0 auto' // Don't shrink/grow
         };
 
-        // BottomNav Container (Fixed Bottom)
+        // BottomNav Container
         const bottomNavStyle = {
-            position: 'absolute',
-            bottom: 0,
+            position: isExtendedBody ? 'absolute' : 'relative',
+            bottom: isExtendedBody ? 0 : 'auto',
             left: 0,
             right: 0,
             height: `${bottomNavHeight}px`,
-            zIndex: 10
+            zIndex: 10,
+            flex: '0 0 auto'
+        };
+
+        // Body Container
+        const bodyStyle = {
+            flex: '1 1 auto', // Take remaining space
+            display: 'grid', // Grid forces child to stretch (fill) by default, unlike flex
+            gridTemplateColumns: '1fr',
+            gridTemplateRows: '1fr',
+            width: '100%',
+            height: '100%',
+            boxSizing: 'border-box',
+            position: 'relative',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            // Only add padding if extended (since they are absolute in that case)
+            paddingTop: isExtendedAppBar ? `${appBarHeight}px` : 0,
+            paddingBottom: isExtendedBody ? `${bottomNavHeight}px` : 0
         };
 
         // FAB Container
@@ -343,7 +398,7 @@ class Scaffold extends Widget {
         const drawerStyle = {
             position: 'absolute',
             top: 0, bottom: 0, left: 0,
-            width: '304px', // Standard drawer width
+            width: '304px',
             backgroundColor: '#FFFFFF',
             zIndex: 25,
             transform: isDrawerOpen ? 'translateX(0)' : 'translateX(-100%)',
@@ -365,23 +420,31 @@ class Scaffold extends Widget {
 
         // --- VDOM ASSEMBLY ---
 
+        // We need to order them correctly for Flex column:
+        // [AppBar, Body, BottomNav]
+        // But if they are absolute, order doesn't impact flow, just Z-index (which is handled by style zIndex)
+        // However, standard flow is best.
+
         const children = [];
 
-        // 1. Body (at the base)
-        if (bodyVNode) {
-            children.push(new VNode({
-                tag: 'div',
-                props: { className: 'fjs-scaffold-body', style: bodyStyle },
-                children: [bodyVNode]
-            }));
-        }
+        // 1. App Bar (if not bottom or if extended behind)
+        // Actually for Flex Column Layout: AppBar -> Body -> BottomNav
+        // If absolute, it ignores flow.
 
-        // 2. AppBar (if not behind, but we position absolute so order matters visually if z-index same, but we use z-index)
         if (appBarVNode) {
             children.push(new VNode({
                 tag: 'div',
                 props: { className: 'fjs-scaffold-appbar', style: appBarStyle },
                 children: [appBarVNode]
+            }));
+        }
+
+        // 2. Body
+        if (bodyVNode) {
+            children.push(new VNode({
+                tag: 'div',
+                props: { className: 'fjs-scaffold-body', style: bodyStyle },
+                children: [bodyVNode]
             }));
         }
 
@@ -394,7 +457,7 @@ class Scaffold extends Widget {
             }));
         }
 
-        // 4. FAB
+        // 4. FAB (Overlay)
         if (fabVNode) {
             children.push(new VNode({
                 tag: 'div',
@@ -403,7 +466,7 @@ class Scaffold extends Widget {
             }));
         }
 
-        // 5. Drawer Scrim
+        // 5. Drawer Scrim (Overlay)
         children.push(new VNode({
             tag: 'div',
             props: {
@@ -416,7 +479,7 @@ class Scaffold extends Widget {
             }
         }));
 
-        // 6. Drawers
+        // 6. Drawers (Overlay)
         if (drawerVNode) {
             children.push(new VNode({
                 tag: 'div',
@@ -434,21 +497,20 @@ class Scaffold extends Widget {
         }
 
         // 7. Snacks
-        const currentSnackBar = context.element?.state?._currentSnackBar;
-        if (currentSnackBar) {
+        if (snackBarVNode) {
             children.push(new VNode({
                 tag: 'div',
                 props: {
                     className: 'fjs-scaffold-snackbar-container',
                     style: {
                         position: 'absolute',
-                        bottom: this.floatingActionButtonLocation.includes('Float') ? '80px' : '48px', // Adjust based on FAB
+                        bottom: this.floatingActionButtonLocation.includes('Float') ? '80px' : '48px',
                         left: '16px',
-                        zIndex: 30, // Highest
+                        zIndex: 30,
                         animation: 'fjs-snackbar-slide-up 0.3s ease-out'
                     }
                 },
-                children: [currentSnackBar.widget.build(context)]
+                children: [snackBarVNode]
             }));
         }
 

@@ -148,6 +148,21 @@
       "type": "alias"
     },
     {
+      "name": "DoubleTapRecognizer",
+      "path": "./dist/gesture_recognizer.js",
+      "type": "alias"
+    },
+    {
+      "name": "VerticalDragRecognizer",
+      "path": "./dist/gesture_recognizer.js",
+      "type": "alias"
+    },
+    {
+      "name": "HorizontalDragRecognizer",
+      "path": "./dist/gesture_recognizer.js",
+      "type": "alias"
+    },
+    {
       "name": "TapRecognizer",
       "path": "./dist/gesture_recognizer.js",
       "type": "alias"

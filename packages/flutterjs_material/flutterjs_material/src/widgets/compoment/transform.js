@@ -257,11 +257,21 @@ class Transform extends ProxyWidget {
             this.updateRenderObject(context, this._renderObject);
         }
 
+        // Build child with element caching
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
+            if (!context._childElement) {
+                context._childElement = this.child.createElement(context, context.element.runtime);
+                context._childElement.mount(context);
+            } else {
+                if (context._childElement.update) {
+                    context._childElement.update(this.child);
+                } else {
+                    context._childElement = this.child.createElement(context, context.element.runtime);
+                    context._childElement.mount(context);
+                }
+            }
+            childVNode = context._childElement.performRebuild();
         }
 
         const elementId = context.element.getElementId();
@@ -363,7 +373,7 @@ class Transform extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new TransformElement(this,parent, runtime);
+        return new TransformElement(this, parent, runtime);
     }
 }
 
@@ -491,11 +501,21 @@ class CompositedTransformTarget extends ProxyWidget {
             this.updateRenderObject(context, this._renderObject);
         }
 
+        // Build child with element caching
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
+            if (!context._childElement) {
+                context._childElement = this.child.createElement(context, context.element.runtime);
+                context._childElement.mount(context);
+            } else {
+                if (context._childElement.update) {
+                    context._childElement.update(this.child);
+                } else {
+                    context._childElement = this.child.createElement(context, context.element.runtime);
+                    context._childElement.mount(context);
+                }
+            }
+            childVNode = context._childElement.performRebuild();
         }
 
         const elementId = context.element.getElementId();
@@ -549,7 +569,7 @@ class CompositedTransformTarget extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new CompositedTransformTargetElement(this,parent, runtime);
+        return new CompositedTransformTargetElement(this, parent, runtime);
     }
 }
 
@@ -636,11 +656,21 @@ class CompositedTransformFollower extends ProxyWidget {
             this.updateRenderObject(context, this._renderObject);
         }
 
+        // Build child with element caching
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
+            if (!context._childElement) {
+                context._childElement = this.child.createElement(context, context.element.runtime);
+                context._childElement.mount(context);
+            } else {
+                if (context._childElement.update) {
+                    context._childElement.update(this.child);
+                } else {
+                    context._childElement = this.child.createElement(context, context.element.runtime);
+                    context._childElement.mount(context);
+                }
+            }
+            childVNode = context._childElement.performRebuild();
         }
 
         const elementId = context.element.getElementId();
@@ -725,7 +755,7 @@ class CompositedTransformFollower extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new CompositedTransformFollowerElement(this,parent, runtime);
+        return new CompositedTransformFollowerElement(this, parent, runtime);
     }
 }
 

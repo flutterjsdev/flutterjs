@@ -30,7 +30,7 @@ class MyApp extends StatelessWidget {
           color: Colors.grey.shade100,
           child: Column(
             children: [
-               UtilsWidget(), // Usage ensures import is kept
+              UtilsWidget(), // Usage ensures import is kept
               Expanded(
                 child: ListView.builder(
                   itemCount: users.length,
