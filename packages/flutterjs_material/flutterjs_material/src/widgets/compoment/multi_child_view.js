@@ -14,6 +14,50 @@ const MainAxisSize = {
 };
 
 // ============================================================================
+// HELPERS
+// ============================================================================
+
+/**
+ * Reconcile a single child element.
+ * 
+ * @param {Element} parent The parent element.
+ * @param {Element|null} oldChildElement The existing child element (if any).
+ * @param {Widget|null} newWidget The new widget configuration.
+ * @returns {Element|null} The updated or new child element.
+ */
+function reconcileChild(parent, oldChildElement, newWidget) {
+  if (!newWidget) {
+    if (oldChildElement) {
+      oldChildElement.unmount();
+    }
+    return null;
+  }
+
+  // Check for reuse
+  if (oldChildElement &&
+    oldChildElement.widget.constructor === newWidget.constructor &&
+    oldChildElement.widget.key === newWidget.key) {
+
+    oldChildElement.updateWidget(newWidget);
+
+    // Ensure the child is up-to-date (synchronous rebuild if dirty)
+    if (oldChildElement.dirty) {
+      oldChildElement.rebuild();
+    }
+    return oldChildElement;
+  }
+
+  // Replace
+  if (oldChildElement) {
+    oldChildElement.unmount();
+  }
+
+  const newChildElement = newWidget.createElement(parent, parent.runtime);
+  newChildElement.mount(parent);
+  return newChildElement;
+}
+
+// ============================================================================
 // FLEX PARENT DATA
 // ============================================================================
 
@@ -183,138 +227,6 @@ class Flex extends Widget {
     renderObject.spacing = this.spacing;
   }
 
-  /**
-   * Build widget tree
-   */
-  build(context) {
-    if (!this._renderObject) {
-      this._renderObject = this.createRenderObject(context);
-    } else {
-      this.updateRenderObject(context, this._renderObject);
-    }
-
-    const elementId = context.element.getElementId();
-    const widgetPath = context.element.getWidgetPath();
-
-    // Map alignment to CSS
-    const justifyContent = this._mapMainAxisAlignment();
-    const alignItems = this._mapCrossAxisAlignment();
-    var flexDirection = this.direction === Axis.horizontal ? 'row' : 'column';
-
-    // Handle reverse direction
-    if (this.verticalDirection === VerticalDirection.up && this.direction === Axis.vertical) {
-      flexDirection = 'column-reverse';
-    }
-
-    const overflowValue = this.clipBehavior === Clip.none ? 'visible' : 'hidden';
-
-    const style = {
-      display: 'flex',
-      flexDirection,
-      justifyContent,
-      alignItems,
-      gap: `${this.spacing}px`,
-      width: this.mainAxisSize === MainAxisSize.max ? '100%' : 'auto',
-      height: this.mainAxisSize === MainAxisSize.max ? '100%' : 'auto',
-      direction: this.textDirection === TextDirection.rtl ? 'rtl' : 'ltr',
-      overflow: overflowValue,
-      flexWrap: 'nowrap'
-    };
-
-    // Build child VNodes
-    const childVNodes = this.children.map((childWidget, idx) => {
-      console.log(`[Flex.build] Building child ${idx}:`, childWidget?.constructor?.name, 'has createElement:', typeof childWidget?.createElement);
-      const childElement = childWidget.createElement(context.element, context.element.runtime);
-      console.log(`[Flex.build] Child ${idx} element:`, childElement?.constructor?.name);
-      childElement.mount(context.element);
-      const childVNode = childElement.performRebuild();
-      console.log(`[Flex.build] Child ${idx} VNode:`, childVNode?.constructor?.name, 'tag:', childVNode?.tag);
-
-      // Check if child is Flexible/Expanded
-      let childStyle = {};
-
-      if (childWidget instanceof Flexible) {
-        if (childWidget.fit === FlexFit.tight) {
-          childStyle.flex = childWidget.flex || 1;
-        } else {
-          childStyle.flex = 0;
-          childStyle.flexShrink = 0;
-        }
-      }
-
-      return new VNode({
-        tag: 'div',
-        props: {
-          style: {
-            ...childStyle,
-            minWidth: 0,
-            minHeight: 0
-          }
-        },
-        children: [childVNode]
-      });
-    });
-
-    return new VNode({
-      tag: 'div',
-      props: {
-        style,
-        'data-element-id': elementId,
-        'data-widget-path': widgetPath,
-        'data-widget': 'Flex',
-        'data-direction': this.direction,
-        'data-main-axis': this.mainAxisAlignment,
-        'data-cross-axis': this.crossAxisAlignment,
-        'data-spacing': this.spacing
-      },
-      children: childVNodes,
-      key: this.key
-    });
-  }
-
-  /**
-   * Map main axis alignment to CSS
-   * @private
-   */
-  _mapMainAxisAlignment() {
-    // Handle shorthand enum syntax (e.g. ".center")
-    let value = this.mainAxisAlignment;
-    if (typeof value === 'string' && value.startsWith('.')) {
-      value = value.substring(1);
-    }
-
-    const map = {
-      start: 'flex-start',
-      end: 'flex-end',
-      center: 'center',
-      spaceBetween: 'space-between',
-      spaceAround: 'space-around',
-      spaceEvenly: 'space-evenly'
-    };
-    return map[value] || 'flex-start';
-  }
-
-  /**
-   * Map cross axis alignment to CSS
-   * @private
-   */
-  _mapCrossAxisAlignment() {
-    // Handle shorthand enum syntax (e.g. ".center")
-    let value = this.crossAxisAlignment;
-    if (typeof value === 'string' && value.startsWith('.')) {
-      value = value.substring(1);
-    }
-
-    const map = {
-      start: 'flex-start',
-      end: 'flex-end',
-      center: 'center',
-      stretch: 'stretch',
-      baseline: 'baseline'
-    };
-    return map[value] || 'center';
-  }
-
   debugFillProperties(properties) {
     super.debugFillProperties(properties);
     properties.push({ name: 'direction', value: this.direction });
@@ -333,7 +245,136 @@ class Flex extends Widget {
 
 class FlexElement extends Element {
   performRebuild() {
-    return this.widget.build(this.context);
+    // 1. Maintain Logic for RenderObject (Optional but preserved from original)
+    if (!this.widget._renderObject) {
+      this.widget._renderObject = this.widget.createRenderObject(this.context);
+    } else {
+      this.widget.updateRenderObject(this.context, this.widget._renderObject);
+    }
+
+    const widget = this.widget;
+    const context = this.context;
+
+    // 2. Map alignment to CSS
+    const justifyContent = this._mapMainAxisAlignment(widget.mainAxisAlignment);
+    const alignItems = this._mapCrossAxisAlignment(widget.crossAxisAlignment);
+    var flexDirection = widget.direction === Axis.horizontal ? 'row' : 'column';
+
+    // Handle reverse direction
+    if (widget.verticalDirection === VerticalDirection.up && widget.direction === Axis.vertical) {
+      flexDirection = 'column-reverse';
+    }
+
+    const overflowValue = widget.clipBehavior === Clip.none ? 'visible' : 'hidden';
+    const isHorizontal = widget.direction === Axis.horizontal;
+    const isMainMax = widget.mainAxisSize === MainAxisSize.max;
+
+    const style = {
+      display: 'flex',
+      flexDirection,
+      justifyContent,
+      alignItems,
+      gap: `${widget.spacing}px`,
+      width: (isHorizontal && isMainMax) ? '100%' : 'auto',
+      height: (!isHorizontal && isMainMax) ? '100%' : 'auto',
+      direction: widget.textDirection === TextDirection.rtl ? 'rtl' : 'ltr',
+      overflow: overflowValue,
+      flexWrap: 'nowrap'
+    };
+
+    // 3. Reconcile Children
+    const newWidgets = widget.children;
+    const oldChildren = this._children || [];
+    const newChildrenElements = [];
+    const childVNodes = [];
+
+    for (let i = 0; i < newWidgets.length; i++) {
+      const newWidget = newWidgets[i];
+
+      // Match existing child by index (Simple List Diffing)
+      // TODO: Enhance with Key support if needed
+      const oldChild = i < oldChildren.length ? oldChildren[i] : null;
+
+      const childElement = reconcileChild(this, oldChild, newWidget);
+      if (childElement) {
+        newChildrenElements.push(childElement);
+
+        // Wrapper Logic (Flexible/Expanded support)
+        let childStyle = {};
+        const isFlexible = newWidget instanceof Flexible ||
+          (newWidget.flex !== undefined && newWidget.fit !== undefined);
+
+        if (isFlexible) {
+          if (newWidget.fit === FlexFit.tight) {
+            childStyle.flex = newWidget.flex || 1;
+          } else {
+            childStyle.flex = `0 1 auto`;
+          }
+        }
+
+        // Wrap in styling div
+        childVNodes.push(new VNode({
+          tag: 'div',
+          props: {
+            style: {
+              ...childStyle,
+              minWidth: 0,
+              minHeight: 0,
+              ...(alignItems === 'stretch' && flexDirection.includes('column') ? { width: '100%' } : {})
+            }
+          },
+          children: [childElement.vnode] // Use the cached/updated VNode
+        }));
+      }
+    }
+
+    // Unmount extra children
+    for (let i = newWidgets.length; i < oldChildren.length; i++) {
+      if (oldChildren[i]) {
+        oldChildren[i].unmount();
+      }
+    }
+
+    this._children = newChildrenElements;
+
+    // 4. Return Container VNode
+    return new VNode({
+      tag: 'div',
+      props: {
+        style,
+        'data-element-id': this.getElementId(),
+        'data-widget-path': this.getWidgetPath(),
+        'data-widget': 'Flex',
+        'data-direction': widget.direction,
+        'data-main-axis': widget.mainAxisAlignment,
+        'data-cross-axis': widget.crossAxisAlignment,
+        'data-spacing': widget.spacing
+      },
+      children: childVNodes,
+      key: widget.key
+    });
+  }
+
+  _mapMainAxisAlignment(value) {
+    if (typeof value === 'string' && value.startsWith('.')) value = value.substring(1);
+    const map = {
+      start: 'flex-start', end: 'flex-end', center: 'center',
+      spaceBetween: 'space-between', spaceAround: 'space-around', spaceEvenly: 'space-evenly',
+      'flex-start': 'flex-start', 'flex-end': 'flex-end', 'center': 'center',
+      'space-between': 'space-between', 'space-around': 'space-around', 'space-evenly': 'space-evenly'
+    };
+    return map[value] || value || 'flex-start';
+  }
+
+  _mapCrossAxisAlignment(value) {
+    if (typeof value === 'string' && value.startsWith('.')) value = value.substring(1);
+    const map = {
+      start: 'flex-start', end: 'flex-end', center: 'center',
+      stretch: 'stretch', baseline: 'baseline',
+      'flex-start': 'flex-start', 'flex-end': 'flex-end', 'center': 'center',
+      'stretch': 'stretch', 'baseline': 'baseline'
+    };
+    return map[value] || value || 'center';
   }
 }
 
@@ -411,16 +452,6 @@ class Flexible extends Widget {
     }
   }
 
-  build(context) {
-    // ✅ Must build child to VNode, not return raw Widget
-    if (!this.child) {
-      return null;
-    }
-    const childElement = this.child.createElement(context.element, context.element.runtime);
-    childElement.mount(context.element);
-    return childElement.performRebuild();
-  }
-
   debugFillProperties(properties) {
     super.debugFillProperties(properties);
     properties.push({ name: 'flex', value: this.flex });
@@ -434,7 +465,19 @@ class Flexible extends Widget {
 
 class FlexibleElement extends Element {
   performRebuild() {
-    return this.widget.build(this.context);
+    // Reconcile single child
+    const childWidget = this.widget.child;
+    const oldChild = (this._children && this._children.length > 0) ? this._children[0] : null;
+
+    const childElement = reconcileChild(this, oldChild, childWidget);
+
+    if (childElement) {
+      this._children = [childElement];
+      return childElement.vnode;
+    } else {
+      this._children = [];
+      return null;
+    }
   }
 }
 
@@ -489,90 +532,6 @@ class Wrap extends Widget {
     this.children = children || [];
   }
 
-  /**
-   * Map wrap alignment to CSS
-   * @private
-   */
-  _mapAlignment() {
-    // Handle shorthand enum syntax (e.g. ".center")
-    let value = this.alignment;
-    if (typeof value === 'string' && value.startsWith('.')) {
-      value = value.substring(1);
-    }
-
-    const map = {
-      start: 'flex-start',
-      end: 'flex-end',
-      center: 'center',
-      spaceBetween: 'space-between',
-      spaceAround: 'space-around',
-      spaceEvenly: 'space-evenly'
-    };
-    return map[value] || 'flex-start';
-  }
-
-  /**
-   * Map run alignment to CSS
-   * @private
-   */
-  _mapRunAlignment() {
-    // Handle shorthand enum syntax (e.g. ".center")
-    let value = this.runAlignment;
-    if (typeof value === 'string' && value.startsWith('.')) {
-      value = value.substring(1);
-    }
-
-    const map = {
-      start: 'flex-start',
-      end: 'flex-end',
-      center: 'center',
-      spaceBetween: 'space-between',
-      spaceAround: 'space-around',
-      spaceEvenly: 'space-evenly'
-    };
-    return map[value] || 'flex-start';
-  }
-
-  build(context) {
-    const elementId = context.element.getElementId();
-    const widgetPath = context.element.getWidgetPath();
-
-    const flexDirection = this.direction === Axis.horizontal ? 'row' : 'column';
-    const overflowValue = this.clipBehavior === Clip.none ? 'visible' : 'hidden';
-
-    const style = {
-      display: 'flex',
-      flexDirection,
-      flexWrap: 'wrap',
-      justifyContent: this._mapAlignment(),
-      alignContent: this._mapRunAlignment(),
-      gap: `${this.spacing}px ${this.runSpacing}px`,
-      direction: this.textDirection === TextDirection.rtl ? 'rtl' : 'ltr',
-      overflow: overflowValue
-    };
-
-    const childVNodes = this.children.map((childWidget) => {
-      const childElement = childWidget.createElement(context.element, context.element.runtime);
-      childElement.mount(context.element);
-      return childElement.performRebuild();
-    });
-
-    return new VNode({
-      tag: 'div',
-      props: {
-        style,
-        'data-element-id': elementId,
-        'data-widget-path': widgetPath,
-        'data-widget': 'Wrap',
-        'data-direction': this.direction,
-        'data-alignment': this.alignment,
-        'data-spacing': this.spacing
-      },
-      children: childVNodes,
-      key: this.key
-    });
-  }
-
   debugFillProperties(properties) {
     super.debugFillProperties(properties);
     properties.push({ name: 'direction', value: this.direction });
@@ -590,7 +549,66 @@ class Wrap extends Widget {
 
 class WrapElement extends Element {
   performRebuild() {
-    return this.widget.build(this.context);
+    const widget = this.widget;
+
+    const flexDirection = widget.direction === Axis.horizontal ? 'row' : 'column';
+    const overflowValue = widget.clipBehavior === Clip.none ? 'visible' : 'hidden';
+
+    // Map alignments (Helper logic duplicated for safety inside Element)
+    const mapAlignment = (val) => {
+      if (typeof val === 'string' && val.startsWith('.')) val = val.substring(1);
+      const map = {
+        start: 'flex-start', end: 'flex-end', center: 'center',
+        spaceBetween: 'space-between', spaceAround: 'space-around', spaceEvenly: 'space-evenly'
+      };
+      return map[val] || 'flex-start';
+    };
+
+    const style = {
+      display: 'flex',
+      flexDirection,
+      flexWrap: 'wrap',
+      justifyContent: mapAlignment(widget.alignment),
+      alignContent: mapAlignment(widget.runAlignment),
+      gap: `${widget.spacing}px ${widget.runSpacing}px`,
+      direction: widget.textDirection === TextDirection.rtl ? 'rtl' : 'ltr',
+      overflow: overflowValue
+    };
+
+    // Reconcile Children
+    const newWidgets = widget.children;
+    const oldChildren = this._children || [];
+    const newChildrenElements = [];
+    const childVNodes = [];
+
+    for (let i = 0; i < newWidgets.length; i++) {
+      const newWidget = newWidgets[i];
+      const oldChild = i < oldChildren.length ? oldChildren[i] : null;
+      const childElement = reconcileChild(this, oldChild, newWidget);
+
+      if (childElement) {
+        newChildrenElements.push(childElement);
+        childVNodes.push(childElement.vnode);
+      }
+    }
+
+    for (let i = newWidgets.length; i < oldChildren.length; i++) {
+      if (oldChildren[i]) oldChildren[i].unmount();
+    }
+    this._children = newChildrenElements;
+
+    return new VNode({
+      tag: 'div',
+      props: {
+        style,
+        'data-element-id': this.getElementId(),
+        'data-widget-path': this.getWidgetPath(),
+        'data-widget': 'Wrap',
+        'data-direction': widget.direction,
+      },
+      children: childVNodes,
+      key: widget.key
+    });
   }
 }
 
@@ -605,30 +623,18 @@ class FlowDelegate {
     }
   }
 
-  /**
-   * Get size for the flow
-   */
   getSize(constraints) {
     throw new Error('getSize() must be implemented');
   }
 
-  /**
-   * Perform layout on children
-   */
   paintChildren(context, sizes) {
     throw new Error('paintChildren() must be implemented');
   }
 
-  /**
-   * Check if should repaint
-   */
   shouldRepaint(oldDelegate) {
     return true;
   }
 
-  /**
-   * Check if should reflow
-   */
   shouldReflow(oldDelegate) {
     return true;
   }
@@ -660,53 +666,6 @@ class Flow extends Widget {
     this.children = children || [];
   }
 
-  build(context) {
-    const elementId = context.element.getElementId();
-    const widgetPath = context.element.getWidgetPath();
-
-    const overflowValue = this.clipBehavior === Clip.none ? 'visible' : 'hidden';
-
-    const style = {
-      position: 'relative',
-      display: 'inline-block',
-      overflow: overflowValue
-    };
-
-    // Build child VNodes with absolute positioning
-    const childVNodes = this.children.map((childWidget, index) => {
-      const childElement = childWidget.createElement(context.element, context.element.runtime);
-      childElement.mount(context.element);
-      const childVNode = childElement.performRebuild();
-
-      return new VNode({
-        tag: 'div',
-        props: {
-          style: {
-            position: 'absolute',
-            left: 0,
-            top: 0
-          },
-          'data-flow-index': index
-        },
-        children: [childVNode]
-      });
-    });
-
-    return new VNode({
-      tag: 'div',
-      props: {
-        style,
-        'data-element-id': elementId,
-        'data-widget-path': widgetPath,
-        'data-widget': 'Flow',
-        'data-clip-behavior': this.clipBehavior,
-        'data-child-count': this.children.length
-      },
-      children: childVNodes,
-      key: this.key
-    });
-  }
-
   debugFillProperties(properties) {
     super.debugFillProperties(properties);
     properties.push({ name: 'delegate', value: this.delegate.constructor.name });
@@ -721,7 +680,61 @@ class Flow extends Widget {
 
 class FlowElement extends Element {
   performRebuild() {
-    return this.widget.build(this.context);
+    const widget = this.widget;
+    const overflowValue = widget.clipBehavior === Clip.none ? 'visible' : 'hidden';
+
+    const style = {
+      position: 'relative',
+      display: 'inline-block',
+      overflow: overflowValue
+    };
+
+    // Reconcile Children
+    const newWidgets = widget.children;
+    const oldChildren = this._children || [];
+    const newChildrenElements = [];
+    const childVNodes = [];
+
+    for (let i = 0; i < newWidgets.length; i++) {
+      const newWidget = newWidgets[i];
+      const oldChild = i < oldChildren.length ? oldChildren[i] : null;
+      const childElement = reconcileChild(this, oldChild, newWidget);
+
+      if (childElement) {
+        newChildrenElements.push(childElement);
+        // Wrap in positional div
+        childVNodes.push(new VNode({
+          tag: 'div',
+          props: {
+            style: {
+              position: 'absolute',
+              left: 0,
+              top: 0
+            },
+            'data-flow-index': i
+          },
+          children: [childElement.vnode]
+        }));
+      }
+    }
+
+    for (let i = newWidgets.length; i < oldChildren.length; i++) {
+      if (oldChildren[i]) oldChildren[i].unmount();
+    }
+    this._children = newChildrenElements;
+
+    return new VNode({
+      tag: 'div',
+      props: {
+        style,
+        'data-element-id': this.getElementId(),
+        'data-widget-path': this.getWidgetPath(),
+        'data-widget': 'Flow',
+        'data-clip-behavior': widget.clipBehavior,
+      },
+      children: childVNodes,
+      key: widget.key
+    });
   }
 }
 

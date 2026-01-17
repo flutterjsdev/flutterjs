@@ -1,4 +1,4 @@
- class Color {
+class Color {
   constructor(value) {
     if (typeof value === 'string') {
       // Handle hex strings: #RRGGBB or #AARRGGBB
@@ -120,7 +120,47 @@
     return this.toCSSString();
   }
 
-  // Optional: Match Flutter's `computeLuminance()`, etc. can be added later
+  computeLuminance() {
+    // See https://www.w3.org/TR/WCAG20/#relativeluminancedef
+    const R = this.red / 255.0;
+    const G = this.green / 255.0;
+    const B = this.blue / 255.0;
+    const r = R <= 0.03928 ? R / 12.92 : Math.pow((R + 0.055) / 1.055, 2.4);
+    const g = G <= 0.03928 ? G / 12.92 : Math.pow((G + 0.055) / 1.055, 2.4);
+    const b = B <= 0.03928 ? B / 12.92 : Math.pow((B + 0.055) / 1.055, 2.4);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
 }
 
-export { Color };
+class MaterialColor extends Color {
+  constructor(primary, swatch) {
+    super(primary);
+    this.swatch = swatch;
+  }
+
+  get(index) {
+    return this.swatch[index];
+  }
+
+  static isDark(color) {
+    if (!color) return false;
+    let c;
+    if (color instanceof Color) {
+      c = color;
+    } else if (typeof color === 'string') {
+      // Try to parse hex
+      try {
+        c = new Color(color);
+      } catch (e) {
+        return false;
+      }
+    } else if (typeof color === 'object' && color.value) {
+      c = new Color(color.value);
+    } else {
+      return false;
+    }
+    return c.computeLuminance() < 0.5;
+  }
+}
+
+export { Color, MaterialColor };

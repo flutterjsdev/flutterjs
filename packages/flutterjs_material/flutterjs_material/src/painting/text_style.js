@@ -109,6 +109,38 @@ class TextStyle {
         });
     }
 
+    toCSSString() {
+        const css = {};
+        if (this.color) {
+            css.color = this.color.toCSSString ? this.color.toCSSString() : this.color;
+        }
+        if (this.fontSize) {
+            css.fontSize = typeof this.fontSize === 'number' ? `${this.fontSize}px` : this.fontSize;
+        }
+        if (this.fontWeight) {
+            css.fontWeight = this.fontWeight;
+        }
+        if (this.fontStyle) {
+            css.fontStyle = this.fontStyle;
+        }
+        if (this.fontFamily) {
+            css.fontFamily = this.fontFamily;
+        }
+        if (this.letterSpacing) {
+            css.letterSpacing = typeof this.letterSpacing === 'number' ? `${this.letterSpacing}px` : this.letterSpacing;
+        }
+        if (this.height) {
+            css.lineHeight = this.height;
+        }
+        if (this.decoration) {
+            css.textDecoration = this.decoration;
+        }
+        if (this.backgroundColor) {
+            css.backgroundColor = this.backgroundColor.toCSSString ? this.backgroundColor.toCSSString() : this.backgroundColor;
+        }
+        return css;
+    }
+
     merge(other) {
         if (!other) return this;
         return this.copyWith({

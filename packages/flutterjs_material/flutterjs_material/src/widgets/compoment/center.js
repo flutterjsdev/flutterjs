@@ -26,11 +26,21 @@ class Align extends Widget {
     const elementId = context.element.getElementId();
     const widgetPath = context.element.getWidgetPath();
 
+    // Build child with element caching
     let childVNode = null;
     if (this.child) {
-      const childElement = this.child.createElement(context.element, context.element.runtime);
-      childElement.mount(context.element);
-      childVNode = childElement.performRebuild();
+      if (!context._childElement) {
+        context._childElement = this.child.createElement(context, context.element.runtime);
+        context._childElement.mount(context);
+      } else {
+        if (context._childElement.update) {
+          context._childElement.update(this.child);
+        } else {
+          context._childElement = this.child.createElement(context, context.element.runtime);
+          context._childElement.mount(context);
+        }
+      }
+      childVNode = context._childElement.performRebuild();
     }
 
     return new VNode({
@@ -40,7 +50,7 @@ class Align extends Widget {
         'data-element-id': elementId,
         'data-widget-path': widgetPath,
         'data-widget': 'Align',
-        'data-alignment': this.alignment?.toString()
+        'data-alignment': this.alignment
       },
       children: childVNode ? [childVNode] : [],
       key: this.key
@@ -50,19 +60,29 @@ class Align extends Widget {
   _getInlineStyles() {
     const styles = {
       display: 'flex',
+      boxSizing: 'border-box', // Ensure padding doesn't overflow
       ...this._getAlignmentStyles()
     };
 
     if (this.widthFactor !== null) {
       styles.width = `${this.widthFactor * 100}%`;
+      styles.flexGrow = 0; // Don't grow if fixed size
     } else {
       styles.width = '100%';
+      styles.flexGrow = 1; // Grow to fill
     }
 
     if (this.heightFactor !== null) {
       styles.height = `${this.heightFactor * 100}%`;
+      styles.flexGrow = 0;
     } else {
       styles.height = '100%';
+      styles.flexGrow = 1; // Grow to fill
+    }
+
+    // Simplification: if both match, just flex: 1
+    if (this.widthFactor === null && this.heightFactor === null) {
+      styles.flex = '1 1 auto';
     }
 
     return styles;

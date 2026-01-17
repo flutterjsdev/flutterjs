@@ -409,7 +409,7 @@ class TextFieldState extends State {
 
     _getInputStyles(border) {
         const styleObj = this.widget.style instanceof TextStyle
-            ? this.widget.style.toCSSObject()
+            ? this.widget.style.toCSSString()
             : this.widget.style || {};
 
         return {

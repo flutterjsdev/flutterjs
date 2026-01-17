@@ -229,6 +229,8 @@ export class ListView extends StatelessWidget {
         // as they become invalid BoxConstraints. Use flexbox layout instead.
         return new Container({
             padding: this.padding,
+            width: isHorizontal ? undefined : '100%', // ListView expands cross-axis by default
+            height: isHorizontal ? '100%' : undefined,
             // Removed width/height - CSS flexbox handles sizing via the parent Column/Flex
             child: new Column({
                 children: this.children,

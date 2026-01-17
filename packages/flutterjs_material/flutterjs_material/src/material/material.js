@@ -58,6 +58,12 @@ export {
     Route
 } from "../widgets/navigator.js";
 
+export { IconButton } from "./icon_button.js";
+export { Drawer } from "./drawer.js";
+export { DrawerHeader } from "./drawer_header.js";
+export { ListTile } from "./list_tile.js";
+export { SingleChildScrollView } from "./single_child_scroll_view.js";
+
 export { ColorScheme } from "./color_scheme.js";
 
 export {
@@ -67,8 +73,7 @@ export {
 } from "./floating_action_button.js";
 
 export {
-    GestureDetector,
-    GestureDetectorElement
+    GestureDetector
 } from "./gesture_detector.js";
 
 
@@ -76,6 +81,10 @@ export {
 export {
     Card
 } from "../widgets/compoment/card.js";
+
+export {
+    SizedBox
+} from "../widgets/compoment/sized_box.js";
 
 export {
     Divider

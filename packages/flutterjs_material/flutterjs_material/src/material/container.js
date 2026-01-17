@@ -87,24 +87,44 @@ class BoxDecoration extends Decoration {
     const style = {};
 
     if (this.color) {
-      style.backgroundColor = this.color;
+      style.backgroundColor = (typeof this.color.toCSSString === 'function')
+        ? this.color.toCSSString()
+        : this.color;
     }
 
-    if (this.borderRadius) {
+    if (this.shape === 'circle') {
+      style.borderRadius = '50%';
+      style.aspectRatio = '1 / 1'; // Ensure it remains a circle
+    } else if (this.borderRadius) {
+      const resolveRadius = (r) => {
+        if (typeof r === 'number') return r;
+        if (r && typeof r.x === 'number') return r.x; // Assumes circular/elliptical x matches or we use x
+        return 0;
+      };
+
       if (typeof this.borderRadius === 'number') {
         style.borderRadius = `${this.borderRadius}px`;
       } else if (this.borderRadius.all !== undefined) {
         style.borderRadius = `${this.borderRadius.all}px`;
       } else {
         const { topLeft = 0, topRight = 0, bottomLeft = 0, bottomRight = 0 } = this.borderRadius;
-        style.borderRadius = `${topLeft}px ${topRight}px ${bottomRight}px ${bottomLeft}px`;
+        // Resolve each corner which might be a Radius object
+        const tl = resolveRadius(topLeft);
+        const tr = resolveRadius(topRight);
+        const br = resolveRadius(bottomRight);
+        const bl = resolveRadius(bottomLeft);
+
+        style.borderRadius = `${tl}px ${tr}px ${br}px ${bl}px`;
       }
     }
 
     if (this.border) {
       if (typeof this.border === 'object') {
         const { width = 1, color = 'black', style: borderStyle = 'solid' } = this.border;
-        style.border = `${width}px ${borderStyle} ${color}`;
+        const borderColor = (color && typeof color.toCSSString === 'function')
+          ? color.toCSSString()
+          : color;
+        style.border = `${width}px ${borderStyle} ${borderColor}`;
       }
     }
 
@@ -112,7 +132,10 @@ class BoxDecoration extends Decoration {
       style.boxShadow = this.boxShadow
         .map(shadow => {
           const { offsetX = 0, offsetY = 0, blurRadius = 0, spreadRadius = 0, color = 'rgba(0,0,0,0.5)' } = shadow;
-          return `${offsetX}px ${offsetY}px ${blurRadius}px ${spreadRadius}px ${color}`;
+          const shadowColor = (color && typeof color.toCSSString === 'function')
+            ? color.toCSSString()
+            : color;
+          return `${offsetX}px ${offsetY}px ${blurRadius}px ${spreadRadius}px ${shadowColor}`;
         })
         .join(', ');
     }
@@ -236,19 +259,31 @@ class DecoratedBox extends Widget {
     const elementId = context.element.getElementId();
     const widgetPath = context.element.getWidgetPath();
 
-    let childVNode = null;
-    if (this.child) {
-      const childElement = this.child.createElement(context.element, context.element.runtime);
-      childElement.mount(context.element);
-      childVNode = childElement.performRebuild();
-    }
-
     const decorationStyle = this.decoration.toCSSStyle();
 
     const style = {
       position: 'relative',
       ...decorationStyle
     };
+
+    // Build child VNode with element caching
+    let childVNode = null;
+    if (this.child) {
+      if (!context._childElement) {
+        context._childElement = this.child.createElement(context, context.element.runtime);
+        context._childElement.mount(context);
+      } else {
+        // Update existing element
+        if (context._childElement.update) {
+          context._childElement.update(this.child);
+        } else {
+          // Fallback
+          context._childElement = this.child.createElement(context, context.element.runtime);
+          context._childElement.mount(context);
+        }
+      }
+      childVNode = context._childElement.performRebuild();
+    }
 
     return new VNode({
       tag: 'div',

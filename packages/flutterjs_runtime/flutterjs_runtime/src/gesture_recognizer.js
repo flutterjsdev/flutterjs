@@ -844,6 +844,49 @@ class ScaleRecognizer extends GestureRecognizer {
 }
 
 /**
+ * Double Tap Gesture Recognizer
+ * 
+ * Specialized TapRecognizer for double taps
+ */
+class DoubleTapRecognizer extends TapRecognizer {
+  constructor(callback, options = {}) {
+    super(callback, {
+      ...options,
+      minTaps: 2,
+      maxTaps: 2
+    });
+  }
+}
+
+/**
+ * Vertical Drag Gesture Recognizer
+ * 
+ * Specialized PanRecognizer for vertical drags
+ */
+class VerticalDragRecognizer extends PanRecognizer {
+  constructor(callback, options = {}) {
+    super(callback, {
+      ...options,
+      direction: 'vertical'
+    });
+  }
+}
+
+/**
+ * Horizontal Drag Gesture Recognizer
+ * 
+ * Specialized PanRecognizer for horizontal drags
+ */
+class HorizontalDragRecognizer extends PanRecognizer {
+  constructor(callback, options = {}) {
+    super(callback, {
+      ...options,
+      direction: 'horizontal'
+    });
+  }
+}
+
+/**
  * Gesture Arena
  * 
  * Manages multiple gesture recognizers and resolves conflicts
@@ -1022,6 +1065,9 @@ class GestureManager {
 
 export {
   GestureRecognizer,
+  DoubleTapRecognizer,
+  VerticalDragRecognizer,
+  HorizontalDragRecognizer,
   TapRecognizer,
   LongPressRecognizer,
   SwipeRecognizer,

@@ -1,6 +1,7 @@
-import { ProxyWidget } from '../../core/widget_element.js';
+import { ProxyWidget, ProxyElement } from '../../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Clip } from '../../utils/utils.js';
+import { Element } from '@flutterjs/runtime';
 
 // ============================================================================
 // CUSTOM CLIPPER BASE CLASS
@@ -97,11 +98,21 @@ class ClipRect extends ProxyWidget {
             this.updateRenderObject(context, this._renderObject);
         }
 
+        // Build child with element caching
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
+            if (!context._childElement) {
+                context._childElement = this.child.createElement(context, context.element.runtime);
+                context._childElement.mount(context);
+            } else {
+                if (context._childElement.update) {
+                    context._childElement.update(this.child);
+                } else {
+                    context._childElement = this.child.createElement(context, context.element.runtime);
+                    context._childElement.mount(context);
+                }
+            }
+            childVNode = context._childElement.performRebuild();
         }
 
         const elementId = context.element.getElementId();
@@ -218,7 +229,7 @@ class ClipRect extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new ClipRectElement(this,parent, runtime);
+        return new ClipRectElement(this, parent, runtime);
     }
 }
 
@@ -248,7 +259,7 @@ class RenderClipRect {
 // CLIP RECT ELEMENT
 // ============================================================================
 
-class ClipRectElement extends ProxyWidget.constructor.prototype.constructor {
+class ClipRectElement extends ProxyElement {
     performRebuild() {
         return this.widget.build(this.context);
     }
@@ -332,11 +343,21 @@ class ClipRRect extends ProxyWidget {
             this.updateRenderObject(context, this._renderObject);
         }
 
+        // Build child with element caching
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
+            if (!context._childElement) {
+                context._childElement = this.child.createElement(context, context.element.runtime);
+                context._childElement.mount(context);
+            } else {
+                if (context._childElement.update) {
+                    context._childElement.update(this.child);
+                } else {
+                    context._childElement = this.child.createElement(context, context.element.runtime);
+                    context._childElement.mount(context);
+                }
+            }
+            childVNode = context._childElement.performRebuild();
         }
 
         const elementId = context.element.getElementId();
@@ -481,7 +502,7 @@ class ClipRRect extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new ClipRRectElement(this,parent, runtime);
+        return new ClipRRectElement(this, parent, runtime);
     }
 }
 
@@ -517,13 +538,12 @@ class RenderClipRRect {
 // CLIP RRECT ELEMENT
 // ============================================================================
 
-class ClipRRectElement extends ProxyWidget.constructor.prototype.constructor {
+class ClipRRectElement extends ProxyElement {
     performRebuild() {
         return this.widget.build(this.context);
     }
 
     detach() {
-        // Cleanup resize listener
         if (this.widget._containerElement && this.widget._containerElement._cleanupResize) {
             this.widget._containerElement._cleanupResize();
         }
@@ -595,11 +615,21 @@ class ClipRSuperellipse extends ProxyWidget {
             this.updateRenderObject(context, this._renderObject);
         }
 
+        // Build child with element caching
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
+            if (!context._childElement) {
+                context._childElement = this.child.createElement(context, context.element.runtime);
+                context._childElement.mount(context);
+            } else {
+                if (context._childElement.update) {
+                    context._childElement.update(this.child);
+                } else {
+                    context._childElement = this.child.createElement(context, context.element.runtime);
+                    context._childElement.mount(context);
+                }
+            }
+            childVNode = context._childElement.performRebuild();
         }
 
         const elementId = context.element.getElementId();
@@ -607,11 +637,13 @@ class ClipRSuperellipse extends ProxyWidget {
 
         const borderRadiusCss = this._getBorderRadiusCSS();
         const overflowValue = this.clipBehavior === Clip.none ? 'visible' : 'hidden';
+        const filterValue = this._getClipFilter();
 
         const style = {
             borderRadius: borderRadiusCss,
             overflow: overflowValue,
-            position: 'relative'
+            position: 'relative',
+            filter: filterValue
         };
 
         return new VNode({
@@ -623,7 +655,7 @@ class ClipRSuperellipse extends ProxyWidget {
                 'data-widget': 'ClipRSuperellipse',
                 'data-border-radius': JSON.stringify(this.borderRadius),
                 'data-clip-behavior': this.clipBehavior,
-                ref: (el) => this._onContainerMount(el)
+                ref: (el) => this._onContainerMount(el, context)
             },
             children: childVNode ? [childVNode] : [],
             key: this.key
@@ -654,10 +686,26 @@ class ClipRSuperellipse extends ProxyWidget {
     }
 
     /**
+     * Get clip filter based on behavior
+     * @private
+     */
+    _getClipFilter() {
+        switch (this.clipBehavior) {
+            case Clip.antiAlias:
+            case Clip.antiAliasWithSaveLayer:
+                return 'anti-alias';
+            case Clip.hardEdge:
+            case Clip.none:
+            default:
+                return 'none';
+        }
+    }
+
+    /**
      * Mount container and apply custom clipper
      * @private
      */
-    _onContainerMount(el) {
+    _onContainerMount(el, context) {
         if (!el) return;
 
         this._containerElement = el;
@@ -709,7 +757,7 @@ class ClipRSuperellipse extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new ClipRSuperellipseElement(this,parent, runtime);
+        return new ClipRSuperellipseElement(this, parent, runtime);
     }
 }
 
@@ -734,7 +782,7 @@ class RenderClipRSuperellipse {
     }
 }
 
-class ClipRSuperellipseElement extends ProxyWidget.constructor.prototype.constructor {
+class ClipRSuperellipseElement extends ProxyElement {
     performRebuild() {
         return this.widget.build(this.context);
     }
@@ -814,22 +862,34 @@ class ClipOval extends ProxyWidget {
             this.updateRenderObject(context, this._renderObject);
         }
 
+        // Build child with element caching
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
+            if (!context._childElement) {
+                context._childElement = this.child.createElement(context, context.element.runtime);
+                context._childElement.mount(context);
+            } else {
+                if (context._childElement.update) {
+                    context._childElement.update(this.child);
+                } else {
+                    context._childElement = this.child.createElement(context, context.element.runtime);
+                    context._childElement.mount(context);
+                }
+            }
+            childVNode = context._childElement.performRebuild();
         }
 
         const elementId = context.element.getElementId();
         const widgetPath = context.element.getWidgetPath();
 
         const overflowValue = this.clipBehavior === Clip.none ? 'visible' : 'hidden';
+        const filterValue = this._getClipFilter();
 
         const style = {
             borderRadius: '50%',
             overflow: overflowValue,
-            position: 'relative'
+            position: 'relative',
+            filter: filterValue
         };
 
         return new VNode({
@@ -840,7 +900,7 @@ class ClipOval extends ProxyWidget {
                 'data-widget-path': widgetPath,
                 'data-widget': 'ClipOval',
                 'data-clip-behavior': this.clipBehavior,
-                ref: (el) => this._onContainerMount(el)
+                ref: (el) => this._onContainerMount(el, context)
             },
             children: childVNode ? [childVNode] : [],
             key: this.key
@@ -848,10 +908,26 @@ class ClipOval extends ProxyWidget {
     }
 
     /**
+     * Get clip filter based on behavior
+     * @private
+     */
+    _getClipFilter() {
+        switch (this.clipBehavior) {
+            case Clip.antiAlias:
+            case Clip.antiAliasWithSaveLayer:
+                return 'anti-alias';
+            case Clip.hardEdge:
+            case Clip.none:
+            default:
+                return 'none';
+        }
+    }
+
+    /**
      * Mount container and apply custom clipper
      * @private
      */
-    _onContainerMount(el) {
+    _onContainerMount(el, context) {
         if (!el) return;
 
         this._containerElement = el;
@@ -902,7 +978,7 @@ class ClipOval extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new ClipOvalElement(this,parent, runtime);
+        return new ClipOvalElement(this, parent, runtime);
     }
 }
 
@@ -1088,7 +1164,7 @@ class ClipPath extends ProxyWidget {
      * Create element
      */
     createElement(parent, runtime) {
-        return new ClipPathElement(this,parent, runtime);
+        return new ClipPathElement(this, parent, runtime);
     }
 }
 
