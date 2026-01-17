@@ -276,17 +276,29 @@ class _GestureDetectorState extends State {
     const child = this.widget.child;
 
     if (child) {
-      if (!context._childElement) {
-        context._childElement = child.createElement(context, context.element.runtime);
-        context._childElement.mount(context);
-      } else {
-        if (context._childElement.update) {
-          context._childElement.update(child);
+      if (context._childElement) {
+        // Reconciliation: Check if we can reuse the existing element
+        if (context._childElement.widget.constructor === child.constructor &&
+          context._childElement.widget.key === child.key) {
+
+          // Reuse existing element
+          context._childElement.updateWidget(child);
+          if (context._childElement.dirty) {
+            context._childElement.rebuild();
+          }
         } else {
-          context._childElement = child.createElement(context, context.element.runtime);
-          context._childElement.mount(context);
+          // Replace element
+          context._childElement.unmount();
+          // New element attached to context.element (the GestureDetector element)
+          context._childElement = child.createElement(context.element, context.element.runtime);
+          context._childElement.mount(context.element);
         }
+      } else {
+        // Initial create
+        context._childElement = child.createElement(context.element, context.element.runtime);
+        context._childElement.mount(context.element);
       }
+
       childVNode = context._childElement.performRebuild();
     }
 
