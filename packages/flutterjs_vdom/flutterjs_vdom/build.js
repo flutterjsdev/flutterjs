@@ -16,7 +16,7 @@ esbuild
     entryPoints,
     outdir: outDir,
     bundle: false,              // Keep false — we want independent files
-    minify: true,
+    minify: false, // Keep disabled for now
     platform: 'node',
     target: ['node18'],
     format: 'esm',

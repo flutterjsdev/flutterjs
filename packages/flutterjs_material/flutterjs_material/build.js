@@ -49,7 +49,7 @@ async function buildAllFiles() {
         entryPoints: [srcFile],
         outfile: outFile,
         bundle: false,
-        minify: true,
+        minify: false, // Disabled for debugging
         platform: 'browser',
         target: ['es2020'],
         format: 'esm',

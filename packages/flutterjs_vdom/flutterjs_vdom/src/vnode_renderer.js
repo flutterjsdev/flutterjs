@@ -392,6 +392,7 @@ class VNodeRenderer {
           );
         }
 
+        console.log(`[VNodeRenderer] 🔌 Attaching event "${normalizedName}" to ${element.tagName}`);
         element.addEventListener(normalizedName, handler);
         element._eventListeners[normalizedName] = handler;
       } catch (error) {
@@ -416,7 +417,12 @@ class VNodeRenderer {
     }
 
     if (element._vnode) {
-      element._vnode._element = null;
+      // ✅ SAFETY CHECK: Only clear the VNode's element reference if it points to THIS element.
+      // If the VNode was reused and already rendered into a new DOM node, _element will point
+      // to the new node. We must not clear it in that case.
+      if (element._vnode._element === element) {
+        element._vnode._element = null;
+      }
       element._vnode = null;
     }
 

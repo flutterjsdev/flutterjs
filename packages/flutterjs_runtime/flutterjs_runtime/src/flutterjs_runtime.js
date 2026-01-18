@@ -109,6 +109,16 @@ export class FlutterJSRuntime extends VNodeRuntime {
   constructor(options = {}) {
     super();
 
+    // ✅ Polyfill global print if implicit
+    if (typeof window !== 'undefined' && !window.dartPrint) {
+      window.dartPrint = (msg) => console.log(msg);
+      // Also map standard print if not native
+      if (!window.print || window.print === window.constructor.prototype.print) {
+        console.log("[FlutterJSRuntime] Polyfilling window.print for Dart");
+        window.print = window.dartPrint;
+      }
+    }
+
     // Additional Flutter-specific configuration
     this.flutterConfig = {
       debugMode: options.debugMode || false,
@@ -582,7 +592,7 @@ export class FlutterJSRuntime extends VNodeRuntime {
     for (const element of elements) {
       // Check if element is still mounted and marked dirty
       // (It might have been unmounted by a parent rebuild)
-      if (element.mounted) {
+      if (element.mounted && element.dirty) {
         try {
           if (this.flutterConfig.debugMode) {
             console.log(`[FlutterJSRuntime] 🔨 Rebuilding dirty element: ${element.widget?.constructor.name}`);

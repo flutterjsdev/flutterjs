@@ -166,7 +166,10 @@ class _GestureDetectorState extends State {
     if (w.onTap || w.onTapDown || w.onTapUp || w.onTapCancel) {
       const tapRecognizer = new TapRecognizer(
         (event) => {
-          if (w.onTap) w.onTap(event);
+          if (w.onTap) {
+            console.log("[GestureDetector] Invoking onTap callback!");
+            w.onTap(event);
+          }
           if (w.onTapUp) w.onTapUp(event);
           if (w.onTapCancel && event.type === 'tapcancel') w.onTapCancel(event);
         },
@@ -234,27 +237,15 @@ class _GestureDetectorState extends State {
   }
 
   _handleEvent(eventType, event, elementId) {
-    // console.log(`[GestureDetector] Event: ${eventType} on ${elementId}`);
-
-    // Deduplicate logic: Browsers fire pointer* then mouse* for compatibility.
-    // If we handle pointer events, we should ignore the subsequent mouse events
-    // to prevent double-recognition (double taps).
-    if (eventType.startsWith('mouse') && window.PointerEvent && event.pointerType !== 'mouse') {
-      // This logic is tricky. PointerEvent polyfill?
-      // Better: simple Timestamp check.
-    }
-
-    // Simple state tracking for dedup
-    if (!this._lastPointerTime) this._lastPointerTime = 0;
+    console.log(`[GestureDetector] Event: ${eventType} on ${elementId}`);
 
     if (eventType.startsWith('pointer')) {
       this._lastPointerTime = Date.now();
     } else if (eventType.startsWith('mouse')) {
-      // If we saw a pointer event recently (< 500ms), ignore this mouse event
-      // as it's likely a compatibility firing.
-      if (Date.now() - this._lastPointerTime < 500) {
-        return;
-      }
+      // WARN: Dedup disabled for debugging
+      // if (Date.now() - this._lastPointerTime < 500) {
+      //   return;
+      // }
     }
 
     // Initialize recognizers on interaction (lazy first load)
@@ -277,7 +268,7 @@ class _GestureDetectorState extends State {
 
     if (child) {
       if (context._childElement) {
-        // Reconciliation: Check if we can reuse the existing element
+        // Reconciliation: Check if  we can reuse the existing element
         if (context._childElement.widget.constructor === child.constructor &&
           context._childElement.widget.key === child.key) {
 
@@ -352,7 +343,11 @@ class _GestureDetectorState extends State {
         onTouchEnd: (e) => this._handleEvent('touchend', e, elementId),
         onTouchMove: (e) => this._handleEvent('touchmove', e, elementId),
         onTouchCancel: eventHandler('touchcancel'),
-        onContextMenu: eventHandler('contextmenu')
+        onContextMenu: eventHandler('contextmenu'),
+        onPointerDown: (e) => this._handleEvent('pointerdown', e, elementId),
+        onPointerUp: (e) => this._handleEvent('pointerup', e, elementId),
+        onPointerMove: (e) => this._handleEvent('pointermove', e, elementId),
+        onPointerCancel: (e) => this._handleEvent('pointercancel', e, elementId)
       },
       children: childVNode ? [childVNode] : [],
       key: this.widget.key

@@ -1,5 +1,6 @@
 import { StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
+import { buildChildWidget } from '../utils/build_helper.js';
 
 const SnackBarClosedReason = {
     hide: 'hide',
@@ -65,8 +66,8 @@ class SnackBar extends StatelessWidget {
 
         // Build content
         let contentVNode;
-        if (this.content.build) {
-            contentVNode = this.content.build(context);
+        if (this.content.build || this.content.createElement) {
+            contentVNode = buildChildWidget(this.content, context);
         } else {
             contentVNode = new VNode({ tag: 'span', children: [String(this.content)] });
         }

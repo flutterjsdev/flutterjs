@@ -64,8 +64,11 @@ class VNode {
         if (key.length > 2 && key.startsWith('on') && key[2] === key[2].toUpperCase()) {
           const handler = this.props[key];
           if (typeof handler === 'function') {
+            console.log(`[VNode] 📥 Extracted event: ${key} for ${this.tag}`);
             this.events[key] = handler;
             delete this.props[key];
+          } else {
+            console.warn(`[VNode] ⚠️ ignored potential event ${key} (type: ${typeof handler})`);
           }
         }
       });

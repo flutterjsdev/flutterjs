@@ -116,13 +116,15 @@ export class PatchApplier {
    * Index '1.0.2' = second child's first child's third child
    */
   static _findElement(rootElement, index) {
-    // No index or null/undefined = root element
-    if (!index) {
+    // No index or null/undefined means root element
+    // STRICT CHECK: '0' is NOT root, '0' is the first child
+    if (index === null || index === undefined || index === '') {
       return rootElement;
     }
 
     // Parse index path
     let current = rootElement;
+    // Map to numbers to key into childNodes
     const parts = String(index).split('.').map(p => parseInt(p, 10));
 
     // Navigate through the parts
@@ -484,6 +486,8 @@ export class PatchApplier {
     return element;
   }
 
+
+
   /**
    * Set a property on element
    */
@@ -496,6 +500,18 @@ export class PatchApplier {
     // className
     if (key === 'className') {
       element.className = String(value);
+      return;
+    }
+
+    // style (object)
+    if (key === 'style' && typeof value === 'object' && value !== null) {
+      Object.entries(value).forEach(([styleKey, styleValue]) => {
+        try {
+          element.style[styleKey] = styleValue;
+        } catch (e) {
+          // Ignore style errors
+        }
+      });
       return;
     }
 

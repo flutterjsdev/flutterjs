@@ -111,6 +111,22 @@ class Color {
     return this.value === other.value;
   }
 
+  /**
+   * Compute relative luminance (0.0 to 1.0)
+   * See https://www.w3.org/TR/WCAG20/#relativeluminancelimitation
+   */
+  computeLuminance() {
+    const R = this.red / 255.0;
+    const G = this.green / 255.0;
+    const B = this.blue / 255.0;
+
+    const r = R <= 0.03928 ? R / 12.92 : Math.pow((R + 0.055) / 1.055, 2.4);
+    const g = G <= 0.03928 ? G / 12.92 : Math.pow((G + 0.055) / 1.055, 2.4);
+    const b = B <= 0.03928 ? B / 12.92 : Math.pow((B + 0.055) / 1.055, 2.4);
+
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
   toString() {
     return `Color(0x${this.value.toString(16).padStart(8, '0').toUpperCase()})`;
   }

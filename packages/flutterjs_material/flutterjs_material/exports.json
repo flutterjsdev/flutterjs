@@ -452,6 +452,8 @@
     "WrapAlignment",
     "WrapCrossAlignment",
     "WrapElement",
+    "buildChildWidget",
+    "buildChildWidgets",
     "flipAxisDirection",
     "getAxisDirectionFromAxisReverseAndDirectionality",
     "kBottomNavigationBarHeight",

@@ -1,6 +1,7 @@
 import { StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Dialog } from './dialog.js';
+import { buildChildWidgets } from '../utils/build_helper.js';
 
 /**
  * AlertDialog - Material Design alert dialog
@@ -145,12 +146,7 @@ class AlertDialog extends StatelessWidget {
                 flexWrap: 'wrap'
             };
 
-            const actionChildren = this.actions.map(action => {
-                if (typeof action.build === 'function') {
-                    return action.build(context);
-                }
-                return action;
-            });
+            const actionChildren = buildChildWidgets(this.actions, context);
 
             children.push(
                 new VNode({

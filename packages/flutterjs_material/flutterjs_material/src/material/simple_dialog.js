@@ -1,6 +1,7 @@
 import { StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Dialog } from './dialog.js';
+import { buildChildWidgets } from '../utils/build_helper.js';
 
 /**
  * SimpleDialog - Simpler dialog variant
@@ -69,12 +70,7 @@ class SimpleDialog extends StatelessWidget {
             flexDirection: 'column'
         };
 
-        const renderedChildren = this.children.map(child => {
-            if (typeof child.build === 'function') {
-                return child.build(context);
-            }
-            return child;
-        });
+        const renderedChildren = buildChildWidgets(this.children, context);
 
         dialogChildren.push(
             new VNode({

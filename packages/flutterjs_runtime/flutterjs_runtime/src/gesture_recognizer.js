@@ -147,6 +147,8 @@ class TapRecognizer extends GestureRecognizer {
 
   handleMove(event) {
     if (this.state !== 'possible') return;
+    // console.log('[TapRecognizer] handleMove');
+
 
     const x = this.getX(event);
     const y = this.getY(event);
