@@ -199,18 +199,7 @@ const ImageRepeat = Object.freeze({
   repeatY: 'repeatY'
 });
 
-/**
- * BoxFit - How to fit image into container
- */
-const BoxFit = Object.freeze({
-  fill: 'fill',             // Stretch to fill (distort)
-  contain: 'contain',       // Fit entire image (letterbox)
-  cover: 'cover',           // Fill container (crop)
-  fitWidth: 'fitWidth',     // Match width, crop height
-  fitHeight: 'fitHeight',   // Match height, crop width
-  none: 'none',             // No scaling
-  scaleDown: 'scaleDown'    // Downscale only, don't upscale
-});
+
 
 /**
  * ImageChunkEvent - Progress of image loading
@@ -260,7 +249,7 @@ export {
   Brightness,
   MaterialType,
   ScrollDirection,
-  ScrollPhysics,  
+  ScrollPhysics,
   DragStartBehavior,
   AnimationStatus,
   Curve,
@@ -270,7 +259,7 @@ export {
   HitTestBehavior,
   PointerDeviceKind,
   ImageRepeat,
-  BoxFit,
+
   ImageChunkEvent,
   TargetPlatform,
   SystemUiOverlayStyle

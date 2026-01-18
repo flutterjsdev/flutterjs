@@ -1,4 +1,4 @@
-import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
+import { StatefulWidget, State } from '../core/widget_element.js';
 import { IconButton } from './icon_button.js';
 import { Icon, Icons } from './icon.js';
 // import { showMenu } from './popup_menu.js'; // Cyclic dependency if in same file? 
@@ -21,7 +21,7 @@ export class PopupMenuDivider extends PopupMenuEntry {
     }
 }
 
-class PopupMenuDividerState extends StatefulWidget.State {
+class PopupMenuDividerState extends State {
     build(context) {
         // Simple divider implementation
         return { tag: 'div', style: { height: `${this.widget.height}px`, borderBottom: '1px solid #ddd' } };
@@ -56,7 +56,7 @@ export class PopupMenuItem extends PopupMenuEntry {
     }
 }
 
-class PopupMenuItemState extends StatefulWidget.State {
+class PopupMenuItemState extends State {
     build(context) {
         // Simplified item
         // Should handle tap and return value to menu opener
@@ -124,7 +124,7 @@ export class PopupMenuButton extends StatefulWidget {
     }
 }
 
-class PopupMenuButtonState extends StatefulWidget.State {
+class PopupMenuButtonState extends State {
     showButtonMenu() {
         // Logic to show menu
         // 1. Get items from builder

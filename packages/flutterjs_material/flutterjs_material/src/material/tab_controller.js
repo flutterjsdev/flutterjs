@@ -1,4 +1,4 @@
-import { StatefulWidget, InheritedWidget } from '../core/widget_element.js';
+import { StatefulWidget, InheritedWidget ,State} from '../core/widget_element.js';
 
 class TabController {
     constructor({ initialIndex = 0, length, vsync } = {}) {
@@ -48,7 +48,7 @@ class DefaultTabController extends StatefulWidget {
     }
 }
 
-class DefaultTabControllerState extends StatefulWidget.State {
+class DefaultTabControllerState extends State {
     initState() {
         super.initState();
         this.controller = new TabController({

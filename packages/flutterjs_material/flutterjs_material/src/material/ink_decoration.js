@@ -1,4 +1,4 @@
-import { StatefulWidget } from '../core/widget_element.js';
+import { StatefulWidget ,State} from '../core/widget_element.js';
 import { Container, BoxDecoration } from './container.js';
 
 export class Ink extends StatefulWidget {
@@ -54,7 +54,7 @@ export class Ink extends StatefulWidget {
     }
 }
 
-class InkState extends StatefulWidget.State {
+class InkState extends State {
     build(context) {
         return new Container({
             padding: this.widget.padding,

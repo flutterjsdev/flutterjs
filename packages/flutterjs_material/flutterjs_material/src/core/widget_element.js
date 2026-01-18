@@ -424,6 +424,38 @@ class ProxyElement extends Element {
 }
 
 // ============================================================================
+// INHERITED WIDGET
+// ============================================================================
+
+class InheritedWidget extends ProxyWidget {
+  constructor({ key = null, child } = {}) {
+    super({ key, child });
+  }
+
+  createElement(parent, runtime) {
+    return new InheritedElement(this, parent, runtime);
+  }
+
+  updateShouldNotify(oldWidget) {
+    return true;
+  }
+}
+
+class InheritedElement extends ProxyElement {
+  constructor(widget, parent = null, runtime = null) {
+    super(widget, parent, runtime);
+  }
+
+  update(newWidget) {
+    const oldWidget = this.widget;
+    super.update(newWidget);
+    if (this.widget.updateShouldNotify(oldWidget)) {
+      this.notifyClients(oldWidget);
+    }
+  }
+}
+
+// ============================================================================
 // ERROR WIDGET
 // ============================================================================
 
@@ -542,5 +574,7 @@ export {
   ValueKey,
   ObjectKey,
   GlobalKey,
-  Diagnosticable
+  Diagnosticable,
+  InheritedWidget,
+  InheritedElement
 };

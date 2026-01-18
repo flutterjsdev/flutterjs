@@ -1,4 +1,4 @@
-import { StatefulWidget } from '../core/widget_element.js';
+import { StatefulWidget ,State} from '../core/widget_element.js';
 import { Row } from '../widgets/widgets.js';
 import { GestureDetector } from './gesture_detector.js';
 import { Container } from './container.js';
@@ -48,7 +48,7 @@ export class ToggleButtons extends StatefulWidget {
     }
 }
 
-class ToggleButtonsState extends StatefulWidget.State {
+class ToggleButtonsState extends State {
     build(context) {
         const theme = ToggleButtonsTheme.of(context) || {};
 

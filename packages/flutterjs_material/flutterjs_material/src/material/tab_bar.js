@@ -1,4 +1,4 @@
-import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
+import { StatefulWidget, StatelessWidget ,State} from '../core/widget_element.js';
 import { Container } from './container.js';
 import { Row, Expanded, Column } from '../widgets/widgets.js';
 import { GestureDetector } from './gesture_detector.js';
@@ -84,7 +84,7 @@ export class TabBar extends StatefulWidget {
     }
 }
 
-class TabBarState extends StatefulWidget.State {
+class TabBarState extends State {
 
     get _controller() {
         return this.widget.controller || DefaultTabController.of(this.context);

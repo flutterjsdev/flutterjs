@@ -1,4 +1,4 @@
-import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
+import { StatefulWidget, State } from '../core/widget_element.js';
 import { Container } from './container.js';
 import { Column, Row, SizedBox } from '../widgets/widgets.js'; // Assuming GridView is not ready, use Rows/Cols
 import { Text } from './text.js';
@@ -36,7 +36,7 @@ export class CalendarDatePicker extends StatefulWidget {
     }
 }
 
-class CalendarDatePickerState extends StatefulWidget.State {
+class CalendarDatePickerState extends State {
     constructor() {
         super();
         this.displayedMonth = null;

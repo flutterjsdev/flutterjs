@@ -1,4 +1,4 @@
-import { StatefulWidget } from '../core/widget_element.js';
+import { StatefulWidget,State } from '../core/widget_element.js';
 import { Container } from '../material/container.js';
 
 export class OverlayEntry {
@@ -43,7 +43,7 @@ export class Overlay extends StatefulWidget {
     }
 }
 
-export class OverlayState extends StatefulWidget.State {
+export class OverlayState extends State {
     constructor() {
         super();
         this._entries = [];

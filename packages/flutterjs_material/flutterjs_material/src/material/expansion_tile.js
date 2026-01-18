@@ -1,4 +1,4 @@
-import { StatefulWidget } from '../core/widget_element.js';
+import { StatefulWidget,State } from '../core/widget_element.js';
 import { ListTile } from './list_tile.js';
 import { Column } from '../widgets/widgets.js';
 import { Colors } from './color.js';
@@ -60,7 +60,7 @@ export class ExpansionTile extends StatefulWidget {
     }
 }
 
-class ExpansionTileState extends StatefulWidget.State {
+class ExpansionTileState extends State {
     constructor() {
         super();
         this.isExpanded = false;

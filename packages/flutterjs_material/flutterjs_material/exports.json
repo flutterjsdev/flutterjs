@@ -193,6 +193,8 @@
     "ImageStream",
     "ImageStreamCompleterHandle",
     "IndexedStack",
+    "InheritedElement",
+    "InheritedWidget",
     "Ink",
     "InkResponse",
     "InkWell",

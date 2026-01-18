@@ -1,4 +1,4 @@
-import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
+import { StatefulWidget, State } from '../core/widget_element.js';
 import { Container } from './container.js';
 import { Row, Column, Expanded } from '../widgets/widgets.js'; // Using Row/Col for basic scroll
 import { GestureDetector } from './gesture_detector.js';
@@ -47,7 +47,7 @@ export class Carousel extends StatefulWidget {
     }
 }
 
-class CarouselState extends StatefulWidget.State {
+class CarouselState extends State {
     constructor() {
         super();
         this.page = 0;

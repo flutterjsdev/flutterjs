@@ -1,4 +1,4 @@
-import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
+import { StatefulWidget, State} from '../core/widget_element.js';
 import { Container } from './container.js';
 import { Column, Row, Expanded } from '../widgets/widgets.js';
 import { GestureDetector } from './gesture_detector.js';
@@ -47,7 +47,7 @@ export class ExpansionPanelList extends StatefulWidget {
     }
 }
 
-class ExpansionPanelListState extends StatefulWidget.State {
+class ExpansionPanelListState extends State {
 
     _isChildExpanded(index) {
         return this.widget.children[index].isExpanded;

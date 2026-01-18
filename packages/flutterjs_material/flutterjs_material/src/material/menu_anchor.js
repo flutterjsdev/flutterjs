@@ -1,4 +1,4 @@
-import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
+import { StatefulWidget, State } from '../core/widget_element.js';
 import { Container } from './container.js';
 import { ButtonStyleButton } from './button_style_button.js';
 import { GestureDetector } from './gesture_detector.js';
@@ -57,7 +57,7 @@ export class MenuAnchor extends StatefulWidget {
     }
 }
 
-class MenuAnchorState extends StatefulWidget.State {
+class MenuAnchorState extends State {
     constructor() {
         super();
         this.isOpen = false;
@@ -160,7 +160,7 @@ export class SubmenuButton extends StatefulWidget {
     }
 }
 
-class SubmenuButtonState extends StatefulWidget.State {
+class SubmenuButtonState extends State {
     build(context) {
         return new MenuAnchor({
             menuChildren: this.widget.menuChildren,

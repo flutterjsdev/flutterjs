@@ -1,4 +1,4 @@
-import { StatefulWidget, InheritedWidget } from '../core/widget_element.js';
+import { StatefulWidget,State, InheritedWidget } from '../core/widget_element.js';
 
 class _ScaffoldMessengerScope extends InheritedWidget {
     constructor({ state, child, key } = {}) {
@@ -32,7 +32,7 @@ export class ScaffoldMessenger extends StatefulWidget {
     }
 }
 
-export class ScaffoldMessengerState extends StatefulWidget.State {
+export class ScaffoldMessengerState extends State {
     constructor() {
         super();
         this._snackBars = [];

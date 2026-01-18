@@ -1,4 +1,4 @@
-import { StatefulWidget } from '../core/widget_element.js';
+import { StatefulWidget,State } from '../core/widget_element.js';
 import { Container } from './container.js';
 import { CircularProgressIndicator } from './progress_indicator.js';
 import { Colors } from './color.js';
@@ -34,7 +34,7 @@ export class RefreshIndicator extends StatefulWidget {
     }
 }
 
-class RefreshIndicatorState extends StatefulWidget.State {
+class RefreshIndicatorState extends State {
     constructor() {
         super();
         this.isRefreshing = false;
