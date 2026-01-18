@@ -269,6 +269,7 @@ class ModelToJSPipeline {
   String _generateImports(DartFile dartFile) {
     final buffer = StringBuffer();
 
+    // Default Material Imports (Runtime Requirement)
     buffer.writeln('import {');
     buffer.writeln('  runApp,');
     buffer.writeln('  Widget,');
@@ -278,9 +279,33 @@ class ModelToJSPipeline {
     buffer.writeln('  BuildContext,');
     buffer.writeln('  Key,');
     buffer.writeln('} from \'@flutterjs/material\';');
-
-    // Add generic import for material potentially used
     buffer.writeln('import * as Material from \'@flutterjs/material\';');
+
+    // Dynamic Imports from Dart Source
+    for (final import in dartFile.imports) {
+      if (import.uri.startsWith('dart:')) {
+        final libName = import.uri.substring(5); // e.g. "math" from "dart:math"
+        final jsPackage = '@flutterjs/dart/$libName';
+
+        if (import.prefix != null) {
+          buffer.writeln('import * as ${import.prefix} from \'$jsPackage\';');
+        } else if (import.showList.isNotEmpty) {
+          buffer.writeln(
+            'import { ${import.showList.join(", ")} } from \'$jsPackage\';',
+          );
+        } else {
+          // Fallback for "import 'dart:math';" (no prefix, no show)
+          // In JS this imports for side-effects only, but Dart implies all symbols.
+          // We'll treat it as a namespace import with a generated name if needed,
+          // but for core libs usually we want specific symbols.
+          // For now, let's map generic imports to wildcard if possible,
+          // or skip if we can't determine usage.
+          // BETTER: Import as namespace and let code generator handle resolution (complex).
+          // SIMPLE FIX: Just import it.
+          buffer.writeln('import \'$jsPackage\';');
+        }
+      }
+    }
 
     return buffer.toString();
   }

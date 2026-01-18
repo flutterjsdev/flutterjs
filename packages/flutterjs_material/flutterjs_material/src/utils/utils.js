@@ -7,7 +7,7 @@ export * from './property/alignment.js';
 export * from './property/alignment_directional.js';
 export * from './property/axis.js';
 export * from './border.js';
-// export * from './border_radius.js';
+export * from './border_radius.js';
 export * from './property/border_style.js';
 export * from './property/box_fit.js';
 export * from './box_shadow.js';

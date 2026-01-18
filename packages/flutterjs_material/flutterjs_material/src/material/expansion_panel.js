@@ -4,7 +4,7 @@ import { Column, Row, Expanded } from '../widgets/widgets.js';
 import { GestureDetector } from './gesture_detector.js';
 import { Icon, Icons } from './icon.js';
 import { IconButton } from './icon_button.js';
-import { MergeableMaterialItem } from './mergeable_material.js'; // Assuming this might not exist, will skip interface usage
+// import { MergeableMaterialItem } from './mergeable_material.js'; // Assuming this might not exist, will skip interface usage
 import { EdgeInsets } from '../utils/edge_insets.js';
 
 export class ExpansionPanel {

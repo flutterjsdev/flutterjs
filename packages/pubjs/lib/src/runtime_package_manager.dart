@@ -177,18 +177,35 @@ class RuntimePackageManager {
             if (dirName.startsWith('flutterjs_') &&
                 dirName != 'flutterjs_engine' &&
                 dirName != 'flutterjs_tools') {
-              // Look for nested package: packages/flutterjs_material/flutterjs_material/
+              // 1. Try nested package (legacy): packages/flutterjs_material/flutterjs_material/
               final innerPackageDir = Directory(p.join(entity.path, dirName));
+              bool found = false;
+
               if (await innerPackageDir.exists()) {
                 final pkgJsonPath = p.join(
                   innerPackageDir.path,
                   'package.json',
                 );
                 if (await File(pkgJsonPath).exists()) {
+                  found = true;
                   // Extract package name: flutterjs_material -> material
                   final pkgName = dirName.substring('flutterjs_'.length);
                   final relativePath = p.relative(
                     innerPackageDir.path,
+                    from: projectPath,
+                  );
+                  sdkPackages['@flutterjs/$pkgName'] = relativePath;
+                }
+              }
+
+              // 2. Try flat package (new): packages/flutterjs_dart/
+              if (!found) {
+                final pkgJsonPath = p.join(entity.path, 'package.json');
+                if (await File(pkgJsonPath).exists()) {
+                  // Extract package name: flutterjs_dart -> dart
+                  final pkgName = dirName.substring('flutterjs_'.length);
+                  final relativePath = p.relative(
+                    entity.path,
                     from: projectPath,
                   );
                   sdkPackages['@flutterjs/$pkgName'] = relativePath;
@@ -322,6 +339,30 @@ class RuntimePackageManager {
           if (!await Directory(absoluteSource).exists()) {
             print(
               '❌ Error: Local path for $packageName does not exist: $absoluteSource',
+            );
+            return false;
+          }
+
+          await _linkLocalPackage(
+            packageName,
+            absoluteSource,
+            nodeModulesFlutterJS,
+          );
+          continue;
+        }
+
+        // A-2. Pubspec Path Override (High priority)
+        if (entry.value is Map && (entry.value as Map)['path'] != null) {
+          final sourcePath = (entry.value as Map)['path'] as String;
+          if (verbose) print('   🔗 $packageName (Pubspec Path)');
+
+          final absoluteSource = p.isAbsolute(sourcePath)
+              ? sourcePath
+              : p.normalize(p.join(projectPath, sourcePath));
+
+          if (!await Directory(absoluteSource).exists()) {
+            print(
+              '❌ Error: Pubspec path for $packageName does not exist: $absoluteSource',
             );
             return false;
           }
