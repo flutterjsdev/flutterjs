@@ -1,6 +1,12 @@
 {
     "imports": {
         "@flutterjs/material": "./package/material/src/index.js",
-        "@flutterjs/runtime": "./src/runtime/src/flutterjs_runtime.js"
+        "@flutterjs/runtime": "./src/runtime/src/flutterjs_runtime.js",
+        "@flutterjs/dart/math": "../flutterjs_dart/src/math/index.js",
+        "@flutterjs/dart/async": "../flutterjs_dart/src/async/index.js",
+        "@flutterjs/dart/convert": "../flutterjs_dart/src/convert/index.js",
+        "@flutterjs/dart/developer": "../flutterjs_dart/src/developer/index.js",
+        "@flutterjs/dart/collection": "../flutterjs_dart/src/collection/index.js",
+        "@flutterjs/dart/typed_data": "../flutterjs_dart/src/typed_data/index.js"
     }
 }

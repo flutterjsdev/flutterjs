@@ -590,6 +590,7 @@ PHASES 4-6: Converting IR to JavaScript...
 - [x] Engine Bridge (Dart CLI ↔ JS Runtime)
 - [x] Incremental compilation
 - [x] DevTools IR Viewer
+- [x] Dart Core Libraries (`dart:math`, `dart:async`, `dart:convert`, etc.)
 - [ ] Animation support
 - [ ] Full Material 3 theming
 - [ ] Route-based code splitting
