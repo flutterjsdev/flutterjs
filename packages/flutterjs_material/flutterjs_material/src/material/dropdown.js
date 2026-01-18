@@ -1,4 +1,4 @@
-import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
+import { StatefulWidget, StatelessWidget, State } from '../core/widget_element.js';
 import { Container } from './container.js';
 import { Row } from '../widgets/widgets.js';
 import { Text } from './text.js';
@@ -91,7 +91,7 @@ export class DropdownButton extends StatefulWidget {
     }
 }
 
-class DropdownButtonState extends StatefulWidget.State {
+class DropdownButtonState extends State {
     constructor() {
         super();
         this.isOpen = false;

@@ -1,4 +1,4 @@
-import { StatefulWidget } from '../core/widget_element.js';
+import { StatefulWidget ,State} from '../core/widget_element.js';
 import { GestureDetector } from './gesture_detector.js';
 import { Container } from './container.js';
 import { OverlayEntry, Overlay } from '../widgets/overlay.js'; // Assuming Overlay exists or using placeholder
@@ -48,7 +48,7 @@ export class Tooltip extends StatefulWidget {
     }
 }
 
-class TooltipState extends StatefulWidget.State {
+class TooltipState extends State {
     constructor() {
         super();
         this._overlayEntry = null;

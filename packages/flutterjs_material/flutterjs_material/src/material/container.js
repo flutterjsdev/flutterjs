@@ -2,7 +2,7 @@ import { Widget, StatelessWidget } from '../core/widget_element.js';
 import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Clip, TextDirection, Alignment } from '../utils/utils.js';
-import { Padding } from '../widgets/widgets.js';
+import { Padding } from '../widgets/compoment/padding.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
 import { BoxConstraints } from '../utils/box_constraints.js';
 import { Align } from '../widgets/compoment/center.js'; // Align is exported from center.js based on previous readings

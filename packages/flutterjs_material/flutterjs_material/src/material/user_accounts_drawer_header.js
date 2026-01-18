@@ -1,4 +1,4 @@
-import { StatefulWidget } from '../core/widget_element.js';
+import { StatefulWidget,State } from '../core/widget_element.js';
 import { Column, Row, Expanded } from '../widgets/widgets.js';
 import { DrawerHeader } from './drawer_header.js';
 import { Container } from './container.js';
@@ -37,7 +37,7 @@ export class UserAccountsDrawerHeader extends StatefulWidget {
     }
 }
 
-class UserAccountsDrawerHeaderState extends StatefulWidget.State {
+class UserAccountsDrawerHeaderState extends State {
     build(context) {
         return new DrawerHeader({
             decoration: this.widget.decoration,

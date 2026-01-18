@@ -1,4 +1,4 @@
-import { StatefulWidget } from '../core/widget_element.js';
+import { StatefulWidget,State } from '../core/widget_element.js';
 import { Container } from './container.js';
 import { Colors } from './color.js';
 import { GestureDetector } from './gesture_detector.js';
@@ -41,7 +41,7 @@ export class Slider extends StatefulWidget {
     }
 }
 
-class SliderState extends StatefulWidget.State {
+class SliderState extends State {
     build(context) {
         // Simple HTML range input for now
         // A robust custom implementation would involve LayoutBuilder + GestureDetector + Canvas/Containers

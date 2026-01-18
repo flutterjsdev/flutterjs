@@ -1,4 +1,4 @@
-import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
+import { StatefulWidget, State } from '../core/widget_element.js';
 import { Container } from './container.js';
 import { Column, Expanded } from '../widgets/widgets.js';
 import { GestureDetector } from './gesture_detector.js';
@@ -72,7 +72,7 @@ export class NavigationRail extends StatefulWidget {
     }
 }
 
-class NavigationRailState extends StatefulWidget.State {
+class NavigationRailState extends State {
     build(context) {
         const theme = NavigationRailTheme.of(context) || {};
         const effectiveBgColor = this.widget.backgroundColor || theme.backgroundColor || Colors.white;

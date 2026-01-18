@@ -1,4 +1,4 @@
-import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
+import { StatefulWidget, StatelessWidget,State } from '../core/widget_element.js';
 import { Container, BoxDecoration } from './container.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { BottomSheetTheme } from './bottom_sheet_theme.js';
@@ -39,7 +39,7 @@ class BottomSheet extends StatefulWidget {
     }
 }
 
-class BottomSheetState extends StatefulWidget.State {
+class BottomSheetState extends State {
     build(context) {
         // Animation parsing omitted for simplicity in this version.
         // In real web impl, would use CSS transitions/animations for slide-up.

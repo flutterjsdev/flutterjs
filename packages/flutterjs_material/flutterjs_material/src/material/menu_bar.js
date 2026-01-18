@@ -1,4 +1,4 @@
-import { StatefulWidget } from '../core/widget_element.js';
+import { StatefulWidget,State } from '../core/widget_element.js';
 import { Row } from '../widgets/widgets.js';
 
 export class MenuBar extends StatefulWidget {
@@ -19,7 +19,7 @@ export class MenuBar extends StatefulWidget {
     }
 }
 
-class MenuBarState extends StatefulWidget.State {
+class MenuBarState extends State {
     build(context) {
         // MenuBar applies MenuTheme and renders children in a Row
         return new Row({
