@@ -260,6 +260,13 @@ class State extends Diagnosticable {
     }
   }
 
+  /**
+   * Print to console (Flutter compatibility)
+   */
+  print(message) {
+    console.log(message);
+  }
+
   toStringShort() {
     return `${this.constructor.name}`;
   }

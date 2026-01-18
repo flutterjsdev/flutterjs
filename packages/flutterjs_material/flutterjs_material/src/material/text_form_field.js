@@ -355,7 +355,9 @@ class TextFormFieldState extends State {
             onTapOutside: this.widget.onTapOutside
         });
 
-        return textField.build(context);
+        // ✅ FIXED: Return the widget instance directly, don't call .build()
+        //Return the TextField widget - the runtime will handle building it
+        return textField;
     }
 }
 

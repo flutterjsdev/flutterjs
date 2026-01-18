@@ -130,6 +130,7 @@
     "./utils/border_radius": "./dist/utils/border_radius.js",
     "./utils/box_constraints": "./dist/utils/box_constraints.js",
     "./utils/box_shadow": "./dist/utils/box_shadow.js",
+    "./utils/build_helper": "./dist/utils/build_helper.js",
     "./utils/checkbox_theme": "./dist/utils/checkbox_theme.js",
     "./utils/color": "./dist/utils/color.js",
     "./utils/colors_theme": "./dist/utils/colors_theme.js",

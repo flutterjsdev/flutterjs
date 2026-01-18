@@ -118,7 +118,7 @@ class MaterialAppState extends State {
                 margin: 0;
                 padding: 0;
                 overflow: hidden; /* App handles scrolling */
-                font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                font-family: Roboto, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
                 -webkit-tap-highlight-color: transparent; /* Remove mobile tap highlight */
             }
             *, *::before, *::after {

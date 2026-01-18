@@ -291,9 +291,7 @@ class TextFieldState extends State {
         const fieldChildren = [];
 
         // Floating label
-        if (decoration.labelText) {
-            fieldChildren.push(this._buildLabel(decoration.labelText, primaryColor, errorColor, hasError));
-        }
+        // Floating label handled after container to ensure z-index layering
 
         fieldChildren.push(container);
 
@@ -309,11 +307,16 @@ class TextFieldState extends State {
             fieldChildren.push(this._buildCounter());
         }
 
+        // Floating label (Render last to sit on top of border)
+        if (decoration.labelText) {
+            fieldChildren.push(this._buildLabel(decoration.labelText, primaryColor, errorColor, hasError));
+        }
+
         return new VNode({
             tag: 'div',
             props: {
                 className: 'fjs-text-field-wrapper',
-                style: { display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative', marginTop: decoration.labelText ? '8px' : '0' }
+                style: { display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative', marginTop: decoration.labelText ? '8px' : '0', width: '100%' }
             },
             children: fieldChildren,
             key: this.widget.key

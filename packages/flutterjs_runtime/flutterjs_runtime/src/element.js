@@ -167,7 +167,7 @@ class Element extends Diagnosticable {
 
     this.key = widget.key;
     this._id = `el_${Element._nextId++}`;
-    console.log(`[Element] 🆕 Created ${this._id} for ${widget?.constructor?.name}`);
+    console.log(`[Element] 🆕 Created ${this._id} for ${widget?.constructor?.name} (parent: ${parent?._id})`);
 
     this._buildCount = 0;
     this._lastBuildTime = 0;
@@ -368,22 +368,23 @@ class Element extends Diagnosticable {
       element: newVNode?._element?.tagName
     });
 
-    if (this.runtime.config && this.runtime.config.debugMode) {
-      console.log(`[Element] Applied changes to ${this._id}`);
-    }
+    // FORCE LOGGING for debugging
+    // if (this.runtime.config && this.runtime.config.debugMode) {
+    console.log(`[Element] Applied changes to ${this._id} (${this.widget?.constructor.name})`);
+    // }
 
     // ✅ CRITICAL FIX: Handle case where BOTH VNodes have no DOM elements
     // This happens with Navigator - the VNodes are wrappers without real DOM
     // IMPORTANT: Only do this AFTER the first applyChanges (not during initial render)
     if (this._hasAppliedChanges && oldVNode && newVNode && !oldVNode?._element && !newVNode?._element && this.runtime.renderer) {
-      // Check if VNodes are actually different (children changed)
-      const oldChildren = oldVNode.children || [];
-      const newChildren = newVNode.children || [];
-      const childrenChanged = oldChildren.length !== newChildren.length ||
-        JSON.stringify(oldChildren) !== JSON.stringify(newChildren);
+      // ✅ CRITICAL FIX: If we lost the DOM connection, we MUST re-render
+      // Ignoring checks for children length - if we have no DOM, we are broken and must fix it.
+      console.log(`[Element] 🔄 Both VNodes have no DOM - forcing full re-render to recover`);
+
+      const childrenChanged = oldVNode.children?.length !== newVNode.children?.length;
 
       if (childrenChanged) {
-        console.log(`[Element] 🔄 Both VNodes have no DOM but children changed - forcing full re-render`);
+        console.log(`[Element] 🔄 Both VNodes have no DOM but children count changed - forcing full re-render`);
 
         try {
           // Find the root DOM node from this element or parent
@@ -432,42 +433,47 @@ class Element extends Diagnosticable {
     // ✅ CRITICAL FIX: Handle case where new VNode has no DOM element
     // This happens when widget type changes (e.g., HomeScreen → DetailsScreen)
     // IMPORTANT: Only apply during navigation (when mounted), NOT during initial mount
+    // ✅ CRITICAL FIX: Handle case where widget type changes (e.g., div -> span)
+    // IMPORTANT: Only apply during navigation (when mounted), NOT during initial mount
+    // We only force replacement if TAGS differ. If tags are same, we let VNodeDiffer handle it.
     if (this._mounted && oldVNode && oldVNode._element && !newVNode._element && this.runtime.renderer) {
-      console.log(`[Element] 🔄 Widget type changed - rendering new VNode and replacing DOM`);
+      if (oldVNode.tag !== newVNode.tag) {
+        console.log(`[Element] 🔄 Widget tag changed (${oldVNode.tag} -> ${newVNode.tag}) - replacing DOM`);
 
-      try {
-        const oldDomNode = oldVNode._element;
-        const parentNode = oldDomNode.parentNode;
+        try {
+          const oldDomNode = oldVNode._element;
+          const parentNode = oldDomNode.parentNode;
 
-        if (parentNode) {
-          // Create temporary container to render new VNode
-          const tempContainer = document.createElement('div');
+          if (parentNode) {
+            // Create temporary container to render new VNode
+            const tempContainer = document.createElement('div');
 
-          // Render new VNode to temp container
-          this.runtime.renderer.render(newVNode, tempContainer);
+            // Render new VNode to temp container
+            this.runtime.renderer.render(newVNode, tempContainer);
 
-          // Get the rendered DOM node
-          const newDomNode = tempContainer.firstChild;
+            // Get the rendered DOM node
+            const newDomNode = tempContainer.firstChild;
 
-          if (newDomNode) {
-            // Replace old DOM with new DOM
-            parentNode.replaceChild(newDomNode, oldDomNode);
+            if (newDomNode) {
+              // Replace old DOM with new DOM
+              parentNode.replaceChild(newDomNode, oldDomNode);
 
-            // Update VNode's DOM reference
-            newVNode._element = newDomNode;
-            newDomNode._vnode = newVNode;
+              // Update VNode's DOM reference
+              newVNode._element = newDomNode;
+              newDomNode._vnode = newVNode;
 
-            // Update element's DOM reference
-            if (this._domNode === oldDomNode) {
-              this._domNode = newDomNode;
+              // Update element's DOM reference
+              if (this._domNode === oldDomNode) {
+                this._domNode = newDomNode;
+              }
+
+              console.log(`[Element] ✅ Successfully replaced DOM for widget type change`);
+              return;
             }
-
-            console.log(`[Element] ✅ Successfully replaced DOM for widget type change`);
-            return;
           }
+        } catch (error) {
+          console.error(`[Element] ❌ Failed to replace DOM for widget type change:`, error);
         }
-      } catch (error) {
-        console.error(`[Element] ❌ Failed to replace DOM for widget type change:`, error);
       }
     } else if (oldVNode && oldVNode._element && newVNode._element) {
       console.log(`[Element] ℹ️ Both VNodes have DOM elements - using normal patching`);
@@ -493,8 +499,11 @@ class Element extends Diagnosticable {
             const patches = VNodeDiffer.diff(oldVNode, newVNode, index);
 
             if (patches.length > 0) {
+              // FORCE LOGGING
+              // if (this.runtime.config && this.runtime.config.debugMode) {
               console.log(`[Element] Applying ${patches.length} patches to ${this._id} (${this.widget?.constructor.name})`);
-              patches.forEach(p => console.log(`   - Patch: ${p.type} at index ${p.index}, content:`, p.content));
+              patches.forEach(p => console.log(`   - Patch: ${p.type} at index ${p.index}`));
+              // }
 
               // Apply patches
               const result = PatchApplier.apply(parent, patches);
@@ -515,6 +524,10 @@ class Element extends Diagnosticable {
               }
             } else {
               console.log(`[Element] No patches generated for ${this._id} (${this.widget?.constructor.name})`);
+              console.log(`   Detailed VNode Check:`);
+              console.log(`   - OLD: ${oldVNode.tag}, children count: ${oldVNode.children?.length}`);
+              console.log(`   - NEW: ${newVNode.tag}, children count: ${newVNode.children?.length}`);
+
               // No changes, but ensure new VNode has element reference
               newVNode._element = oldVNode._element;
               if (newVNode._element) {
@@ -645,11 +658,18 @@ class Element extends Diagnosticable {
       }
 
       if (typeof val1 === 'object' && typeof val2 === 'object') {
-        try {
-          return JSON.stringify(val1) === JSON.stringify(val2);
-        } catch {
-          return false;
-        }
+        // Avoid JSON.stringify on potential circular structures (like Widgets with parent refs or DOM nodes)
+        if (val1 === val2) return true;
+
+        // Shallow compare keys for simple objects
+        if (!val1 || !val2) return val1 === val2;
+        const k1 = Object.keys(val1);
+        const k2 = Object.keys(val2);
+        if (k1.length !== k2.length) return false;
+
+        // Only compare first level to avoid recursion/circles
+        // return k1.every(k => val1[k] === val2[k]);
+        return false; // Conservatively return false for complex objects to force rebuild if not strictly equal
       }
 
       return val1 === val2;
@@ -844,10 +864,12 @@ class StatelessElement extends Element {
 
           // ✅ CRITICAL FIX: Only rebuild if widget actually changed
           const oldWidget = childElement.widget;
-          childElement.widget = result; // Update widget reference
+
+          // ✅ FIX: Use updateWidget() instead of setter to ensure StatefulElements update their State
+          childElement.updateWidget(result);
 
           // Check if rebuild is needed
-          if (childElement.shouldRebuild(oldWidget, result)) {
+          if (childElement.dirty) {
             console.log('🔄 Widget changed, rebuilding child element');
             childElement.rebuild();
           } else {
@@ -1030,10 +1052,12 @@ class StatefulElement extends Element {
 
           // ✅ CRITICAL FIX: Only rebuild if widget actually changed
           const oldWidget = childElement.widget;
-          childElement.widget = result; // Update widget reference
+
+          // ✅ FIX: Use updateWidget() instead of setter to ensure StatefulElements update their State
+          childElement.updateWidget(result);
 
           // Check if rebuild is needed
-          if (childElement.shouldRebuild(oldWidget, result)) {
+          if (childElement.dirty) {
             console.log('🔄 Widget changed, rebuilding child element');
             childElement.rebuild();
           } else {

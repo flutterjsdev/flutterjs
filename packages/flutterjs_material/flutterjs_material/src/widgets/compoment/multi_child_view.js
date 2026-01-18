@@ -267,7 +267,17 @@ class FlexElement extends Element {
 
     const overflowValue = widget.clipBehavior === Clip.none ? 'visible' : 'hidden';
     const isHorizontal = widget.direction === Axis.horizontal;
-    const isMainMax = widget.mainAxisSize === MainAxisSize.max;
+
+    // Harden MainAxisSize check
+    // Default to MAX if not explicitly MIN
+    const mainAxisSizeVal = widget.mainAxisSize;
+    // Treat as MIN only if it explicitly equals 'min' or MainAxisSize.min
+    const isMin = mainAxisSizeVal === 'min' || mainAxisSizeVal === MainAxisSize.min;
+    const isMainMax = !isMin; // Default to max (Flutter behavior)
+
+    if (isMin) {
+      console.log(`[FlexElement] MainAxisSize is MIN for ${widget.constructor.name}`);
+    }
 
     const style = {
       display: 'flex',
@@ -275,12 +285,19 @@ class FlexElement extends Element {
       justifyContent,
       alignItems,
       gap: `${widget.spacing}px`,
+      // Force 100% size on main axis if max, otherwise auto
       width: (isHorizontal && isMainMax) ? '100%' : 'auto',
       height: (!isHorizontal && isMainMax) ? '100%' : 'auto',
       direction: widget.textDirection === TextDirection.rtl ? 'rtl' : 'ltr',
       overflow: overflowValue,
-      flexWrap: 'nowrap'
+      flexWrap: 'nowrap',
+      flexWrap: 'nowrap',
+      boxSizing: 'border-box', // Ensure padding doesn't overflow
+      // Robustness: ensure this Flex fills the cross-axis of a parent Flex (like Column)
+      alignSelf: 'stretch'
     };
+
+    // console.log(`[FlexElement] ${widget.constructor.name} Layout: width=${style.width}, alignSelf=${style.alignSelf}, isMainMax=${isMainMax}`);
 
     // 3. Reconcile Children
     const newWidgets = widget.children;
@@ -297,6 +314,13 @@ class FlexElement extends Element {
 
       const childElement = reconcileChild(this, oldChild, newWidget);
       if (childElement) {
+        console.log(`[FlexElement] Reconciled child ${i}:`, newWidget.constructor.name);
+        console.log(`[FlexElement] Child VNode:`, childElement.vnode ? childElement.vnode.tag : 'null');
+        if (childElement.vnode && childElement.vnode.props) {
+          console.log(`[FlexElement] Child VNode props keys:`, Object.keys(childElement.vnode.props));
+          if (childElement.vnode.props.onClick) console.log(`[FlexElement] Child has onClick handler`);
+        }
+
         newChildrenElements.push(childElement);
 
         // Wrapper Logic (Flexible/Expanded support)
@@ -313,15 +337,25 @@ class FlexElement extends Element {
         }
 
         // Wrap in styling div
+        // Improved Wrapper: Becomes a Flex container to handle cross-axis alignment properly
+        // This allows 'width: 100%' children to expand while respecting 'alignItems' for others.
+        const isColumn = flexDirection.includes('column');
+        const wrapperStyle = {
+          ...childStyle,
+          minWidth: 0,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: isColumn ? 'column' : 'row',
+          alignItems: alignItems, // Inherit cross-axis alignment
+          width: isColumn ? '100%' : 'auto',
+          height: !isColumn ? '100%' : 'auto',
+          boxSizing: 'border-box'
+        };
+
         childVNodes.push(new VNode({
           tag: 'div',
           props: {
-            style: {
-              ...childStyle,
-              minWidth: 0,
-              minHeight: 0,
-              ...(alignItems === 'stretch' && flexDirection.includes('column') ? { width: '100%' } : {})
-            }
+            style: wrapperStyle
           },
           children: [childElement.vnode] // Use the cached/updated VNode
         }));
@@ -360,7 +394,7 @@ class FlexElement extends Element {
     const map = {
       start: 'flex-start', end: 'flex-end', center: 'center',
       spaceBetween: 'space-between', spaceAround: 'space-around', spaceEvenly: 'space-evenly',
-      'flex-start': 'flex-start', 'flex-end': 'flex-end', 'center': 'center',
+      'flex-start': 'flex-start', 'flex-end': 'flex-end',
       'space-between': 'space-between', 'space-around': 'space-around', 'space-evenly': 'space-evenly'
     };
     return map[value] || value || 'flex-start';
@@ -371,8 +405,7 @@ class FlexElement extends Element {
     const map = {
       start: 'flex-start', end: 'flex-end', center: 'center',
       stretch: 'stretch', baseline: 'baseline',
-      'flex-start': 'flex-start', 'flex-end': 'flex-end', 'center': 'center',
-      'stretch': 'stretch', 'baseline': 'baseline'
+      'flex-start': 'flex-start', 'flex-end': 'flex-end'
     };
     return map[value] || value || 'center';
   }

@@ -15,14 +15,17 @@ class _UserProfileCardState extends State<UserProfileCard> {
   bool _isFollowing = false;
 
   void _toggleFollow() {
+    print('Callback: _toggleFollow called. IsFollowing BEFORE: $_isFollowing');
     setState(() {
       _isFollowing = !_isFollowing;
+      print('Callback: Inside setState. IsFollowing NOW: $_isFollowing');
     });
     // print('Follow status for ${widget.user.name}: $_isFollowing');
   }
 
   @override
   Widget build(BuildContext context) {
+    print('Build: UserProfileCard build. IsFollowing: $_isFollowing');
     return Container(
       margin: const EdgeInsets.all(10),
       padding: const EdgeInsets.all(16),

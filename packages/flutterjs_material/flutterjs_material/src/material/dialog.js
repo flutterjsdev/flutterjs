@@ -3,6 +3,7 @@ import { VNode } from '@flutterjs/vdom/vnode';
 import { DialogTheme } from '../utils/dialog_theme.js';
 import { Color } from '../utils/color.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
+import { buildChildWidget } from '../utils/build_helper.js';
 
 /**
  * Dialog - A material design dialog
@@ -62,7 +63,7 @@ class Dialog extends StatelessWidget {
                 role: 'dialog',
                 'aria-modal': 'true'
             },
-            children: this.child ? [this.child] : []
+            children: this.child ? [buildChildWidget(this.child, context)] : []
         });
     }
 }
@@ -157,11 +158,11 @@ function showDialog({
             barrierDismissible
         });
 
-        // Build the backdrop VNode
-        const backdropVNode = backdrop.build(context);
+        // Build the backdrop VNode properly
+        const backdropVNode = buildChildWidget(backdrop, context);
 
-        // Build the dialog VNode
-        const dialogVNode = dialog.build(context);
+        // Build the dialog VNode properly
+        const dialogVNode = buildChildWidget(dialog, context);
 
         // Combine backdrop and dialog
         const combinedVNode = new VNode({

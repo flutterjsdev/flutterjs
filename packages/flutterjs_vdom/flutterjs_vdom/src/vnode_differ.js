@@ -15,6 +15,7 @@ const PatchType = {
   REMOVE: 'REMOVE',          // Node removed
   REPLACE: 'REPLACE',        // Node type changed
   UPDATE_PROPS: 'UPDATE_PROPS',  // Props changed
+  UPDATE_STYLE: 'UPDATE_STYLE',  // Style changed
   UPDATE_TEXT: 'UPDATE_TEXT',    // Text content changed
   UPDATE_EVENTS: 'UPDATE_EVENTS', // Event handlers changed
   REORDER: 'REORDER'         // Children reordered
@@ -34,7 +35,7 @@ class VNodeDiffer {
    * Diff two VNode trees and generate patches
    * Returns array of Patch objects that can be applied to DOM
    */
-  static diff(oldVNode, newVNode, index = 0) {
+  static diff(oldVNode, newVNode, index = null) {
     const patches = [];
 
     // Helper to log patches (remove in production)
@@ -65,9 +66,12 @@ class VNodeDiffer {
     // Handle text nodes
     if (typeof oldVNode === 'string' || typeof oldVNode === 'number') {
       if (oldVNode !== newVNode) {
+        console.log(`[VNodeDiffer] 📝 Text Change Detected: "${oldVNode}" -> "${newVNode}"`);
         patches.push(
           new Patch(PatchType.UPDATE_TEXT, index, oldVNode, newVNode)
         );
+      } else {
+        console.log(`[VNodeDiffer] 📝 Text Identical: "${oldVNode}"`);
       }
       return patches;
     }
@@ -88,6 +92,10 @@ class VNodeDiffer {
       const eventPatches = this.diffEvents(oldVNode, newVNode, index);
       patches.push(...eventPatches);
 
+      const stylePatches = this.diffStyle(oldVNode, newVNode, index);
+      patches.push(...stylePatches);
+
+      // console.log(`[VNodeDiffer] Diffing children for ${oldVNode.tag}. Count: ${oldVNode.children?.length} vs ${newVNode.children?.length}`);
       const childPatches = this.diffChildren(
         oldVNode.children,
         newVNode.children,
@@ -95,6 +103,14 @@ class VNodeDiffer {
       );
       patches.push(...childPatches);
 
+      return patches;
+    }
+
+    // Check for mixed types (e.g. string vs VNode)
+    if ((typeof oldVNode === 'string' && newVNode instanceof VNode) ||
+      (oldVNode instanceof VNode && typeof newVNode === 'string')) {
+      console.log(`[VNodeDiffer] ⚠️ Mixed types: ${typeof oldVNode} vs ${typeof newVNode}. Replacing.`);
+      patches.push(new Patch(PatchType.REPLACE, index, oldVNode, newVNode));
       return patches;
     }
 
@@ -112,14 +128,12 @@ class VNodeDiffer {
     const oldProps = oldVNode.props || {};
     const newProps = newVNode.props || {};
 
-    // Check if props changed
-    const propsChanged = this.hasPropsChanged(oldProps, newProps);
-    if (propsChanged) {
+    const changes = this.calculateDiff(oldProps, newProps);
+
+    // Only generate patch if there are actual changes
+    if (changes) {
       patches.push(
-        new Patch(PatchType.UPDATE_PROPS, index, oldVNode, {
-          old: oldProps,
-          new: newProps
-        })
+        new Patch(PatchType.UPDATE_PROPS, index, oldVNode, { changes })
       );
     }
 
@@ -134,17 +148,79 @@ class VNodeDiffer {
     const oldEvents = oldVNode.events || {};
     const newEvents = newVNode.events || {};
 
-    const eventsChanged = this.hasEventsChanged(oldEvents, newEvents);
-    if (eventsChanged) {
+    const changes = this.calculateDiff(oldEvents, newEvents);
+
+    if (changes) {
       patches.push(
-        new Patch(PatchType.UPDATE_EVENTS, index, oldVNode, {
-          old: oldEvents,
-          new: newEvents
-        })
+        new Patch(PatchType.UPDATE_EVENTS, index, oldVNode, { changes })
       );
     }
 
     return patches;
+  }
+
+  /**
+   * Diff styles between old and new VNode
+   */
+  static diffStyle(oldVNode, newVNode, index) {
+    const patches = [];
+    const oldStyle = oldVNode.style || {};
+    const newStyle = newVNode.style || {};
+
+    const changes = this.calculateDiff(oldStyle, newStyle);
+
+    if (changes) {
+      patches.push(
+        new Patch(PatchType.UPDATE_STYLE, index, oldVNode, { changes })
+      );
+    }
+
+    return patches;
+  }
+
+  /**
+   * Calculate detailed difference between two objects
+   * Returns { added, removed, updated } or null if no changes
+   */
+  static calculateDiff(oldObj, newObj) {
+    const added = {};
+    const removed = {};
+    const updated = {};
+    let hasAdded = false;
+    let hasRemoved = false;
+    let hasUpdated = false;
+
+    const allKeys = new Set([
+      ...Object.keys(oldObj),
+      ...Object.keys(newObj)
+    ]);
+
+    for (const key of allKeys) {
+      const oldVal = oldObj[key];
+      const newVal = newObj[key];
+
+      if (oldVal === undefined && newVal !== undefined) {
+        added[key] = newVal;
+        hasAdded = true;
+      } else if (oldVal !== undefined && newVal === undefined) {
+        removed[key] = oldVal;
+        hasRemoved = true;
+      } else if (oldVal !== newVal) {
+        updated[key] = newVal;
+        hasUpdated = true;
+      }
+    }
+
+    if (!hasAdded && !hasRemoved && !hasUpdated) {
+      return null;
+    }
+
+    const result = {};
+    if (hasAdded) result.added = added;
+    if (hasRemoved) result.removed = removed;
+    if (hasUpdated) result.updated = updated;
+
+    return result;
   }
 
   /**
@@ -162,7 +238,7 @@ class VNodeDiffer {
     for (let i = 0; i < maxLen; i++) {
       const oldChild = oldChildren[i];
       const newChild = newChildren[i];
-      const childIndex = `${parentIndex}.${i}`;
+      const childIndex = parentIndex !== null && parentIndex !== undefined ? `${parentIndex}.${i}` : `${i}`;
 
       if (!oldChild && newChild) {
         // New child added
@@ -199,42 +275,6 @@ class VNodeDiffer {
   }
 
   /**
-   * Check if props have changed
-   */
-  static hasPropsChanged(oldProps, newProps) {
-    const allKeys = new Set([
-      ...Object.keys(oldProps),
-      ...Object.keys(newProps)
-    ]);
-
-    for (const key of allKeys) {
-      if (oldProps[key] !== newProps[key]) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  /**
-   * Check if events have changed
-   */
-  static hasEventsChanged(oldEvents, newEvents) {
-    const allKeys = new Set([
-      ...Object.keys(oldEvents),
-      ...Object.keys(newEvents)
-    ]);
-
-    for (const key of allKeys) {
-      if (oldEvents[key] !== newEvents[key]) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  /**
    * Apply patches to DOM
    * Called after diff to update actual DOM
    */
@@ -266,6 +306,24 @@ class VNodeDiffer {
 
         case PatchType.UPDATE_TEXT:
           this.applyUpdateText(targetElement, patch);
+          break;
+
+        case PatchType.UPDATE_STYLE:
+          // VNodeRenderer has updateStyle which takes (element, oldStyle, newStyle)
+          // But here we might not have a helper? 
+          // Previous files showed VNodeRenderer.updateProps handles style? 
+          // Check VNodeRenderer.js... using explicit updateStyle if available or manual.
+          // VNodeRenderer.updateStyle is assumed to exist given diffStyle exists.
+          if (VNodeRenderer.updateStyle) {
+            VNodeRenderer.updateStyle(targetElement, patch.value.old, patch.value.new);
+          } else {
+            // Fallback if VNodeRenderer.updateStyle is missing (it was updateStyles in some versions?)
+            // Assume VNodeRenderer handles it or implement basic style patch
+            const { added, removed, updated } = patch.value.changes || {};
+            if (added) Object.assign(targetElement.style, added);
+            if (updated) Object.assign(targetElement.style, updated);
+            if (removed) Object.keys(removed).forEach(k => targetElement.style[k] = '');
+          }
           break;
 
         case PatchType.UPDATE_EVENTS:

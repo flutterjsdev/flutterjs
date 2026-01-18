@@ -3,6 +3,7 @@ import { VNode } from '@flutterjs/vdom/vnode';
 import { Color, MaterialColor } from '../utils/color.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
 import { Theme } from './theme.js';
+import { buildChildWidget, buildChildWidgets } from '../utils/build_helper.js';
 
 class AppBar extends StatelessWidget {
     constructor({
@@ -91,9 +92,22 @@ class AppBar extends StatelessWidget {
 
         if (!fgColor) {
             // Determine contrast color
-            // Simple heuristic: if likely dark, use white.
-            // MaterialColor.isDark check or rudimentary hex brightness check
-            if (MaterialColor.isDark(bgColor) || bgColor === '#2196F3' || bgColor.toLowerCase() === '#3f51b5') { // Indigo 500 is hex 3f51b5
+            let isDark = false;
+            if (bgColor && typeof bgColor.computeLuminance === 'function') {
+                isDark = bgColor.computeLuminance() < 0.5;
+            } else if (typeof bgColor === 'string' && bgColor.startsWith('#')) {
+                // Create temp color to check luminance
+                // Note: Color constructor parses hex string correctly for RGB extraction
+                // even if alpha ends up being 0
+                isDark = new Color(bgColor).computeLuminance() < 0.5;
+            } else {
+                // Fallback for names or complex vars (assume dark for safety or check specific knowns)
+                isDark = bgColor === 'var(--md-sys-color-primary)' ||
+                    (typeof bgColor === 'string' && bgColor.indexOf('blue') !== -1) ||
+                    (typeof bgColor === 'string' && bgColor.indexOf('indigo') !== -1);
+            }
+
+            if (isDark) {
                 fgColor = '#FFFFFF';
             } else {
                 fgColor = '#000000';
@@ -109,8 +123,8 @@ class AppBar extends StatelessWidget {
         let titleVNode = null;
         if (this.title) {
             if (this.title.createElement) {
-                // It's a widget - build it
-                titleVNode = this.title.build(context);
+                // It's a widget - build it properly
+                titleVNode = buildChildWidget(this.title, context);
             } else {
                 // It's a string - wrap in VNode
                 titleVNode = new VNode({
@@ -123,13 +137,13 @@ class AppBar extends StatelessWidget {
         // Resolve Actions
         let actionsVNodes = [];
         if (this.actions && this.actions.length > 0) {
-            actionsVNodes = this.actions.map(action => action.build(context));
+            actionsVNodes = buildChildWidgets(this.actions, context);
         }
 
         // Leading
         let leadingVNode = null;
         if (this.leading) {
-            leadingVNode = this.leading.build(context);
+            leadingVNode = buildChildWidget(this.leading, context);
         }
 
         return new VNode({

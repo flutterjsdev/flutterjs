@@ -6,7 +6,7 @@ export class BoxShadow {
     blurRadius = 0,
     spreadRadius = 0
   } = {}) {
-    this.color = typeof color === 'string' ? color : color.hex;
+    this.color = (color && typeof color.toCSSString === 'function') ? color.toCSSString() : color;
     this.offset = offset;
     this.blurRadius = blurRadius;
     this.spreadRadius = spreadRadius;

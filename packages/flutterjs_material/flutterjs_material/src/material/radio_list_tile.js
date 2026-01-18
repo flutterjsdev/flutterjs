@@ -82,7 +82,7 @@ class RadioListTile extends StatelessWidget {
             dense: this.dense,
             enabled: this.onChanged != null,
             onTap: this.onChanged ? () => this.onChanged(this.value) : null,
-            selected: this.selected || isSelected,
+            selected: this.selected,
             autofocus: this.autofocus,
             contentPadding: this.contentPadding,
             shape: this.shape,
