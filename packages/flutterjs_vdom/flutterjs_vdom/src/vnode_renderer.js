@@ -208,7 +208,19 @@ class VNodeRenderer {
     }
 
     // Create element
-    const element = document.createElement(vnode.tag);
+    let element;
+    const isSVG = this.isSVGTag(vnode.tag);
+
+    // DEBUG: Check why SVG is failing
+    if (vnode.tag === 'svg' || vnode.tag === 'path') {
+      console.log(`[VNodeRenderer] Creating node for tag: '${vnode.tag}'. isSVG: ${isSVG}`);
+    }
+
+    if (isSVG) {
+      element = document.createElementNS('http://www.w3.org/2000/svg', vnode.tag);
+    } else {
+      element = document.createElement(vnode.tag);
+    }
 
     // Store VNode reference
     element._vnode = vnode;
@@ -238,6 +250,21 @@ class VNodeRenderer {
     }
 
     return element;
+  }
+
+  isSVGTag(tag) {
+    return [
+      'svg', 'animate', 'animateMotion', 'animateTransform', 'circle', 'clipPath',
+      'defs', 'desc', 'ellipse', 'feBlend', 'feColorMatrix', 'feComponentTransfer',
+      'feComposite', 'feConvolveMatrix', 'feDiffuseLighting', 'feDisplacementMap',
+      'feDistantLight', 'feDropShadow', 'feFlood', 'feFuncA', 'feFuncB', 'feFuncG',
+      'feFuncR', 'feGaussianBlur', 'feImage', 'feMerge', 'feMergeNode', 'feMorphology',
+      'feOffset', 'fePointLight', 'feSpecularLighting', 'feSpotLight', 'feTile',
+      'feTurbulence', 'filter', 'foreignObject', 'g', 'image', 'line', 'linearGradient',
+      'marker', 'mask', 'metadata', 'mpath', 'path', 'pattern', 'polygon', 'polyline',
+      'radialGradient', 'rect', 'stop', 'switch', 'symbol', 'text', 'textPath', 'title',
+      'tspan', 'use', 'view'
+    ].includes(tag);
   }
 
   // ✅ FIXED: getWidgetProperties with null check
@@ -292,6 +319,8 @@ class VNodeRenderer {
   }
 
   applyProps(element, props) {
+    const isSVG = element.namespaceURI === 'http://www.w3.org/2000/svg';
+
     Object.entries(props).forEach(([key, value]) => {
       if (value === null || value === undefined) {
         return;
@@ -299,7 +328,11 @@ class VNodeRenderer {
 
       try {
         if (key === 'className' || key === 'class') {
-          element.className = value;
+          if (isSVG) {
+            element.setAttribute('class', value);
+          } else {
+            element.className = value;
+          }
           return;
         }
 
@@ -334,6 +367,12 @@ class VNodeRenderer {
           } else {
             element.removeAttribute(key);
           }
+          return;
+        }
+
+        // ✅ HANDLE SVG ATTRIBUTES
+        if (isSVG) {
+          element.setAttribute(key, String(value));
           return;
         }
 
@@ -392,7 +431,6 @@ class VNodeRenderer {
           );
         }
 
-        console.log(`[VNodeRenderer] 🔌 Attaching event "${normalizedName}" to ${element.tagName}`);
         element.addEventListener(normalizedName, handler);
         element._eventListeners[normalizedName] = handler;
       } catch (error) {

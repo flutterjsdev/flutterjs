@@ -1,4 +1,4 @@
-import { StatefulWidget,State, InheritedWidget } from '../core/widget_element.js';
+import { StatefulWidget, State, InheritedWidget } from '../core/widget_element.js';
 
 class _ScaffoldMessengerScope extends InheritedWidget {
     constructor({ state, child, key } = {}) {
@@ -21,14 +21,56 @@ export class ScaffoldMessenger extends StatefulWidget {
         return new ScaffoldMessengerState();
     }
 
+    /**
+     * Get ScaffoldMessengerState from context
+     * ✅ FIXED: Falls back to finding Scaffold state directly if no ScaffoldMessenger scope exists
+     */
     static of(context) {
-        const scope = context.dependOnInheritedWidgetOfExactType(_ScaffoldMessengerScope);
-        if (!scope) {
-            // In Flutter this might throw or return generic root
-            // For now return null or mock
-            return null;
+        // First try to find ScaffoldMessengerScope
+        const scope = context.dependOnInheritedWidgetOfExactType?.(_ScaffoldMessengerScope);
+        if (scope && scope.messengerState) {
+            return scope.messengerState;
         }
-        return scope.messengerState;
+
+        // ✅ FALLBACK: Find ScaffoldState directly via ancestor traversal
+        // This makes ScaffoldMessenger.of() work even when not wrapped in ScaffoldMessenger
+        const scaffoldState = context.findAncestorStateOfType?.('ScaffoldState');
+        if (scaffoldState && scaffoldState.showSnackBar) {
+            // Return a proxy that delegates to ScaffoldState
+            return {
+                showSnackBar: (snackBar) => scaffoldState.showSnackBar(snackBar),
+                hideCurrentSnackBar: () => scaffoldState.closeSnackBar?.(),
+                removeCurrentSnackBar: () => scaffoldState.closeSnackBar?.(),
+                clearSnackBars: () => scaffoldState.closeSnackBar?.()
+            };
+        }
+
+        // ✅ FALLBACK 2: Search for ScaffoldElement in parent chain
+        let current = context.element?.parent || context.element;
+        while (current) {
+            if (current.showSnackBar && typeof current.showSnackBar === 'function') {
+                return {
+                    showSnackBar: (snackBar) => current.showSnackBar(snackBar),
+                    hideCurrentSnackBar: () => current.closeSnackBar?.(),
+                    removeCurrentSnackBar: () => current.closeSnackBar?.(),
+                    clearSnackBars: () => current.closeSnackBar?.()
+                };
+            }
+            // Also check if it's the ScaffoldElement by its state
+            if (current.state && current.state.showSnackBar && typeof current.state.showSnackBar === 'function') {
+                const state = current.state;
+                return {
+                    showSnackBar: (snackBar) => state.showSnackBar(snackBar),
+                    hideCurrentSnackBar: () => state.closeSnackBar?.(),
+                    removeCurrentSnackBar: () => state.closeSnackBar?.(),
+                    clearSnackBars: () => state.closeSnackBar?.()
+                };
+            }
+            current = current.parent || current._parent;
+        }
+
+        console.warn('ScaffoldMessenger.of() called but no Scaffold found in context');
+        return null;
     }
 }
 
@@ -39,19 +81,21 @@ export class ScaffoldMessengerState extends State {
     }
 
     showSnackBar(snackBar) {
-        // Logic to show snackbar
-        // In this architecture, we need a way to overlay it on the screen.
-        // Similar to Overlay logic.
-        // For now, assume console or simple append if we had DOM access via context?
-        // Wait, Scaffold uses ScaffoldMessenger to show SnackBars.
-        // We will just store it for now.
+        // Try to find Scaffold via context and delegate to it
+        if (this.context) {
+            let current = this.context.element?.parent || this.context.element;
+            while (current) {
+                if (current.showSnackBar && typeof current.showSnackBar === 'function') {
+                    return current.showSnackBar(snackBar);
+                }
+                current = current.parent || current._parent;
+            }
+        }
 
+        // Fallback: Just log for now
         console.log('ScaffoldMessenger: showSnackBar', snackBar);
-        // this.setState(() => this._snackBars.push(snackBar));
-        // And then render them in build... relative to child (Stack)?
-
         return {
-            close: () => { console.log('SnackBar close'); } // Mock controller
+            close: () => { console.log('SnackBar close'); }
         };
     }
 
@@ -66,3 +110,4 @@ export class ScaffoldMessengerState extends State {
         });
     }
 }
+

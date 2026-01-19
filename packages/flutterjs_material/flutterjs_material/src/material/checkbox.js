@@ -124,8 +124,8 @@ class CheckboxState extends State {
         const isChecked = this.widget.value === true;
         const isIndeterminate = this.widget.value == null;
 
-        const elementId = context.element.getElementId();
-        const widgetPath = context.element.getWidgetPath();
+        const elementId = context.element?.getElementId?.() || `checkbox-${Date.now()}`;
+        const widgetPath = context.element?.getWidgetPath?.() || 'Checkbox';
 
         // Get theme
         const theme = context.checkboxTheme || new CheckboxThemeData();
@@ -162,7 +162,8 @@ class CheckboxState extends State {
             alignItems: 'center',
             justifyContent: 'center',
             transition: `all ${theme.animationDuration}ms cubic-bezier(0.4, 0, 0.2, 1)`,
-            position: 'relative'
+            position: 'relative',
+            // pointerEvents: 'none' // Removed to allow interaction
         };
 
         // Build check mark or indeterminate line
@@ -292,15 +293,7 @@ class CheckboxState extends State {
     }
 
     _buildCheckMark(checkColor) {
-        // SVG check mark
-        const pathStyles = {
-            fill: 'none',
-            stroke: checkColor,
-            strokeWidth: '2',
-            strokeLinecap: 'round',
-            strokeLinejoin: 'round'
-        };
-
+        // SVG check mark with proper SVG attributes
         return new VNode({
             tag: 'svg',
             props: {
@@ -308,7 +301,8 @@ class CheckboxState extends State {
                 height: '14',
                 viewBox: '0 0 14 14',
                 style: {
-                    position: 'absolute'
+                    position: 'absolute',
+                    pointerEvents: 'none'
                 }
             },
             children: [
@@ -316,8 +310,11 @@ class CheckboxState extends State {
                     tag: 'path',
                     props: {
                         d: 'M2 7l4 4 6-8',
-                        ...pathStyles,
-                        style: pathStyles
+                        fill: 'none',
+                        stroke: checkColor,
+                        'stroke-width': '2',
+                        'stroke-linecap': 'round',
+                        'stroke-linejoin': 'round'
                     }
                 })
             ]
@@ -332,7 +329,8 @@ class CheckboxState extends State {
                     width: '10px',
                     height: '2px',
                     backgroundColor: checkColor,
-                    borderRadius: '1px'
+                    borderRadius: '1px',
+                    pointerEvents: 'none'
                 }
             }
         });

@@ -1899,6 +1899,12 @@ enableWidgetTracking();
       appBuilder: null
     });
 
+    // ✅ Force a reflow to ensure all styles are properly computed
+    // This fixes an issue where the UI doesn't render correctly at full viewport width
+    requestAnimationFrame(() => {
+      document.body.offsetHeight; // Trigger reflow
+    });
+
     if (${this.config.debugMode}) {
       console.log('✓ App running on DOM');
     }

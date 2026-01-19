@@ -27,6 +27,15 @@ class Patch {
     this.index = index;        // Position in parent's children
     this.node = node;          // VNode or old VNode
     this.value = value;        // New value (props, events, etc.)
+
+    // For CREATE patches, node IS the new node
+    if (type === 'CREATE') {
+      this.newNode = node;
+    }
+    // For REPLACE patches, value IS the new node
+    if (type === 'REPLACE' && value) {
+      this.newNode = value;
+    }
   }
 }
 
@@ -40,10 +49,7 @@ class VNodeDiffer {
 
     // Helper to log patches (remove in production)
     const logPatches = (p, source) => {
-      if (p.length > 0) {
-        console.log(`[VNodeDiffer] 🩹 Generated ${p.length} patches from ${source}:`,
-          p.map(x => `${x.type} @ ${x.index} (${x.node?.tag || 'text'})`).join(', '));
-      }
+      // Disabled - too verbose
     };
 
     // Handle null/undefined cases
@@ -66,12 +72,10 @@ class VNodeDiffer {
     // Handle text nodes
     if (typeof oldVNode === 'string' || typeof oldVNode === 'number') {
       if (oldVNode !== newVNode) {
-        console.log(`[VNodeDiffer] 📝 Text Change Detected: "${oldVNode}" -> "${newVNode}"`);
+        // Text changed
         patches.push(
           new Patch(PatchType.UPDATE_TEXT, index, oldVNode, newVNode)
         );
-      } else {
-        console.log(`[VNodeDiffer] 📝 Text Identical: "${oldVNode}"`);
       }
       return patches;
     }
@@ -109,7 +113,6 @@ class VNodeDiffer {
     // Check for mixed types (e.g. string vs VNode)
     if ((typeof oldVNode === 'string' && newVNode instanceof VNode) ||
       (oldVNode instanceof VNode && typeof newVNode === 'string')) {
-      console.log(`[VNodeDiffer] ⚠️ Mixed types: ${typeof oldVNode} vs ${typeof newVNode}. Replacing.`);
       patches.push(new Patch(PatchType.REPLACE, index, oldVNode, newVNode));
       return patches;
     }

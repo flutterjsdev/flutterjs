@@ -32,8 +32,8 @@ class CircularProgressIndicator extends StatelessWidget {
         // const theme = Theme.of(context).progressIndicatorTheme;
 
         const isIndeterminate = this.value == null;
-        const elementId = context.element.getElementId();
-        const widgetPath = context.element.getWidgetPath();
+        const elementId = context.element?.getElementId?.() || `progress-${Date.now()}`;
+        const widgetPath = context.element?.getWidgetPath?.() || 'CircularProgressIndicator';
 
         // Defaults
         const effectiveColor = this.color || '#2196f3'; // Material blue
@@ -191,8 +191,8 @@ class LinearProgressIndicator extends StatelessWidget {
         // const theme = Theme.of(context).progressIndicatorTheme;
 
         const isIndeterminate = this.value == null;
-        const elementId = context.element.getElementId();
-        const widgetPath = context.element.getWidgetPath();
+        const elementId = context.element?.getElementId?.() || `linear-progress-${Date.now()}`;
+        const widgetPath = context.element?.getWidgetPath?.() || 'LinearProgressIndicator';
 
         // Defaults
         const effectiveMinHeight = this.minHeight || 4.0;
