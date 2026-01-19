@@ -275,10 +275,6 @@ class FlexElement extends Element {
     const isMin = mainAxisSizeVal === 'min' || mainAxisSizeVal === MainAxisSize.min;
     const isMainMax = !isMin; // Default to max (Flutter behavior)
 
-    if (isMin) {
-      console.log(`[FlexElement] MainAxisSize is MIN for ${widget.constructor.name}`);
-    }
-
     const style = {
       display: 'flex',
       flexDirection,
@@ -290,7 +286,6 @@ class FlexElement extends Element {
       height: (!isHorizontal && isMainMax) ? '100%' : 'auto',
       direction: widget.textDirection === TextDirection.rtl ? 'rtl' : 'ltr',
       overflow: overflowValue,
-      flexWrap: 'nowrap',
       flexWrap: 'nowrap',
       boxSizing: 'border-box', // Ensure padding doesn't overflow
       // Robustness: ensure this Flex fills the cross-axis of a parent Flex (like Column)
@@ -314,13 +309,6 @@ class FlexElement extends Element {
 
       const childElement = reconcileChild(this, oldChild, newWidget);
       if (childElement) {
-        console.log(`[FlexElement] Reconciled child ${i}:`, newWidget.constructor.name);
-        console.log(`[FlexElement] Child VNode:`, childElement.vnode ? childElement.vnode.tag : 'null');
-        if (childElement.vnode && childElement.vnode.props) {
-          console.log(`[FlexElement] Child VNode props keys:`, Object.keys(childElement.vnode.props));
-          if (childElement.vnode.props.onClick) console.log(`[FlexElement] Child has onClick handler`);
-        }
-
         newChildrenElements.push(childElement);
 
         // Wrapper Logic (Flexible/Expanded support)

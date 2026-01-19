@@ -167,7 +167,6 @@ class _GestureDetectorState extends State {
       const tapRecognizer = new TapRecognizer(
         (event) => {
           if (w.onTap) {
-            console.log("[GestureDetector] Invoking onTap callback!");
             w.onTap(event);
           }
           if (w.onTapUp) w.onTapUp(event);
@@ -237,8 +236,6 @@ class _GestureDetectorState extends State {
   }
 
   _handleEvent(eventType, event, elementId) {
-    console.log(`[GestureDetector] Event: ${eventType} on ${elementId}`);
-
     if (eventType.startsWith('pointer')) {
       this._lastPointerTime = Date.now();
     } else if (eventType.startsWith('mouse')) {

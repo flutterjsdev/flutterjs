@@ -64,11 +64,8 @@ class VNode {
         if (key.length > 2 && key.startsWith('on') && key[2] === key[2].toUpperCase()) {
           const handler = this.props[key];
           if (typeof handler === 'function') {
-            console.log(`[VNode] 📥 Extracted event: ${key} for ${this.tag}`);
             this.events[key] = handler;
             delete this.props[key];
-          } else {
-            console.warn(`[VNode] ⚠️ ignored potential event ${key} (type: ${typeof handler})`);
           }
         }
       });
@@ -142,9 +139,6 @@ class VNode {
    * @returns {HTMLElement} DOM element
    */
   toDOM(options = {}) {
-    console.log(`\n=== toDOM called for tag: ${this.tag}`);
-    console.log(`    style object:`, this.style);
-    console.log(`    style keys:`, Object.keys(this.style));
     // Handle text nodes
     if (typeof this === 'string') {
       return document.createTextNode(this);
@@ -350,7 +344,6 @@ class VNode {
       if (value !== null && value !== undefined) {
         try {
           element.style[key] = value;
-          console.log(`Set style ${key} = ${value} -> element.style.${key} = ${element.style[key]}`);
         } catch (error) {
           console.warn(`Failed to set style ${key}:`, error);
         }

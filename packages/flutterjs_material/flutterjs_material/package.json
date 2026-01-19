@@ -67,6 +67,7 @@
     "./material/icon": "./dist/material/icon.js",
     "./material/icon_button": "./dist/material/icon_button.js",
     "./material/icon_button_theme": "./dist/material/icon_button_theme.js",
+    "./material/icon_theme": "./dist/material/icon_theme.js",
     "./material/image": "./dist/material/image.js",
     "./material/ink_decoration": "./dist/material/ink_decoration.js",
     "./material/ink_well": "./dist/material/ink_well.js",

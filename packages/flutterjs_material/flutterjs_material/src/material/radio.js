@@ -113,8 +113,8 @@ class RadioState extends State {
         const isDisabled = this.widget.onChanged == null;
         const isSelected = this.widget.value === this.widget.groupValue;
 
-        const elementId = context.element.getElementId();
-        const widgetPath = context.element.getWidgetPath();
+        const elementId = context.element?.getElementId?.() || `radio-${Date.now()}`;
+        const widgetPath = context.element?.getWidgetPath?.() || 'Radio';
 
         // Get theme
         const theme = context.radioTheme || new RadioThemeData();

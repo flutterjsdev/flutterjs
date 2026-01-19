@@ -3,6 +3,8 @@ import { GestureDetector } from './gesture_detector.js';
 import { Container } from './container.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
 import { Center } from '../widgets/compoment/center.js';
+import { IconTheme } from './icon_theme.js';
+import { IconThemeData } from './icon.js';
 
 /**
  * IconButton - A Material Design icon button.
@@ -65,8 +67,19 @@ export class IconButton extends StatelessWidget {
             onTap: this.onPressed,
             child: new Container({
                 padding: this.padding,
-                child: new Center({
-                    child: this.icon
+                child: new Container({
+                    padding: this.padding,
+                    child: new Center({
+                        child: (this.color || this.iconSize)
+                            ? new IconTheme({
+                                data: new IconThemeData({
+                                    color: this.color,
+                                    size: this.iconSize
+                                }),
+                                child: this.icon
+                            })
+                            : this.icon
+                    })
                 })
             })
         });

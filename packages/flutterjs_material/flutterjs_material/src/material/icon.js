@@ -1,6 +1,7 @@
 import { StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { BlendMode, TextDirection } from '../utils/utils.js';
+import { IconTheme } from './icon_theme.js';
 
 const DEFAULT_ICON_SIZE = 24;
 const DEFAULT_FONT_SIZE = 24;
@@ -409,7 +410,16 @@ class Icon extends StatelessWidget {
     }
 
     families.push('Arial', 'sans-serif');
-    return families.map(f => `'${f}'`).join(', ');
+
+    const generics = ['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy'];
+
+    return families.map(f => {
+      // Don't quote generic families
+      if (generics.includes(f)) return f;
+      // Don't double quote if already quoted
+      if (f.startsWith("'") || f.startsWith('"')) return f;
+      return `'${f}'`;
+    }).join(', ');
   }
 
   _buildFontVariations(fill, weight, grade, opticalSize) {
@@ -498,9 +508,7 @@ class Icon extends StatelessWidget {
   }
 
   _getIconTheme(context) {
-    // This would typically come from theme context
-    // For now, return default
-    return new IconThemeData();
+    return IconTheme.of(context) || new IconThemeData();
   }
 
   _scaleTextSize(size, context) {
@@ -556,6 +564,41 @@ const Icons = {
   refresh: new IconData({ codePoint: 0xe5d5, fontFamily: 'Material Icons' }),
   moreVert: new IconData({ codePoint: 0xe5d4, fontFamily: 'Material Icons' }),
   moreHoriz: new IconData({ codePoint: 0xe5d3, fontFamily: 'Material Icons' })
+  ,
+  accountCircle: new IconData({ codePoint: 0xe853, fontFamily: 'Material Icons' }),
+  person: new IconData({ codePoint: 0xe7fd, fontFamily: 'Material Icons' }),
+  notifications: new IconData({ codePoint: 0xe7f4, fontFamily: 'Material Icons' }),
+  mail: new IconData({ codePoint: 0xe158, fontFamily: 'Material Icons' }),
+  shoppingCart: new IconData({ codePoint: 0xe8cc, fontFamily: 'Material Icons' }),
+  cameraAlt: new IconData({ codePoint: 0xe3af, fontFamily: 'Material Icons' }),
+  image: new IconData({ codePoint: 0xe3f4, fontFamily: 'Material Icons' }),
+  map: new IconData({ codePoint: 0xe55b, fontFamily: 'Material Icons' }),
+  place: new IconData({ codePoint: 0xe55f, fontFamily: 'Material Icons' }),
+  phone: new IconData({ codePoint: 0xe0cd, fontFamily: 'Material Icons' }),
+  share: new IconData({ codePoint: 0xe80d, fontFamily: 'Material Icons' }),
+  thumbUp: new IconData({ codePoint: 0xe8dc, fontFamily: 'Material Icons' }),
+  visibility: new IconData({ codePoint: 0xe8f4, fontFamily: 'Material Icons' }),
+  logout: new IconData({ codePoint: 0xe9ba, fontFamily: 'Material Icons' }),
+  login: new IconData({ codePoint: 0xea77, fontFamily: 'Material Icons' })
+  ,
+  settings: new IconData({ codePoint: 0xe8b8, fontFamily: 'Material Icons' }),
+  search: new IconData({ codePoint: 0xe8b9, fontFamily: 'Material Icons' }),
+  home: new IconData({ codePoint: 0xe88a, fontFamily: 'Material Icons' }),
+  favorite: new IconData({ codePoint: 0xe87d, fontFamily: 'Material Icons' }),
+  star: new IconData({ codePoint: 0xe838, fontFamily: 'Material Icons' }),
+  delete: new IconData({ codePoint: 0xe872, fontFamily: 'Material Icons' }),
+  edit: new IconData({
+    codePoint: 0xe3c9, fontFamily: 'Material Icons'
+  }),
+  addAPhoto: new IconData({ codePoint: 0xe439, fontFamily: 'Material Icons' }),
+  addAlarm: new IconData({ codePoint: 0xe193, fontFamily: 'Material Icons' }),
+  addAlert: new IconData({ codePoint: 0xe003, fontFamily: 'Material Icons' }),
+  addBox: new IconData({ codePoint: 0xe146, fontFamily: 'Material Icons' }),
+  addCircle: new IconData({ codePoint: 0xe147, fontFamily: 'Material Icons' }),
+  // addCircleOutline: new IconData
+
+
+
 };
 
 export { Icon, IconData, IconThemeData, Icons };

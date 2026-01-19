@@ -30,7 +30,7 @@ export class PatchApplier {
 
       orderedPatches.forEach((patch) => {
         try {
-          this.applyPatch(rootElement, patch);
+          this.applyPatch(rootElement, patch, options);
           patchesApplied++;
         } catch (error) {
           errors.push(`Patch ${patch.type} at ${patch.index}: ${error.message}`);
@@ -84,16 +84,16 @@ export class PatchApplier {
   /**
    * Apply single patch
    */
-  static applyPatch(rootElement, patch) {
+  static applyPatch(rootElement, patch, options) {
     const { type, index } = patch;
 
     switch (type) {
       case 'CREATE':
-        return this._create(rootElement, patch);
+        return this._create(rootElement, patch, options);
       case 'REMOVE':
         return this._remove(rootElement, patch);
       case 'REPLACE':
-        return this._replace(rootElement, patch);
+        return this._replace(rootElement, patch, options);
       case 'UPDATE_PROPS':
         return this._updateProps(rootElement, patch);
       case 'UPDATE_STYLE':
@@ -173,7 +173,10 @@ export class PatchApplier {
   /**
    * CREATE - Add new element
    */
-  static _create(rootElement, patch) {
+  /**
+   * CREATE - Add new element
+   */
+  static _create(rootElement, patch, options = {}) {
     const { index, newNode } = patch;
 
     if (!newNode) {
@@ -196,7 +199,13 @@ export class PatchApplier {
     }
 
     // Create the new DOM element
-    const newElement = this._createDOMNode(newNode);
+    let newElement;
+    if (options.renderer) {
+      newElement = options.renderer.createDOMNode(newNode);
+    } else {
+      newElement = this._createDOMNode(newNode);
+    }
+
     if (!newElement) {
       throw new Error('Failed to create DOM node');
     }
@@ -255,7 +264,13 @@ export class PatchApplier {
     }
 
     // Create new element
-    const newElement = this._createDOMNode(newNode);
+    let newElement;
+    if (options.renderer) {
+      newElement = options.renderer.createDOMNode(newNode);
+    } else {
+      newElement = this._createDOMNode(newNode);
+    }
+
     if (!newElement) {
       throw new Error('Failed to create replacement DOM node');
     }
@@ -266,6 +281,7 @@ export class PatchApplier {
     // Replace in DOM
     if (element.parentNode) {
       element.parentNode.replaceChild(newElement, element);
+      return newElement;
       return newElement;
     } else {
       throw new Error('Element has no parent node');

@@ -59,11 +59,9 @@ export class VNodeRuntime {
 
       // Get target element
       this.rootElement = this.getTargetElement(target);
-      console.log(`  [RUNTIME] Target element found`);
 
-      // ✅ CREATE RENDERER INSTANCE HERE
+      // CREATE RENDERER INSTANCE HERE
       this.renderer = new VNodeRenderer({ debugMode: true });
-      console.log(`  [RUNTIME] VNodeRenderer instance created`);
 
       // Check if SSR content exists
       const hasSSRContent = this.hasSSRContent(this.rootElement);
@@ -349,7 +347,6 @@ export class VNodeRuntime {
       orientation: window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
     };
 
-    console.log(`  [MEDIAQUERY] Client-side:`, mq);
     return mq;
   }
 

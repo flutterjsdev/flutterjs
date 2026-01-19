@@ -246,18 +246,38 @@ class Scaffold extends Widget {
      * Get scaffold state from context
      */
     static of(context) {
-        const state = context.findAncestorStateOfType?.(ScaffoldState);
-        if (!state) {
-            throw new Error('Scaffold.of() called with a context that does not contain a Scaffold');
+        // Unwrap BuildContext if needed
+        let current = context.element || context;
+
+        while (current) {
+            if (current instanceof ScaffoldState) {
+                return current;
+            }
+            // Check if element is the state (redundant if context is element, but safe)
+            if (current.element instanceof ScaffoldState) {
+                return current.element;
+            }
+            current = current.parent;
         }
-        return state;
+
+        throw new Error('Scaffold.of() called with a context that does not contain a Scaffold');
     }
 
     /**
      * Maybe get scaffold state
      */
     static maybeOf(context) {
-        return context?.findAncestorStateOfType?.(ScaffoldState);
+        let current = context?.element || context;
+        while (current) {
+            if (current instanceof ScaffoldState) {
+                return current;
+            }
+            if (current.element instanceof ScaffoldState) {
+                return current.element;
+            }
+            current = current.parent;
+        }
+        return null;
     }
 
     build(context) {
@@ -280,7 +300,7 @@ class Scaffold extends Widget {
 
             if (!childElement) {
                 // New child
-                childElement = widget.createElement(context, context.element.runtime);
+                childElement = widget.createElement(context, context.runtime);
                 childElement.mount(context);
                 context._childElements[slot] = childElement;
             } else {
@@ -289,7 +309,7 @@ class Scaffold extends Widget {
                     childElement.update(widget);
                 } else {
                     // Fallback replace
-                    childElement = widget.createElement(context, context.element.runtime);
+                    childElement = widget.createElement(context, context.runtime);
                     childElement.mount(context);
                     context._childElements[slot] = childElement;
                 }
@@ -298,7 +318,7 @@ class Scaffold extends Widget {
             return childElement.performRebuild();
         };
 
-        const elementId = context.element.getElementId();
+        const elementId = context.getElementId();
 
         // Layout Dimensions
         const appBarHeight = this.appBar ? (this.appBar.toolbarHeight || 56) : 0;
@@ -313,13 +333,12 @@ class Scaffold extends Widget {
         const endDrawerVNode = buildChild(this.endDrawer, 'endDrawer');
 
         // SnackBar is special, handled by state
-        const currentSnackBar = context.element?.state?._currentSnackBar;
+        const currentSnackBar = context._currentSnackBar;
         const snackBarVNode = currentSnackBar ? buildChild(currentSnackBar.widget, 'snackBar') : null;
         if (!currentSnackBar && context._childElements['snackBar']) {
             delete context._childElements['snackBar'];
         }
 
-        // --- STYLES ---
 
         // --- STYLES ---
 
@@ -360,18 +379,16 @@ class Scaffold extends Widget {
             flex: '0 0 auto'
         };
 
-        // Body Container
+        // Body Container - ✅ FIXED: Use flex instead of grid for scroll compatibility
         const bodyStyle = {
             flex: '1 1 auto', // Take remaining space
-            display: 'grid', // Grid forces child to stretch (fill) by default, unlike flex
-            gridTemplateColumns: '1fr',
-            gridTemplateRows: '1fr',
+            display: 'flex',
+            flexDirection: 'column',
             width: '100%',
-            height: '100%',
+            minHeight: 0, // Important: allows flex child to shrink below content size
             boxSizing: 'border-box',
             position: 'relative',
-            overflowY: 'auto',
-            overflowX: 'hidden',
+            overflow: 'hidden', // Let child (SingleChildScrollView) handle scrolling
             // Only add padding if extended (since they are absolute in that case)
             paddingTop: isExtendedAppBar ? `${appBarHeight}px` : 0,
             paddingBottom: isExtendedBody ? `${bottomNavHeight}px` : 0
@@ -381,8 +398,8 @@ class Scaffold extends Widget {
         const fabStyle = this._getFabContainerStyle();
 
         // Drawer Scrim
-        const isDrawerOpen = context.element?.state?._drawerOpen;
-        const isEndDrawerOpen = context.element?.state?._endDrawerOpen;
+        const isDrawerOpen = context.isDrawerOpen;
+        const isEndDrawerOpen = context.isEndDrawerOpen;
 
         const scrimStyle = {
             position: 'absolute',
@@ -473,8 +490,8 @@ class Scaffold extends Widget {
                 className: 'fjs-scaffold-scrim',
                 style: scrimStyle,
                 onClick: () => {
-                    if (isDrawerOpen) context.element.state.closeDrawer();
-                    if (isEndDrawerOpen) context.element.state.closeEndDrawer();
+                    if (isDrawerOpen) context.closeDrawer();
+                    if (isEndDrawerOpen) context.closeEndDrawer();
                 }
             }
         }));
@@ -580,53 +597,13 @@ class ScaffoldElement extends ScaffoldState {
         super(widget, parent, runtime);
     }
 
-    mount(parent = null) {
-        // Setup context first so it's available for performRebuild
-        // We override context to inject findAncestorStateOfType helper
-        this._context = {
-            element: this,
-            runtime: this.runtime,
-            parent: parent || this.parent,
-            findAncestorStateOfType: (stateType) => {
-                let current = parent || this.parent;
-                while (current) {
-                    if (current instanceof stateType) {
-                        return current;
-                    }
-                    if (current.element && current.element instanceof stateType) {
-                        return current.element;
-                    }
-                    current = current.parent;
-                }
-                return null;
-            },
-            dependOnInheritedWidgetOfExactType: (type) => {
-                // Proxy to parent context's method if available, or simple traversal
-                // This is redundant if Runtime handles it, but good fallback
-                if (parent && parent.context && parent.context.dependOnInheritedWidgetOfExactType) {
-                    return parent.context.dependOnInheritedWidgetOfExactType(type);
-                }
-                return null;
-            }
-        };
-
-        super.mount(parent);
-    }
-
     getElementId() {
         return this._elementId || (this._elementId = `scaffold-${Date.now()}`);
     }
 
     performRebuild() {
-        if (!this.mounted) {
-            this.mount();
-        }
-        // Context is already set in mount
-        return this.widget.build(this.context);
-    }
-
-    build(context) {
-        return this.performRebuild();
+        // Just call widget.build passing THIS (the element) as context
+        return this.widget.build(this);
     }
 }
 

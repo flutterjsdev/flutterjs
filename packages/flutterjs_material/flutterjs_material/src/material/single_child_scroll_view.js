@@ -2,6 +2,7 @@ import { StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Axis } from '../utils/property/axis.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
+import { buildChildWidget } from '../utils/build_helper.js';
 
 export class SingleChildScrollView extends StatelessWidget {
     constructor({
@@ -36,20 +37,23 @@ export class SingleChildScrollView extends StatelessWidget {
 
         const isHorizontal = this.scrollDirection === Axis.horizontal;
 
+        // ✅ FIXED: Use flex: 1 instead of height: 100% to work with flex parents
+        // The scroll container should expand to fill available space
         const style = {
             overflowX: isHorizontal ? 'auto' : 'hidden',
             overflowY: isHorizontal ? 'hidden' : 'auto',
             display: 'block',
-            height: '100%',
+            flex: '1 1 auto',
+            minHeight: 0, // Important for flex children to allow shrinking
             width: '100%',
+            boxSizing: 'border-box',
             padding: paddingCss
         };
 
+        // ✅ FIXED: Use buildChildWidget helper instead of manual element creation
         let childVNode = null;
         if (this.child) {
-            const childElement = this.child.createElement(context.element, context.element.runtime);
-            childElement.mount(context.element);
-            childVNode = childElement.performRebuild();
+            childVNode = buildChildWidget(this.child, context);
         }
 
         return new VNode({
@@ -63,3 +67,4 @@ export class SingleChildScrollView extends StatelessWidget {
         });
     }
 }
+
