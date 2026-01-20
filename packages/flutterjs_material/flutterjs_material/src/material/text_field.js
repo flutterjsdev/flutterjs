@@ -178,8 +178,6 @@ class TextFieldState extends State {
 
         // Update controller
         if (this.widget.controller) {
-            // Avoid infinite loop by setting text directly without notifying if value is same (though value setter usually notifies)
-            // Here we set it, which triggers listeners. Our listener checks equality.
             this.widget.controller.text = newValue;
         }
 
@@ -205,330 +203,224 @@ class TextFieldState extends State {
     build(context) {
         const decoration = this.widget.decoration;
         const hasError = !!decoration.errorText;
-        const currentBorder = hasError
-            ? decoration.errorBorder
-            : (this.isFocused ? decoration.focusedBorder : decoration.enabledBorder);
+        const isFocused = this.isFocused;
+        const hasValue = this.value && this.value.length > 0;
+        const isFloating = isFocused || hasValue;
 
-        const elementId = context.element.getElementId();
-        const widgetPath = context.element.getWidgetPath();
-
-        // Theme colors
+        // Determine current border type and color
         const primaryColor = new Color('#2196f3');
         const errorColor = new Color('#f44336');
 
-        // Build the input field
-        const inputStyles = this._getInputStyles(currentBorder);
-        const containerStyles = this._getContainerStyles(decoration, currentBorder, primaryColor, errorColor);
+        let borderColor = '#bdbdbd';
+        let borderWidth = 1;
+
+        if (hasError) {
+            borderColor = errorColor.toCSSString();
+            borderWidth = isFocused ? 2 : 1;
+        } else if (isFocused) {
+            borderColor = primaryColor.toCSSString();
+            borderWidth = 2;
+        }
+
+        // --- Styles ---
+
+        // 1. Main Wrapper (Vertical stack: InputContainer + Helpers)
+        const wrapperStyle = {
+            display: 'flex',
+            flexDirection: 'column',
+            width: '100%',
+            position: 'relative',
+            fontFamily: 'Roboto, sans-serif',
+            boxSizing: 'border-box'
+        };
+
+        // 2. Input Decorator Container (The Box)
+        const containerStyle = {
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            minHeight: decoration.isDense ? '40px' : '56px',
+            backgroundColor: decoration.filled ? (decoration.fillColor || '#f5f5f5') : 'transparent',
+            borderRadius: '4px',
+            boxSizing: 'border-box'
+        };
+
+        // Border application
+        if (decoration.border instanceof OutlineInputBorder) {
+            containerStyle.border = `${borderWidth}px solid ${borderColor}`;
+            if (decoration.border.borderRadius) {
+                containerStyle.borderRadius = `${decoration.border.borderRadius}px`;
+            }
+        } else if (decoration.border instanceof UnderlineInputBorder) {
+            containerStyle.borderBottom = `${borderWidth}px solid ${borderColor}`;
+            containerStyle.borderRadius = '4px 4px 0 0'; // Slight top radius for filled
+        }
+
+        // 3. Floating Label
+        const labelStyle = {
+            position: 'absolute',
+            left: (decoration.border instanceof OutlineInputBorder) ? '12px' : '0px',
+            top: '0',
+            pointerEvents: 'none',
+            transformOrigin: 'top left',
+            transition: 'color 0.2s, transform 0.2s',
+            color: hasError ? errorColor.toCSSString() : (isFocused ? primaryColor.toCSSString() : '#757575'),
+            // Float logic: Translate up and Scale down
+            transform: isFloating
+                ? `translate(0, -50%) scale(0.75)`
+                : `translate(0, 16px) scale(1)`,
+            backgroundColor: (isFloating && decoration.border instanceof OutlineInputBorder) ? '#fafafa' : 'transparent',
+            padding: '0 4px',
+            zIndex: 1,
+            maxWidth: '100%',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+        };
+
+        // Adjust Label for Filled/Underline
+        if (!(decoration.border instanceof OutlineInputBorder)) {
+            if (isFloating) {
+                labelStyle.transform = `translate(0, 4px) scale(0.75)`;
+            }
+        }
+
+        // 4. Input Element
+        const inputStyle = {
+            flex: 1,
+            border: 'none',
+            outline: 'none',
+            background: 'transparent',
+            padding: (decoration.border instanceof OutlineInputBorder) ? '16px 12px' : '20px 0 8px 0',
+            fontSize: '16px',
+            color: 'inherit',
+            width: '100%',
+            fontFamily: 'inherit',
+            height: '100%',
+            cursor: this.widget.enabled ? 'text' : 'default'
+        };
 
         const inputProps = {
             type: this._getInputType(),
             value: this.value,
-            placeholder: decoration.hintText || '',
             disabled: !this.widget.enabled,
             readOnly: this.widget.readOnly,
-            maxLength: this.widget.maxLength || undefined,
-            autoFocus: this.widget.autofocus,
-            autoComplete: this.widget.autocorrect ? 'on' : 'off',
-            autoCorrect: this.widget.autocorrect ? 'on' : 'off',
-            spellCheck: this.widget.enableSuggestions,
-            style: inputStyles,
-            'data-element-id': `${elementId}-input`,
-            'data-widget': 'TextField-Input'
+            placeholder: (isFloating && decoration.hintText) ? decoration.hintText : '',
+            style: inputStyle,
+            'aria-label': decoration.labelText
         };
 
         const events = {
             focus: () => this._handleFocus(),
             blur: () => this._handleBlur(),
             input: (e) => this._handleChange(e),
-            keydown: (e) => {
-                if (e.key === 'Enter' && this.widget.maxLines === 1) {
-                    this._handleSubmit(e);
-                }
-            },
             click: () => this._handleTap()
         };
 
-        // Build decoration elements
-        const children = [];
+        // --- Children Construction ---
+        const containerChildren = [];
 
         // Prefix
         if (decoration.prefixIcon || decoration.prefix) {
-            children.push(this._buildAffix(decoration.prefixIcon || decoration.prefix, 'prefix'));
+            containerChildren.push(this._buildAffix(decoration.prefixIcon || decoration.prefix, 'prefix'));
         }
 
-        // Main input
-        const inputElement = new VNode({
-            tag: this.widget.maxLines === 1 ? 'input' : 'textarea',
+        // Input
+        containerChildren.push(new VNode({
+            tag: this.widget.maxLines > 1 ? 'textarea' : 'input',
             props: inputProps,
-            events
-        });
+            events: events
+        }));
 
-        children.push(inputElement);
+        // Label
+        if (decoration.labelText) {
+            containerChildren.push(new VNode({
+                tag: 'label',
+                props: { style: labelStyle },
+                children: [decoration.labelText]
+            }));
+        }
 
         // Suffix
         if (decoration.suffixIcon || decoration.suffix) {
-            children.push(this._buildAffix(decoration.suffixIcon || decoration.suffix, 'suffix'));
+            containerChildren.push(this._buildAffix(decoration.suffixIcon || decoration.suffix, 'suffix'));
         }
 
-        // Wrap in container
-        const containerProps = {
-            className: 'fjs-text-field-container',
-            style: containerStyles,
-            'data-element-id': elementId,
-            'data-widget-path': widgetPath,
-            'data-widget': 'TextField',
-            'data-focused': this.isFocused,
-            'data-error': hasError
-        };
-
+        // Main Container Node
         const container = new VNode({
             tag: 'div',
-            props: containerProps,
-            children
+            props: {
+                className: 'fjs-input-decorator',
+                style: containerStyle,
+                tabIndex: -1
+            },
+            children: containerChildren,
+            events: {
+                click: () => {
+                    // Focus handled by input, but this area click should also focus if needed.
+                }
+            }
         });
 
-        // Add label, helper text, error text
-        const fieldChildren = [];
+        // Helper / Error Text (Reserved Space)
+        const errorText = decoration.errorText;
+        const helperText = decoration.helperText;
+        const hasFooterContent = !!(errorText || helperText);
 
-        // Floating label
-        // Floating label handled after container to ensure z-index layering
+        const footerColor = errorText ? errorColor.toCSSString() : '#757575';
+        const footerText = errorText || helperText || ' ';
 
-        fieldChildren.push(container);
+        console.error(`[TextField] Build: key=${this.widget.key}, hasError=${!!errorText}, errorText="${errorText}"`);
 
-        // Helper/Error text
-        if (decoration.errorText) {
-            fieldChildren.push(this._buildHelperText(decoration.errorText, true, errorColor));
-        } else if (decoration.helperText) {
-            fieldChildren.push(this._buildHelperText(decoration.helperText, false, primaryColor));
-        }
-
-        // Counter
-        if (this.widget.maxLength && (decoration.counter !== false)) {
-            fieldChildren.push(this._buildCounter());
-        }
-
-        // Floating label (Render last to sit on top of border)
-        if (decoration.labelText) {
-            fieldChildren.push(this._buildLabel(decoration.labelText, primaryColor, errorColor, hasError));
-        }
+        const footer = new VNode({
+            tag: 'div',
+            props: {
+                className: 'fjs-text-field-footer',
+                style: {
+                    fontSize: '12px',
+                    color: footerColor,
+                    marginTop: '4px',
+                    marginLeft: (decoration.border instanceof OutlineInputBorder) ? '12px' : '0',
+                    minHeight: '16px',
+                    lineHeight: '1.5',
+                    visibility: hasFooterContent ? 'visible' : 'hidden', // Hide but keep space
+                    pointerEvents: 'none'
+                }
+            },
+            children: [footerText]
+        });
 
         return new VNode({
             tag: 'div',
-            props: {
-                className: 'fjs-text-field-wrapper',
-                style: { display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative', marginTop: decoration.labelText ? '8px' : '0', width: '100%' }
-            },
-            children: fieldChildren,
-            key: this.widget.key
+            props: { style: wrapperStyle, key: this.widget.key },
+            children: [container, footer]
         });
     }
 
     _getInputType() {
-        const typeMap = {
-            text: 'text',
-            multiline: 'text',
-            number: 'number',
-            phone: 'tel',
-            email: 'email',
-            url: 'url',
-            password: 'password',
-            datetime: 'datetime-local',
-            emailAddress: 'email',
-            visiblePassword: 'text'
-        };
-
         if (this.widget.obscureText) return 'password';
-        return typeMap[this.widget.keyboardType] || 'text';
-    }
-
-    _getContainerStyles(decoration, border, primaryColor, errorColor) {
-        const styles = {
-            display: 'flex',
-            alignItems: 'center',
-            position: 'relative',
-            boxSizing: 'border-box',
-            transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-            backgroundColor: 'transparent'
+        const map = {
+            'text': 'text',
+            'emailAddress': 'email',
+            'number': 'number',
+            'phone': 'tel',
+            'url': 'url'
         };
-
-        // Border styles
-        if (border instanceof OutlineInputBorder) {
-            const borderSide = border.borderSide;
-            // Flatten border properties
-            const width = borderSide.width || border.borderWidth || 1;
-            const color = borderSide.color || border.borderColor || '#bdbdbd';
-
-            styles.border = `${width}px solid ${color}`;
-            styles.borderRadius = `${border.borderRadius}px`;
-        } else if (border instanceof UnderlineInputBorder) {
-            const borderSide = border.borderSide;
-            const width = borderSide.width || border.borderWidth || 1;
-            const color = borderSide.color || border.borderColor || '#bdbdbd';
-
-            styles.borderBottom = `${width}px solid ${color}`;
-            // Other borders none
-            styles.borderTop = 'none';
-            styles.borderLeft = 'none';
-            styles.borderRight = 'none';
-        }
-
-        // Fill color
-        if (decoration.filled && decoration.fillColor) {
-            styles.backgroundColor = decoration.fillColor;
-        }
-
-        // Content padding
-        if (decoration.contentPadding) {
-            const p = decoration.contentPadding;
-            styles.padding = `${p.top}px ${p.right}px ${p.bottom}px ${p.left}px`;
-        }
-
-        // Focused state overrides
-        if (this.isFocused) {
-            const focusColor = decoration.errorText ? errorColor.toCSSString() : primaryColor.toCSSString();
-            if (border instanceof OutlineInputBorder) {
-                styles.borderColor = focusColor;
-                styles.borderWidth = '2px';
-                styles.boxShadow = `0 0 0 1px ${new Color(focusColor).withOpacity(0.2).toCSSString()}`;
-                // Adjust padding to prevent layout shift if width changes
-                // (Simplified here, in real Flutter this is complex)
-            } else if (border instanceof UnderlineInputBorder) {
-                styles.borderBottomColor = focusColor;
-                styles.borderBottomWidth = '2px';
-            }
-        }
-
-        // Error state without focus
-        if (!this.isFocused && decoration.errorText) {
-            if (border instanceof OutlineInputBorder) {
-                styles.borderColor = errorColor.toCSSString();
-            } else if (border instanceof UnderlineInputBorder) {
-                styles.borderBottomColor = errorColor.toCSSString();
-            }
-        }
-
-        return styles;
-    }
-
-    _getInputStyles(border) {
-        const styleObj = this.widget.style instanceof TextStyle
-            ? this.widget.style.toCSSString()
-            : this.widget.style || {};
-
-        return {
-            fontSize: '16px', // Default
-            color: 'inherit',
-            ...styleObj,
-            border: 'none',
-            outline: 'none',
-            background: 'transparent',
-            flex: 1,
-            minWidth: 0,
-            textAlign: this.widget.textAlign,
-            direction: this.widget.textDirection,
-            caretColor: this.widget.cursorColor ? new Color(this.widget.cursorColor).toCSSString() : '#2196f3',
-            resize: this.widget.maxLines > 1 ? 'vertical' : 'none',
-            padding: '0',
-            margin: '0',
-            fontFamily: 'inherit'
-        };
-    }
-
-    _buildLabel(labelText, primaryColor, errorColor, hasError) {
-        const isFloating = this.isFocused || this.value;
-        const color = hasError
-            ? errorColor.toCSSString()
-            : (this.isFocused ? primaryColor.toCSSString() : '#757575');
-
-        const labelStyles = {
-            fontSize: isFloating ? '12px' : '16px',
-            color: color,
-            position: 'absolute',
-            top: isFloating ? '-8px' : '12px',
-            left: '12px',
-            backgroundColor: '#fff', // Should probably extract this from theme scaffold background
-            padding: '0 4px',
-            transition: 'all 0.2s ease',
-            pointerEvents: 'none',
-            zIndex: 1
-        };
-
-        // Adjust top for filled?
-        if (this.widget.decoration.filled) {
-            labelStyles.backgroundColor = 'transparent';
-        }
-
-        return new VNode({
-            tag: 'span',
-            props: {
-                className: 'fjs-text-field-label',
-                style: labelStyles
-            },
-            children: [labelText]
-        });
-    }
-
-    _buildHelperText(text, isError, colorObj) {
-        return new VNode({
-            tag: 'span',
-            props: {
-                className: `fjs-text-field-${isError ? 'error' : 'helper'}`,
-                style: {
-                    fontSize: '12px',
-                    color: isError ? '#f44336' : '#757575',
-                    marginTop: '4px',
-                    marginLeft: '14px' // Align with padding
-                }
-            },
-            children: [text]
-        });
-    }
-
-    _buildCounter() {
-        const count = this.value.length;
-        const max = this.widget.maxLength;
-
-        return new VNode({
-            tag: 'span',
-            props: {
-                className: 'fjs-text-field-counter',
-                style: {
-                    fontSize: '12px',
-                    color: '#757575',
-                    textAlign: 'right',
-                    marginTop: '4px',
-                    marginRight: '14px'
-                }
-            },
-            children: [`${count}/${max}`]
-        });
+        return map[this.widget.keyboardType] || 'text';
     }
 
     _buildAffix(content, type) {
-        // Content can be a widget or string. If string, wrap in span.
-        // If widget (VNode), use as is. 
-        // Simplified: assume it's a VNode or string.
-
-        let child = content;
-        if (typeof content === 'string') {
-            child = content;
-        }
-        // Note: If content is a Widget, it needs to be built. 
-        // This implementation assumes pre-built VNode or string, or handled by framework if child is widget.
-        // But since this is a leaf widget build, we should expect VNodes here if complex.
-
         return new VNode({
-            tag: 'span',
+            tag: 'div',
             props: {
-                className: `fjs-text-field-${type}`,
                 style: {
                     display: 'flex',
                     alignItems: 'center',
-                    padding: type === 'prefix' ? '0 8px 0 0' : '0 0 0 8px',
+                    padding: type === 'prefix' ? '0 8px 0 12px' : '0 12px 0 8px',
                     color: '#757575'
                 }
             },
-            children: [child]
+            children: [typeof content === 'string' ? content : content]
         });
     }
 }

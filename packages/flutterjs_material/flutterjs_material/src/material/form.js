@@ -46,6 +46,7 @@ class FormState extends State {
      * Register a FormField with this Form
      */
     _register(field) {
+        console.error('[FormState] Registering field', field);
         this._fields.add(field);
     }
 
@@ -53,6 +54,7 @@ class FormState extends State {
      * Unregister a FormField
      */
     _unregister(field) {
+        console.error('[FormState] Unregistering field', field);
         this._fields.delete(field);
     }
 
@@ -61,6 +63,7 @@ class FormState extends State {
      * @returns {boolean} true if all fields are valid
      */
     validate() {
+        console.error('[FormState] validate() called');
         this._forceRebuild();
         // In Flutter, validate() triggers validation on all fields and rebuilds the form if needed.
         // Here we iterate fields.

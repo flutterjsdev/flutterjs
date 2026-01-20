@@ -246,7 +246,7 @@ export class PatchApplier {
   /**
    * REPLACE - Replace element entirely
    */
-  static _replace(rootElement, patch) {
+  static _replace(rootElement, patch, options = {}) {
     const { index, newNode } = patch;
 
     if (!newNode) {
