@@ -4,6 +4,7 @@ import { TextField } from './text_field.js';
 import { InputDecoration } from './input_decorator.js';
 import { TextEditingController } from './text_editing_controller.js';
 import { Form } from './form.js';
+import { SizedBox } from '../widgets/compoment/sized_box.js';
 
 /**
  * FormFieldValidator - Type for validation functions
@@ -188,6 +189,7 @@ class TextFormFieldState extends State {
      * @returns {boolean} True if valid
      */
     validate() {
+        console.error('[TextFormField] validate() called, value:', this.value);
         this.setState(() => {
             this._errorText = this._runValidator(this.value);
             this._isValid = this._errorText == null;
@@ -286,7 +288,10 @@ class TextFormFieldState extends State {
         this._form = Form.of(this.context);
 
         if (this._form) {
+            console.error('[TextFormField] Found form, registering');
             this._form._register(this);
+        } else {
+            console.error('[TextFormField] Form not found in context');
         }
     }
 
@@ -357,7 +362,10 @@ class TextFormFieldState extends State {
 
         // ✅ FIXED: Return the widget instance directly, don't call .build()
         //Return the TextField widget - the runtime will handle building it
-        return textField;
+        return new SizedBox({
+            width: Infinity,
+            child: textField
+        });
     }
 }
 

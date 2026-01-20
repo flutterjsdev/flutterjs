@@ -42,10 +42,12 @@ export class SingleChildScrollView extends StatelessWidget {
         const style = {
             overflowX: isHorizontal ? 'auto' : 'hidden',
             overflowY: isHorizontal ? 'hidden' : 'auto',
-            display: 'block',
+            display: 'flex',
+            flexDirection: isHorizontal ? 'row' : 'column',
             flex: '1 1 auto',
             minHeight: 0, // Important for flex children to allow shrinking
             width: '100%',
+            height: '100%',
             boxSizing: 'border-box',
             padding: paddingCss
         };

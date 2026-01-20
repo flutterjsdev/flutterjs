@@ -141,10 +141,16 @@ class _DemoPageState extends State<DemoPage> {
               const SizedBox(height: 10),
               ElevatedButton(
                 onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Form Validated!')),
-                    );
+                  print('Form Key: ${_formKey}');
+                  print('Current State: ${_formKey.currentState}');
+                  if (_formKey.currentState != null) {
+                    if (_formKey.currentState!.validate()) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Form Validated!')),
+                      );
+                    }
+                  } else {
+                    print('Form State is NULL');
                   }
                 },
                 child: const Text('Validate Form'),

@@ -83,7 +83,8 @@ class InheritedElement extends Element {
         props: {
           'data-widget': this.widget.constructor.name,
           'data-element-id': this.id,
-          class: 'fjs-inherited-widget-wrapper'
+          class: 'fjs-inherited-widget-wrapper',
+          style: { display: 'contents' }
         },
         children: [childWidget],
         metadata: {
@@ -129,7 +130,8 @@ class InheritedElement extends Element {
         props: {
           'data-widget': this.widget.constructor.name,
           'data-element-id': this.id,
-          class: 'fjs-inherited-widget-wrapper'
+          class: 'fjs-inherited-widget-wrapper',
+          style: { display: 'contents' }
         },
         children: [childVNode],
         metadata: {
@@ -145,7 +147,8 @@ class InheritedElement extends Element {
       props: {
         'data-widget': this.widget.constructor.name,
         'data-element-id': this.id,
-        class: 'fjs-inherited-widget-wrapper'
+        class: 'fjs-inherited-widget-wrapper',
+        style: { display: 'contents' }
       },
       children: [childWidget],
       metadata: {

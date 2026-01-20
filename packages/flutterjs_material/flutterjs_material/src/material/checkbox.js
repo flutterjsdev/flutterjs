@@ -162,8 +162,7 @@ class CheckboxState extends State {
             alignItems: 'center',
             justifyContent: 'center',
             transition: `all ${theme.animationDuration}ms cubic-bezier(0.4, 0, 0.2, 1)`,
-            position: 'relative',
-            // pointerEvents: 'none' // Removed to allow interaction
+            position: 'relative'
         };
 
         // Build check mark or indeterminate line
@@ -301,8 +300,7 @@ class CheckboxState extends State {
                 height: '14',
                 viewBox: '0 0 14 14',
                 style: {
-                    position: 'absolute',
-                    pointerEvents: 'none'
+                    position: 'absolute'
                 }
             },
             children: [

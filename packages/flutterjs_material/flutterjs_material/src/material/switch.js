@@ -146,8 +146,7 @@ class SwitchState extends State {
             backgroundColor: trackColor,
             position: 'relative',
             transition: `background-color ${theme.animationDuration}ms cubic-bezier(0.4, 0, 0.2, 1)`,
-            opacity: isDisabled ? 0.38 : 1,
-            // pointerEvents: 'none' // Removed to allow interaction
+            opacity: isDisabled ? 0.38 : 1
         };
 
         // Thumb container (moves left/right)
@@ -159,8 +158,7 @@ class SwitchState extends State {
             transition: `left ${theme.animationDuration}ms cubic-bezier(0.4, 0, 0.2, 1)`,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            // pointerEvents: 'none' // Removed to allow interaction
+            justifyContent: 'center'
         };
 
         // Thumb styles
@@ -174,8 +172,7 @@ class SwitchState extends State {
                 : '0 1px 3px rgba(0,0,0,0.2), 0 1px 8px rgba(0,0,0,0.12)',
             transition: `all ${theme.animationDuration}ms cubic-bezier(0.4, 0, 0.2, 1)`,
             position: 'relative',
-            zIndex: 2,
-            // pointerEvents: 'none' // Removed to allow interaction
+            zIndex: 2
         };
 
         // Ripple/overlay effect
@@ -189,8 +186,7 @@ class SwitchState extends State {
             left: '50%',
             transform: 'translate(-50%, -50%)',
             transition: 'background-color 0.15s ease',
-            zIndex: 1,
-            // pointerEvents: 'none' // Removed to allow interaction
+            zIndex: 1
         };
 
         const events = {
