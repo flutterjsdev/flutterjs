@@ -1,36 +1,17 @@
 import { Widget, } from '../../core/widget_element.js';
 import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
-import { TextDirection } from '../../utils/utils.js';
+import { TextDirection,TextAlign ,TextOverflow,TextBaseline} from '../../utils/utils.js';
 // ============================================================================
 // ENUMS
 // ============================================================================
 
-const TextAlign = {
-  left: 'left',
-  right: 'right',
-  center: 'center',
-  justify: 'justify',
-  start: 'start',
-  end: 'end'
-};
-
-const TextOverflow = {
-  clip: 'clip',
-  fade: 'fade',
-  ellipsis: 'ellipsis',
-  visible: 'visible'
-};
 
 const TextWidthBasis = {
   parent: 'parent',
   longestLine: 'longestLine'
 };
 
-const TextBaseline = {
-  alphabetic: 'alphabetic',
-  ideographic: 'ideographic'
-};
 
 // ============================================================================
 // TEXT SCALER

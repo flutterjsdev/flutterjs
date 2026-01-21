@@ -3,6 +3,7 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/file_system/physical_file_system.dart';
 import 'dart:io';
+import 'package:path/path.dart' as p;
 
 /// ============================================================================
 /// DartFileParser
@@ -147,6 +148,11 @@ class DartFileParser {
 
       _contextCollection = AnalysisContextCollection(
         includedPaths: [rootPath],
+        excludedPaths: [
+          p.join(rootPath, 'build'),
+          p.join(rootPath, '.dart_tool'),
+          p.join(rootPath, 'node_modules'),
+        ],
         resourceProvider: PhysicalResourceProvider.INSTANCE,
       );
 

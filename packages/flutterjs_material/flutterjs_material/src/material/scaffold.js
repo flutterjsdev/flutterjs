@@ -379,13 +379,14 @@ class Scaffold extends Widget {
             flex: '0 0 auto'
         };
 
-        // Body Container - ✅ FIXED: Use flex instead of grid for scroll compatibility
+        // Body Container - ✅ Use flex with constraints for proper layout
         const bodyStyle = {
-            flex: '1 1 auto', // Take remaining space
+            flex: '1 1 0', // Take remaining space, but can shrink to 0
             display: 'flex',
             flexDirection: 'column',
             width: '100%',
-            minHeight: 0, // Important: allows flex child to shrink below content size
+            minHeight: 0, // Critical: allows flex child to shrink and enable scrolling
+            maxHeight: '100%', // Don't exceed available space
             boxSizing: 'border-box',
             position: 'relative',
             overflow: 'hidden', // Let child (SingleChildScrollView) handle scrolling

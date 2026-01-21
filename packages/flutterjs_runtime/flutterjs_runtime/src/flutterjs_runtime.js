@@ -119,6 +119,22 @@ export class FlutterJSRuntime extends VNodeRuntime {
       }
     }
 
+    // ✅ Polyfill global double type for Dart compatibility
+    if (typeof window !== 'undefined' && !window.double) {
+      window.double = {
+        infinity: Infinity,
+        maxFinite: 1.7976931348623157e+308,
+        minPositive: 5e-324,
+        nan: NaN,
+        negativeInfinity: -Infinity,
+        parse: (value) => parseFloat(value),
+        tryParse: (value) => {
+          const result = parseFloat(value);
+          return isNaN(result) ? null : result;
+        }
+      };
+    }
+
     // Additional Flutter-specific configuration
     this.flutterConfig = {
       debugMode: options.debugMode || false,

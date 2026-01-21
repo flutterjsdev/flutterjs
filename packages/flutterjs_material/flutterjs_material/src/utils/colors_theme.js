@@ -1,4 +1,4 @@
-import { Color } from '../material/color.js';
+import { Color } from './color.js';
 
 /**
  * Material Design 3 Color Theme System
@@ -14,25 +14,25 @@ export class ColorsTheme {
     this.onPrimary = '#FFFFFF';
     this.primaryContainer = '#EADDFF';
     this.onPrimaryContainer = '#21005E';
-    
+
     // ========== SECONDARY COLOR SYSTEM ==========
     this.secondary = '#625B71';
     this.onSecondary = '#FFFFFF';
     this.secondaryContainer = '#E8DEF8';
     this.onSecondaryContainer = '#1D192B';
-    
+
     // ========== TERTIARY COLOR SYSTEM ==========
     this.tertiary = '#7D5260';
     this.onTertiary = '#FFFFFF';
     this.tertiaryContainer = '#FFD8E4';
     this.onTertiaryContainer = '#31111D';
-    
+
     // ========== ERROR COLOR SYSTEM ==========
     this.error = '#B3261E';
     this.onError = '#FFFFFF';
     this.errorContainer = '#F9DEDC';
     this.onErrorContainer = '#410E0B';
-    
+
     // ========== NEUTRAL COLOR SYSTEM ==========
     this.background = '#FFFBFE';
     this.onBackground = '#1C1B1F';
@@ -43,12 +43,12 @@ export class ColorsTheme {
     this.outline = '#79747E';
     this.outlineVariant = '#CAC7D0';
     this.scrim = '#000000';
-    
+
     // ========== INVERSE COLORS ==========
     this.inverseSurface = '#313033';
     this.inverseOnSurface = '#F4EFF4';
     this.inversePrimary = '#D0BCFF';
-    
+
     // ========== SHADOW COLOR ==========
     this.shadow = '#000000';
   }
@@ -86,25 +86,25 @@ export class ColorsTheme {
       onPrimary: '#371E55',
       primaryContainer: '#4F378B',
       onPrimaryContainer: '#EADDFF',
-      
+
       // Secondary (inverted for dark)
       secondary: '#CCC7D8',
       onSecondary: '#332D41',
       secondaryContainer: '#4A4458',
       onSecondaryContainer: '#E8DEF8',
-      
+
       // Tertiary (inverted for dark)
       tertiary: '#FFB8C8',
       onTertiary: '#492532',
       tertiaryContainer: '#633B48',
       onTertiaryContainer: '#FFD8E4',
-      
+
       // Error (stays similar)
       error: '#F2B8B5',
       onError: '#601410',
       errorContainer: '#8C1D18',
       onErrorContainer: '#F9DEDC',
-      
+
       // Neutral (inverted)
       background: '#1C1B1F',
       onBackground: '#E7E1E6',
@@ -114,15 +114,15 @@ export class ColorsTheme {
       onSurfaceVariant: '#CAC7D0',
       outline: '#938F99',
       outlineVariant: '#49454E',
-      
+
       // Inverse
       inverseSurface: '#E7E1E6',
       inverseOnSurface: '#313033',
       inversePrimary: '#6750A4',
-      
+
       ...config
     };
-    
+
     return Object.assign(colors, darkConfig);
   }
 
@@ -138,22 +138,22 @@ export class ColorsTheme {
       onPrimary: '#FFFFFF',
       primaryContainer: '#000000',
       onPrimaryContainer: '#FFFFFF',
-      
+
       secondary: '#000000',
       onSecondary: '#FFFFFF',
       secondaryContainer: '#000000',
       onSecondaryContainer: '#FFFFFF',
-      
+
       tertiary: '#000000',
       onTertiary: '#FFFFFF',
       tertiaryContainer: '#000000',
       onTertiaryContainer: '#FFFFFF',
-      
+
       error: '#990000',
       onError: '#FFFFFF',
       errorContainer: '#990000',
       onErrorContainer: '#FFFFFF',
-      
+
       background: '#FFFFFF',
       onBackground: '#000000',
       surface: '#FFFFFF',
@@ -162,10 +162,10 @@ export class ColorsTheme {
       onSurfaceVariant: '#000000',
       outline: '#000000',
       outlineVariant: '#000000',
-      
+
       ...config
     };
-    
+
     return Object.assign(colors, highContrastConfig);
   }
 
@@ -182,7 +182,7 @@ export class ColorsTheme {
   static fromPrimary(primaryColor, config = {}) {
     const colors = new ColorsTheme();
     const color = new Color(primaryColor);
-    
+
     return Object.assign(colors, {
       primary: primaryColor,
       onPrimary: '#FFFFFF',
@@ -215,25 +215,25 @@ export class ColorsTheme {
       onPrimary: this.onPrimary,
       primaryContainer: this.primaryContainer,
       onPrimaryContainer: this.onPrimaryContainer,
-      
+
       // Secondary
       secondary: this.secondary,
       onSecondary: this.onSecondary,
       secondaryContainer: this.secondaryContainer,
       onSecondaryContainer: this.onSecondaryContainer,
-      
+
       // Tertiary
       tertiary: this.tertiary,
       onTertiary: this.onTertiary,
       tertiaryContainer: this.tertiaryContainer,
       onTertiaryContainer: this.onTertiaryContainer,
-      
+
       // Error
       error: this.error,
       onError: this.onError,
       errorContainer: this.errorContainer,
       onErrorContainer: this.onErrorContainer,
-      
+
       // Neutral
       background: this.background,
       onBackground: this.onBackground,
@@ -243,12 +243,12 @@ export class ColorsTheme {
       onSurfaceVariant: this.onSurfaceVariant,
       outline: this.outline,
       outlineVariant: this.outlineVariant,
-      
+
       // Inverse
       inverseSurface: this.inverseSurface,
       inverseOnSurface: this.inverseOnSurface,
       inversePrimary: this.inversePrimary,
-      
+
       // Shadow
       shadow: this.shadow,
       scrim: this.scrim
@@ -266,12 +266,12 @@ export class ColorsTheme {
   toCSSVariables() {
     const colors = this.getAllColors();
     let css = ':root {\n';
-    
+
     for (const [name, value] of Object.entries(colors)) {
       const cssVarName = `--color-${name.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
       css += `  ${cssVarName}: ${value};\n`;
     }
-    
+
     css += '}';
     return css;
   }
@@ -288,12 +288,12 @@ export class ColorsTheme {
   withOpacity(colorName, opacity) {
     const hex = this.getColor(colorName);
     if (!hex) return null;
-    
+
     const color = new Color(hex);
     const r = color.red;
     const g = color.green;
     const b = color.blue;
-    
+
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
   }
 

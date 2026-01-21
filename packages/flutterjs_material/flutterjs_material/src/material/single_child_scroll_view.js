@@ -47,9 +47,10 @@ export class SingleChildScrollView extends StatelessWidget {
             flex: '1 1 auto',
             minHeight: 0, // Important for flex children to allow shrinking
             width: '100%',
-            height: '100%',
+            // Remove height: '100%' - it conflicts with flex and prevents scrolling
             boxSizing: 'border-box',
-            padding: paddingCss
+            padding: paddingCss,
+            WebkitOverflowScrolling: 'touch' // Smooth scrolling on iOS
         };
 
         // ✅ FIXED: Use buildChildWidget helper instead of manual element creation

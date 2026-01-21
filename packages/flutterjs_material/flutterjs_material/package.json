@@ -125,6 +125,7 @@
     "./material/tooltip": "./dist/material/tooltip.js",
     "./material/tooltip_theme": "./dist/material/tooltip_theme.js",
     "./material/user_accounts_drawer_header": "./dist/material/user_accounts_drawer_header.js",
+    "./painting/rounded_rectangle_border": "./dist/painting/rounded_rectangle_border.js",
     "./painting/text_style": "./dist/painting/text_style.js",
     "./utils/badge_theme": "./dist/utils/badge_theme.js",
     "./utils/border": "./dist/utils/border.js",

@@ -346,12 +346,7 @@ class FunctionCodeGen {
 
     // ✅ FIXED: Use arrow functions for private methods to preserve 'this' context in callbacks
     // Exception: Generators cannot be arrow functions
-    final isPrivate = method.name.startsWith('_');
-    final useArrowFunction =
-        isPrivate &&
-        !method.isGetter &&
-        !method.isSetter &&
-        !method.isGenerator;
+    final useArrowFunction = false; // Generate all methods as standard methods
 
     if (useArrowFunction) {
       // Arrow function syntax: _methodName = (params) => {
