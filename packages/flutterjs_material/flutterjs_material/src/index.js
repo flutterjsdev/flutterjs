@@ -18,4 +18,5 @@ export * from "./material/material.js";
 export * from "./widgets/widgets.js";
 export * from "./utils/utils.js";
 export * from "./painting/text_style.js";
+export * from "./painting/rounded_rectangle_border.js";
 

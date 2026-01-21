@@ -1120,25 +1120,65 @@ class ExpressionCodeGen {
     // ✅ FIXED: When target is null
     final args = _generateArgumentList(expr.arguments, expr.namedArguments);
 
-    // Check if this is a widget constructor
+    // Check if this is a widget/class constructor
+    // Include both:
+    // - Public classes: ClassName (starts with uppercase)
+    // - Private classes: _ClassName (starts with _ then uppercase)
     final isWidgetCall =
         expr.methodName.isNotEmpty &&
-        expr.methodName[0].toUpperCase() == expr.methodName[0];
+        (
+        // Public class: first char is uppercase
+        (expr.methodName[0].toUpperCase() == expr.methodName[0] &&
+                !expr.methodName.startsWith('_')) ||
+            // Private class: starts with _ and second char is uppercase
+            (expr.methodName.startsWith('_') &&
+                expr.methodName.length > 1 &&
+                expr.methodName[1].toUpperCase() == expr.methodName[1]));
 
     if (isWidgetCall) {
-      // ✅ FIX: Add 'new' keyword for widget constructors (implicitly detected by Capitalized name)
+      // Add 'new' keyword for widget/class constructors
       return 'new ${expr.methodName}$typeArgStr($args)';
     }
 
-    // ✅ NEW: Use context from the function declaration
-    // This requires passing context through the generation pipeline
-    if (_currentFunctionContext != null &&
+    // ✅ SMART CONTEXT: Method resolution
+    // Instead of blindly adding 'this.' (which breaks globals like print()),
+    // verify if the method actually belongs to the class context.
+    if (_currentClassContext != null &&
+        _currentFunctionContext != null &&
         !_currentFunctionContext!.isTopLevel) {
-      // Inside a class method: use 'this.'
-      return 'this.${expr.methodName}$typeArgStr($args)';
+      bool shouldAddThis = false;
+      final name = expr.methodName;
+
+      // 1. Is it a defined instance method in this class?
+      if (_currentClassContext!.instanceMethods.any((m) => m.name == name)) {
+        shouldAddThis = true;
+      }
+      // 2. Is it a private method? (Heuristic: starts with _)
+      // BUT: Exclude private CLASS names like _LandingPageState
+      // (they start with _ but second char is uppercase)
+      else if (name.startsWith('_') &&
+          name.length > 1 &&
+          name[1].toLowerCase() == name[1]) {
+        shouldAddThis = true;
+      }
+      // 3. Known State<T> methods (common case)
+      else if (const {
+        'setState',
+        'initState',
+        'dispose',
+        'didUpdateWidget',
+        'didChangeDependencies',
+      }.contains(name)) {
+        shouldAddThis = true;
+      }
+
+      if (shouldAddThis) {
+        return 'this.${expr.methodName}$typeArgStr($args)';
+      }
     }
 
-    // Top-level function: direct call (no 'this.')
+    // Fallback: Top-level function / Global / Imported
+
     return '${expr.methodName}$typeArgStr($args)';
   }
 
@@ -1186,6 +1226,41 @@ class ExpressionCodeGen {
 
   String _generateFunctionCall(FunctionCallExpr expr) {
     final args = _generateArgumentList(expr.arguments, expr.namedArguments);
+
+    // ✅ SMART CONTEXT for FunctionCallExpr
+    // If we are in a class, this might be a method call misidentified as a function call
+    if (_currentClassContext != null &&
+        _currentFunctionContext != null &&
+        !_currentFunctionContext!.isTopLevel) {
+      bool shouldAddThis = false;
+      final name = expr.functionName;
+
+      // 1. Is it a defined instance method?
+      if (_currentClassContext!.instanceMethods.any((m) => m.name == name)) {
+        shouldAddThis = true;
+      }
+      // 2. Is it a private method?
+      // BUT: Exclude private CLASS names like _LandingPageState
+      else if (name.startsWith('_') &&
+          name.length > 1 &&
+          name[1].toLowerCase() == name[1]) {
+        shouldAddThis = true;
+      }
+      // 3. Known State methods
+      else if (const {
+        'setState',
+        'initState',
+        'dispose',
+        'didUpdateWidget',
+        'didChangeDependencies',
+      }.contains(name)) {
+        shouldAddThis = true;
+      }
+
+      if (shouldAddThis) {
+        return 'this.${expr.functionName}($args)';
+      }
+    }
 
     return '${expr.functionName}($args)';
   }

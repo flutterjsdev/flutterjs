@@ -13,7 +13,6 @@ export {
     Flow,
     FlowElement,
     FlowDelegate,
-    MainAxisSize
 } from "./compoment/multi_child_view.js";
 
 export {

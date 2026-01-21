@@ -2,16 +2,13 @@
 import { Widget, } from '../../core/widget_element.js';
 import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
-import { Axis, TextDirection, VerticalDirection, Clip, MainAxisAlignment, CrossAxisAlignment, FlexFit, WrapAlignment, WrapCrossAlignment } from '../../utils/utils.js';
+import { Axis, TextDirection, VerticalDirection, Clip, MainAxisAlignment, CrossAxisAlignment, FlexFit, WrapAlignment, WrapCrossAlignment, MainAxisSize } from '../../utils/utils.js';
 
 // ============================================================================
 // ENUMS
 // ============================================================================
 
-const MainAxisSize = {
-  min: 'min',
-  max: 'max'
-};
+
 
 // ============================================================================
 // HELPERS
@@ -281,13 +278,16 @@ class FlexElement extends Element {
       justifyContent,
       alignItems,
       gap: `${widget.spacing}px`,
-      // Force 100% size on main axis if max, otherwise auto
+      // ✅ FIXED: Width/height logic for flex containers 
+      // For Row (horizontal): set width based on MainAxisSize
+      // For Column (vertical): always use 'auto' height to allow content-based sizing
+      // Setting height: 100% causes Columns to overlap in scrollable containers
       width: (isHorizontal && isMainMax) ? '100%' : 'auto',
-      height: (!isHorizontal && isMainMax) ? '100%' : 'auto',
+      height: 'auto', // Always auto for proper stacking in scroll containers
       direction: widget.textDirection === TextDirection.rtl ? 'rtl' : 'ltr',
       overflow: overflowValue,
       flexWrap: 'nowrap',
-      boxSizing: 'border-box', // Ensure padding doesn't overflow
+      boxSizing: 'border-box',
       // Robustness: ensure this Flex fills the cross-axis of a parent Flex (like Column)
       alignSelf: 'stretch'
     };
