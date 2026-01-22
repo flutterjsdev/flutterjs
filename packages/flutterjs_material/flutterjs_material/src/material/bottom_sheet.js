@@ -1,9 +1,10 @@
-import { StatefulWidget, StatelessWidget,State } from '../core/widget_element.js';
+import { StatefulWidget, StatelessWidget, State } from '../core/widget_element.js';
 import { Container, BoxDecoration } from './container.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { BottomSheetTheme } from './bottom_sheet_theme.js';
 import { BorderRadius } from '../utils/border_radius.js';
 import { CrossAxisAlignment, Alignment } from '../utils/utils.js';
+import { Theme } from './theme.js';
 
 class BottomSheet extends StatefulWidget {
     constructor({
@@ -45,7 +46,10 @@ class BottomSheetState extends State {
         // In real web impl, would use CSS transitions/animations for slide-up.
 
         const theme = BottomSheetTheme.of(context) || {};
-        const bgColor = this.widget.backgroundColor || theme.backgroundColor || '#ffffff';
+        const appTheme = Theme.of(context);
+        const colorScheme = appTheme.colorScheme;
+
+        const bgColor = this.widget.backgroundColor || theme.backgroundColor || colorScheme.surfaceContainerLow || '#F7F2FA';
         const elevation = this.widget.elevation || theme.elevation || 0.0;
         const shape = this.widget.shape || theme.shape;
 

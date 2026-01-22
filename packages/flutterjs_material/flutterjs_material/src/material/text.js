@@ -2,6 +2,7 @@ import { StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { TextAlign, TextOverflow, TextDirection } from '../utils/utils.js';
 import { TextStyle } from '../painting/text_style.js';
+import { Theme } from './theme.js';
 
 
 /**
@@ -45,7 +46,7 @@ class Text extends StatelessWidget {
     this.softWrap = softWrap;
     this.semanticsLabel = semanticsLabel;
     this.selectable = selectable;
-    this.selectionColor = selectionColor || '#b3d9ff';
+    this.selectionColor = selectionColor;
     this.onSelectionChanged = onSelectionChanged;
   }
 
@@ -72,8 +73,15 @@ class Text extends StatelessWidget {
       props.style.userSelect = 'text';
       props.style.WebkitUserSelect = 'text';
       props.style.MozUserSelect = 'text';
-      if (this.selectionColor) {
-        props.style['--selection-color'] = this.selectionColor;
+
+      const theme = Theme.of(context);
+      // Default browser selection is usually Blue. M3 uses primaryContainer or primary with opacity.
+      // e.g. blue with 0.4 opacity
+      const defaultSelectionColor = theme.colorScheme?.primary ? theme.colorScheme.primary + '66' : '#b3d9ff';
+      const effectiveSelectionColor = this.selectionColor || defaultSelectionColor;
+
+      if (effectiveSelectionColor) {
+        props.style['--selection-color'] = effectiveSelectionColor;
       }
     } else {
       props.style.userSelect = 'none';

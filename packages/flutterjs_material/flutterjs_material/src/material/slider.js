@@ -1,7 +1,8 @@
-import { StatefulWidget,State } from '../core/widget_element.js';
+import { StatefulWidget, State } from '../core/widget_element.js';
 import { Container } from './container.js';
 import { Colors } from './color.js';
 import { GestureDetector } from './gesture_detector.js';
+import { Theme } from './theme.js';
 
 export class Slider extends StatefulWidget {
     constructor({
@@ -43,6 +44,13 @@ export class Slider extends StatefulWidget {
 
 class SliderState extends State {
     build(context) {
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+
+        const activeColor = this.widget.activeColor || theme.sliderTheme?.activeTrackColor || colorScheme.primary || '#6750A4';
+        const inactiveColor = this.widget.inactiveColor || theme.sliderTheme?.inactiveTrackColor || colorScheme.surfaceContainerHighest || '#E6E0E9'; // Used only if we custom style, but HTML range is limited
+        const thumbColor = this.widget.thumbColor || theme.sliderTheme?.thumbColor || activeColor;
+
         // Simple HTML range input for now
         // A robust custom implementation would involve LayoutBuilder + GestureDetector + Canvas/Containers
 
@@ -59,7 +67,7 @@ class SliderState extends State {
                 style: {
                     width: '100%',
                     cursor: 'pointer',
-                    accentColor: this.widget.activeColor // Not standard CSS property but works in some agents
+                    accentColor: activeColor // Standard CSS property for checkbox/radio/range
                 },
                 onInput: (e) => { // onInput fires immediately
                     const val = parseFloat(e.target.value);
@@ -68,7 +76,6 @@ class SliderState extends State {
                 onChange: (e) => { // often fires on commit
                     // this.widget.onChangeEnd?.(parseFloat(e.target.value));
                 }
-                // activeColor/inactiveColor CSS styling for range is tricky cross-browser without custom styling
             }
         });
     }

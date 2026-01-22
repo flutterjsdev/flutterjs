@@ -6,6 +6,7 @@ import { TextEditingController } from './text_editing_controller.js';
 import { Color } from '../utils/color.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
 import { TextStyle } from '../painting/text_style.js';
+import { Theme } from './theme.js';
 
 
 /**
@@ -208,10 +209,14 @@ class TextFieldState extends State {
         const isFloating = isFocused || hasValue;
 
         // Determine current border type and color
-        const primaryColor = new Color('#2196f3');
-        const errorColor = new Color('#f44336');
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
 
-        let borderColor = '#bdbdbd';
+        const primaryColor = new Color(colorScheme.primary);
+        const errorColor = new Color(colorScheme.error);
+        const outlineColor = new Color(colorScheme.outline);
+
+        let borderColor = outlineColor.toCSSString();
         let borderWidth = 1;
 
         if (hasError) {
@@ -240,7 +245,7 @@ class TextFieldState extends State {
             display: 'flex',
             alignItems: 'center',
             minHeight: decoration.isDense ? '40px' : '56px',
-            backgroundColor: decoration.filled ? (decoration.fillColor || '#f5f5f5') : 'transparent',
+            backgroundColor: decoration.filled ? (decoration.fillColor || colorScheme.surfaceContainerHighest || '#E6E0E9') : 'transparent',
             borderRadius: '4px',
             boxSizing: 'border-box'
         };
@@ -264,7 +269,7 @@ class TextFieldState extends State {
             pointerEvents: 'none',
             transformOrigin: 'top left',
             transition: 'color 0.2s, transform 0.2s',
-            color: hasError ? errorColor.toCSSString() : (isFocused ? primaryColor.toCSSString() : '#757575'),
+            color: hasError ? errorColor.toCSSString() : (isFocused ? primaryColor.toCSSString() : (colorScheme.onSurfaceVariant || '#49454F')),
             // Float logic: Translate up and Scale down
             transform: isFloating
                 ? `translate(0, -50%) scale(0.75)`

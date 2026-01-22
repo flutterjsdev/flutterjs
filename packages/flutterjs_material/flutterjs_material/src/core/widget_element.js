@@ -478,7 +478,7 @@ class ErrorWidget extends StatelessWidget {
       tag: 'div',
       props: {
         style: {
-          backgroundColor: '#ff1744',
+          backgroundColor: '#B3261E', // Material Error Red
           color: 'white',
           padding: '16px',
           borderRadius: '4px',

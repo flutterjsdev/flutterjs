@@ -1,5 +1,6 @@
 import { StatelessWidget } from '../core/widget_element.js';
 import { Container } from './container.js';
+import { Theme } from './theme.js';
 
 /**
  * A Material Design panel that slides in horizontally from the edge of a Scaffold
@@ -35,8 +36,11 @@ export class Drawer extends StatelessWidget {
         // and default sizing/shadows.
         // This widget mainly serves to provide the content and optional background styling overrides.
 
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+
         return new Container({
-            color: this.backgroundColor,
+            color: this.backgroundColor || colorScheme.surfaceContainerLow || '#F7F2FA',
             child: this.child
         });
     }

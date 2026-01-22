@@ -439,7 +439,7 @@ class BuildGenerator {
   <meta name="theme-color" content="#6750a4">
   <title>${metadata.projectName}</title>
   <link rel="stylesheet" href="./styles.css">
-  
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <!-- ✅ Import Map from ImportRewriter -->
   <!-- Maps @flutterjs/* packages to ./node_modules/@flutterjs/ -->
   ${importMapScript}

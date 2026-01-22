@@ -51,7 +51,7 @@ class InputDecoration {
 
         // Fill
         this.filled = filled;
-        this.fillColor = fillColor || (filled ? new Color('#f5f5f5').toCSSString() : null);
+        this.fillColor = fillColor; // Defaults handled by widget/theme
 
         // Padding
         if (contentPadding instanceof EdgeInsets) {

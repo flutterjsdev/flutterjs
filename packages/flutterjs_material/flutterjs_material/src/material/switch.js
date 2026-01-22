@@ -2,6 +2,7 @@ import { StatefulWidget, State } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { SwitchThemeData } from '../utils/switch_theme.js';
 import { Color } from '../utils/color.js';
+import { Theme } from './theme.js';
 
 /**
  * Switch - Material Design switch widget (toggle control)
@@ -122,10 +123,12 @@ class SwitchState extends State {
 
         // Get theme
         const theme = context.switchTheme || new SwitchThemeData();
+        const appTheme = Theme.of(context);
+        const colorScheme = appTheme.colorScheme;
 
         // Determine colors using theme
-        const thumbColor = this._getThumbColor(isActive, isDisabled, theme);
-        const trackColor = this._getTrackColor(isActive, isDisabled, theme);
+        const thumbColor = this._getThumbColor(isActive, isDisabled, theme, colorScheme);
+        const trackColor = this._getTrackColor(isActive, isDisabled, theme, colorScheme);
 
         // Container styles (includes hit area)
         const containerStyles = {
@@ -263,13 +266,13 @@ class SwitchState extends State {
         });
     }
 
-    _getThumbColor(isActive, isDisabled, theme) {
+    _getThumbColor(isActive, isDisabled, theme, colorScheme) {
         if (this.widget.thumbColor) {
             return new Color(this.widget.thumbColor).toCSSString();
         }
 
         if (isDisabled) {
-            return new Color('#bdbdbd').toCSSString();
+            return new Color(colorScheme.onSurface).withOpacity(0.38).toCSSString();
         }
 
         if (this.widget.activeColor && isActive) {
@@ -282,19 +285,19 @@ class SwitchState extends State {
 
         // Use theme defaults
         if (isActive) {
-            return '#FFFFFF'; // Material default for active thumb
+            return theme.thumbColor || colorScheme.onPrimary; // M3 Active Thumb
         }
 
-        return new Color('#fafafa').toCSSString();
+        return theme.thumbColor || colorScheme.outline; // M3 Inactive Thumb
     }
 
-    _getTrackColor(isActive, isDisabled, theme) {
+    _getTrackColor(isActive, isDisabled, theme, colorScheme) {
         if (this.widget.trackColor) {
             return new Color(this.widget.trackColor).toCSSString();
         }
 
         if (isDisabled) {
-            return new Color('#424242').toCSSString();
+            return new Color(colorScheme.onSurface).withOpacity(0.12).toCSSString();
         }
 
         if (this.widget.activeTrackColor && isActive) {
@@ -307,10 +310,10 @@ class SwitchState extends State {
 
         // Use theme defaults
         if (isActive) {
-            return new Color('#2196f3').withOpacity(0.5).toCSSString(); // Material blue, semi-transparent
+            return theme.trackColor || colorScheme.primary; // M3 Active Track
         }
 
-        return new Color('#9e9e9e').toCSSString();
+        return theme.trackColor || colorScheme.surfaceContainerHighest; // M3 Inactive Track
     }
 
     _getOverlayColor(isDisabled, isActive, theme) {

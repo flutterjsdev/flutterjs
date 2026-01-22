@@ -1,6 +1,7 @@
 import { StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { buildChildWidget } from '../utils/build_helper.js';
+import { Theme } from './theme.js';
 
 const SnackBarClosedReason = {
     hide: 'hide',
@@ -41,8 +42,15 @@ class SnackBar extends StatelessWidget {
     }
 
     build(context) {
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+
+        // M3 Defaults: Inverse Surface background
+        const bgColor = this.backgroundColor || colorScheme.inverseSurface || '#313033';
+        const textColor = colorScheme.onInverseSurface || '#F4EFF4';
+
         const style = {
-            backgroundColor: this.backgroundColor,
+            backgroundColor: bgColor,
             padding: this.padding ? `${this.padding}px` : '14px 16px',
             borderRadius: '4px',
             boxShadow: `0 3px 5px -1px rgba(0,0,0,0.2), 0 6px 10px 0 rgba(0,0,0,0.14), 0 1px 18px 0 rgba(0,0,0,0.12)`,
@@ -51,7 +59,7 @@ class SnackBar extends StatelessWidget {
             justifyContent: 'space-between',
             flexWrap: 'wrap',
             gap: '8px',
-            color: '#ffffff', // On Surface Inverse / On Inverse Surface typically
+            color: textColor, // On Surface Inverse / On Inverse Surface typically
             fontSize: '14px',
             lineHeight: '20px',
             letterSpacing: '0.25px',
@@ -82,7 +90,7 @@ class SnackBar extends StatelessWidget {
 
         if (this.action) {
             const actionStyle = {
-                color: this.action.textColor || '#BB86FC', // Secondary color
+                color: this.action.textColor || colorScheme.inversePrimary || '#D0BCFF', // Inverse Primary
                 cursor: 'pointer',
                 border: 'none',
                 background: 'none',

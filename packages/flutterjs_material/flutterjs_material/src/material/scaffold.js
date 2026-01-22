@@ -3,6 +3,7 @@ import { Element } from "@flutterjs/runtime";
 import { VNode } from '@flutterjs/vdom/vnode';
 import { AppBar } from './app_bar.js';
 import { SnackBar, SnackBarClosedReason } from './snack_bar.js';
+import { Theme } from './theme.js';
 
 // ============================================================================
 // ENUMS
@@ -235,7 +236,13 @@ class Scaffold extends Widget {
         this.drawer = drawer;
         this.endDrawer = endDrawer;
         this.bottomNavigationBar = bottomNavigationBar;
-        this.backgroundColor = backgroundColor || '#ffffff'; // Should defaults to theme.scaffoldBackgroundColor
+        if (backgroundColor) {
+            this.backgroundColor = backgroundColor;
+        } else {
+            // Will be resolved in build/element, but strictly it's passed as null usually
+            // If we need a default here for some reason:
+            this.backgroundColor = null;
+        }
         this.resizeToAvoidBottomInset = resizeToAvoidBottomInset;
         this.extendBody = extendBody;
         this.extendBodyBehindAppBar = extendBodyBehindAppBar;
@@ -281,6 +288,7 @@ class Scaffold extends Widget {
     }
 
     build(context) {
+        const theme = Theme.of(context);
         // Initialize child elements cache if not exists
         if (!context._childElements) {
             context._childElements = {};
@@ -417,7 +425,7 @@ class Scaffold extends Widget {
             position: 'absolute',
             top: 0, bottom: 0, left: 0,
             width: '304px',
-            backgroundColor: '#FFFFFF',
+            backgroundColor: this.backgroundColor || theme.scaffoldBackgroundColor || theme.colorScheme.background,
             zIndex: 25,
             transform: isDrawerOpen ? 'translateX(0)' : 'translateX(-100%)',
             transition: 'transform 0.25s ease-in-out',
@@ -429,7 +437,7 @@ class Scaffold extends Widget {
             position: 'absolute',
             top: 0, bottom: 0, right: 0,
             width: '304px',
-            backgroundColor: '#FFFFFF',
+            backgroundColor: theme.colorScheme.surface,
             zIndex: 25,
             transform: isEndDrawerOpen ? 'translateX(0)' : 'translateX(100%)',
             transition: 'transform 0.25s ease-in-out',

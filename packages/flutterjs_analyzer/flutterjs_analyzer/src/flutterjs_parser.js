@@ -1138,6 +1138,8 @@ class Parser {
     if (this.isKeyword('const')) {
       const savedPos = this.current;
       this.advance();
+
+      // Case 1: const new ClassName(...)
       if (this.isKeyword('new')) {
         console.log(`      [parsePrimary] ✓ const new expression`);
         this.advance();
@@ -1149,6 +1151,29 @@ class Parser {
         expr.isConst = true;
         return expr;
       }
+
+      // Case 2: const ClassName(...) - implicit new
+      if (this.check(TokenType.IDENTIFIER)) {
+        console.log(`      [parsePrimary] ✓ const implicit new expression (ignoring const)`);
+        // Just treat it as a normal identifier start, we consumed 'const'
+        // Recursively call parsePrimary to handle the Identifier
+        return this.parsePrimary();
+      }
+
+      // Case 3: const [] - constant array
+      if (this.isPunctuation('[')) {
+        console.log(`      [parsePrimary] ✓ const array literal`);
+        // recurse to handle [
+        return this.parsePrimary();
+      }
+
+      // Case 4: const {} - constant object/map
+      if (this.isPunctuation('{')) {
+        console.log(`      [parsePrimary] ✓ const object literal`);
+        return this.parsePrimary();
+      }
+
+      // Fallback
       this.current = savedPos;
     }
 
@@ -1306,7 +1331,7 @@ class Parser {
     return this.tokens[this.current];
   }
 
- 
+
   previous() {
     return this.tokens[this.current - 1];
   }

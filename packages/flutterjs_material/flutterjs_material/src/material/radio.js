@@ -2,6 +2,7 @@ import { StatefulWidget, State } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { RadioThemeData } from '../utils/radio_theme.js';
 import { Color } from '../utils/color.js';
+import { Theme } from './theme.js';
 
 /**
  * Radio - Material Design radio button widget
@@ -118,10 +119,12 @@ class RadioState extends State {
 
         // Get theme
         const theme = context.radioTheme || new RadioThemeData();
+        const appTheme = Theme.of(context);
+        const colorScheme = appTheme.colorScheme;
 
         // Determine colors using theme
-        const fillColor = this._getFillColor(isSelected, isDisabled, theme);
-        const borderColor = this._getBorderColor(isSelected, isDisabled, theme);
+        const fillColor = this._getFillColor(isSelected, isDisabled, theme, colorScheme);
+        const borderColor = this._getBorderColor(isSelected, isDisabled, theme, colorScheme);
 
         // Container styles
         const containerStyles = {
@@ -212,9 +215,9 @@ class RadioState extends State {
         });
     }
 
-    _getFillColor(isSelected, isDisabled, theme) {
+    _getFillColor(isSelected, isDisabled, theme, colorScheme) {
         if (isDisabled) {
-            return new Color('#bdbdbd').toCSSString(); // Disabled color
+            return new Color(colorScheme.onSurface).withOpacity(0.38).toCSSString();
         }
 
         if (this.widget.fillColor) {
@@ -226,15 +229,15 @@ class RadioState extends State {
         }
 
         if (isSelected) {
-            return theme.getFillColor();
+            return theme.fillColor || colorScheme.primary;
         }
 
         return 'transparent';
     }
 
-    _getBorderColor(isSelected, isDisabled, theme) {
+    _getBorderColor(isSelected, isDisabled, theme, colorScheme) {
         if (isDisabled) {
-            return new Color('#bdbdbd').toCSSString();
+            return new Color(colorScheme.onSurface).withOpacity(0.38).toCSSString();
         }
 
         if (isSelected && this.widget.activeColor) {
@@ -242,10 +245,10 @@ class RadioState extends State {
         }
 
         if (isSelected) {
-            return theme.getFillColor();
+            return colorScheme.primary;
         }
 
-        return new Color('#616161').toCSSString(); // Unselected border color
+        return colorScheme.onSurfaceVariant;
     }
 
     _getOverlayColor(isDisabled, theme) {

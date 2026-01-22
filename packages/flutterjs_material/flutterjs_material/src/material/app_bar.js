@@ -76,7 +76,7 @@ class AppBar extends StatelessWidget {
         const theme = Theme.of(context);
 
         if (!bgColor) {
-            bgColor = theme.appBarTheme?.backgroundColor || theme.primaryColor;
+            bgColor = theme.appBarTheme?.backgroundColor || theme.colorScheme.surface;
         }
 
         // Handle MaterialColor/Color objects for Background setup (simplified logic)
@@ -100,13 +100,10 @@ class AppBar extends StatelessWidget {
         } else if (bgColor && typeof bgColor === 'object' && bgColor.value) {
             effectiveBgColorString = `#${bgColor.value.toString(16).padStart(8, '0').slice(2)}`;
         }
-        if (!effectiveBgColorString) effectiveBgColorString = '#2196F3';
+        if (!effectiveBgColorString) effectiveBgColorString = colorScheme.surface || '#F3EDF7';
 
         if (!fgColor) {
-            // Simple contrast check
-            // In a real impl, we'd use robust luminance. 
-            // Assuming default blue is dark -> white text
-            fgColor = '#FFFFFF';
+            fgColor = colorScheme.onSurface || '#1C1B1F';
         }
 
         const iconThemeData = new IconThemeData({
@@ -145,8 +142,16 @@ class _AppBarBody extends StatelessWidget {
         } = this.props;
 
         // Re-resolve colors for CSS purposes (can be redundant but safe)
+        // Re-resolve colors for CSS purposes (can be redundant but safe)
         const theme = Theme.of(context);
-        let bgColor = backgroundColor || theme.appBarTheme?.backgroundColor || theme.primaryColor;
+        const colorScheme = theme.colorScheme;
+
+        // M3 AppBar defaults to surface color, but M2 was primary. 
+        // We'll respect the theme or fallback to colorScheme.primary if it looks like an M2 setup (primaryColor), 
+        // or surface if M3.
+        // For safe migration: use backgroundColor prop -> theme.appBarTheme.backgroundColor -> colorScheme.surface (M3 default)
+
+        let bgColor = backgroundColor || theme.appBarTheme?.backgroundColor || colorScheme.surface;
 
         if (bgColor && typeof bgColor.toCSSString === 'function') {
             bgColor = bgColor.toCSSString();
@@ -155,9 +160,9 @@ class _AppBarBody extends StatelessWidget {
             const hex = val.toString(16).padStart(8, '0');
             bgColor = `#${hex.slice(2)}`;
         }
-        if (!bgColor) bgColor = '#2196F3';
+        if (!bgColor) bgColor = colorScheme.surface || '#F3EDF7'; // M3 surface default
 
-        let fgColor = foregroundColor || '#FFFFFF'; // Default to white as we set in wrapper
+        let fgColor = foregroundColor || theme.appBarTheme?.foregroundColor || colorScheme.onSurface || '#1C1B1F';
 
         if (fgColor && typeof fgColor.toCSSString === 'function') {
             fgColor = fgColor.toCSSString();
