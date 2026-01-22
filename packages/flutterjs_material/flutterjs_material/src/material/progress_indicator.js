@@ -2,6 +2,7 @@ import { StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { ProgressIndicatorThemeData } from '../utils/progress_indicator_theme.js';
 import { Color } from '../utils/color.js';
+import { Theme } from './theme.js';
 
 /**
  * CircularProgressIndicator - Material Design circular progress indicator
@@ -35,8 +36,11 @@ class CircularProgressIndicator extends StatelessWidget {
         const elementId = context.element?.getElementId?.() || `progress-${Date.now()}`;
         const widgetPath = context.element?.getWidgetPath?.() || 'CircularProgressIndicator';
 
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+
         // Defaults
-        const effectiveColor = this.color || '#2196f3'; // Material blue
+        const effectiveColor = this.color || colorScheme.primary || '#6750A4';
         const effectiveBackgroundColor = this.backgroundColor; // Can be null
 
         const size = 40; // Default size
@@ -194,10 +198,13 @@ class LinearProgressIndicator extends StatelessWidget {
         const elementId = context.element?.getElementId?.() || `linear-progress-${Date.now()}`;
         const widgetPath = context.element?.getWidgetPath?.() || 'LinearProgressIndicator';
 
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+
         // Defaults
         const effectiveMinHeight = this.minHeight || 4.0;
-        const effectiveColor = this.color || '#2196f3';
-        const effectiveBackgroundColor = this.backgroundColor || '#e0e0e0';
+        const effectiveColor = this.color || colorScheme.primary || '#6750A4';
+        const effectiveBackgroundColor = this.backgroundColor || colorScheme.surfaceContainerHighest || '#E6E0E9';
         const progressColor = this.valueColor || effectiveColor;
 
         // Container (track) styles

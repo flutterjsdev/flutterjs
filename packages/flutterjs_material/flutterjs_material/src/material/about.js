@@ -8,6 +8,7 @@ import { GestureDetector } from './gesture_detector.js';
 import { Column, SizedBox } from '../widgets/widgets.js';
 import { SingleChildScrollView } from './single_child_scroll_view.js';
 import { MainAxisSize, CrossAxisAlignment, Alignment } from '../utils/utils.js';
+import { Theme } from './theme.js';
 
 class AboutDialog extends StatelessWidget {
     constructor({
@@ -33,13 +34,18 @@ class AboutDialog extends StatelessWidget {
         const legalese = this.applicationLegalese;
         const children = this.children || [];
 
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+        const primaryColor = colorScheme.primary || '#6750A4';
+        const onSurfaceVariant = colorScheme.onSurfaceVariant || '#49454E';
+
         let body = [];
 
         if (legalese) {
             body.push(new Text(legalese, {
                 style: {
                     fontSize: '12px',
-                    color: 'rgba(0, 0, 0, 0.6)'
+                    color: onSurfaceVariant
                 }
             }));
             body.push(new SizedBox({ height: 18 }));
@@ -74,7 +80,7 @@ class AboutDialog extends StatelessWidget {
                                 version ? new Text(version, {
                                     style: {
                                         fontSize: '12px',
-                                        color: 'rgba(0, 0, 0, 0.6)'
+                                        color: onSurfaceVariant
                                     }
                                 }) : new SizedBox(),
                                 new SizedBox({ height: 18 }),
@@ -89,7 +95,7 @@ class AboutDialog extends StatelessWidget {
                 new GestureDetector({
                     onTap: () => { /* License page placeholder */ },
                     child: new Text('VIEW LICENSES', {
-                        style: { color: '#2196F3', cursor: 'pointer', fontWeight: '500', padding: '8px' }
+                        style: { color: primaryColor, cursor: 'pointer', fontWeight: '500', padding: '8px' }
                     })
                 }),
                 new GestureDetector({
@@ -97,7 +103,7 @@ class AboutDialog extends StatelessWidget {
                         if (window.__closeCurrentDialog) window.__closeCurrentDialog();
                     },
                     child: new Text('CLOSE', {
-                        style: { color: '#2196F3', cursor: 'pointer', fontWeight: '500', padding: '8px' }
+                        style: { color: primaryColor, cursor: 'pointer', fontWeight: '500', padding: '8px' }
                     })
                 })
             ]

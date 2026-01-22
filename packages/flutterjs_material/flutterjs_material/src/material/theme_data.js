@@ -39,6 +39,11 @@ class ThemeData {
         // Legacy support
         this.primaryColor = primaryColor;
         this.primarySwatch = primarySwatch;
+
+        // If primarySwatch is provided, it should override the default primaryColor
+        if (primarySwatch && primaryColor === '#2196F3') {
+            this.primaryColor = primarySwatch;
+        }
         this.accentColor = accentColor;
         this.scaffoldBackgroundColor = scaffoldBackgroundColor;
         this.canvasColor = canvasColor;
@@ -74,10 +79,10 @@ class ThemeData {
                 ? ColorScheme.dark()
                 : ColorScheme.light();
 
-            // Override primary if provided
-            if (primaryColor && primaryColor !== '#2196F3') { // Check if different from default
+            // Override primary if provided (including via primarySwatch)
+            if (this.primaryColor && this.primaryColor !== '#2196F3') { // Check if different from default
                 this.colorScheme = ColorScheme.fromSeed({
-                    seedColor: primaryColor,
+                    seedColor: this.primaryColor,
                     brightness: brightness
                 });
             }

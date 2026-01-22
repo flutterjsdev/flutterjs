@@ -54,31 +54,24 @@ export class IconButton extends StatelessWidget {
     }
 
     build(context) {
-        // TODO: Apply colors and theme styles
+        // Retrieve parent theme to inherit properties (e.g. from AppBar)
+        const parentTheme = IconTheme.of(context) || new IconThemeData({ size: 24.0, color: null });
 
-        // If the icon is an Icon widget, we might want to override its size/color
-        // if they were explicitly provided to IconButton.
-        // However, in generated code, the icon is usually an instance. 
-        // We can't easily modify a constructed widget instance. 
-        // Flutter handles this via IconTheme.
+        // Merge with IconButton specific overrides
+        // If this.color is undefined, it preserves parentTheme.color
+        const mergedThemeData = parentTheme.copyWith({
+            color: this.color,
+            size: this.iconSize
+        });
 
-        // For now, simple implementation:
         return new GestureDetector({
             onTap: this.onPressed,
             child: new Container({
                 padding: this.padding,
-                child: new Container({
-                    padding: this.padding,
-                    child: new Center({
-                        child: (this.color || this.iconSize)
-                            ? new IconTheme({
-                                data: new IconThemeData({
-                                    color: this.color,
-                                    size: this.iconSize
-                                }),
-                                child: this.icon
-                            })
-                            : this.icon
+                child: new Center({
+                    child: new IconTheme({
+                        data: mergedThemeData,
+                        child: this.icon
                     })
                 })
             })

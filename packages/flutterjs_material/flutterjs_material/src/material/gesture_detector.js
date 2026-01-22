@@ -179,20 +179,23 @@ class _GestureDetectorState extends State {
 
     // Double tap gesture
     if (w.onDoubleTap) {
-      const doubleTapRecognizer = new DoubleTapRecognizer({
-        onDoubleTap: (event) => w.onDoubleTap(event)
-      }, elementId);
+      const doubleTapRecognizer = new DoubleTapRecognizer(
+        (event) => { if (w.onDoubleTap) w.onDoubleTap(event); },
+        {}
+      );
       this.recognizers.push(doubleTapRecognizer);
     }
 
     // Long press gesture
     if (w.onLongPress || w.onLongPressStart || w.onLongPressEnd) {
-      const longPressRecognizer = new LongPressRecognizer({
-        onLongPress: (event) => { if (w.onLongPress) w.onLongPress(event); },
-        onLongPressStart: (event) => { if (w.onLongPressStart) w.onLongPressStart(event); },
-        onLongPressEnd: (event) => { if (w.onLongPressEnd) w.onLongPressEnd(event); },
-        onLongPressUp: (event) => { if (w.onLongPressUp) w.onLongPressUp(event); }
-      }, elementId);
+      const longPressRecognizer = new LongPressRecognizer(
+        (event) => { if (w.onLongPress) w.onLongPress(event); },
+        {
+          // Note: LongPressRecognizer implementation currently expects main callback.
+          // Phase callbacks (start/end) can be added to options if supported in future.
+          duration: 500
+        }
+      );
       this.recognizers.push(longPressRecognizer);
     }
 
@@ -206,32 +209,38 @@ class _GestureDetectorState extends State {
           if (event.direction === 'up' && w.onSwipeUp) w.onSwipeUp(event);
           if (event.direction === 'down' && w.onSwipeDown) w.onSwipeDown(event);
         },
-        elementId
+        // elementId passed as options (legacy compat or just unused options for now)
+        // Passing object is safer
+        {}
       );
       this.recognizers.push(swipeRecognizer);
     }
 
     // Pan gesture
     if (w.onPan || w.onPanStart || w.onPanUpdate || w.onPanEnd) {
-      // Placeholder for PanRecognizer if not imported or implemented fully
-      // Assuming Vertical/Horizontal exist from imports
-      // For now, only vertical/horizontal logic or generic pan if available
+      // Pan implementation placeholder
     }
 
     if (w.onVerticalDragStart || w.onVerticalDragUpdate || w.onVerticalDragEnd) {
-      this.recognizers.push(new VerticalDragRecognizer({
-        onStart: w.onVerticalDragStart,
-        onUpdate: w.onVerticalDragUpdate,
-        onEnd: w.onVerticalDragEnd
-      }, elementId));
+      this.recognizers.push(new VerticalDragRecognizer(
+        (event) => { }, // Main callback required by base class
+        {
+          onStart: w.onVerticalDragStart,
+          onUpdate: w.onVerticalDragUpdate,
+          onEnd: w.onVerticalDragEnd
+        }
+      ));
     }
 
     if (w.onHorizontalDragStart || w.onHorizontalDragUpdate || w.onHorizontalDragEnd) {
-      this.recognizers.push(new HorizontalDragRecognizer({
-        onStart: w.onHorizontalDragStart,
-        onUpdate: w.onHorizontalDragUpdate,
-        onEnd: w.onHorizontalDragEnd
-      }, elementId));
+      this.recognizers.push(new HorizontalDragRecognizer(
+        (event) => { }, // Main callback required by base class
+        {
+          onStart: w.onHorizontalDragStart,
+          onUpdate: w.onHorizontalDragUpdate,
+          onEnd: w.onHorizontalDragEnd
+        }
+      ));
     }
   }
 

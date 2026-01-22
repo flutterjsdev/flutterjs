@@ -2,6 +2,7 @@ import { StatefulWidget, State } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { CheckboxThemeData } from '../utils/checkbox_theme.js';
 import { Color } from '../utils/color.js';
+import { Theme } from './theme.js';
 
 /**
  * Checkbox - Material Design checkbox widget
@@ -130,12 +131,16 @@ class CheckboxState extends State {
         // Get theme
         const theme = context.checkboxTheme || new CheckboxThemeData();
 
+        // Create implicit theme/colorScheme access
+        const appTheme = Theme.of(context);
+        const colorScheme = appTheme.colorScheme;
+
         // Determine colors using theme
-        const fillColor = this._getFillColor(isChecked, isIndeterminate, isDisabled, theme);
-        const borderColor = this._getBorderColor(isChecked, isIndeterminate, isDisabled, theme);
+        const fillColor = this._getFillColor(isChecked, isIndeterminate, isDisabled, theme, colorScheme);
+        const borderColor = this._getBorderColor(isChecked, isIndeterminate, isDisabled, theme, colorScheme);
         const checkColor = this.widget.checkColor
             ? new Color(this.widget.checkColor).toCSSString()
-            : theme.getCheckColor();
+            : colorScheme.onPrimary; // M3 default
 
         // Container styles
         const containerStyles = {
@@ -216,9 +221,9 @@ class CheckboxState extends State {
         });
     }
 
-    _getFillColor(isChecked, isIndeterminate, isDisabled, theme) {
+    _getFillColor(isChecked, isIndeterminate, isDisabled, theme, colorScheme) {
         if (isDisabled) {
-            const disabledColor = new Color('#bdbdbd');
+            const disabledColor = new Color(colorScheme.onSurface).withOpacity(0.38);
             return isChecked || isIndeterminate ? disabledColor.toCSSString() : 'transparent';
         }
 
@@ -231,15 +236,15 @@ class CheckboxState extends State {
         }
 
         if (isChecked || isIndeterminate) {
-            return theme.getFillColor();
+            return theme.fillColor || colorScheme.primary;
         }
 
         return 'transparent';
     }
 
-    _getBorderColor(isChecked, isIndeterminate, isDisabled, theme) {
+    _getBorderColor(isChecked, isIndeterminate, isDisabled, theme, colorScheme) {
         if (isDisabled) {
-            return new Color('#bdbdbd').toCSSString();
+            return new Color(colorScheme.onSurface).withOpacity(0.38).toCSSString();
         }
 
         if (this.widget.side?.color) {
@@ -251,10 +256,11 @@ class CheckboxState extends State {
         }
 
         if (isChecked || isIndeterminate) {
-            return theme.getFillColor();
+            return colorScheme.primary;
         }
 
-        return new Color('#616161').toCSSString();
+        // Unselected border color - M3 uses onSurfaceVariant
+        return colorScheme.onSurfaceVariant;
     }
 
     _getOverlayColor(isDisabled, theme) {

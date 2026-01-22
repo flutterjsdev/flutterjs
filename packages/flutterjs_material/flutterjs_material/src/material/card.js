@@ -33,14 +33,35 @@ class Card extends StatelessWidget {
     }
 
     build(context) {
-        const theme = CardTheme.of(context) || {};
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+        const cardTheme = theme.cardTheme || {}; // Assuming cardTheme exists in Theme
 
-        const effectiveColor = this.color || theme.color || Colors.white;
-        const effectiveShadowColor = this.shadowColor || theme.shadowColor || Colors.black;
-        const effectiveElevation = this.elevation ?? theme.elevation ?? 1;
-        const effectiveShape = this.shape || theme.shape || { borderRadius: BorderRadius.circular(4) }; // Simplified shape handling
-        const effectiveMargin = this.margin || theme.margin || EdgeInsets.all(4);
-        const effectiveClipBehavior = this.clipBehavior || theme.clipBehavior;
+        // M3 Card Defaults
+        // Elevated Card: Surface Container Low
+        // Outlined Card: Surface
+        // Filled Card: Surface Container Highest
+        // We'll default to Elevated Card behavior as it's the standard "Card"
+        const defaultColor = colorScheme.surfaceContainerLow || '#F7F2FA';
+        const defaultShadowColor = colorScheme.shadow || '#000000';
+        const defaultShape = { borderRadius: BorderRadius.circular(12) }; // M3 uses 12px
+
+        const resolveColor = (value, defaultValue) => {
+            if (value) {
+                if (typeof value === 'string') return value;
+                if (typeof value.toCSSString === 'function') return value.toCSSString();
+                if (value.value) return '#' + value.value.toString(16).padStart(8, '0').slice(2);
+            }
+            return defaultValue;
+        };
+
+        const effectiveColor = resolveColor(this.color || cardTheme.color, defaultColor);
+        const effectiveShadowColor = resolveColor(this.shadowColor || cardTheme.shadowColor, defaultShadowColor);
+
+        const effectiveElevation = this.elevation ?? cardTheme.elevation ?? 1;
+        const effectiveShape = this.shape || cardTheme.shape || defaultShape;
+        const effectiveMargin = this.margin || cardTheme.margin || EdgeInsets.all(4);
+        const effectiveClipBehavior = this.clipBehavior || cardTheme.clipBehavior;
 
         // Shadow simulation
         const boxShadow = effectiveElevation > 0 ? [{

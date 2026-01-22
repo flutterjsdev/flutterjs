@@ -2,6 +2,7 @@ import { Widget, StatelessWidget } from '../core/widget_element.js';
 import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
 import { GestureDetector } from './gesture_detector.js';
+import { Theme } from './theme.js';
 
 // ============================================================================
 // FLOATING ACTION BUTTON
@@ -41,7 +42,7 @@ class FloatingActionButton extends StatelessWidget {
     this.onLongPress = onLongPress;
     this.tooltip = tooltip;
     this.foregroundColor = foregroundColor;
-    this.backgroundColor = backgroundColor || this._getDefaultBackgroundColor();
+    this.backgroundColor = backgroundColor;
     this.focusColor = focusColor;
     this.hoverColor = hoverColor;
     this.splashColor = splashColor;
@@ -63,17 +64,6 @@ class FloatingActionButton extends StatelessWidget {
   }
 
   /**
-   * Get default background color (primary color from theme)
-   */
-  _getDefaultBackgroundColor() {
-    if (typeof window !== 'undefined') {
-      const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color') || '#2196F3';
-      return primaryColor.trim();
-    }
-    return '#2196F3';
-  }
-
-  /**
    * Get button size based on mini flag
    */
   _getButtonSize() {
@@ -83,7 +73,7 @@ class FloatingActionButton extends StatelessWidget {
   /**
    * Get button styles
    */
-  _getButtonStyle() {
+  _getButtonStyle(bgColor, fgColor) {
     const size = this._getButtonSize();
     const elevation = this._isPressed ? this.highlightElevation : this.elevation;
 
@@ -91,9 +81,9 @@ class FloatingActionButton extends StatelessWidget {
       position: 'relative',
       width: `${size}px`,
       height: `${size}px`,
-      borderRadius: '50%',
-      backgroundColor: this.backgroundColor,
-      color: this.foregroundColor,
+      borderRadius: '16px', // M3 Standard
+      backgroundColor: bgColor,
+      color: fgColor,
       border: 'none',
       cursor: 'pointer',
       display: 'flex',
@@ -201,7 +191,15 @@ class FloatingActionButton extends StatelessWidget {
   }
 
   build(context) {
-    const buttonStyle = this._getButtonStyle();
+    const theme = Theme.of(context);
+    const colorScheme = theme.colorScheme;
+
+    // Resolve colors
+    // M3 FAB uses primaryContainer / onPrimaryContainer
+    const effectiveBgColor = this.backgroundColor || colorScheme.primaryContainer || '#EADDFF';
+    const effectiveFgColor = this.foregroundColor || colorScheme.onPrimaryContainer || '#21005D';
+
+    const buttonStyle = this._getButtonStyle(effectiveBgColor, effectiveFgColor);
     let childVNode = null;
 
     // Build child element
@@ -364,7 +362,7 @@ class FloatingActionButtonExtended extends StatelessWidget {
     this.onLongPress = onLongPress;
     this.tooltip = tooltip;
     this.foregroundColor = foregroundColor;
-    this.backgroundColor = backgroundColor || this._getDefaultBackgroundColor();
+    this.backgroundColor = backgroundColor;
     this.icon = icon;
     this.label = label;
     this.elevation = elevation;
@@ -376,43 +374,13 @@ class FloatingActionButtonExtended extends StatelessWidget {
     this._isPressed = false;
   }
 
-  /**
-   * Get default background color
-   */
-  _getDefaultBackgroundColor() {
-    if (typeof window !== 'undefined') {
-      const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color') || '#2196F3';
-      return primaryColor.trim();
-    }
-    return '#2196F3';
-  }
-
-  /**
-   * Handle press
-   */
-  _handlePress(event) {
-    if (this.enableFeedback && navigator.vibrate) {
-      navigator.vibrate(10);
-    }
-    if (this.onPressed) {
-      this.onPressed(event);
-    }
-  }
-
-  /**
-   * Handle long press
-   */
-  _handleLongPress(event) {
-    if (this.enableFeedback && navigator.vibrate) {
-      navigator.vibrate([10, 20, 10]);
-    }
-    if (this.onLongPress) {
-      this.onLongPress(event);
-    }
-  }
-
   build(context) {
+    const theme = Theme.of(context);
+    const colorScheme = theme.colorScheme;
     const elevation = this._isPressed ? this.highlightElevation : this.elevation;
+
+    const effectiveBgColor = this.backgroundColor || colorScheme.primaryContainer || '#EADDFF';
+    const effectiveFgColor = this.foregroundColor || colorScheme.onPrimaryContainer || '#21005D';
 
     const buttonStyle = {
       display: 'inline-flex',
@@ -420,9 +388,9 @@ class FloatingActionButtonExtended extends StatelessWidget {
       justifyContent: 'center',
       gap: '8px',
       padding: '12px 20px',
-      borderRadius: '48px',
-      backgroundColor: this.backgroundColor,
-      color: this.foregroundColor,
+      borderRadius: '16px', // M3 Extended FAB radius
+      backgroundColor: effectiveBgColor,
+      color: effectiveFgColor,
       border: 'none',
       cursor: 'pointer',
       boxShadow: `0 ${elevation}px ${elevation * 1.5}px rgba(0, 0, 0, 0.${elevation})`,
@@ -435,7 +403,7 @@ class FloatingActionButtonExtended extends StatelessWidget {
       fontFamily: 'inherit',
       userSelect: 'none',
       WebkitUserSelect: 'none',
-      minHeight: '48px'
+      minHeight: '56px' // M3 standard height
     };
 
     let iconVNode = null;

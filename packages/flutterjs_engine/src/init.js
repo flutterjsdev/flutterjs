@@ -561,7 +561,7 @@ export async function initProject(projectName, options) {
 
     // 9. Show success message
     console.log(chalk.green('\n✅ Project created successfully!\n'));
-    
+
     // 10. Display file tree
     displayProjectStructure(projectPath, projectName);
 
@@ -582,7 +582,7 @@ export async function initProject(projectName, options) {
 function validateProjectName(name) {
   // Check if name is valid
   const validNamePattern = /^[a-z0-9-_]+$/;
-  
+
   if (!validNamePattern.test(name)) {
     throw new Error(
       `Invalid project name: "${name}"\n` +
@@ -629,11 +629,11 @@ async function createDirectoryStructure(projectPath) {
 async function createStructureRecursively(basePath, structure) {
   for (const [name, content] of Object.entries(structure)) {
     const fullPath = path.join(basePath, name);
-    
+
     if (typeof content === 'object' && content !== null) {
       // Create directory
       await fs.promises.mkdir(fullPath, { recursive: true });
-      
+
       // Recurse for nested structure
       if (Object.keys(content).length > 0) {
         await createStructureRecursively(fullPath, content);
@@ -651,7 +651,7 @@ async function createStructureRecursively(basePath, structure) {
 
 async function copyTemplateFiles(projectPath, templateName) {
   const template = TEMPLATES[templateName] || TEMPLATES.default;
-  
+
   if (!template) {
     throw new Error(`Template "${templateName}" not found!`);
   }
@@ -659,10 +659,10 @@ async function copyTemplateFiles(projectPath, templateName) {
   // Copy all template files
   for (const [filePath, content] of Object.entries(template.files)) {
     const fullPath = path.join(projectPath, filePath);
-    
+
     // Create parent directory if needed
     await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
-    
+
     // Write file
     await fs.promises.writeFile(fullPath, content);
   }
@@ -1038,11 +1038,11 @@ async function initGitRepository(projectPath) {
   try {
     // Initialize git
     execSync('git init', { cwd: projectPath, stdio: 'ignore' });
-    
+
     // Create initial commit
     execSync('git add .', { cwd: projectPath, stdio: 'ignore' });
     execSync('git commit -m "Initial commit"', { cwd: projectPath, stdio: 'ignore' });
-    
+
     console.log(chalk.gray('  ✓ Git repository initialized'));
   } catch (error) {
     console.log(chalk.yellow('  ⚠ Git initialization failed (optional)'));
@@ -1055,7 +1055,7 @@ async function initGitRepository(projectPath) {
 
 async function installDependencies(projectPath) {
   const packageManager = detectPackageManager();
-  
+
   console.log(chalk.gray(`  Using ${packageManager}...`));
 
   try {
@@ -1065,8 +1065,8 @@ async function installDependencies(projectPath) {
       pnpm: 'pnpm install'
     }[packageManager];
 
-    execSync(installCmd, { 
-      cwd: projectPath, 
+    execSync(installCmd, {
+      cwd: projectPath,
       stdio: 'inherit'
     });
 
@@ -1081,17 +1081,17 @@ function detectPackageManager() {
   // Check for lock files in current directory
   if (fs.existsSync('pnpm-lock.yaml')) return 'pnpm';
   if (fs.existsSync('yarn.lock')) return 'yarn';
-  
+
   // Check if package managers are installed
   try {
     execSync('pnpm --version', { stdio: 'ignore' });
     return 'pnpm';
-  } catch {}
+  } catch { }
 
   try {
     execSync('yarn --version', { stdio: 'ignore' });
     return 'yarn';
-  } catch {}
+  } catch { }
 
   return 'npm';
 }

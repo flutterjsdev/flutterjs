@@ -7,6 +7,7 @@ import { Colors } from './color.js';
 import { BorderRadius } from '../utils/border_radius.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
 import { MainAxisSize } from '../utils/utils.js';
+import { Theme } from './theme.js';
 
 export class Chip extends StatelessWidget {
     constructor({
@@ -48,6 +49,20 @@ export class Chip extends StatelessWidget {
     }
 
     build(context) {
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+
+        // M3 Chip defaults
+        // InputChip/AssistChip usually: surfaceContainerLow or explicit colors
+        // Collection/Filter: secondaryContainer when selected
+        // We'll treat generic Chip as FilterChip-like or AssistChip
+        // Default: surfaceContainerLow (or equivalent) for unselected, outline variant for border
+        // Let's use secondaryContainer to make it look distinct "chip-like"
+
+        const backgroundColor = this.backgroundColor || colorScheme.secondaryContainer || '#E8DEF8';
+        const onColor = colorScheme.onSecondaryContainer || '#1D192B';
+        const deleteIconColor = this.deleteIconColor || onColor;
+
         const children = [];
 
         if (this.avatar) {
@@ -55,21 +70,26 @@ export class Chip extends StatelessWidget {
             children.push(new SizedBox({ width: 8.0 }));
         }
 
-        children.push(this.label); // Should be Text widget or compatible
+        // Apply style to label if it's text
+        // Ideally we wrap in DefaultTextStyle
+        children.push(new Container({
+            style: { color: onColor },
+            child: this.label
+        }));
 
         if (this.onDeleted) {
             children.push(new SizedBox({ width: 8.0 }));
             children.push(new GestureDetector({
                 onTap: this.onDeleted,
-                child: this.deleteIcon || new Icon(Icons.cancel, { size: 18.0, color: this.deleteIconColor })
+                child: this.deleteIcon || new Icon(Icons.cancel, { size: 18.0, color: deleteIconColor })
             }));
         }
 
         return new Container({
-            padding: this.padding || EdgeInsets.symmetric({ horizontal: 12.0, vertical: 4.0 }),
+            padding: this.padding || EdgeInsets.symmetric({ horizontal: 12.0, vertical: 6.0 }), // M3 slightly taller 32dp
             decoration: new BoxDecoration({
-                color: this.backgroundColor || '#E0E0E0', // Hex for Colors.grey[300] approx
-                borderRadius: BorderRadius.all(16.0), // Stadium
+                color: backgroundColor,
+                borderRadius: BorderRadius.all(8.0), // M3 uses 8dp usually, Stadium (16) for Assist
             }),
             child: new Row({
                 mainAxisSize: MainAxisSize.min,

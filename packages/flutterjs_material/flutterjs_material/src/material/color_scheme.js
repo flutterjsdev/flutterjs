@@ -38,6 +38,12 @@ export class ColorScheme {
         onInverseSurface,
         inversePrimary,
         surfaceTint,
+        // Material 3 Surface Tones
+        surfaceContainerLowest,
+        surfaceContainerLow,
+        surfaceContainer,
+        surfaceContainerHigh,
+        surfaceContainerHighest,
     }) {
         this.brightness = brightness;
         this.primary = primary;
@@ -70,6 +76,13 @@ export class ColorScheme {
         this.onInverseSurface = onInverseSurface;
         this.inversePrimary = inversePrimary;
         this.surfaceTint = surfaceTint;
+
+        // Material 3 Surface Tones
+        this.surfaceContainerLowest = surfaceContainerLowest;
+        this.surfaceContainerLow = surfaceContainerLow;
+        this.surfaceContainer = surfaceContainer;
+        this.surfaceContainerHigh = surfaceContainerHigh;
+        this.surfaceContainerHighest = surfaceContainerHighest;
     }
 
     static fromSeed({
@@ -105,6 +118,12 @@ export class ColorScheme {
         onInverseSurface = null,
         inversePrimary = null,
         surfaceTint = null,
+        // Surface Tones Override
+        surfaceContainerLowest = null,
+        surfaceContainerLow = null,
+        surfaceContainer = null,
+        surfaceContainerHigh = null,
+        surfaceContainerHighest = null,
     }) {
         // simplified implementation of material 3 color generation
         const isDark = brightness === 'dark';
@@ -157,6 +176,13 @@ export class ColorScheme {
             onInverseSurface: onInverseSurface || defaults.onInverseSurface,
             inversePrimary: inversePrimary || (isDark ? derivedPrimary : '#D0BCFF'), // Mock inverse
             surfaceTint: surfaceTint || derivedPrimary,
+
+            // Surface Tones
+            surfaceContainerLowest: surfaceContainerLowest || defaults.surfaceContainerLowest,
+            surfaceContainerLow: surfaceContainerLow || defaults.surfaceContainerLow,
+            surfaceContainer: surfaceContainer || defaults.surfaceContainer,
+            surfaceContainerHigh: surfaceContainerHigh || defaults.surfaceContainerHigh,
+            surfaceContainerHighest: surfaceContainerHighest || defaults.surfaceContainerHighest,
         });
     }
 
@@ -193,6 +219,13 @@ export class ColorScheme {
             onInverseSurface: '#F4EFF4',
             inversePrimary: '#D0BCFF',
             surfaceTint: '#6750A4',
+
+            // M3 Surface Tones (Light)
+            surfaceContainerLowest: '#FFFFFF',
+            surfaceContainerLow: '#F7F2FA',
+            surfaceContainer: '#F3EDF7',
+            surfaceContainerHigh: '#ECE6F0',
+            surfaceContainerHighest: '#E6E0E9',
         });
     }
 
@@ -229,6 +262,13 @@ export class ColorScheme {
             onInverseSurface: '#313033',
             inversePrimary: '#6750A4',
             surfaceTint: '#D0BCFF',
+
+            // M3 Surface Tones (Dark)
+            surfaceContainerLowest: '#0F0D13',
+            surfaceContainerLow: '#1D1B20',
+            surfaceContainer: '#211F26',
+            surfaceContainerHigh: '#2B2930',
+            surfaceContainerHighest: '#36343B',
         });
     }
 }

@@ -106,7 +106,10 @@ class Color {
 
   toCSSString() {
     if (this.alpha === 255) {
-      return this.hex.slice(0, 7); // #RRGGBB
+      // hex is #AARRGGBB
+      // We want #RRGGBB
+      // So we take '#' and then everything after the first 2 chars (AA)
+      return '#' + this.hex.slice(3);
     } else {
       const r = this.red;
       const g = this.green;

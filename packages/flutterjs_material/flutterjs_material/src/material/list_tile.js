@@ -5,6 +5,9 @@ import { Row, Column, Expanded, SizedBox } from '../widgets/widgets.js';
 import { Container } from './container.js';
 import { GestureDetector } from './gesture_detector.js';
 import { BoxConstraints } from '../utils/box_constraints.js';
+import { Theme } from './theme.js';
+import { IconTheme } from './icon_theme.js';
+import { TextStyle } from '../painting/text_style.js';
 
 /**
  * A single fixed-height row that typically contains some text as well as
@@ -66,19 +69,41 @@ export class ListTile extends StatelessWidget {
     }
 
     build(context) {
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+
+        // Colors
+        // Selected: Secondary Container
+        // Unselected: Transparent (or tileColor)
+        const defaultSelectedColor = colorScheme.secondaryContainer || '#E8DEF8';
+        const defaultSelectedContentColor = colorScheme.onSecondaryContainer || '#1D192B';
+        const defaultContentColor = colorScheme.onSurfaceVariant || '#49454F';
+        const titleColor = colorScheme.onSurface || '#1C1B1F';
+
+        const bgColor = this.selected
+            ? (this.selectedTileColor || defaultSelectedColor)
+            : (this.tileColor || null);
+
+        const iconColor = this.selected ? defaultSelectedContentColor : defaultContentColor;
+        const textColor = this.selected ? defaultSelectedContentColor : defaultContentColor;
+        const mainTextColor = this.selected ? defaultSelectedContentColor : titleColor;
+
         const children = [];
 
         // Leading
         if (this.leading) {
-            children.push(new Container({
-                constraints: new BoxConstraints(
-                    this.minLeadingWidth || 40, // minWidth
-                    Infinity,                   // maxWidth
-                    0,                          // minHeight
-                    Infinity                    // maxHeight
-                ),
-                alignment: Alignment.center,
-                child: this.leading
+            children.push(new IconTheme({
+                data: theme.iconTheme.copyWith({ color: iconColor }),
+                child: new Container({
+                    constraints: new BoxConstraints(
+                        this.minLeadingWidth || 40,
+                        Infinity,
+                        0,
+                        Infinity
+                    ),
+                    alignment: Alignment.center,
+                    child: this.leading
+                })
             }));
 
             children.push(new SizedBox({ width: this.horizontalTitleGap || 16 }));
@@ -109,7 +134,10 @@ export class ListTile extends StatelessWidget {
         // Trailing
         if (this.trailing) {
             children.push(new SizedBox({ width: 16 }));
-            children.push(this.trailing);
+            children.push(new IconTheme({
+                data: theme.iconTheme.copyWith({ color: iconColor }), // Typically trailing is also onSurfaceVariant
+                child: this.trailing
+            }));
         }
 
         // Decoration & Sizing
@@ -120,10 +148,6 @@ export class ListTile extends StatelessWidget {
             padding = EdgeInsets.symmetric({ horizontal: 16, vertical: 8 });
         }
 
-        const bgColor = this.selected
-            ? (this.selectedTileColor || new Color('#E0E0E0')) // Default light grey for selected
-            : (this.tileColor || null); // Container handles null color as transparent
-
         const tileContent = new Container({
             constraints: new BoxConstraints(
                 0,        // minWidth
@@ -133,8 +157,6 @@ export class ListTile extends StatelessWidget {
             ),
             padding: padding,
             color: bgColor,
-            // Note: If shape is provided, we might interpret it as decoration. 
-            // For now, ignoring complex shape mapping to BoxDecoration, assuming standard tile.
             child: new Row({
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: children

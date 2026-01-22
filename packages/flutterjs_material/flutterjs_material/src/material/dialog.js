@@ -4,6 +4,7 @@ import { DialogTheme } from '../utils/dialog_theme.js';
 import { Color } from '../utils/color.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
 import { buildChildWidget } from '../utils/build_helper.js';
+import { Theme } from './theme.js';
 
 /**
  * Dialog - A material design dialog
@@ -40,8 +41,11 @@ class Dialog extends StatelessWidget {
         // Default inset padding
         const effectiveInsetPadding = this.insetPadding || { top: 40, bottom: 40, left: 40, right: 40 };
 
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+
         const dialogStyle = {
-            backgroundColor: this.backgroundColor || '#ffffff',
+            backgroundColor: this.backgroundColor || colorScheme.surfaceContainerHigh || '#ECE6F0',
             borderRadius: this.shape?.borderRadius || '4px',
             boxShadow: this.elevation ? `0 ${this.elevation}px ${this.elevation * 2}px rgba(0,0,0,0.2)` : '0 24px 48px rgba(0,0,0,0.2)',
             margin: `${effectiveInsetPadding.top}px ${effectiveInsetPadding.right}px ${effectiveInsetPadding.bottom}px ${effectiveInsetPadding.left}px`,

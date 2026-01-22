@@ -2,6 +2,7 @@ import { StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { BlendMode, TextDirection } from '../utils/utils.js';
 import { IconTheme } from './icon_theme.js';
+import { Theme } from './theme.js';
 
 const DEFAULT_ICON_SIZE = 24;
 const DEFAULT_FONT_SIZE = 24;
@@ -211,14 +212,47 @@ class Icon extends StatelessWidget {
   _injectFont() {
     if (typeof document === 'undefined') return;
 
-    // Check if Material Icons is already loaded
-    if (document.getElementById('flutterjs-material-icons')) return;
+    // 1. Inject Google Fonts Link
+    if (!document.getElementById('flutterjs-material-icons-link')) {
+      const link = document.createElement('link');
+      link.id = 'flutterjs-material-icons-link';
+      link.rel = 'stylesheet';
+      link.href = 'https://fonts.googleapis.com/icon?family=Material+Icons';
+      document.head.appendChild(link);
+    }
 
-    const link = document.createElement('link');
-    link.id = 'flutterjs-material-icons';
-    link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/icon?family=Material+Icons';
-    document.head.appendChild(link);
+    // 2. Inject CSS Rules (Ensure .material-icons class is defined)
+    if (!document.getElementById('flutterjs-material-icons-style')) {
+      const style = document.createElement('style');
+      style.id = 'flutterjs-material-icons-style';
+      style.textContent = `
+        @font-face {
+          font-family: 'Material Icons';
+          font-style: normal;
+          font-weight: 400;
+          src: url(https://fonts.gstatic.com/s/materialicons/v140/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2) format('woff2');
+        }
+
+        .material-icons {
+          font-family: 'Material Icons';
+          font-weight: normal;
+          font-style: normal;
+          font-size: 24px;
+          display: inline-block;
+          line-height: 1;
+          text-transform: none;
+          letter-spacing: normal;
+          word-wrap: normal;
+          white-space: nowrap;
+          direction: ltr;
+          -webkit-font-smoothing: antialiased;
+          text-rendering: optimizeLegibility;
+          -moz-osx-font-smoothing: grayscale;
+          font-feature-settings: 'liga';
+        }
+      `;
+      document.head.appendChild(style);
+    }
   }
 
   build(context) {
@@ -256,7 +290,23 @@ class Icon extends StatelessWidget {
 
     // Calculate color with opacity
     const iconOpacity = iconTheme.opacity ?? 1.0;
-    let iconColor = this.color ?? iconTheme.color ?? '#000000';
+
+    // Resolve color:
+    // 1. Widget property
+    // 2. IconTheme
+    // 3. Theme colorScheme.onSurface (fallback from M3 defaults usually)
+    let iconColor = this.color ?? iconTheme.color;
+
+    if (!iconColor) {
+      try {
+        // Fallback to theme context if available
+        const theme = Theme.of(context);
+        iconColor = theme?.colorScheme?.onSurface;
+      } catch (e) {
+        // Fallback to default if theme lookup fails
+      }
+      // If still no color, leave as undefined to allow CSS inheritance (currentColor)
+    }
 
     if (iconOpacity !== 1.0) {
       iconColor = this._applyOpacity(iconColor, iconOpacity);
@@ -319,15 +369,24 @@ class Icon extends StatelessWidget {
   }
 
   _buildEmptyIcon(size) {
+    // Debugging aid: invalid/missing icon
     return new VNode({
       tag: 'span',
       props: {
         style: {
-          display: 'inline-block',
+          display: 'inline-flex',
           width: `${size}px`,
-          height: `${size}px`
-        }
-      }
+          height: `${size}px`,
+          backgroundColor: 'rgba(255, 0, 0, 0.2)', // Visual indicator
+          color: 'red',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '12px',
+          border: '1px dashed red'
+        },
+        title: 'Missing Icon'
+      },
+      children: ['?']
     });
   }
 
@@ -335,7 +394,7 @@ class Icon extends StatelessWidget {
     return new VNode({
       tag: 'span',
       props: {
-        className: 'fjs-icon',
+        className: 'fjs-icon material-icons',
         style: {
           ...styles,
           display: 'inline-flex',
@@ -378,10 +437,36 @@ class Icon extends StatelessWidget {
     blendMode,
     textDirection
   }) {
+    let cssColor = color;
+
+    // Check if color is an object (Color, MaterialColor, etc.)
+    if (color && typeof color === 'object') {
+      // First try standard conversion
+      if (typeof color.toCSSString === 'function') {
+        cssColor = color.toCSSString();
+      } else if (color.value !== undefined) {
+        // Fallback: manually convert integer value to CSS hex
+        // value is 0xAARRGGBB
+        // we want #RRGGBB if alpha is FF, else rgba
+        const val = color.value >>> 0;
+        const a = (val >> 24) & 0xFF;
+        const r = (val >> 16) & 0xFF;
+        const g = (val >> 8) & 0xFF;
+        const b = val & 0xFF;
+
+        if (a === 255) {
+          cssColor = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+        } else {
+          const opacity = (a / 255).toFixed(4).replace(/\.?0+$/, '');
+          cssColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+        }
+      }
+    }
+
     const styles = {
       fontSize: `${fontSize}px`,
       fontFamily: this._buildFontFamily(fontFamily, fontFamilyFallback),
-      color: color,
+      color: cssColor,
       fontVariationSettings: fontVariations,
       textShadow: this._buildTextShadow(shadows),
       mixBlendMode: BLEND_MODE_MAP[blendMode] || 'normal',
@@ -390,7 +475,12 @@ class Icon extends StatelessWidget {
       height: '1em',
       userSelect: 'none',
       WebkitUserSelect: 'none',
-      MozUserSelect: 'none'
+      MozUserSelect: 'none',
+      // Material Icons specific styling for reliable rendering
+      textRendering: 'optimizeLegibility',
+      WebkitFontSmoothing: 'antialiased',
+      MozOsxFontSmoothing: 'grayscale',
+      fontFeatureSettings: "'liga'"
     };
 
     if (fontWeight) {
@@ -401,25 +491,8 @@ class Icon extends StatelessWidget {
   }
 
   _buildFontFamily(primary, fallback) {
-    if (!primary) return "'Material Icons', Arial, sans-serif";
-
-    const families = [primary];
-
-    if (Array.isArray(fallback) && fallback.length > 0) {
-      families.push(...fallback);
-    }
-
-    families.push('Arial', 'sans-serif');
-
-    const generics = ['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy'];
-
-    return families.map(f => {
-      // Don't quote generic families
-      if (generics.includes(f)) return f;
-      // Don't double quote if already quoted
-      if (f.startsWith("'") || f.startsWith('"')) return f;
-      return `'${f}'`;
-    }).join(', ');
+    // simplified for debugging
+    return "'Material Icons'";
   }
 
   _buildFontVariations(fill, weight, grade, opticalSize) {
@@ -481,8 +554,24 @@ class Icon extends StatelessWidget {
   _applyOpacity(color, opacity) {
     if (!color) return color;
 
+    // Handle Color object
+    if (typeof color === 'object' && color.toCSSString) {
+      if (color.withOpacity) {
+        return color.withOpacity(opacity).toCSSString();
+      }
+      color = color.toCSSString();
+    } else if (typeof color === 'object' && color.value) {
+      // Manual fallback if methods missing
+      // Reconstruct as rgba
+      const val = color.value;
+      const r = (val >> 16) & 0xFF;
+      const g = (val >> 8) & 0xFF;
+      const b = val & 0xFF;
+      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
+
     // Handle hex color
-    if (color.startsWith('#')) {
+    if (typeof color === 'string' && color.startsWith('#')) {
       const hex = color.slice(1);
       const r = parseInt(hex.substring(0, 2), 16);
       const g = parseInt(hex.substring(2, 4), 16);
@@ -491,7 +580,7 @@ class Icon extends StatelessWidget {
     }
 
     // Handle rgb/rgba
-    if (color.startsWith('rgb')) {
+    if (typeof color === 'string' && color.startsWith('rgb')) {
       return color.replace(/[\d.]+\)/, `${opacity})`);
     }
 
@@ -579,17 +668,7 @@ const Icons = {
   thumbUp: new IconData({ codePoint: 0xe8dc, fontFamily: 'Material Icons' }),
   visibility: new IconData({ codePoint: 0xe8f4, fontFamily: 'Material Icons' }),
   logout: new IconData({ codePoint: 0xe9ba, fontFamily: 'Material Icons' }),
-  login: new IconData({ codePoint: 0xea77, fontFamily: 'Material Icons' })
-  ,
-  settings: new IconData({ codePoint: 0xe8b8, fontFamily: 'Material Icons' }),
-  search: new IconData({ codePoint: 0xe8b9, fontFamily: 'Material Icons' }),
-  home: new IconData({ codePoint: 0xe88a, fontFamily: 'Material Icons' }),
-  favorite: new IconData({ codePoint: 0xe87d, fontFamily: 'Material Icons' }),
-  star: new IconData({ codePoint: 0xe838, fontFamily: 'Material Icons' }),
-  delete: new IconData({ codePoint: 0xe872, fontFamily: 'Material Icons' }),
-  edit: new IconData({
-    codePoint: 0xe3c9, fontFamily: 'Material Icons'
-  }),
+  login: new IconData({ codePoint: 0xea77, fontFamily: 'Material Icons' }),
   addAPhoto: new IconData({ codePoint: 0xe439, fontFamily: 'Material Icons' }),
   addAlarm: new IconData({ codePoint: 0xe193, fontFamily: 'Material Icons' }),
   addAlert: new IconData({ codePoint: 0xe003, fontFamily: 'Material Icons' }),

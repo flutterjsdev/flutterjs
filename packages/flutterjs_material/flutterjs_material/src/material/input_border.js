@@ -28,13 +28,13 @@ class OutlineInputBorder extends InputBorder {
         // Handle borderSide shorthand or object
         if (borderSide) {
             this.borderSide = {
-                color: borderSide.color || new Color('#bdbdbd').toCSSString(),
+                color: borderSide.color || '#79747E', // M3 Outline variant fallback
                 width: borderSide.width || 1,
                 ...borderSide
             };
         } else {
             this.borderSide = {
-                color: new Color('#bdbdbd').toCSSString(),
+                color: '#79747E',
                 width: 1
             };
         }
@@ -67,13 +67,13 @@ class UnderlineInputBorder extends InputBorder {
 
         if (borderSide) {
             this.borderSide = {
-                color: borderSide.color || new Color('#bdbdbd').toCSSString(),
+                color: borderSide.color || '#79747E',
                 width: borderSide.width || 1,
                 ...borderSide
             };
         } else {
             this.borderSide = {
-                color: new Color('#bdbdbd').toCSSString(),
+                color: '#79747E',
                 width: 1
             };
         }

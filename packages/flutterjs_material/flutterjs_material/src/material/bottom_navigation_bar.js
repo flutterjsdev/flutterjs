@@ -7,6 +7,7 @@ import { GestureDetector } from './gesture_detector.js';
 import { MainAxisAlignment, CrossAxisAlignment, MainAxisSize } from '../utils/utils.js';
 import { BottomNavigationBarTheme } from './bottom_navigation_bar_theme.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
+import { Theme } from './theme.js';
 
 const BottomNavigationBarType = {
     fixed: 'fixed',
@@ -80,11 +81,14 @@ class BottomNavigationBar extends StatelessWidget {
 
     build(context) {
         const theme = BottomNavigationBarTheme.of(context) || {};
+        const appTheme = Theme.of(context);
+        const colorScheme = appTheme.colorScheme;
+
         const effectiveType = this.type || theme.type || BottomNavigationBarType.fixed;
-        const effectiveBgColor = this.backgroundColor || theme.backgroundColor || '#ffffff';
+        const effectiveBgColor = this.backgroundColor || theme.backgroundColor || colorScheme.surfaceContainer || '#F3EDF7';
         const effectiveElevation = this.elevation ?? theme.elevation ?? 8.0;
-        const effectiveSelectedItemColor = this.selectedItemColor || theme.selectedItemColor || this.fixedColor || '#2196F3'; // Default primary blue
-        const effectiveUnselectedItemColor = this.unselectedItemColor || theme.unselectedItemColor || '#757575'; // Default grey
+        const effectiveSelectedItemColor = this.selectedItemColor || theme.selectedItemColor || this.fixedColor || colorScheme.primary || '#6750A4';
+        const effectiveUnselectedItemColor = this.unselectedItemColor || theme.unselectedItemColor || colorScheme.onSurfaceVariant || '#49454F';
 
         // Show unselected labels defaults to true for fixed, false for shifting
         const effectiveShowUnselectedLabels = this.showUnselectedLabels ?? theme.showUnselectedLabels ?? (effectiveType === BottomNavigationBarType.fixed);

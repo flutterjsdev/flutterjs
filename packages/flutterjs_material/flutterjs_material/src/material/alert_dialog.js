@@ -2,6 +2,7 @@ import { StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Dialog } from './dialog.js';
 import { buildChildWidgets } from '../utils/build_helper.js';
+import { Theme } from './theme.js';
 
 /**
  * AlertDialog - Material Design alert dialog
@@ -70,6 +71,14 @@ class AlertDialog extends StatelessWidget {
 
         const children = [];
 
+        // Resolve theme colors
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+
+        const effectiveIconColor = this.iconColor || colorScheme.secondary || '#625B71';
+        const effectiveTitleColor = this.titleTextStyle?.color || colorScheme.onSurface || '#1C1B1F';
+        const effectiveContentColor = this.contentTextStyle?.color || colorScheme.onSurfaceVariant || '#49454E';
+
         // Icon (optional)
         if (this.icon) {
             const iconPadding = this.iconPadding || { top: 24, left: 24, right: 24, bottom: 0 };
@@ -82,7 +91,7 @@ class AlertDialog extends StatelessWidget {
                             padding: `${iconPadding.top}px ${iconPadding.right}px ${iconPadding.bottom}px ${iconPadding.left}px`,
                             display: 'flex',
                             justifyContent: 'center',
-                            color: this.iconColor || '#000000de'
+                            color: effectiveIconColor
                         }
                     },
                     children: [this.icon]
@@ -94,10 +103,10 @@ class AlertDialog extends StatelessWidget {
         if (this.title) {
             const titleStyle = {
                 padding: `${this.titlePadding.top}px ${this.titlePadding.right}px ${this.titlePadding.bottom}px ${this.titlePadding.left}px`,
-                fontSize: this.titleTextStyle?.fontSize || '20px',
-                fontWeight: this.titleTextStyle?.fontWeight || '500',
-                color: this.titleTextStyle?.color || '#000000de',
-                lineHeight: '24px'
+                fontSize: this.titleTextStyle?.fontSize || '24px', // M3 Headline Small
+                fontWeight: this.titleTextStyle?.fontWeight || '400',
+                color: effectiveTitleColor,
+                lineHeight: '32px'
             };
 
             children.push(
@@ -116,9 +125,9 @@ class AlertDialog extends StatelessWidget {
         if (this.content) {
             const contentStyle = {
                 padding: `${this.contentPadding.top}px ${this.contentPadding.right}px ${this.contentPadding.bottom}px ${this.contentPadding.left}px`,
-                fontSize: this.contentTextStyle?.fontSize || '14px',
+                fontSize: this.contentTextStyle?.fontSize || '14px', // M3 Body Medium
                 fontWeight: this.contentTextStyle?.fontWeight || '400',
-                color: this.contentTextStyle?.color || '#00000099',
+                color: effectiveContentColor,
                 lineHeight: '20px',
                 flex: this.scrollable ? '1 1 auto' : 'none',
                 overflow: this.scrollable ? 'auto' : 'visible'

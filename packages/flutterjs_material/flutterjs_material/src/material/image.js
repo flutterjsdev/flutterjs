@@ -186,7 +186,7 @@ class NetworkImage extends ImageProvider {
       }, this.timeout);
 
       const xhr = new XMLHttpRequest();
-      
+
       xhr.addEventListener('progress', (e) => {
         if (e.lengthComputable && this.onProgress) {
           this.onProgress({
@@ -228,7 +228,7 @@ class NetworkImage extends ImageProvider {
 
       xhr.responseType = 'blob';
       xhr.open('GET', this.src, true);
-      
+
       Object.entries(this.headers).forEach(([key, value]) => {
         xhr.setRequestHeader(key, value);
       });
@@ -440,7 +440,7 @@ class Image extends StatefulWidget {
     clipBehavior = Clip.hardEdge
   } = {}) {
     super(key);
-    
+
     if (!image || !(image instanceof ImageProvider)) {
       throw new Error('Image requires a valid ImageProvider');
     }
@@ -563,8 +563,8 @@ class _ImageState {
   }
 
   didUpdateWidget(oldWidget) {
-    if (this.isListeningToStream && 
-        (this.widget.loadingBuilder == null) !== (oldWidget.loadingBuilder == null)) {
+    if (this.isListeningToStream &&
+      (this.widget.loadingBuilder == null) !== (oldWidget.loadingBuilder == null)) {
       this._updateStreamListener();
     }
 
@@ -686,13 +686,17 @@ class _ImageState {
       if (this.widget.errorBuilder) {
         return this.widget.errorBuilder(context, this.error, this.errorStack);
       }
+
+      const theme = Theme.of(context);
+      const errorBg = theme.colorScheme?.surfaceContainerHighest || '#E6E0E9';
+
       return new VNode({
         tag: 'div',
         props: {
           className: 'fjs-image-error',
           style: {
             ...inlineStyles,
-            backgroundColor: '#f0f0f0',
+            backgroundColor: errorBg,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -834,15 +838,15 @@ class _ImageState {
   }
 }
 
-export { 
-  Image, 
-  ImageProvider, 
-  NetworkImage, 
-  AssetImage, 
-  MemoryImage, 
-  FileImage, 
+export {
+  Image,
+  ImageProvider,
+  NetworkImage,
+  AssetImage,
+  MemoryImage,
+  FileImage,
   ImageStream,
   ImageChunkEvent,
   ImageStreamCompleterHandle,
-  IMAGE_SOURCE_TYPES 
+  IMAGE_SOURCE_TYPES
 };
