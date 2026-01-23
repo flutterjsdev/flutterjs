@@ -62,9 +62,11 @@ export class Badge extends StatelessWidget {
     _buildBadge(context) {
         // Theme lookup
         const theme = BadgeTheme.of(context) || {};
+        const appTheme = Theme.of(context);
+        const colorScheme = appTheme.colorScheme;
 
-        const bgColor = this.backgroundColor || theme.backgroundColor || '#B3261E'; // Error/Red color default
-        const txtColor = this.textColor || theme.textColor || '#FFFFFF';
+        const bgColor = this.backgroundColor || theme.backgroundColor || colorScheme.error || '#B3261E'; // Error/Red color default
+        const txtColor = this.textColor || theme.textColor || colorScheme.onError || '#FFFFFF';
 
         // Size
         // If label is null/undefined or empty, it's a small badge (dot)

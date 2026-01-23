@@ -184,7 +184,7 @@ class SwitchState extends State {
             width: '40px',
             height: '40px',
             borderRadius: '50%',
-            backgroundColor: this._getOverlayColor(isDisabled, isActive, theme),
+            backgroundColor: this._getOverlayColor(isDisabled, isActive, theme, colorScheme),
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
@@ -316,7 +316,7 @@ class SwitchState extends State {
         return theme.trackColor || colorScheme.surfaceContainerHighest; // M3 Inactive Track
     }
 
-    _getOverlayColor(isDisabled, isActive, theme) {
+    _getOverlayColor(isDisabled, isActive, theme, colorScheme) {
         if (isDisabled) {
             return 'transparent';
         }
@@ -334,7 +334,7 @@ class SwitchState extends State {
         }
 
         // Use theme or default colors
-        const baseColor = isActive ? '#2196f3' : '#616161';
+        const baseColor = isActive ? (colorScheme.primary || '#2196f3') : (colorScheme.onSurface || '#616161');
         const alpha = this.isPressed ? 0.24 : (this.isFocused ? 0.12 : (this.isHovered ? 0.08 : 0));
 
         if (alpha === 0) return 'transparent';

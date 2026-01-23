@@ -153,7 +153,7 @@ class CheckboxState extends State {
             cursor: isDisabled ? 'default' : 'pointer',
             position: 'relative',
             transition: 'background-color 0.15s ease',
-            backgroundColor: this._getOverlayColor(isDisabled, theme)
+            backgroundColor: this._getOverlayColor(isDisabled, theme, colorScheme)
         };
 
         // Checkbox box styles
@@ -173,9 +173,16 @@ class CheckboxState extends State {
         // Build check mark or indeterminate line
         let checkMark = null;
         if (isChecked) {
-            checkMark = this._buildCheckMark(checkColor);
+            // Ensure checkColor is string
+            const safeCheckColor = typeof checkColor === 'object' && checkColor.toCSSString
+                ? checkColor.toCSSString()
+                : checkColor;
+            checkMark = this._buildCheckMark(safeCheckColor);
         } else if (isIndeterminate) {
-            checkMark = this._buildIndeterminateMark(checkColor);
+            const safeCheckColor = typeof checkColor === 'object' && checkColor.toCSSString
+                ? checkColor.toCSSString()
+                : checkColor;
+            checkMark = this._buildIndeterminateMark(safeCheckColor);
         }
 
         const events = {
@@ -256,14 +263,14 @@ class CheckboxState extends State {
         }
 
         if (isChecked || isIndeterminate) {
-            return colorScheme.primary;
+            return colorScheme.primary || '#6200ee';
         }
 
         // Unselected border color - M3 uses onSurfaceVariant
-        return colorScheme.onSurfaceVariant;
+        return colorScheme.onSurfaceVariant || '#49454F';
     }
 
-    _getOverlayColor(isDisabled, theme) {
+    _getOverlayColor(isDisabled, theme, colorScheme) {
         if (isDisabled) {
             return 'transparent';
         }
@@ -281,17 +288,18 @@ class CheckboxState extends State {
         }
 
         // Use theme colors
+        // If theme has logic, let it handle it, but fallback to Primary with Opacity
         if (this.isPressed) {
-            const splashRadius = this.widget.splashRadius ?? theme.splashRadius ?? 20;
-            return theme.getHoverColor(); // Theme handles opacity
+            // Pressed is usually Primary with high opacity
+            return new Color(colorScheme.primary).withOpacity(0.12).toCSSString();
         }
 
         if (this.isFocused) {
-            return theme.getFocusColor();
+            return new Color(colorScheme.onSurface).withOpacity(0.12).toCSSString();
         }
 
         if (this.isHovered) {
-            return theme.getHoverColor();
+            return new Color(colorScheme.onSurface).withOpacity(0.08).toCSSString();
         }
 
         return 'transparent';

@@ -42,8 +42,8 @@ class CircleAvatar extends StatelessWidget {
         const theme = Theme.of(context);
         const colorScheme = theme.colorScheme;
 
-        const effectiveBgColor = this.backgroundColor || (colorScheme ? colorScheme.primaryContainer : Colors.grey[300]); // Fallback
-        const effectiveFgColor = this.foregroundColor || (colorScheme ? colorScheme.onPrimaryContainer : Colors.white);
+        const effectiveBgColor = this.backgroundColor || colorScheme.primaryContainer || '#EADDFF';
+        const effectiveFgColor = this.foregroundColor || colorScheme.onPrimaryContainer || '#21005D';
 
         const effectiveRadius = this.radius || this.maxRadius || this.minRadius || 20.0;
         const diameter = effectiveRadius * 2;

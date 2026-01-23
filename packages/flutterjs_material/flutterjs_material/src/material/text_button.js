@@ -37,6 +37,7 @@ export class TextButton extends ButtonStyleButton {
     build(context) {
         const theme = Theme.of(context);
         const colorScheme = theme.colorScheme;
+        const buttonTheme = theme.textButtonTheme?.style || {};
 
         // M3 Defaults for Text Button
         const defaultBg = 'transparent';
@@ -53,8 +54,12 @@ export class TextButton extends ButtonStyleButton {
 
         const customStyle = this.style || {};
 
-        const effectiveBg = resolveColor(customStyle.backgroundColor, defaultBg);
-        const effectiveFg = resolveColor(customStyle.foregroundColor || customStyle.color, defaultFg);
+        // Merge with Theme
+        const themeBg = buttonTheme.backgroundColor;
+        const themeFg = buttonTheme.foregroundColor;
+
+        const effectiveBg = resolveColor(customStyle.backgroundColor || themeBg, defaultBg);
+        const effectiveFg = resolveColor(customStyle.foregroundColor || customStyle.color || themeFg, defaultFg);
 
         return new GestureDetector({
             onTap: this.onPressed,
@@ -66,7 +71,7 @@ export class TextButton extends ButtonStyleButton {
                     borderRadius: customStyle.shape?.borderRadius || BorderRadius.circular(20),
                 }),
                 child: new Center({
-                    child: this.child
+                    child: this.child // TODO: Apply text style if needed (usually handled by child or inherited)
                 })
             })
         });

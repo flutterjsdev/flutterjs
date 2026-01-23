@@ -1,8 +1,10 @@
-import { StatefulWidget ,State} from '../core/widget_element.js';
+import { StatefulWidget, State } from '../core/widget_element.js';
 import { Row } from '../widgets/widgets.js';
 import { GestureDetector } from './gesture_detector.js';
 import { Container } from './container.js';
 import { ToggleButtonsTheme } from './toggle_buttons_theme.js';
+import { Theme } from './theme.js';
+import { Color } from '../utils/color.js';
 import { Colors } from './color.js';
 
 export class ToggleButtons extends StatefulWidget {
@@ -51,25 +53,28 @@ export class ToggleButtons extends StatefulWidget {
 class ToggleButtonsState extends State {
     build(context) {
         const theme = ToggleButtonsTheme.of(context) || {};
+        const appTheme = Theme.of(context);
+        const colorScheme = appTheme.colorScheme;
 
         return new Row({
             children: this.widget.children.map((child, index) => {
                 const isSelected = this.widget.isSelected[index];
 
                 // Styles
+                const defaultBorderColor = colorScheme.outline || '#79747E';
+                const defaultSelectedBorderColor = colorScheme.outline || '#79747E'; // Usually same outline in M3 initially but can be varying
+
                 const borderColor = isSelected
-                    ? (this.widget.selectedBorderColor || theme.selectedBorderColor || Colors.blue)
-                    : (this.widget.borderColor || theme.borderColor || Colors.grey);
+                    ? (this.widget.selectedBorderColor || theme.selectedBorderColor || defaultSelectedBorderColor)
+                    : (this.widget.borderColor || theme.borderColor || defaultBorderColor);
 
                 const backgroundColor = isSelected
-                    ? (this.widget.fillColor || theme.fillColor || Colors.blue[50])
+                    ? (this.widget.fillColor || theme.fillColor || new Color(colorScheme.primary).withOpacity(0.12).toCSSString()) // Secondary containerish
                     : 'transparent';
 
                 const textColor = isSelected
-                    ? (this.widget.selectedColor || theme.selectedColor || Colors.blue)
-                    : (this.widget.color || theme.color || Colors.black);
-
-                // Simplified Border handling (should handle adjacent borders merging)
+                    ? (this.widget.selectedColor || theme.selectedColor || colorScheme.primary || '#6750A4')
+                    : (this.widget.color || theme.color || colorScheme.onSurfaceVariant || '#49454F');
 
                 return new GestureDetector({
                     onTap: () => this.widget.onPressed?.(index),
@@ -80,7 +85,7 @@ class ToggleButtonsState extends State {
                             // borderRadius logic (first, last, vs middle)
                         },
                         padding: { horizontal: 16, vertical: 8 }, // example
-                        child: child // Apply textColor to child (IconTheme/TextStyle)
+                        child: child // Apply textColor to child (IconTheme/TextStyle) usually done by providing DefaultTextStyle/IconTheme above this container or child
                     })
                 });
             })

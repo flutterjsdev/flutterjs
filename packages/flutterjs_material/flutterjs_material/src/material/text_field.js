@@ -211,6 +211,7 @@ class TextFieldState extends State {
         // Determine current border type and color
         const theme = Theme.of(context);
         const colorScheme = theme.colorScheme;
+        const inputDecorationTheme = theme.inputDecorationTheme || {}; // Fallback if implemented later
 
         const primaryColor = new Color(colorScheme.primary);
         const errorColor = new Color(colorScheme.error);
@@ -240,12 +241,14 @@ class TextFieldState extends State {
         };
 
         // 2. Input Decorator Container (The Box)
+        const filledColor = decoration.fillColor || inputDecorationTheme.fillColor || colorScheme.surfaceContainerHighest || '#E6E0E9';
+
         const containerStyle = {
             position: 'relative',
             display: 'flex',
             alignItems: 'center',
             minHeight: decoration.isDense ? '40px' : '56px',
-            backgroundColor: decoration.filled ? (decoration.fillColor || colorScheme.surfaceContainerHighest || '#E6E0E9') : 'transparent',
+            backgroundColor: decoration.filled ? (typeof filledColor.toCSSString === 'function' ? filledColor.toCSSString() : filledColor) : 'transparent',
             borderRadius: '4px',
             boxSizing: 'border-box'
         };
@@ -262,6 +265,8 @@ class TextFieldState extends State {
         }
 
         // 3. Floating Label
+        const labelColorActive = hasError ? errorColor.toCSSString() : (isFocused ? primaryColor.toCSSString() : (colorScheme.onSurfaceVariant || '#49454F'));
+
         const labelStyle = {
             position: 'absolute',
             left: (decoration.border instanceof OutlineInputBorder) ? '12px' : '0px',
@@ -269,12 +274,12 @@ class TextFieldState extends State {
             pointerEvents: 'none',
             transformOrigin: 'top left',
             transition: 'color 0.2s, transform 0.2s',
-            color: hasError ? errorColor.toCSSString() : (isFocused ? primaryColor.toCSSString() : (colorScheme.onSurfaceVariant || '#49454F')),
+            color: labelColorActive,
             // Float logic: Translate up and Scale down
             transform: isFloating
                 ? `translate(0, -50%) scale(0.75)`
                 : `translate(0, 16px) scale(1)`,
-            backgroundColor: (isFloating && decoration.border instanceof OutlineInputBorder) ? '#fafafa' : 'transparent',
+            backgroundColor: (isFloating && decoration.border instanceof OutlineInputBorder) ? (colorScheme.surface || '#fafafa') : 'transparent',
             padding: '0 4px',
             zIndex: 1,
             maxWidth: '100%',
@@ -327,7 +332,7 @@ class TextFieldState extends State {
 
         // Prefix
         if (decoration.prefixIcon || decoration.prefix) {
-            containerChildren.push(this._buildAffix(decoration.prefixIcon || decoration.prefix, 'prefix'));
+            containerChildren.push(this._buildAffix(decoration.prefixIcon || decoration.prefix, 'prefix', colorScheme));
         }
 
         // Input
@@ -348,7 +353,7 @@ class TextFieldState extends State {
 
         // Suffix
         if (decoration.suffixIcon || decoration.suffix) {
-            containerChildren.push(this._buildAffix(decoration.suffixIcon || decoration.suffix, 'suffix'));
+            containerChildren.push(this._buildAffix(decoration.suffixIcon || decoration.suffix, 'suffix', colorScheme));
         }
 
         // Main Container Node
@@ -372,10 +377,9 @@ class TextFieldState extends State {
         const helperText = decoration.helperText;
         const hasFooterContent = !!(errorText || helperText);
 
-        const footerColor = errorText ? errorColor.toCSSString() : '#757575';
+        const footerColor = errorText ? errorColor.toCSSString() : (colorScheme.onSurfaceVariant || '#757575');
         const footerText = errorText || helperText || ' ';
 
-        console.error(`[TextField] Build: key=${this.widget.key}, hasError=${!!errorText}, errorText="${errorText}"`);
 
         const footer = new VNode({
             tag: 'div',
@@ -383,7 +387,7 @@ class TextFieldState extends State {
                 className: 'fjs-text-field-footer',
                 style: {
                     fontSize: '12px',
-                    color: footerColor,
+                    color: typeof footerColor.toCSSString === 'function' ? footerColor.toCSSString() : footerColor,
                     marginTop: '4px',
                     marginLeft: (decoration.border instanceof OutlineInputBorder) ? '12px' : '0',
                     minHeight: '16px',
@@ -414,7 +418,7 @@ class TextFieldState extends State {
         return map[this.widget.keyboardType] || 'text';
     }
 
-    _buildAffix(content, type) {
+    _buildAffix(content, type, colorScheme) {
         return new VNode({
             tag: 'div',
             props: {
@@ -422,7 +426,7 @@ class TextFieldState extends State {
                     display: 'flex',
                     alignItems: 'center',
                     padding: type === 'prefix' ? '0 8px 0 12px' : '0 12px 0 8px',
-                    color: '#757575'
+                    color: colorScheme ? (colorScheme.onSurfaceVariant || '#757575') : '#757575'
                 }
             },
             children: [typeof content === 'string' ? content : content]

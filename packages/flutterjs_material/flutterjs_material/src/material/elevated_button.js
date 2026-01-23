@@ -75,6 +75,7 @@ class ElevatedButtonElement extends ProxyElement {
 
         const theme = Theme.of(this);
         const colorScheme = theme.colorScheme;
+        const buttonTheme = theme.elevatedButtonTheme?.style || {};
 
         // Resolve Style from ButtonStyle or simple overrides
         let customStyle = this.widget.style || {};
@@ -92,38 +93,9 @@ class ElevatedButtonElement extends ProxyElement {
 
         // Handle ButtonStyle-like object from styleFrom
         // This logic mimics MaterialStateProperty resolution for simple cases
+        // Also merge with Theme defaults
         if (customStyle._isButtonStyle) {
             const btnStyle = {};
-
-            // Background Color
-            // Default: Surface Container Low + Primary Tint (Elevated) or Primary (Filled)
-            // For ElevatedButton specifically in M3:
-            // Background: Surface Container Low (or similar surface)
-            // Text: Primary
-            // But Flutter JS implementation seems to have mixed filled/elevated generic.
-            // Let's stick to standard M3 Elevated Button:
-            // Background: Surface Container Low
-            // Text: Primary
-            // Shadow: Yes
-
-            // However, previous default was Purple (#6750A4) which suggests FilledButton behavior.
-            // If we want to match Flutter's "ElevatedButton" strictly, it's actually off-white background with shadow.
-            // If we want to match the *existing* look (Filled), we should use Primary.
-            // Given the user wants "Flutter color structure", strictly ElevatedButton is separate from FilledButton.
-            // But often people use ElevatedButton as the main primary button. 
-            // Let's check if FilledButton exists. Yes it does.
-            // So ElevatedButton should be the surface-colored one? 
-            // Actually in M3, ElevatedButton is surface-colored with shadow. FilledButton is primary-colored.
-            // EXISTING CODE used #6750A4 (Primary).
-            // To avoid drastic visual breakdown, we'll map it to Primary for now, OR valid M3 Elevated.
-            // Let's use M3 defaults:
-            // ElevatedButton: background=surfaceContainerLow, text=primary
-            // FilledButton: background=primary, text=onPrimary
-
-            // Wait, standard Flutter ElevatedButton is often what users think of as "the button".
-            // If I change it to white/surface, users might be confused if they expected the "purple button".
-            // BUT the user explicitly asked to "follow flutter color structure".
-            // So I will implement proper M3 Elevated Button defaults.
 
             const defaultBg = colorScheme.surfaceContainerLow || '#F7F2FA';
             const defaultFg = colorScheme.primary;
@@ -135,8 +107,18 @@ class ElevatedButtonElement extends ProxyElement {
 
             if (customStyle.shape && customStyle.shape.borderRadius) {
                 const r = customStyle.shape.borderRadius;
+                console.log('[ElevatedButton] Radius:', r);
+
+                // Handle BorderRadius class
                 if (r.topLeft !== undefined) {
-                    btnStyle.borderRadius = `${r.topLeft}px ${r.topRight}px ${r.bottomRight}px ${r.bottomLeft}px`;
+                    const getVal = (val) => (typeof val === 'object' && val !== null) ? (val.x || 0) : (val || 0);
+
+                    const tl = getVal(r.topLeft);
+                    const tr = getVal(r.topRight);
+                    const br = getVal(r.bottomRight);
+                    const bl = getVal(r.bottomLeft);
+
+                    btnStyle.borderRadius = `${tl}px ${tr}px ${br}px ${bl}px`;
                 }
             }
 
@@ -148,17 +130,25 @@ class ElevatedButtonElement extends ProxyElement {
         const defaultBg = colorScheme.surfaceContainerLow || '#F7F2FA';
         const defaultFg = colorScheme.primary;
 
+        // Use theme style as base if available (simplified merge)
+        // In real Flutter, ButtonStyle.merge is complex. Here we just take simple properties.
+        const themeBg = buttonTheme.backgroundColor; // logic to resolve MaterialStateProperty omitted
+        const themeFg = buttonTheme.foregroundColor;
+
+        const effectiveBg = customStyle.backgroundColor || themeBg || defaultBg;
+        const effectiveFg = customStyle.color || themeFg || defaultFg;
+
         const baseStyle = {
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
             padding: '10px 24px',
             borderRadius: '20px',
-            backgroundColor: customStyle.backgroundColor || defaultBg,
-            color: customStyle.color || defaultFg,
+            backgroundColor: effectiveBg,
+            color: effectiveFg,
             border: 'none',
             cursor: this.widget.onPressed ? 'pointer' : 'default',
-            boxShadow: customStyle.elevation === 0 ? 'none' : '0 1px 3px rgba(0,0,0,0.3)',
+            boxShadow: customStyle.elevation === 0 ? 'none' : '0 1px 3px rgba(0,0,0,0.3)', // TODO: Use shadowColor
             transition: 'all 0.2s ease',
             fontSize: '14px',
             fontWeight: '500',
@@ -167,7 +157,7 @@ class ElevatedButtonElement extends ProxyElement {
             outline: 'none',
             userSelect: 'none',
             opacity: this.widget.onPressed ? 1 : 0.6,
-            ...customStyle
+            ...Object.fromEntries(Object.entries(customStyle).filter(([_, v]) => v !== undefined))
         };
 
         // Get child VNode from parent class (this handles the widget lifecycle)

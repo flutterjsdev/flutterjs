@@ -1,9 +1,10 @@
-import { StatefulWidget, StatelessWidget ,State} from '../core/widget_element.js';
+import { StatefulWidget, StatelessWidget, State } from '../core/widget_element.js';
 import { Container } from './container.js';
 import { Row, Expanded, Column } from '../widgets/widgets.js';
 import { GestureDetector } from './gesture_detector.js';
 import { TabController, DefaultTabController } from './tab_controller.js';
 import { TabBarTheme } from './tab_bar_theme.js';
+import { Theme } from './theme.js';
 import { Colors } from './color.js';
 
 export class Tab extends StatelessWidget {
@@ -107,8 +108,13 @@ class TabBarState extends State {
 
     build(context) {
         const theme = TabBarTheme.of(context) || {};
-        const activeColor = this.widget.labelColor || theme.labelColor || Colors.blue;
-        const inactiveColor = this.widget.unselectedLabelColor || theme.unselectedLabelColor || Colors.grey;
+        const appTheme = Theme.of(context);
+        const colorScheme = appTheme.colorScheme;
+
+        const activeColor = this.widget.labelColor || theme.labelColor || colorScheme.primary || '#6750A4';
+        const inactiveColor = this.widget.unselectedLabelColor || theme.unselectedLabelColor || colorScheme.onSurfaceVariant || '#49454F';
+        const indicatorColor = this.widget.indicatorColor || theme.indicatorColor || activeColor;
+
         const currentIndex = this._controller?.index || 0;
 
         return new Row({
@@ -118,7 +124,7 @@ class TabBarState extends State {
 
                 // Indicator logic (bottom border)
                 const decoration = isSelected ? {
-                    borderBottom: `2px solid ${this.widget.indicatorColor || theme.indicatorColor || activeColor}`
+                    borderBottom: `2px solid ${indicatorColor}`
                 } : null;
 
                 // Color logic for child text/icon would normally be done via DefaultTextStyle/IconTheme

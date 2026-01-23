@@ -1,6 +1,8 @@
 import { StatefulWidget, State } from '../core/widget_element.js';
 import { IconButton } from './icon_button.js';
 import { Icon, Icons } from './icon.js';
+import { Theme } from './theme.js';
+import { Color } from '../utils/color.js';
 // import { showMenu } from './popup_menu.js'; // Cyclic dependency if in same file? 
 // In FlutterJS we might put top level showMenu here.
 
@@ -23,8 +25,18 @@ export class PopupMenuDivider extends PopupMenuEntry {
 
 class PopupMenuDividerState extends State {
     build(context) {
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+        const dividerColor = theme.dividerColor || colorScheme.outlineVariant || '#CAC4D0';
+
         // Simple divider implementation
-        return { tag: 'div', style: { height: `${this.widget.height}px`, borderBottom: '1px solid #ddd' } };
+        return {
+            tag: 'div',
+            style: {
+                height: `${this.widget.height}px`,
+                borderBottom: `1px solid ${typeof dividerColor === 'string' ? dividerColor : (dividerColor.toCSSString ? dividerColor.toCSSString() : '#ddd')}`
+            }
+        };
     }
 }
 
@@ -67,8 +79,8 @@ class PopupMenuItemState extends State {
                 padding: '0 16px',
                 display: 'flex',
                 alignItems: 'center',
-                cursor: 'pointer',
-                opacity: this.widget.enabled ? 1 : 0.5
+                cursor: this.widget.enabled ? 'pointer' : 'default',
+                opacity: this.widget.enabled ? 1 : 0.38
             },
             onClick: () => {
                 if (this.widget.enabled) {

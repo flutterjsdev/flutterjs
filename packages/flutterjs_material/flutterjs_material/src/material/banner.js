@@ -50,7 +50,9 @@ class MaterialBanner extends StatelessWidget {
 
     build(context) {
         const theme = MaterialBannerTheme.of(context) || {};
-        const bgColor = this.backgroundColor || theme.backgroundColor || '#FFFFFF'; // Default to white usually
+        const appTheme = Theme.of(context);
+        const colorScheme = appTheme.colorScheme;
+        const bgColor = this.backgroundColor || theme.backgroundColor || colorScheme.surfaceContainerLow || '#F7F2FA'; // M3 default
         const effectivePadding = this.padding || theme.padding || EdgeInsets.all(16);
         const effectiveLeadingPadding = this.leadingPadding || theme.leadingPadding || EdgeInsets.only({ right: 16 });
 

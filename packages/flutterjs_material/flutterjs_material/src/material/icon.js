@@ -54,7 +54,25 @@ class IconData {
   }
 
   getCharacter() {
-    return String.fromCharCode(this.codePoint);
+    // Material Icons ligature mappings (text-based icon names)
+    const ligatures = {
+      0xe145: 'add', 0xe838: 'star', 0xe83b: 'star_border',
+      0xe88a: 'home', 0xe8b8: 'settings', 0xe8b6: 'search',
+      0xe87e: 'favorite', 0xe8cb: 'favorite_border',
+      0xe5cd: 'close', 0xe5d2: 'menu',
+      0xe5e0: 'arrow_back', 0xe5e1: 'arrow_forward',
+      0xe872: 'delete', 0xe3c9: 'edit',
+      0xe5ca: 'check', 0xe86c: 'check_circle',
+      0xe783: 'error', 0xe001: 'error_outline',
+      0xe88f: 'info', 0xe002: 'warning',
+      0xe2c4: 'download', 0xe2c6: 'upload',
+      0xe5d5: 'refresh', 0xe5d4: 'more_vert',
+      0xe5d3: 'more_horiz', 0xe853: 'account_circle',
+      0xe7fd: 'person', 0xe7f4: 'notifications'
+    };
+
+    // Use ligature if available (recommended for Material Icons)
+    return ligatures[this.codePoint] || String.fromCharCode(this.codePoint);
   }
 
   toString() {
@@ -226,12 +244,10 @@ class Icon extends StatelessWidget {
       const style = document.createElement('style');
       style.id = 'flutterjs-material-icons-style';
       style.textContent = `
-        @font-face {
-          font-family: 'Material Icons';
-          font-style: normal;
-          font-weight: 400;
-          src: url(https://fonts.gstatic.com/s/materialicons/v140/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2) format('woff2');
-        }
+        /* 
+         * Rely on the Google Fonts link for the @font-face definition.
+         * This avoids hardcoding a specific version (v140) that might be incomplete or outdated.
+         */
 
         .material-icons {
           font-family: 'Material Icons';
@@ -345,6 +361,16 @@ class Icon extends StatelessWidget {
     const elementId = context?.element?.getElementId?.() || 'icon-' + Math.random().toString(36).substr(2, 9);
     const widgetPath = context?.element?.getWidgetPath?.() || 'Icon';
 
+    // DEBUG: Log icon properties
+    if (icon.codePoint === 0xe838 || icon.codePoint === 0xe145) {
+      console.log(`[Icon Debug] Building icon: ${icon.codePoint.toString(16)}`, {
+        family: icon.fontFamily,
+        size: iconSize,
+        color: iconColor,
+        inlineStyles
+      });
+    }
+
     return new VNode({
       tag: 'span',
       props: {
@@ -353,7 +379,7 @@ class Icon extends StatelessWidget {
         'data-element-id': elementId,
         'data-widget-path': widgetPath,
         'data-widget': 'Icon',
-        'data-icon-codepoint': `U+${icon.codePoint.toString(16).toUpperCase()}`,
+        'data-icon-codepoint': `U + ${icon.codePoint.toString(16).toUpperCase()} `,
         title: this.semanticLabel || '',
         style: {
           display: 'inline-flex',
@@ -375,8 +401,8 @@ class Icon extends StatelessWidget {
       props: {
         style: {
           display: 'inline-flex',
-          width: `${size}px`,
-          height: `${size}px`,
+          width: `${size} px`,
+          height: `${size} px`,
           backgroundColor: 'rgba(255, 0, 0, 0.2)', // Visual indicator
           color: 'red',
           alignItems: 'center',
@@ -391,6 +417,8 @@ class Icon extends StatelessWidget {
   }
 
   _buildIconElement(icon, styles) {
+    const character = icon.getCharacter();
+
     return new VNode({
       tag: 'span',
       props: {
@@ -404,7 +432,7 @@ class Icon extends StatelessWidget {
           whiteSpace: 'nowrap'
         }
       },
-      children: [icon.getCharacter()]
+      children: [character]
     });
   }
 
@@ -465,22 +493,16 @@ class Icon extends StatelessWidget {
 
     const styles = {
       fontSize: `${fontSize}px`,
-      fontFamily: this._buildFontFamily(fontFamily, fontFamilyFallback),
       color: cssColor,
       fontVariationSettings: fontVariations,
       textShadow: this._buildTextShadow(shadows),
-      mixBlendMode: BLEND_MODE_MAP[blendMode] || 'normal',
+      // mixBlendMode: BLEND_MODE_MAP[blendMode] || 'normal',
       direction: textDirection === TextDirection.rtl ? 'rtl' : 'ltr',
       lineHeight: '1.0',
       height: '1em',
       userSelect: 'none',
       WebkitUserSelect: 'none',
-      MozUserSelect: 'none',
-      // Material Icons specific styling for reliable rendering
-      textRendering: 'optimizeLegibility',
-      WebkitFontSmoothing: 'antialiased',
-      MozOsxFontSmoothing: 'grayscale',
-      fontFeatureSettings: "'liga'"
+      MozUserSelect: 'none'
     };
 
     if (fontWeight) {
@@ -491,8 +513,8 @@ class Icon extends StatelessWidget {
   }
 
   _buildFontFamily(primary, fallback) {
-    // simplified for debugging
-    return "'Material Icons'";
+    // Don't use quotes - they get HTML-encoded in inline styles
+    return "Material Icons";
   }
 
   _buildFontVariations(fill, weight, grade, opticalSize) {

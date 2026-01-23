@@ -135,7 +135,8 @@ export class DataTable extends StatelessWidget {
 
         tableRows.push(new Container({
             height: effectiveHeadingRowHeight,
-            color: this.headingRowColor || theme.headingRowColor,
+            style: { borderBottom: `1px solid ${theme.dividerColor || 'rgba(0,0,0,0.12)'}` }, // Explicit border for heading
+            color: this.headingRowColor || theme.headingRowColor || Theme.of(context).colorScheme.surfaceContainerHighest || '#E6E0E9', // M3 Header
             child: new Row({
                 children: headingCells
             })

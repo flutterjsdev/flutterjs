@@ -1,4 +1,5 @@
 import { StatefulWidget, State } from '../core/widget_element.js';
+import { Theme } from './theme.js';
 import { Container } from './container.js';
 import { Row, Expanded, Column } from '../widgets/widgets.js';
 import { GestureDetector } from './gesture_detector.js';
@@ -49,8 +50,12 @@ export class NavigationBar extends StatefulWidget {
 class NavigationBarState extends State {
     build(context) {
         const theme = NavigationBarTheme.of(context) || {};
-        const effectiveBgColor = this.widget.backgroundColor || theme.backgroundColor || Colors.white; // Should be surfaceContainer
+        const appTheme = Theme.of(context);
+        const colorScheme = appTheme.colorScheme;
+
+        const effectiveBgColor = this.widget.backgroundColor || theme.backgroundColor || colorScheme.surfaceContainer || '#F3EDF7';
         const effectiveHeight = this.widget.height || theme.height || 80.0;
+        const effectiveIndicatorColor = this.widget.indicatorColor || theme.indicatorColor || colorScheme.secondaryContainer || '#E8DEF8';
 
         return new Container({
             height: effectiveHeight,
@@ -75,7 +80,7 @@ class NavigationBarState extends State {
                                         new Container({
                                             padding: EdgeInsets.symmetric({ horizontal: 20, vertical: 4 }), // approximate pill
                                             decoration: isSelected ? {
-                                                color: this.widget.indicatorColor || theme.indicatorColor || Colors.blue[100], // secondaryContainer
+                                                color: effectiveIndicatorColor,
                                                 borderRadius: '16px' // horizontal pill
                                             } : null,
                                             child: isSelected ? (destination.selectedIcon || destination.icon) : destination.icon

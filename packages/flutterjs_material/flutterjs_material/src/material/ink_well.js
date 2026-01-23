@@ -1,6 +1,7 @@
 import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
 import { Container } from './container.js';
 import { GestureDetector } from './gesture_detector.js';
+import { Theme } from './theme.js';
 
 export class InkResponse extends StatelessWidget {
     constructor({
@@ -38,11 +39,20 @@ export class InkResponse extends StatelessWidget {
         this.onTap = onTap;
         // ... other props
         this.borderRadius = borderRadius;
-        this.highlightColor = highlightColor;
-        this.splashColor = splashColor;
+        // Theme defaults resolve lazily or here? 
+        // In simple widget, we can't context here easily unless built. 
+        // But InkResponse IS a StatelessWidget (in this impl).
+        // Wait, InkResponse usually is a widget.
+
+        this._highlightColor = highlightColor;
+        this._splashColor = splashColor;
     }
 
     build(context) {
+        const theme = Theme.of(context);
+        const effectiveHighlightColor = this._highlightColor || theme.highlightColor || 'rgba(0,0,0,0.1)';
+        const effectiveSplashColor = this._splashColor || theme.splashColor || 'rgba(0,0,0,0.1)';
+
         // Simplified Web Implementation:
         // Use GestureDetector for events.
         // Use CSS 'active' state or simple ripple simulation if possible via CSS active/focus.

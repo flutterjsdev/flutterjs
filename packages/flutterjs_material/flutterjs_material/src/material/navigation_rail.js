@@ -1,4 +1,5 @@
 import { StatefulWidget, State } from '../core/widget_element.js';
+import { Theme } from './theme.js';
 import { Container } from './container.js';
 import { Column, Expanded } from '../widgets/widgets.js';
 import { GestureDetector } from './gesture_detector.js';
@@ -75,7 +76,9 @@ export class NavigationRail extends StatefulWidget {
 class NavigationRailState extends State {
     build(context) {
         const theme = NavigationRailTheme.of(context) || {};
-        const effectiveBgColor = this.widget.backgroundColor || theme.backgroundColor || Colors.white;
+        const appTheme = Theme.of(context);
+        const colorScheme = appTheme.colorScheme;
+        const effectiveBgColor = this.widget.backgroundColor || theme.backgroundColor || colorScheme.surface || '#FFFFFF';
         const width = this.widget.extended
             ? (this.widget.minExtendedWidth || theme.minExtendedWidth || 256.0)
             : (this.widget.minWidth || theme.minWidth || 72.0);
