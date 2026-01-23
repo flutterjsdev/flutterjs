@@ -36,8 +36,11 @@ export class BottomAppBar extends StatelessWidget {
         // const theme = BottomAppBarTheme.of(context);
 
         // Default styling
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+
         const effectiveHeight = this.height || 80.0;
-        const effectiveColor = this.color || '#ffffff';
+        const effectiveColor = this.color || colorScheme.surfaceContainer || '#F3EDF7';
         const effectiveElevation = this.elevation || 8.0;
 
         return new Container({

@@ -1,5 +1,6 @@
-import { StatefulWidget,State } from '../core/widget_element.js';
+import { StatefulWidget, State } from '../core/widget_element.js';
 import { ListTile } from './list_tile.js';
+import { Theme } from './theme.js';
 import { Column } from '../widgets/widgets.js';
 import { Colors } from './color.js';
 import { Icon, Icons } from './icon.js';
@@ -82,7 +83,12 @@ class ExpansionTileState extends State {
         // We generally append an arrow icon if trailing is null, or rotate existing trailing?
         // Flutter default: Adds ExpandMore icon at trailing position.
 
-        const trailingIcon = this.widget.trailing || new Icon(this.isExpanded ? Icons.expandLess : Icons.expandMore);
+        const theme = Theme.of(context);
+        const defaultIconColor = this.isExpanded ? (this.widget.iconColor || theme.colorScheme.primary) : (this.widget.collapsedIconColor || theme.unselectedWidgetColor);
+
+        const trailingIcon = this.widget.trailing || new Icon(this.isExpanded ? Icons.expandLess : Icons.expandMore, {
+            color: defaultIconColor
+        });
 
         return new Column({
             children: [

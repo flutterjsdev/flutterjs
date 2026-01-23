@@ -1,6 +1,6 @@
 import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
 import { Container, BoxDecoration } from './container.js';
-import { Row, Column, Expanded } from '../widgets/widgets.js';
+import { Row, Column, Expanded, SizedBox } from '../widgets/widgets.js';
 import { Icon } from './icon.js';
 import { Text } from './text.js';
 import { GestureDetector } from './gesture_detector.js';

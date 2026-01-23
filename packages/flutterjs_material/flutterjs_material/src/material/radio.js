@@ -137,7 +137,7 @@ class RadioState extends State {
             cursor: isDisabled ? 'default' : (this.widget.mouseCursor || theme.mouseCursor || 'pointer'),
             position: 'relative',
             transition: 'background-color 0.15s ease',
-            backgroundColor: this._getOverlayColor(isDisabled, theme)
+            backgroundColor: this._getOverlayColor(isDisabled, theme, colorScheme)
         };
 
         // Radio circle styles
@@ -229,7 +229,7 @@ class RadioState extends State {
         }
 
         if (isSelected) {
-            return theme.fillColor || colorScheme.primary;
+            return theme.fillColor || colorScheme.primary || '#6200ee';
         }
 
         return 'transparent';
@@ -245,13 +245,13 @@ class RadioState extends State {
         }
 
         if (isSelected) {
-            return colorScheme.primary;
+            return colorScheme.primary || '#6200ee';
         }
 
-        return colorScheme.onSurfaceVariant;
+        return colorScheme.onSurfaceVariant || '#49454F';
     }
 
-    _getOverlayColor(isDisabled, theme) {
+    _getOverlayColor(isDisabled, theme, colorScheme) {
         if (isDisabled) {
             return 'transparent';
         }
@@ -270,15 +270,15 @@ class RadioState extends State {
 
         // Use theme
         if (this.isPressed) {
-            return theme.getHoverColor();
+            return new Color(colorScheme.primary).withOpacity(0.12).toCSSString();
         }
 
         if (this.isFocused) {
-            return theme.getFocusColor();
+            return new Color(colorScheme.onSurface).withOpacity(0.12).toCSSString();
         }
 
         if (this.isHovered) {
-            return theme.getHoverColor();
+            return new Color(colorScheme.onSurface).withOpacity(0.08).toCSSString();
         }
 
         return 'transparent';

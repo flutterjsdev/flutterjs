@@ -279,15 +279,20 @@ class FlexElement extends Element {
       alignItems,
       gap: `${widget.spacing}px`,
       // ✅ FIXED: Width/height logic for flex containers 
-      // For Row (horizontal): set width based on MainAxisSize
-      // For Column (vertical): always use 'auto' height to allow content-based sizing
-      // Setting height: 100% causes Columns to overlap in scrollable containers
-      width: (isHorizontal && isMainMax) ? '100%' : 'auto',
-      height: 'auto', // Always auto for proper stacking in scroll containers
+      // For Row (horizontal): width 100% if Max, auto if Min. Height auto.
+      // For Column (vertical): Width 100% (like block). Height 100% if Max, auto if Min.
+
+      width: (isHorizontal && isMainMax) || (!isHorizontal) ? '100%' : 'auto',
+      // Fixed height: 100% causes overflow issues. Use minHeight for expansion instead.
+      height: 'auto',
+      minHeight: (!isHorizontal && isMainMax) ? '100%' : 'auto',
+
       direction: widget.textDirection === TextDirection.rtl ? 'rtl' : 'ltr',
       overflow: overflowValue,
       flexWrap: 'nowrap',
       boxSizing: 'border-box',
+      // Critical for scrolling: prevent flex item from shrinking smaller than content
+      flexShrink: 0,
       // Robustness: ensure this Flex fills the cross-axis of a parent Flex (like Column)
       alignSelf: 'stretch'
     };

@@ -222,6 +222,7 @@ class Scaffold extends Widget {
         endDrawer = null,
         bottomNavigationBar = null,
         backgroundColor = null,
+        drawerScrimColor = null,
         resizeToAvoidBottomInset = true,
         extendBody = false,
         extendBodyBehindAppBar = false,
@@ -237,7 +238,7 @@ class Scaffold extends Widget {
         this.endDrawer = endDrawer;
         this.bottomNavigationBar = bottomNavigationBar;
         if (backgroundColor) {
-            this.backgroundColor = backgroundColor;
+        this.backgroundColor = backgroundColor;
         } else {
             // Will be resolved in build/element, but strictly it's passed as null usually
             // If we need a default here for some reason:
@@ -351,13 +352,15 @@ class Scaffold extends Widget {
         // --- STYLES ---
 
         // Main Scaffold Container
+        const scaffoldBackgroundColor = this.backgroundColor || theme.scaffoldBackgroundColor || theme.colorScheme.background;
+
         const scaffoldStyle = {
             display: 'flex',
             flexDirection: 'column',
             width: '100%',
             height: '100%',
             minHeight: '100vh', // Force full viewport height
-            backgroundColor: this.backgroundColor,
+            backgroundColor: scaffoldBackgroundColor,
             position: 'relative',
             overflow: 'hidden'
         };
@@ -413,7 +416,7 @@ class Scaffold extends Widget {
         const scrimStyle = {
             position: 'absolute',
             top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
+            backgroundColor: this.drawerScrimColor || 'rgba(0,0,0,0.5)',
             zIndex: 20,
             display: (isDrawerOpen || isEndDrawerOpen) ? 'block' : 'none',
             opacity: (isDrawerOpen || isEndDrawerOpen) ? 1 : 0,
@@ -429,7 +432,9 @@ class Scaffold extends Widget {
             zIndex: 25,
             transform: isDrawerOpen ? 'translateX(0)' : 'translateX(-100%)',
             transition: 'transform 0.25s ease-in-out',
-            boxShadow: '0 8px 10px -5px rgba(0,0,0,0.2), 0 16px 24px 2px rgba(0,0,0,0.14), 0 6px 30px 5px rgba(0,0,0,0.12)'
+            // Shadow moved to Drawer widget usually, but Scaffold often provides the elevation for the slide-out
+            // If the user passes a raw Container, they might expect Scaffolding to handle shadow
+            boxShadow: isDrawerOpen ? '0 8px 10px -5px rgba(0,0,0,0.2), 0 16px 24px 2px rgba(0,0,0,0.14), 0 6px 30px 5px rgba(0,0,0,0.12)' : 'none'
         };
 
         // End Drawer Container
@@ -441,7 +446,7 @@ class Scaffold extends Widget {
             zIndex: 25,
             transform: isEndDrawerOpen ? 'translateX(0)' : 'translateX(100%)',
             transition: 'transform 0.25s ease-in-out',
-            boxShadow: '-8px 0 10px -5px rgba(0,0,0,0.2)'
+            boxShadow: isEndDrawerOpen ? '-8px 0 10px -5px rgba(0,0,0,0.2)' : 'none'
         };
 
         // --- VDOM ASSEMBLY ---

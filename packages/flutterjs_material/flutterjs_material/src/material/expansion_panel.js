@@ -1,4 +1,4 @@
-import { StatefulWidget, State} from '../core/widget_element.js';
+import { StatefulWidget, State } from '../core/widget_element.js';
 import { Container } from './container.js';
 import { Column, Row, Expanded } from '../widgets/widgets.js';
 import { GestureDetector } from './gesture_detector.js';
@@ -83,9 +83,9 @@ class ExpansionPanelListState extends State {
 
             return new Container({
                 margin: EdgeInsets.symmetric({ vertical: 4.0 }), // Separation
-                // Elevation simulated via box-shadow in Container/Material (not implemented fully here so naive CSS)
+                // Elevation simulated via box-shadow
                 style: {
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
+                    boxShadow: `0 1px 3px ${this.dividerColor || Theme.of(context).dividerColor || 'rgba(0,0,0,0.12)'}`
                 },
                 child: new Column({
                     children: [

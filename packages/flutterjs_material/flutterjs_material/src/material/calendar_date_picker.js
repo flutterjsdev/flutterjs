@@ -7,6 +7,8 @@ import { Icons, Icon } from './icon.js';
 import { IconButton } from './icon_button.js';
 import { MainAxisAlignment, CrossAxisAlignment, MainAxisSize } from '../utils/utils.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
+import { Theme } from './theme.js';
+import { BorderRadius } from '../utils/border_radius.js';
 
 export class CalendarDatePicker extends StatefulWidget {
     constructor({
@@ -95,6 +97,12 @@ class CalendarDatePickerState extends State {
             ]
         });
 
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+        const primaryColor = colorScheme.primary || '#6750A4';
+        const onPrimaryColor = colorScheme.onPrimary || '#FFFFFF';
+        const onSurfaceColor = colorScheme.onSurface || '#1C1B1F';
+
         // Days Grid
         // Get days in month
         const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -126,13 +134,13 @@ class CalendarDatePickerState extends State {
                     height: 40,
                     alignment: 'center', // shorthand for Alignment.center if supported mainly
                     decoration: isSelected ? new BoxDecoration({
-                        color: 'blue', // use theme
-                        borderRadius: '50%' // should use BorderRadius object
+                        color: primaryColor, // use theme
+                        borderRadius: BorderRadius.circular(20) // should use BorderRadius object
                     }) : null,
                     child: new Center({
                         child: new Text(dayNum.toString(), {
                             style: {
-                                color: isSelected ? 'white' : 'black'
+                                color: isSelected ? onPrimaryColor : onSurfaceColor
                             }
                         })
                     })

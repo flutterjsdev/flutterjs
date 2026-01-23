@@ -600,6 +600,22 @@ PHASES 4-6: Converting IR to JavaScript...
 
 ---
 
+## Known Limitations
+
+### Method Tear-offs (Callback Context)
+Currently, passing methods directly as callbacks (tear-offs) may causing binding issues where `this` becomes undefined.
+**Workaround:** Wrap callbacks in a lambda to preserve context.
+
+```dart
+// ❌ Avoid (may fail based on transpiler version)
+onPressed: _incrementCounter
+
+// ✅ Recommended
+onPressed: () => _incrementCounter()
+```
+
+---
+
 ## Initialization
 
 To set up the project for development (both Dart and JavaScript packages), run the following command from the root directory:

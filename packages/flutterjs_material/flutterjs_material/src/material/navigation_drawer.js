@@ -1,4 +1,5 @@
 import { StatefulWidget, StatelessWidget } from '../core/widget_element.js';
+import { Theme } from './theme.js';
 import { Container } from './container.js';
 import { Column, Row, SizedBox } from '../widgets/widgets.js';
 import { Drawer } from './drawer.js';
@@ -62,7 +63,9 @@ export class NavigationDrawer extends StatelessWidget {
 
     build(context) {
         const theme = NavigationDrawerTheme.of(context) || {};
-        const effectiveBgColor = this.backgroundColor || theme.backgroundColor || Colors.white; // Surface
+        const appTheme = Theme.of(context);
+        const colorScheme = appTheme.colorScheme;
+        const effectiveBgColor = this.backgroundColor || theme.backgroundColor || colorScheme.surfaceContainerLow || '#F7F2FA';
 
         // We need to intercept taps on Destination widgets if they are passed as children.
         // This is tricky without a specialized Destination widget that knows its index.

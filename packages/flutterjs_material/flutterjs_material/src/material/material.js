@@ -26,6 +26,8 @@ export {
     FloatingActionButtonLocation
 } from "./scaffold.js";
 
+export { RoundedRectangleBorder } from "../painting/rounded_rectangle_border.js"; // Export missing class
+
 export { AppBar } from "./app_bar.js";
 
 export {
@@ -465,6 +467,10 @@ export {
 export {
     OutlinedButton
 } from "./outlined_button.js";
+
+export {
+    TextButton
+} from "./text_button.js";
 
 export {
     OutlinedButtonTheme,

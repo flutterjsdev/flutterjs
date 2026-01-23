@@ -1,7 +1,8 @@
-import { StatefulWidget,State } from '../core/widget_element.js';
+import { StatefulWidget, State } from '../core/widget_element.js';
 import { Container } from './container.js';
 import { CircularProgressIndicator } from './progress_indicator.js';
 import { Colors } from './color.js';
+import { Theme } from './theme.js';
 import { Stack, Positioned } from '../widgets/widgets.js';
 
 export class RefreshIndicator extends StatefulWidget {
@@ -24,8 +25,8 @@ export class RefreshIndicator extends StatefulWidget {
         this.displacement = displacement;
         this.edgeOffset = edgeOffset;
         this.onRefresh = onRefresh;
-        this.color = color;
-        this.backgroundColor = backgroundColor;
+        this.color = color; // Defaults to colorScheme.primary in build
+        this.backgroundColor = backgroundColor; // Defaults to colorScheme.surface in build
         this.strokeWidth = strokeWidth;
     }
 
@@ -48,6 +49,11 @@ class RefreshIndicatorState extends State {
     // For now, simple return of child.
 
     build(context) {
+        const theme = Theme.of(context);
+        const colorScheme = theme.colorScheme;
+        const effectiveColor = this.widget.color || colorScheme.primary || '#6750A4';
+        const effectiveBgColor = this.widget.backgroundColor || colorScheme.surface || '#FFFFFF';
+
         return new Stack({
             children: [
                 this.widget.child,

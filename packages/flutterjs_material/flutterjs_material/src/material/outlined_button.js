@@ -39,6 +39,7 @@ export class OutlinedButton extends ButtonStyleButton {
     build(context) {
         const theme = Theme.of(context);
         const colorScheme = theme.colorScheme;
+        const buttonTheme = theme.outlinedButtonTheme?.style || {};
 
         // M3 Defaults for Outlined Button
         const defaultBg = 'transparent';
@@ -56,14 +57,23 @@ export class OutlinedButton extends ButtonStyleButton {
 
         const customStyle = this.style || {};
 
-        const effectiveBg = resolveColor(customStyle.backgroundColor, defaultBg);
-        const effectiveFg = resolveColor(customStyle.foregroundColor || customStyle.color, defaultFg);
+        // Merge with Theme
+        const themeBg = buttonTheme.backgroundColor;
+        const themeFg = buttonTheme.foregroundColor;
+        const themeSide = buttonTheme.side; // Assuming BorderSide object
+
+        const effectiveBg = resolveColor(customStyle.backgroundColor || themeBg, defaultBg);
+        const effectiveFg = resolveColor(customStyle.foregroundColor || customStyle.color || themeFg, defaultFg);
+
         // Custom handling for border? 
         // We need a simple way to resolve border color.
         // Assuming side is BorderSide
         let effectiveBorderColor = defaultBorderColor;
-        if (customStyle.side && customStyle.side.color) {
-            effectiveBorderColor = resolveColor(customStyle.side.color, defaultBorderColor);
+
+        let side = customStyle.side || themeSide;
+
+        if (side && side.color) {
+            effectiveBorderColor = resolveColor(side.color, defaultBorderColor);
         }
 
         return new GestureDetector({
@@ -76,7 +86,7 @@ export class OutlinedButton extends ButtonStyleButton {
                     borderRadius: customStyle.shape?.borderRadius || BorderRadius.circular(20),
                     border: Border.all({
                         color: effectiveBorderColor,
-                        width: customStyle.side?.width || 1
+                        width: side?.width || 1
                     })
                 }),
                 child: new Center({

@@ -1,6 +1,7 @@
 import { StatelessWidget } from '../core/widget_element.js';
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Dialog } from './dialog.js';
+import { Theme } from './theme.js';
 import { buildChildWidgets } from '../utils/build_helper.js';
 
 /**
@@ -28,7 +29,7 @@ class SimpleDialog extends StatelessWidget {
         this.titlePadding = titlePadding || { top: 24, left: 24, right: 24, bottom: 0 };
         this.titleTextStyle = titleTextStyle;
         this.children = children || [];
-        this.contentPadding = contentPadding || { top: 12, left: 0, right: 0, bottom: 16 };
+        this.contentPadding = contentPadding || { top: 16, left: 24, right: 24, bottom: 24 }; // M3 spec closer
         this.backgroundColor = backgroundColor;
         this.elevation = elevation;
         this.shadowColor = shadowColor;
@@ -46,9 +47,9 @@ class SimpleDialog extends StatelessWidget {
         if (this.title) {
             const titleStyle = {
                 padding: `${this.titlePadding.top}px ${this.titlePadding.right}px ${this.titlePadding.bottom}px ${this.titlePadding.left}px`,
-                fontSize: this.titleTextStyle?.fontSize || '20px',
-                fontWeight: this.titleTextStyle?.fontWeight || '500',
-                color: this.titleTextStyle?.color || '#000000de'
+                fontSize: this.titleTextStyle?.fontSize || '24px', // M3 Headline Small
+                fontWeight: this.titleTextStyle?.fontWeight || '400',
+                color: this.titleTextStyle?.color || Theme.of(context).colorScheme.onSurface || '#1C1B1F'
             };
 
             dialogChildren.push(

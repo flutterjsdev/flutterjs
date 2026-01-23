@@ -14,14 +14,14 @@ class FloatingActionButton extends StatelessWidget {
     onPressed = null,
     onLongPress = null,
     tooltip = null,
-    foregroundColor = '#FFF',
+    foregroundColor = null,
     backgroundColor = null,
     focusColor = null,
     hoverColor = null,
     splashColor = null,
-    elevation = 6,
-    highlightElevation = 12,
-    disabledElevation = 0,
+    elevation = null,
+    highlightElevation = null,
+    disabledElevation = null,
     child = null,
     mini = false,
     shape = null,
@@ -66,22 +66,29 @@ class FloatingActionButton extends StatelessWidget {
   /**
    * Get button size based on mini flag
    */
-  _getButtonSize() {
-    return this.mini ? 40 : 56;
+  _getButtonSize(fabTheme) {
+    if (this.mini) return 40;
+    // TODO: support fabTheme.sizeConstraints logic if complex
+    return 56;
   }
 
   /**
    * Get button styles
    */
-  _getButtonStyle(bgColor, fgColor) {
+  _getButtonStyle(bgColor, fgColor, elevation, shape) {
     const size = this._getButtonSize();
-    const elevation = this._isPressed ? this.highlightElevation : this.elevation;
+
+    // Simple shape resolution (string or style obj)
+    // M3 Standard: 16px
+    let borderRadius = '16px';
+    // If shape is provided (e.g. RoundedRectangleBorder), we'd extract it. 
+    // For now assuming simple style or default.
 
     return {
       position: 'relative',
       width: `${size}px`,
       height: `${size}px`,
-      borderRadius: '16px', // M3 Standard
+      borderRadius: borderRadius,
       backgroundColor: bgColor,
       color: fgColor,
       border: 'none',
@@ -89,7 +96,7 @@ class FloatingActionButton extends StatelessWidget {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      boxShadow: `0 ${elevation}px ${elevation * 1.5}px rgba(0, 0, 0, 0.${elevation})`,
+      boxShadow: `0 ${elevation}px ${elevation * 1.5}px rgba(0, 0, 0, 0.2)`,
       transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
       outline: 'none',
       fontFamily: 'inherit',
@@ -107,15 +114,15 @@ class FloatingActionButton extends StatelessWidget {
   /**
    * Get ripple effect styles
    */
-  _getRippleStyle() {
+  _getRippleStyle(splashColor) {
     return {
       position: 'absolute',
       top: 0,
       left: 0,
       right: 0,
       bottom: 0,
-      borderRadius: '50%',
-      backgroundColor: this.splashColor || 'rgba(255, 255, 255, 0.2)',
+      borderRadius: '50%', // Actually should match button shape
+      backgroundColor: splashColor || 'rgba(255, 255, 255, 0.2)',
       opacity: 0,
       pointerEvents: 'none',
       animation: this._isPressed
@@ -193,13 +200,34 @@ class FloatingActionButton extends StatelessWidget {
   build(context) {
     const theme = Theme.of(context);
     const colorScheme = theme.colorScheme;
+    const fabTheme = theme.floatingActionButtonTheme || {};
 
-    // Resolve colors
-    // M3 FAB uses primaryContainer / onPrimaryContainer
-    const effectiveBgColor = this.backgroundColor || colorScheme.primaryContainer || '#EADDFF';
-    const effectiveFgColor = this.foregroundColor || colorScheme.onPrimaryContainer || '#21005D';
+    // 1. Resolve Colors
+    const bgColor = this.backgroundColor || fabTheme.backgroundColor || colorScheme.primaryContainer || '#EADDFF';
+    const fgColor = this.foregroundColor || fabTheme.foregroundColor || colorScheme.onPrimaryContainer || '#21005D';
+    const splashColor = this.splashColor || fabTheme.splashColor || 'rgba(255, 255, 255, 0.2)';
 
-    const buttonStyle = this._getButtonStyle(effectiveBgColor, effectiveFgColor);
+    const getCSSColor = (c) => {
+      if (c && typeof c.toCSSString === 'function') return c.toCSSString();
+      if (c && typeof c.object === 'object' && c.value) return `#${c.value.toString(16).padStart(8, '0').slice(2)}`;
+      if (typeof c === 'string') return c;
+      return c;
+    };
+
+    const cssBgColor = getCSSColor(bgColor);
+    const cssFgColor = getCSSColor(fgColor);
+    const cssSplashColor = getCSSColor(splashColor);
+
+    // 2. Resolve Elevation
+    const elevation = this.elevation ?? fabTheme.elevation ?? 6;
+    const highlightElevation = this.highlightElevation ?? fabTheme.highlightElevation ?? 12;
+    const effectiveElevation = this._isPressed ? highlightElevation : elevation;
+
+    // 3. Resolve Shape
+    const shape = this.shape || fabTheme.shape;
+
+
+    const buttonStyle = this._getButtonStyle(cssBgColor, cssFgColor, effectiveElevation, shape);
     let childVNode = null;
 
     // Build child element
@@ -228,7 +256,7 @@ class FloatingActionButton extends StatelessWidget {
         new VNode({
           tag: 'span',
           props: {
-            style: this._getRippleStyle(),
+            style: this._getRippleStyle(cssSplashColor),
             className: 'fab-ripple'
           },
           children: []
@@ -342,12 +370,12 @@ class FloatingActionButtonExtended extends StatelessWidget {
     onPressed = null,
     onLongPress = null,
     tooltip = null,
-    foregroundColor = '#FFF',
+    foregroundColor = null,
     backgroundColor = null,
     icon = null,
     label = '',
-    elevation = 6,
-    highlightElevation = 12,
+    elevation = null,
+    highlightElevation = null,
     clipBehavior = 'clip',
     heroTag = 'FloatingActionButton',
     enableFeedback = true
@@ -377,10 +405,24 @@ class FloatingActionButtonExtended extends StatelessWidget {
   build(context) {
     const theme = Theme.of(context);
     const colorScheme = theme.colorScheme;
-    const elevation = this._isPressed ? this.highlightElevation : this.elevation;
+    const fabTheme = theme.floatingActionButtonTheme || {};
 
-    const effectiveBgColor = this.backgroundColor || colorScheme.primaryContainer || '#EADDFF';
-    const effectiveFgColor = this.foregroundColor || colorScheme.onPrimaryContainer || '#21005D';
+    const elevation = this.elevation ?? fabTheme.elevation ?? 6;
+    const highlightElevation = this.highlightElevation ?? fabTheme.highlightElevation ?? 12;
+    const effectiveElevation = this._isPressed ? highlightElevation : elevation;
+
+    const bgColor = this.backgroundColor || fabTheme.backgroundColor || colorScheme.primaryContainer || '#EADDFF';
+    const fgColor = this.foregroundColor || fabTheme.foregroundColor || colorScheme.onPrimaryContainer || '#21005D';
+
+    const getCSSColor = (c) => {
+      if (c && typeof c.toCSSString === 'function') return c.toCSSString();
+      if (c && typeof c.object === 'object' && c.value) return `#${c.value.toString(16).padStart(8, '0').slice(2)}`;
+      if (typeof c === 'string') return c;
+      return c;
+    };
+
+    const effectiveBgColor = getCSSColor(bgColor);
+    const effectiveFgColor = getCSSColor(fgColor);
 
     const buttonStyle = {
       display: 'inline-flex',
@@ -393,7 +435,7 @@ class FloatingActionButtonExtended extends StatelessWidget {
       color: effectiveFgColor,
       border: 'none',
       cursor: 'pointer',
-      boxShadow: `0 ${elevation}px ${elevation * 1.5}px rgba(0, 0, 0, 0.${elevation})`,
+      boxShadow: `0 ${effectiveElevation}px ${effectiveElevation * 1.5}px rgba(0, 0, 0, 0.2)`,
       transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
       fontSize: '14px',
       fontWeight: 500,

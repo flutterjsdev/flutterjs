@@ -1,4 +1,5 @@
 import { StatefulWidget, StatelessWidget, State } from '../core/widget_element.js';
+import { Theme } from './theme.js';
 import { Container } from './container.js';
 import { Row } from '../widgets/widgets.js';
 import { Text } from './text.js';
@@ -159,7 +160,7 @@ class DropdownButtonState extends State {
                 onTap: () => this._handleSelection(item.value),
                 child: new Container({
                     padding: EdgeInsets.all(12.0),
-                    color: this.widget.dropdownColor || 'white',
+                    color: this.widget.dropdownColor || Theme.of(context).cardColor || 'white',
                     child: item.child
                 })
             });

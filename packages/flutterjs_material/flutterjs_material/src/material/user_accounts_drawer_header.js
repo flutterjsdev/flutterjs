@@ -1,7 +1,8 @@
-import { StatefulWidget,State } from '../core/widget_element.js';
+import { StatefulWidget, State } from '../core/widget_element.js';
 import { Column, Row, Expanded } from '../widgets/widgets.js';
 import { DrawerHeader } from './drawer_header.js';
 import { Container } from './container.js';
+import { Theme } from './theme.js';
 import { Colors } from './color.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
 
@@ -17,7 +18,7 @@ export class UserAccountsDrawerHeader extends StatefulWidget {
         accountName,
         accountEmail,
         onDetailsPressed,
-        arrowColor = Colors.white,
+        arrowColor, // Defaults handled in build
     } = {}) {
         super(key);
         this.decoration = decoration;

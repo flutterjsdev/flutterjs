@@ -202,31 +202,88 @@ class ConstrainedBox extends ProxyWidget {
         this._renderObject = null;
     }
 
-    /**
-     * Create render object
-     */
     createRenderObject(context) {
         return { additionalConstraints: this.constraints };
     }
 
-    /**
-     * Update render object
-     */
     updateRenderObject(context, renderObject) {
         renderObject.additionalConstraints = this.constraints;
-    }/**
-     * Debug properties
-     */
+    }
+
     debugFillProperties(properties) {
         super.debugFillProperties(properties);
         properties.push({ name: 'constraints', value: this.constraints.toString() });
     }
 
-    /**
-     * Create element
-     */
     createElement(parent, runtime) {
-        return new ProxyElement(this, parent, runtime);
+        return new ConstrainedBoxElement(this, parent, runtime);
+    }
+}
+
+class ConstrainedBoxElement extends ProxyElement {
+    performRebuild() {
+        const constraints = this.widget.constraints;
+        const style = {
+            boxSizing: 'border-box',
+            display: 'flex', // Ensure it acts as a container
+            flexDirection: 'column', // Default to column-like validation
+            flexShrink: 0
+        };
+
+        // Apply constraints to CSS
+        if (constraints.minWidth > 0 && constraints.minWidth !== Infinity) {
+            style.minWidth = `${constraints.minWidth}px`;
+        }
+
+        if (constraints.maxWidth !== Infinity) {
+            style.maxWidth = `${constraints.maxWidth}px`;
+            // If tight constraint (min==max), set width
+            if (constraints.minWidth === constraints.maxWidth) {
+                style.width = `${constraints.maxWidth}px`;
+            }
+        } else if (constraints.minWidth === 0 && constraints.maxWidth === Infinity) {
+            // Loose constraints - do nothing or width: auto
+        } else if (constraints.minWidth === Infinity) {
+            // Only possible if minWidth was Infinity (expand/tight)
+            style.minWidth = '100%';
+            style.width = '100%';
+        }
+
+        // Handle expand() case specifically often used
+        if (constraints.minWidth === 0 && constraints.maxWidth === Infinity) {
+            // Loose
+        } else if (constraints.minWidth === constraints.maxWidth && constraints.minWidth === Infinity) {
+            // Expand
+            style.width = '100%';
+        }
+
+        if (constraints.minHeight > 0 && constraints.minHeight !== Infinity) {
+            style.minHeight = `${constraints.minHeight}px`;
+        }
+
+        if (constraints.maxHeight !== Infinity) {
+            style.maxHeight = `${constraints.maxHeight}px`;
+            if (constraints.minHeight === constraints.maxHeight) {
+                style.height = `${constraints.maxHeight}px`;
+            }
+        } else if (constraints.minHeight === constraints.maxHeight && constraints.minHeight === Infinity) {
+            // Expand height
+            style.height = '100%';
+        }
+
+        // Get child VNode
+        const childVNode = super.performRebuild();
+
+        return new VNode({
+            tag: 'div',
+            props: {
+                style,
+                'data-widget': 'ConstrainedBox',
+                'data-constraints': constraints.toString()
+            },
+            children: childVNode ? [childVNode] : [],
+            key: this.widget.key
+        });
     }
 }
 
