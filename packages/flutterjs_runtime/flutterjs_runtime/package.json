@@ -7,6 +7,7 @@
   "exports": {
     ".": "./dist/index.js",
     "./build_context": "./dist/build_context.js",
+    "./datetime": "./dist/datetime.js",
     "./element": "./dist/element.js",
     "./event_system": "./dist/event_system.js",
     "./flutterjs_runtime": "./dist/flutterjs_runtime.js",

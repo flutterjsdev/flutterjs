@@ -148,6 +148,9 @@ class CodeTransformer {
         sourceCode = this.addMetadata(sourceCode);
       }
 
+      // Step 4.5: Rewrite package imports
+      sourceCode = this.rewriteImports(sourceCode);
+
       // Step 5: Ensure exports
       if (this.config.validateExports) {
         sourceCode = this.ensureExports(sourceCode);
@@ -463,6 +466,61 @@ ${closing}`;
     this.result.exports = allExports;
 
     return result;
+  }
+
+  /**
+   * Rewrite package imports
+   * package:flutterjs_seo/flutterjs_seo.js -> @flutterjs/seo
+   */
+  rewriteImports(sourceCode) {
+    if (this.config.debugMode) {
+      console.log(chalk.blue('🔄 Rewriting package imports...\n'));
+    }
+
+    // specific fix for flutterjs_seo
+    // Regex matches: './package:flutterjs_seo/flutterjs_seo.js'
+    const packageRegex = /(['"])(?:\.\/)?package:([a-zA-Z0-9_]+)\/(.+?)\1/g;
+
+    let transformed = sourceCode;
+    let count = 0;
+
+    transformed = transformed.replace(packageRegex, (match, quote, pkgName, path) => {
+      // Heuristic: flutterjs_seo -> @flutterjs/seo
+      let newPkgName = pkgName;
+      if (pkgName.startsWith('flutterjs_')) {
+        newPkgName = '@flutterjs/' + pkgName.replace('flutterjs_', '');
+      }
+
+      // Explicit fix for seo package
+      if (pkgName === 'flutterjs_seo') {
+        return `${quote}@flutterjs/seo${quote}`;
+      }
+
+      // If path matches package name (index), simplify
+      // e.g. flutterjs_seo/flutterjs_seo.js -> @flutterjs/seo
+      const pathBase = path.replace('.js', '');
+      let newImport = match;
+
+      if (pathBase === pkgName) {
+        newImport = `${quote}${newPkgName}${quote}`;
+      } else {
+        newImport = `${quote}${newPkgName}/${path}${quote}`;
+      }
+
+      if (this.config.debugMode) {
+        console.log(chalk.green(`  Mapped: ${pkgName} -> ${newPkgName}`));
+        console.log(chalk.gray(`    ${match} -> ${newImport}`));
+      }
+
+      count++;
+      return newImport;
+    });
+
+    if (this.config.debugMode) {
+      console.log(chalk.gray(`\nRewrote ${count} package imports\n`));
+    }
+
+    return transformed;
   }
 
   /**

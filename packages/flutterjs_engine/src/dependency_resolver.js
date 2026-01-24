@@ -232,18 +232,23 @@ class DependencyResolver {
     // Format: Array of strings
     if (Array.isArray(analysis.imports)) {
       for (const item of analysis.imports) {
-        if (typeof item === 'string' && item.startsWith('@flutterjs/')) {
-          packages.add(item);
-          if (this.options.debugMode) {
-            console.log(chalk.gray(`  Found import: ${item}`));
+        let pkgName = null;
+        if (typeof item === 'string') {
+          if (item.startsWith('@flutterjs/')) {
+            pkgName = item;
+          } else if (item.startsWith('package:flutterjs_')) {
+            // Handle package:flutterjs_seo -> @flutterjs/seo
+            const rawName = item.split('/')[0].replace('package:', '');
+            pkgName = '@flutterjs/' + rawName.replace('flutterjs_', '');
           }
         } else if (typeof item === 'object' && item && item.source) {
-          const pkgName = this.extractPackageName(item.source);
-          if (pkgName) {
-            packages.add(pkgName);
-            if (this.options.debugMode) {
-              console.log(chalk.gray(`  Found import: ${pkgName}`));
-            }
+          pkgName = this.extractPackageName(item.source);
+        }
+
+        if (pkgName) {
+          packages.add(pkgName);
+          if (this.options.debugMode) {
+            console.log(chalk.gray(`  Found import: ${pkgName}`));
           }
         }
       }
@@ -334,6 +339,7 @@ class DependencyResolver {
       '@flutterjs/material': 'packages/flutterjs_material/flutterjs_material',
       '@flutterjs/vdom': 'packages/flutterjs_vdom/flutterjs_vdom',
       '@flutterjs/analyzer': 'packages/flutterjs_analyzer/flutterjs_analyzer',
+      '@flutterjs/seo': 'packages/flutterjs_seo/flutterjs_seo',
     };
 
     if (CORE_DEFAULTS[fullPackageName]) {

@@ -1,0 +1,25 @@
+name: flutterjs_seo
+version: 0.1.0
+description: SEO metadata management for FlutterJS Applications
+
+homepage: https://github.com/flutterjs/flutterjs_seo
+repository: https://github.com/flutterjs/flutterjs_seo
+issue_tracker: https://github.com/flutterjs/flutterjs_seo/issues
+resolution: workspace
+
+environment:
+  sdk: '^3.11.0-113.0.dev'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+# FlutterJS metadata
+flutterjs:
+  npm_package: "@flutterjs/flutterjs_seo"
+  implementation_language: "javascript"
+  js_entry: "js/src/index.js"
