@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import 'pub_dev_client.dart';
-import 'npm_client.dart';
 import 'package_downloader.dart';
 import 'model/package_info.dart';
 import 'config_resolver.dart';
@@ -17,7 +16,6 @@ import 'package_builder.dart';
 /// at runtime. Enforces strict registry checking.
 class RuntimePackageManager {
   final PubDevClient _pubDevClient;
-  final NpmClient _npmClient;
   final PackageDownloader _downloader;
   final ConfigResolver _configResolver;
   final ConfigGenerator _configGenerator;
@@ -25,13 +23,13 @@ class RuntimePackageManager {
 
   RuntimePackageManager({
     PubDevClient? pubDevClient,
-    NpmClient? npmClient,
+
     PackageDownloader? downloader,
     ConfigResolver? configResolver,
     ConfigGenerator? configGenerator,
     FlutterJSRegistryClient? registryClient,
   }) : _pubDevClient = pubDevClient ?? PubDevClient(),
-       _npmClient = npmClient ?? NpmClient(),
+     
        _downloader = downloader ?? PackageDownloader(),
        _configResolver = configResolver ?? ConfigResolver(),
        _configGenerator = configGenerator ?? ConfigGenerator(),

@@ -1,5 +1,3 @@
-/// PubJS: The Package Manager Library for FlutterJS.
-library pubjs;
 
 export 'src/model/package_info.dart';
 export 'src/publisher.dart';

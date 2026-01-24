@@ -16,9 +16,8 @@ import 'package:flutterjs_tools/src/runner/helper.dart';
 import 'package:path/path.dart' as path;
 import 'package:dart_analyzer/dart_analyzer.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:flutterjs_gen/flutterjs_gen.dart' as com;
 import 'package:pubjs/pubjs.dart';
-import 'package:flutterjs_tools/src/runner/tracer.dart';
+
 
 /// ============================================================================
 /// RunCommand

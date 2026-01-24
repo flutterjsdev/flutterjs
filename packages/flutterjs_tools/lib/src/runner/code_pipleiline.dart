@@ -76,7 +76,7 @@ class UnifiedConversionPipeline {
       // Manifests are in build/flutterjs/node_modules/@flutterjs/
       // This is where preparePackages() puts them
       final buildManifestPath = path.join(
-        config.projectPath ?? Directory.current.path,
+        config.projectPath ,
         'build',
         'flutterjs',
         'node_modules',

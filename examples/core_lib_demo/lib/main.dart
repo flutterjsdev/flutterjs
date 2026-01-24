@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 import 'dart:async';
-import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:collection';
 import 'dart:typed_data';
@@ -18,7 +17,6 @@ class MyApp extends StatelessWidget {
     // --- Test dart:math ---
     final rand = Random().nextInt(100);
     final point = Point(10, 20);
-    final maxVal = max(10, 20);
 
     // --- Test dart:async ---
     Timer(const Duration(seconds: 1), () {
@@ -28,9 +26,6 @@ class MyApp extends StatelessWidget {
       developer.log('Future completed');
     });
 
-    // --- Test dart:convert ---
-    final jsonStr = jsonEncode({'flutter': 'js'});
-    final decoded = jsonDecode(jsonStr);
 
     // --- Test dart:collection ---
     final queue = Queue<int>();

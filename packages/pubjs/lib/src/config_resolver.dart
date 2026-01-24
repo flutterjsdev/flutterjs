@@ -162,11 +162,7 @@ class ConfigResolver {
       final section = content.substring(startIndex + 1, endIndex);
       final configs = <String, UserPackageConfig>{};
 
-      // Regex matches keys map to either strings or objects (simplified)
-      // 1. String: 'key': 'value'
-      final stringPattern = RegExp(
-        r'''['"]([\w\-]+)['"]\s*:\s*['"]([^'"]+)['"]''',
-      );
+    
 
       // 2. Object: 'key': { ... }
       // This is hard to regex robustly, but for common cases:

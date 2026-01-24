@@ -123,7 +123,7 @@ class ParameterCodeGen {
 
       // Add type comment (optional)
       if (config.useTypeComments && param.type != null) {
-        final typeStr = param.type!.displayName();
+        final typeStr = param.type.displayName();
         part += ' /* $typeStr */';
       }
 
@@ -183,7 +183,7 @@ class ParameterCodeGen {
     final buffer = StringBuffer();
 
     for (final param in parameters) {
-      if (param.isRequired && !(param.type?.isNullable ?? false)) {
+      if (param.isRequired && !(param.type.isNullable)) {
         buffer.writeln(
           'if (${param.name} == null) throw new Error("${param.name} is required");',
         );
