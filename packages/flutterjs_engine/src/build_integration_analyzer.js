@@ -173,7 +173,7 @@ class BuildAnalyzer {
     }
 
     // ✅ Always add vdom and runtime as required dependencies
-    const corePackages = ['@flutterjs/vdom', '@flutterjs/runtime'];
+    const corePackages = ['@flutterjs/vdom', '@flutterjs/runtime', '@flutterjs/seo'];
 
     for (const pkg of corePackages) {
       if (!importObject[pkg]) {

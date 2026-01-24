@@ -8,6 +8,11 @@
       "type": "alias"
     },
     {
+      "name": "DateTime",
+      "path": "./dist/datetime.js",
+      "type": "class"
+    },
+    {
       "name": "Diagnosticable",
       "path": "./dist/element.js",
       "type": "class"

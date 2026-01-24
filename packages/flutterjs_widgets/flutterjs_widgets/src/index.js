@@ -41,3 +41,4 @@ export function createInstance(config) {
 }
 
 export default FlutterjsWidgets;
+

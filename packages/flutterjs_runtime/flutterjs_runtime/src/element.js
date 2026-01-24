@@ -245,6 +245,19 @@ class Element extends Diagnosticable {
     return this._context;
   }
 
+  // ✅ BuildContext Interface Implementation (Delegation)
+  dependOnInheritedWidgetOfExactType(Type) {
+    return this.context.dependOnInheritedWidgetOfExactType(Type);
+  }
+
+  findAncestorWidgetOfExactType(Type) {
+    return this.context.findAncestorWidgetOfExactType(Type);
+  }
+
+  findAncestorStateOfType(Type) {
+    return this.context.findAncestorStateOfType(Type);
+  }
+
   // ============================================================================
   // CORE METHODS
   // ============================================================================

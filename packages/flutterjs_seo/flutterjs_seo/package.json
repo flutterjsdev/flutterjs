@@ -1,0 +1,29 @@
+{
+  "name": "@flutterjs/flutterjs_seo",
+  "version": "0.1.0",
+  "description": "SEO metadata management for FlutterJS Applications",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"No tests yet\"",
+    "prepublishOnly": "echo \"Ready to publish\""
+  },
+  "keywords": [
+    "flutterjs",
+    "flutterjs_seo"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flutterjsdev/flutterjs.git"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@flutterjs/runtime": "file:../../flutterjs_runtime"
+  }
+}

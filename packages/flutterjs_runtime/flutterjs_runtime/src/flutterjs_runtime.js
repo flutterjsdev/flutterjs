@@ -23,6 +23,7 @@ import {
 import { InheritedElement } from '@flutterjs/runtime/inherited_element';
 import { VNodeBuilder } from '@flutterjs/vdom/vnode_builder';
 import { VNodeRenderer } from '@flutterjs/vdom/vnode_renderer';
+import { DateTime } from './datetime.js';
 
 // ============================================================================
 // UTILITIES
@@ -133,6 +134,13 @@ export class FlutterJSRuntime extends VNodeRuntime {
           return isNaN(result) ? null : result;
         }
       };
+    }
+
+    // ✅ Polyfill global DateTime for Dart compatibility
+    if (typeof window !== 'undefined' && !window.DateTime) {
+      window.DateTime = DateTime;
+    } else if (typeof global !== 'undefined' && !global.DateTime) {
+      global.DateTime = DateTime;
     }
 
     // Additional Flutter-specific configuration
