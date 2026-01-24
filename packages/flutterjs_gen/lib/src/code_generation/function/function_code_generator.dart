@@ -416,10 +416,8 @@ class FunctionCodeGen {
         .map((p) => p.name)
         .join(', ');
 
-    bool generatedSuper = false;
     if (ctor.superCall != null || superParams.isNotEmpty) {
       buffer.writeln(indenter.line('super($superParams);'));
-      generatedSuper = true;
     } else if (hasSuperclass) {
       // ✅ FIX: Force super() call if superclass exists and not generated yet
       // Check if 'key' parameter is available to pass to super (common for Widgets)
@@ -429,7 +427,6 @@ class FunctionCodeGen {
       } else {
         buffer.writeln(indenter.line('super();'));
       }
-      generatedSuper = true;
     }
 
     for (final param in ctor.parameters) {

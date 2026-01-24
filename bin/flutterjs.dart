@@ -133,7 +133,6 @@ Future<void> main(List<String> args) async {
 
   final bool muteCommandLogging = (help || doctor) && !veryVerbose;
   final bool verboseHelp = help && verbose;
-  final bool watch = args.contains('--watch');
 
   debugFile.writeAsStringSync(
     'DEBUG: Parsed args. Creating runner...\n',

@@ -8,7 +8,6 @@ Future<void> main() async {
   final toolsDir = Directory.current.path;
   final repoRoot = path.dirname(path.dirname(toolsDir)); // packages/../
 
-  final internalPackagesPath = path.join(repoRoot, 'packages');
 
   // Simulate routing_app project
   final projectPath = path.join(repoRoot, 'examples', 'routing_app');

@@ -4,8 +4,6 @@ import 'builder/build_command.dart';
 import 'cleaner/clean_command.dart';
 import 'commands/create_command.dart';
 import 'docs_command.dart';
-// import '../../flutterjs_gen/lib/init_project/init_project.dart';
-import 'package:flutterjs_gen/flutterjs_gen.dart';
 import 'model/package_profile.dart';
 import 'runner/run_command.dart';
 import 'version_command.dart';
