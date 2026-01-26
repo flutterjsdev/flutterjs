@@ -370,7 +370,14 @@ class FileCodeGen {
 
         // Determine JS Path
         String jsPath = uri;
-        if (uri.startsWith('package:')) {
+
+        // Optimize: Try to resolve to a known package first
+        // This handles @flutterjs/seo, @flutterjs/material, etc.
+        final resolvedPackage = resolver.resolveLibrary(uri);
+
+        if (resolvedPackage != null) {
+          jsPath = resolvedPackage;
+        } else if (uri.startsWith('package:')) {
           // Heuristic: If it's a package import, check if it's THIS package or external
           // For now, assuming external packages are peer directories or node_modules
           // But user said: "import is local ... full path and reference path"
@@ -499,6 +506,11 @@ function _filterNamespace(ns, show, hide) {
         // Collect all potential symbols and strip generics (e.g., List<User> -> List)
         final candidates = <String>{...usedWidgets, ...usedTypes};
         for (var symbol in candidates) {
+          // ✅ FIX: Strip nullability suffix (?)
+          if (symbol.endsWith('?')) {
+            symbol = symbol.substring(0, symbol.length - 1);
+          }
+
           if (symbol.contains('<')) {
             symbol = symbol.substring(0, symbol.indexOf('<'));
           }
@@ -1013,6 +1025,17 @@ function _filterNamespace(ns, show, hide) {
         _detectWidgetsInExpression(arg);
       }
     } else if (expr is ListExpressionIR) {
+      for (final elem in expr.elements) {
+        _detectWidgetsInExpression(elem);
+      }
+    } else if (expr is MapExpressionIR) {
+      // ✅ FIX: Handle Map Literals (e.g. routes: {'/': ...})
+      for (final entry in expr.entries) {
+        _detectWidgetsInExpression(entry.key);
+        _detectWidgetsInExpression(entry.value);
+      }
+    } else if (expr is SetExpressionIR) {
+      // ✅ FIX: Handle Set Literals
       for (final elem in expr.elements) {
         _detectWidgetsInExpression(elem);
       }

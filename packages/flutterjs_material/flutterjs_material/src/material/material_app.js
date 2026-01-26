@@ -128,11 +128,32 @@ class MaterialAppState extends State {
                 margin: 0; /* Flutter text has no default margins */
                 padding: 0;
             }
+            /* Root App Container (MaterialApp Wrapper) */
             #app, [id^="app-"], body > div:not([id]) {
-                height: 100%;
+                height: 100vh;              /* Force exact viewport height */
                 width: 100%;
                 display: flex;
                 flex-direction: column;
+                position: relative;     /* Establish positioning context */
+                overflow: hidden;       /* Prevent scroll on body/wrapper */
+            }
+
+            /* Navigator Stage & Overlay */
+            [data-widget="NavigationContainer"] {
+                 position: absolute !important;
+                 top: 0;
+                 left: 0;
+                 width: 100%;
+                 height: 100%;
+                 background-color: #FFFFFF; /* Opaque background hides layers below */
+                 overflow-y: auto;          /* Allow scrolling within the page */
+                 -webkit-overflow-scrolling: touch;
+                 display: block;
+                 z-index: 1;
+            }
+            
+            [data-widget="NavigationContainer"][data-active="true"] {
+                z-index: 100 !important; /* Force active page on top */
             }
         `;
       document.head.appendChild(style);

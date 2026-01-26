@@ -468,6 +468,9 @@ class Colors {
     900: new Color(0xFF212121)
   });
 
+  // Common Aliases
+  static outline = Colors.grey; // Default border color
+
   // BLUE GREY
   static blueGrey = new MaterialColor(0xFF607D8B, {
     50: new Color(0xFFECEFF1),
