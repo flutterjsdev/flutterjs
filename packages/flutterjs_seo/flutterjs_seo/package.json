@@ -2,11 +2,12 @@
   "name": "@flutterjs/flutterjs_seo",
   "version": "0.1.0",
   "description": "SEO metadata management for FlutterJS Applications",
-  "main": "src/index.js",
+  "main": "./dist/seo.js",
   "type": "module",
   "scripts": {
     "test": "echo \"No tests yet\"",
-    "prepublishOnly": "echo \"Ready to publish\""
+    "prepublishOnly": "echo \"Ready to publish\"",
+    "build": "node build.js"
   },
   "keywords": [
     "flutterjs",
@@ -25,5 +26,13 @@
   ],
   "dependencies": {
     "@flutterjs/runtime": "file:../../flutterjs_runtime"
+  },
+  "devDependencies": {
+    "esbuild": "^0.18.0"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./seo": "./dist/seo.js",
+    "./seo_manager": "./dist/seo_manager.js"
   }
 }

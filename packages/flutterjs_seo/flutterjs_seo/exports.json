@@ -1,0 +1,16 @@
+{
+  "package": "@flutterjs/seo",
+  "version": "0.1.0",
+  "exports": [
+    {
+      "name": "Seo",
+      "path": "./dist/seo.js",
+      "type": "class"
+    },
+    {
+      "name": "SeoManager",
+      "path": "./dist/seo_manager.js",
+      "type": "class"
+    }
+  ]
+}

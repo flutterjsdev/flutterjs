@@ -18,6 +18,9 @@ class ImportResolver {
     'package:flutter/widgets.dart':
         '@flutterjs/material', // Most widgets are in material package for now
     'package:flutter/cupertino.dart': '@flutterjs/material',
+
+    // Official Plugins
+    'package:flutterjs_seo': '@flutterjs/seo',
   };
 
   final Map<String, String> _libraryToPackageMap;
@@ -72,6 +75,22 @@ class ImportResolver {
     // 4. Fallback: Default UI Library
     // If strictly unknown and no helpful imports found, assume Material/Widget layer.
     return '@flutterjs/material';
+  }
+
+  /// Resolves a Dart library URI (e.g. package:foo/bar.dart) to a JS package name (e.g. @org/foo)
+  /// Returns null if no mapping is found.
+  String? resolveLibrary(String uri) {
+    if (!uri.startsWith('package:')) return null;
+
+    final packageName = _extractPackageName(uri);
+    if (packageName == null) return null;
+
+    // Check explicitly mapped packages
+    if (_libraryToPackageMap.containsKey('package:$packageName')) {
+      return _libraryToPackageMap['package:$packageName'];
+    }
+
+    return null;
   }
 
   String _resolveLibraryToPackage(String dartLibraryUri) {

@@ -4,8 +4,8 @@
 // Layer: DECORATION (uses utils, constants, styles)
 // ============================================================================
 
-import { 
-  Offset, 
+import {
+  Offset,
 
   Alignment
 } from '../utils.js';
@@ -26,7 +26,11 @@ export class BorderSide {
     style = 'solid'
   } = {}) {
     this.width = width;
-    this.color = typeof color === 'string' ? color : color.hex;
+    // Prefer preserving the Color object as it handles CSS conversion correctly (RGBA vs ARGB)
+    this.color = (color && typeof color.toCSSString === 'function')
+      ? color
+      : (typeof color === 'string' ? color : (color?.hex || '#000000'));
+
     this.style = style; // 'solid', 'dashed', 'dotted', 'double', 'none'
   }
 
@@ -67,15 +71,15 @@ export class BorderSide {
  */
 export class Border {
   constructor({
-    top = new BorderSide(),
-    right = new BorderSide(),
-    bottom = new BorderSide(),
-    left = new BorderSide()
+    top = BorderSide.none(),
+    right = BorderSide.none(),
+    bottom = BorderSide.none(),
+    left = BorderSide.none()
   } = {}) {
-    this.top = top;
-    this.right = right;
-    this.bottom = bottom;
-    this.left = left;
+    this.top = top instanceof BorderSide ? top : new BorderSide(top);
+    this.right = right instanceof BorderSide ? right : new BorderSide(right);
+    this.bottom = bottom instanceof BorderSide ? bottom : new BorderSide(bottom);
+    this.left = left instanceof BorderSide ? left : new BorderSide(left);
   }
 
   /**
@@ -196,17 +200,23 @@ export class Radius {
 /**
  * Represents border radius for all four corners
  */
- class BorderRadius {
+class BorderRadius {
   constructor(
     topLeft = 0,
     topRight = 0,
     bottomRight = 0,
     bottomLeft = 0
   ) {
-    this.topLeft = topLeft instanceof Radius ? topLeft : new Radius(topLeft);
-    this.topRight = topRight instanceof Radius ? topRight : new Radius(topRight);
-    this.bottomRight = bottomRight instanceof Radius ? bottomRight : new Radius(bottomRight);
-    this.bottomLeft = bottomLeft instanceof Radius ? bottomLeft : new Radius(bottomLeft);
+    const resolveRadius = (r) => {
+      if (r instanceof Radius) return r;
+      if (typeof r === 'object' && r !== null) return new Radius(r.x, r.y);
+      return new Radius(r);
+    };
+
+    this.topLeft = resolveRadius(topLeft);
+    this.topRight = resolveRadius(topRight);
+    this.bottomRight = resolveRadius(bottomRight);
+    this.bottomLeft = resolveRadius(bottomLeft);
   }
 
   /**
@@ -310,7 +320,10 @@ export class BoxShadow {
     blurRadius = 0,
     spreadRadius = 0
   } = {}) {
-    this.color = typeof color === 'string' ? color : color.hex;
+    this.color = (color && typeof color.toCSSString === 'function')
+      ? color
+      : (typeof color === 'string' ? color : (color?.hex || '#0000008A'));
+
     this.offset = offset;
     this.blurRadius = blurRadius;
     this.spreadRadius = spreadRadius;
@@ -541,10 +554,35 @@ export class SweepGradient {
 // ============================================================================
 
 /**
+ * Base Decoration class
+ */
+export class Decoration {
+  constructor() {
+    if (new.target === Decoration) {
+      throw new Error('Decoration is abstract');
+    }
+  }
+
+  /**
+   * Convert to CSS
+   */
+  toCSSStyle() {
+    throw new Error('toCSSStyle() must be implemented');
+  }
+
+  /**
+   * Debug validation
+   */
+  debugAssertIsValid() {
+    return true;
+  }
+}
+
+/**
  * Complete decoration configuration for a box/container
  * Combines color, border, border-radius, shadow, and gradient
  */
-export class BoxDecoration {
+export class BoxDecoration extends Decoration {
   constructor({
     color = null,
     gradient = null,
@@ -555,17 +593,51 @@ export class BoxDecoration {
     boxShadows = [],
     backgroundBlendMode = 'normal'
   } = {}) {
+    super();
     // Either color or gradient, not both
-    this.color = typeof color === 'string' ? color : color?.hex || null;
+    this.color = (color && typeof color.toCSSString === 'function')
+      ? color
+      : (typeof color === 'string' ? color : (color?.hex || null));
+
     this.gradient = gradient;
     this.image = image;
-    
-    this.border = border;
-    this.borderRadius = borderRadius;
+
+    // Robust instantiation: If passed as plain objects, promote them
+    this.border = (border instanceof Border)
+      ? border
+      : (border ? new Border(border) : new Border());
+
+    this.borderRadius = (borderRadius instanceof BorderRadius)
+      ? borderRadius
+      : (borderRadius ? new BorderRadius(
+        borderRadius.topLeft,
+        borderRadius.topRight,
+        borderRadius.bottomRight,
+        borderRadius.bottomLeft
+      ) : new BorderRadius());
+
+    // Robustness: Promote BoxShadows
+    // 1. Handle single shadow
+    if (boxShadow && !(boxShadow instanceof BoxShadow)) {
+      boxShadow = new BoxShadow(boxShadow);
+    }
     this.boxShadow = boxShadow;
-    this.boxShadows = boxShadows.length > 0 ? boxShadows : (boxShadow ? [boxShadow] : []);
-    
+
+    // 2. Handle shadow list
+    let shadows = boxShadows.length > 0 ? boxShadows : (boxShadow ? [boxShadow] : []);
+    this.boxShadows = shadows.map(s => {
+      if (s instanceof BoxShadow) return s;
+      return new BoxShadow(s);
+    });
+
     this.backgroundBlendMode = backgroundBlendMode;
+  }
+
+  /**
+   * Debug validation
+   */
+  debugAssertIsValid() {
+    return true;
   }
 
   /**
@@ -683,6 +755,13 @@ export class BoxDecoration {
   }
 
   /**
+   * Alias for compatibility with Container
+   */
+  toCSSStyle() {
+    return this.toCSSObject();
+  }
+
+  /**
    * Applies decoration to a DOM element
    */
   applyToElement(element) {
@@ -707,20 +786,21 @@ export default {
   // Border
   BorderSide,
   Border,
-  
+
   // Border Radius
   Radius,
   BorderRadius,
-  
+
   // Shadow
   BoxShadow,
   BoxShadows,
-  
+
   // Gradient
   LinearGradient,
   RadialGradient,
   SweepGradient,
-  
+
   // Complete Decoration
+  Decoration,
   BoxDecoration
 };

@@ -24,7 +24,6 @@ export {
     StackElement,
     RenderStack,
     Positioned,
-    PositionedElement,
     StackParentData
 } from "./compoment/stack.js";
 

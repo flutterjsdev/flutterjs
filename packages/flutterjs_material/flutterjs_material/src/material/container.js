@@ -33,128 +33,7 @@ const DecorationPosition = {
 
 
 
-// ============================================================================
-// DECORATION
-// ============================================================================
-
-class Decoration {
-  constructor() {
-    if (new.target === Decoration) {
-      throw new Error('Decoration is abstract');
-    }
-    this.padding = new EdgeInsets(0, 0, 0, 0);
-  }
-
-  /**
-   * Convert to CSS
-   */
-  toCSSStyle() {
-    throw new Error('toCSSStyle() must be implemented');
-  }
-
-  /**
-   * Debug validation
-   */
-  debugAssertIsValid() {
-    return true;
-  }
-}
-
-class BoxDecoration extends Decoration {
-  constructor({
-    color = null,
-    image = null,
-    border = null,
-    borderRadius = null,
-    boxShadow = [],
-    gradient = null,
-    backgroundBlendMode = null,
-    shape = 'rectangle'
-  } = {}) {
-    super();
-
-    this.color = color;
-    this.image = image;
-    this.border = border;
-    this.borderRadius = borderRadius;
-    this.boxShadow = boxShadow;
-    this.gradient = gradient;
-    this.backgroundBlendMode = backgroundBlendMode;
-    this.shape = shape;
-  }
-
-  toCSSStyle() {
-    const style = {};
-
-    if (this.color) {
-      style.backgroundColor = (typeof this.color.toCSSString === 'function')
-        ? this.color.toCSSString()
-        : this.color;
-    }
-
-    if (this.shape === 'circle') {
-      style.borderRadius = '50%';
-      style.aspectRatio = '1 / 1'; // Ensure it remains a circle
-    } else if (this.borderRadius) {
-      const resolveRadius = (r) => {
-        if (typeof r === 'number') return r;
-        if (r && typeof r.x === 'number') return r.x; // Assumes circular/elliptical x matches or we use x
-        return 0;
-      };
-
-      if (typeof this.borderRadius === 'number') {
-        style.borderRadius = `${this.borderRadius}px`;
-      } else if (this.borderRadius.all !== undefined) {
-        style.borderRadius = `${this.borderRadius.all}px`;
-      } else {
-        const { topLeft = 0, topRight = 0, bottomLeft = 0, bottomRight = 0 } = this.borderRadius;
-        // Resolve each corner which might be a Radius object
-        const tl = resolveRadius(topLeft);
-        const tr = resolveRadius(topRight);
-        const br = resolveRadius(bottomRight);
-        const bl = resolveRadius(bottomLeft);
-
-        style.borderRadius = `${tl}px ${tr}px ${br}px ${bl}px`;
-      }
-    }
-
-    if (this.border) {
-      if (typeof this.border === 'object') {
-        const { width = 1, color = 'black', style: borderStyle = 'solid' } = this.border;
-        const borderColor = (color && typeof color.toCSSString === 'function')
-          ? color.toCSSString()
-          : color;
-        style.border = `${width}px ${borderStyle} ${borderColor}`;
-      }
-    }
-
-    if (this.boxShadow && this.boxShadow.length > 0) {
-      style.boxShadow = this.boxShadow
-        .map(shadow => {
-          const { offsetX = 0, offsetY = 0, blurRadius = 0, spreadRadius = 0, color = 'rgba(0,0,0,0.5)' } = shadow;
-          const shadowColor = (color && typeof color.toCSSString === 'function')
-            ? color.toCSSString()
-            : color;
-          return `${offsetX}px ${offsetY}px ${blurRadius}px ${spreadRadius}px ${shadowColor}`;
-        })
-        .join(', ');
-    }
-
-    if (this.gradient) {
-      const { type = 'linear', colors = [], stops = [] } = this.gradient;
-      if (type === 'linear') {
-        const colorStops = colors.map((c, i) => `${c} ${(stops[i] || (i / colors.length)) * 100}%`).join(', ');
-        style.background = `linear-gradient(135deg, ${colorStops})`;
-      }
-    }
-
-    if (this.backgroundBlendMode) {
-      style.mixBlendMode = this.backgroundBlendMode;
-    }
-
-    return style;
-  }
-}
+import { Decoration, BoxDecoration } from '../utils/decoration/decoration.js';
 
 // ============================================================================
 // COLORED BOX WIDGET
@@ -218,6 +97,11 @@ class DecoratedBox extends Widget {
     fullHeight = false
   } = {}) {
     super(key);
+
+    // Robustness: Promote plain object
+    if (decoration && !(decoration instanceof Decoration)) {
+      decoration = new BoxDecoration(decoration);
+    }
 
     if (!decoration) {
       throw new Error('DecoratedBox requires a decoration');
@@ -356,6 +240,11 @@ class Container extends StatelessWidget {
   } = {}) {
     super(key);
 
+    // Robustness: Promote plain object
+    if (decoration && !(decoration instanceof Decoration)) {
+      decoration = new BoxDecoration(decoration);
+    }
+
     // Validation
     if (padding !== null && !padding.isNonNegative) {
       throw new Error('padding must be non-negative');
@@ -373,7 +262,13 @@ class Container extends StatelessWidget {
     this.alignment = alignment;
     this.padding = padding;
     this.color = color;
+    this.color = color;
     this.decoration = decoration;
+
+    // Robustness: Promote foregroundDecoration
+    if (foregroundDecoration && !(foregroundDecoration instanceof Decoration)) {
+      foregroundDecoration = new BoxDecoration(foregroundDecoration);
+    }
     this.foregroundDecoration = foregroundDecoration;
     this.margin = margin;
     this.transform = transform;

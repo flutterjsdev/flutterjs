@@ -438,7 +438,7 @@ class ExpressionCodeGen {
 
     // Add type annotation as comment if configured
     if (config.typeComments && param.type != null) {
-      final typeName = param.type!.displayName();
+      final typeName = param.type.displayName();
       return '$name /* : $typeName */';
     }
 
@@ -626,9 +626,9 @@ class ExpressionCodeGen {
 
     // ✅ FIX: Strip postfix bang operator (!)
     if (expr.source != null &&
-        expr.source!.endsWith('!') &&
-        expr.source!.length > 1) {
-      final source = expr.source!;
+        expr.source.endsWith('!') &&
+        expr.source.length > 1) {
+      final source = expr.source;
       print(
         '   Converting null assert: $source → ${source.substring(0, source.length - 1)}',
       );
@@ -636,12 +636,12 @@ class ExpressionCodeGen {
     }
 
     // Handle Dart 3.0+ shorthand enum/method syntax (.center, .fromSeed, etc.)
-    if (expr.source != null && expr.source!.startsWith('.')) {
+    if (expr.source != null && expr.source.startsWith('.')) {
       // CHECK: Is it a method call? (contains '(')
-      if (expr.source!.contains('(')) {
+      if (expr.source.contains('(')) {
         // Specific mapping for common shorthand constructors
-        if (expr.source!.startsWith('.fromSeed')) {
-          var call = expr.source!;
+        if (expr.source.startsWith('.fromSeed')) {
+          var call = expr.source;
           // Hack: Wrap named arguments in {} for JS
           // e.g. .fromSeed(seedColor: red) -> .fromSeed({seedColor: red})
           if (call.contains('(') && call.endsWith(')')) {
@@ -675,8 +675,8 @@ class ExpressionCodeGen {
     }
 
     // Try to extract usable info from the unknown expression
-    if (expr.source != null && expr.source!.isNotEmpty) {
-      final source = expr.source!.trim();
+    if (expr.source != null && expr.source.isNotEmpty) {
+      final source = expr.source.trim();
 
       // ✅ Handle collection-if: if (condition) ...elements or if (condition) element
       if (source.startsWith('if (')) {
@@ -788,7 +788,7 @@ class ExpressionCodeGen {
           suggestion: 'This expression type may not be fully supported',
         ),
       );
-      return expr.source!;
+      return expr.source;
     }
 
     // Last resort
@@ -987,6 +987,13 @@ class ExpressionCodeGen {
       // Unknown shorthand - output as-is with warning
       print('⚠️  Unknown shorthand property access: .$propertyName');
       return '.$propertyName';
+    }
+
+    // ✅ FIX: Polyfill .entries for Maps (JS Objects)
+    if (expr.propertyName == 'entries') {
+      print('🔧 Converting .entries to Object.entries() polyfill');
+      // Polyfill: Object.entries(target).map(([k, v]) => ({key: k, value: v}))
+      return 'Object.entries($target).map(([k, v]) => ({key: k, value: v}))';
     }
 
     if (_isValidIdentifier(expr.propertyName)) {
@@ -1353,7 +1360,7 @@ class ExpressionCodeGen {
       final typeArgs = typeIR.typeArguments.isNotEmpty
           ? '<${typeIR.typeArguments.map(_generateType).join(", ")}>'
           : '';
-      final nullable = typeIR.isNullable ?? false ? '?' : '';
+      final nullable = typeIR.isNullable ? '?' : '';
       return '${typeIR.className}$typeArgs$nullable';
     }
 
@@ -1561,8 +1568,18 @@ class ExpressionCodeGen {
               suggestion: 'Check argument expression structure',
             ),
           );
-          // CHANGED: Skip failed named arguments instead of adding placeholder
-          // namedParts.add('${entry.key}: null /* arg generation failed */');
+
+          // ✅ FIX: SAFETY FALLBACK for children
+          // If 'children' generation fails (e.g. complex spreads), standard widgets (Column/Row/Stack)
+          // will crash if they receive undefined (undefined.map).
+          // Fallback to empty array to keep the app alive.
+          if (entry.key == 'children') {
+            print('⚠️  FALLBACK: Generating empty children list due to error');
+            namedParts.add('children: []');
+          } else {
+            // For other args, explicit null is better than undefined/skipping
+            namedParts.add('${entry.key}: null /* arg generation failed */');
+          }
         }
       }
 

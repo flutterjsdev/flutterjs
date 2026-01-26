@@ -1,4 +1,4 @@
-import { Widget } from '../../core/widget_element.js';
+import { Widget, StatelessWidget } from '../../core/widget_element.js';
 import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
 import { Clip, TextDirection, VerticalDirection, Alignment, AlignmentDirectional, StackFit } from '../../utils/utils.js';
@@ -138,7 +138,7 @@ class RenderStack {
 // Positions a child absolutely within Stack
 // ============================================================================
 
-class Positioned extends Widget {
+class Positioned extends StatelessWidget {
   constructor({
     key = null,
     left = null,
@@ -292,17 +292,9 @@ class Positioned extends Widget {
     if (this.width !== null) properties.push({ name: 'width', value: this.width });
     if (this.height !== null) properties.push({ name: 'height', value: this.height });
   }
-
-  createElement(parent, runtime) {
-    return new PositionedElement(this, parent, runtime);
-  }
 }
+// Removed custom createElement and PositionedElement to use default StatelessElement behavior
 
-class PositionedElement extends Element {
-  performRebuild() {
-    return this.widget.build(this.context);
-  }
-}
 
 // ============================================================================
 // STACK WIDGET
@@ -496,6 +488,5 @@ export {
   StackElement,
   RenderStack,
   Positioned,
-  PositionedElement,
   StackParentData
 };
