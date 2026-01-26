@@ -9,7 +9,7 @@ export class Divider extends StatelessWidget {
     constructor({
         key,
         height = 16.0,
-        thickness = null,
+        thickness = 1,
         indent = 0.0,
         endIndent = 0.0,
         color = null,
@@ -30,9 +30,11 @@ export class Divider extends StatelessWidget {
         const color = this.color ?? Colors.grey.shade400;
 
         return new SizedBox({
+            width: Infinity,
             height: height,
             child: new Center({
                 child: new Container({
+                    width: Infinity,
                     height: thickness,
                     margin: EdgeInsets.only({ left: indent, right: endIndent }),
                     color: color,

@@ -10,6 +10,54 @@ import { TextStyle } from '../painting/text_style.js';
 import { Border, BorderSide } from '../utils/border.js';
 
 export class OutlinedButton extends ButtonStyleButton {
+    static styleFrom({
+        foregroundColor,
+        backgroundColor,
+        disabledForegroundColor,
+        shadowColor,
+        surfaceTintColor,
+        elevation,
+        textStyle,
+        padding,
+        minimumSize,
+        fixedSize,
+        maximumSize,
+        side,
+        shape,
+        enabledMouseCursor,
+        disabledMouseCursor,
+        visualDensity,
+        tapTargetSize,
+        animationDuration,
+        enableFeedback,
+        alignment,
+        splashFactory,
+    } = {}) {
+        return {
+            foregroundColor,
+            backgroundColor,
+            disabledForegroundColor,
+            shadowColor,
+            surfaceTintColor,
+            elevation,
+            textStyle,
+            padding,
+            minimumSize,
+            fixedSize,
+            maximumSize,
+            side,
+            shape,
+            enabledMouseCursor,
+            disabledMouseCursor,
+            visualDensity,
+            tapTargetSize,
+            animationDuration,
+            enableFeedback,
+            alignment,
+            splashFactory,
+        };
+    }
+
     constructor({
         key,
         onPressed,

@@ -57,6 +57,7 @@ class IconData {
     // Material Icons ligature mappings (text-based icon names)
     const ligatures = {
       0xe145: 'add', 0xe838: 'star', 0xe83b: 'star_border',
+      0xe15b: 'remove',
       0xe88a: 'home', 0xe8b8: 'settings', 0xe8b6: 'search',
       0xe87e: 'favorite', 0xe8cb: 'favorite_border',
       0xe5cd: 'close', 0xe5d2: 'menu',
@@ -68,7 +69,10 @@ class IconData {
       0xe2c4: 'download', 0xe2c6: 'upload',
       0xe5d5: 'refresh', 0xe5d4: 'more_vert',
       0xe5d3: 'more_horiz', 0xe853: 'account_circle',
-      0xe7fd: 'person', 0xe7f4: 'notifications'
+      0xe7fd: 'person', 0xe7f4: 'notifications',
+      0xe9ca: 'rocket_launch', 0xe873: 'description',
+      0xe9e4: 'speed', 0xe1af: 'data_usage',
+      0xe86f: 'code', 0xe157: 'link'
     };
 
     // Use ligature if available (recommended for Material Icons)
@@ -696,10 +700,27 @@ const Icons = {
   addAlert: new IconData({ codePoint: 0xe003, fontFamily: 'Material Icons' }),
   addBox: new IconData({ codePoint: 0xe146, fontFamily: 'Material Icons' }),
   addCircle: new IconData({ codePoint: 0xe147, fontFamily: 'Material Icons' }),
-  // addCircleOutline: new IconData
+  remove: new IconData({ codePoint: 0xe15b, fontFamily: 'Material Icons' }),
+  rocket_launch: new IconData({ codePoint: 0xe9ca, fontFamily: 'Material Icons' }),
+  description: new IconData({ codePoint: 0xe873, fontFamily: 'Material Icons' }),
+  speed: new IconData({ codePoint: 0xe9e4, fontFamily: 'Material Icons' }),
+  data_usage: new IconData({ codePoint: 0xe1af, fontFamily: 'Material Icons' }),
+  code: new IconData({ codePoint: 0xe86f, fontFamily: 'Material Icons' }),
+  link: new IconData({ codePoint: 0xe157, fontFamily: 'Material Icons' }),
 
+  // Added Icons (camelCase)
+  flutterDash: new IconData({ codePoint: 0xe00b, fontFamily: 'Material Icons' }),
+  flashOn: new IconData({ codePoint: 0xe3e7, fontFamily: 'Material Icons' }),
+  widgets: new IconData({ codePoint: 0xe1bd, fontFamily: 'Material Icons' }),
+  chatBubble: new IconData({ codePoint: 0xe0ca, fontFamily: 'Material Icons' }),
+  security: new IconData({ codePoint: 0xe32a, fontFamily: 'Material Icons' }),
+  thumbUp: new IconData({ codePoint: 0xe8dc, fontFamily: 'Material Icons' }),
 
-
+  // Snake_case aliases for direct Dart mapping
+  get flutter_dash() { return this.flutterDash; },
+  get flash_on() { return this.flashOn; },
+  get chat_bubble() { return this.chatBubble; },
+  get thumb_up() { return this.thumbUp; }
 };
 
 export { Icon, IconData, IconThemeData, Icons };
