@@ -238,7 +238,7 @@ class Scaffold extends Widget {
         this.endDrawer = endDrawer;
         this.bottomNavigationBar = bottomNavigationBar;
         if (backgroundColor) {
-        this.backgroundColor = backgroundColor;
+            this.backgroundColor = backgroundColor;
         } else {
             // Will be resolved in build/element, but strictly it's passed as null usually
             // If we need a default here for some reason:
@@ -396,6 +396,7 @@ class Scaffold extends Widget {
             display: 'flex',
             flexDirection: 'column',
             width: '100%',
+            alignItems: 'stretch', // Ensure body content (Scroll view etc) takes full width
             minHeight: 0, // Critical: allows flex child to shrink and enable scrolling
             maxHeight: '100%', // Don't exceed available space
             boxSizing: 'border-box',

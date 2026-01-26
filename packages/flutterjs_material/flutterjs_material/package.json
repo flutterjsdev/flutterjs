@@ -115,6 +115,7 @@
     "./material/tab_controller": "./dist/material/tab_controller.js",
     "./material/text": "./dist/material/text.js",
     "./material/text_button": "./dist/material/text_button.js",
+    "./material/text_button_theme": "./dist/material/text_button_theme.js",
     "./material/text_editing_controller": "./dist/material/text_editing_controller.js",
     "./material/text_field": "./dist/material/text_field.js",
     "./material/text_form_field": "./dist/material/text_form_field.js",
@@ -212,8 +213,10 @@
     "./widgets/compoment/shader_mask": "./dist/widgets/compoment/shader_mask.js",
     "./widgets/compoment/sized_box": "./dist/widgets/compoment/sized_box.js",
     "./widgets/compoment/sliver_box_adapter": "./dist/widgets/compoment/sliver_box_adapter.js",
+    "./widgets/compoment/spacer": "./dist/widgets/compoment/spacer.js",
     "./widgets/compoment/stack": "./dist/widgets/compoment/stack.js",
     "./widgets/compoment/transform": "./dist/widgets/compoment/transform.js",
+    "./widgets/media_query": "./dist/widgets/media_query.js",
     "./widgets/navigator": "./dist/widgets/navigator.js",
     "./widgets/overlay": "./dist/widgets/overlay.js",
     "./widgets/widgets": "./dist/widgets/widgets.js"

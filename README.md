@@ -143,10 +143,54 @@ Open `http://localhost:3000` — inspect the page to see **real HTML elements**,
 ### 4. Build for Production
 
 ```bash
+# Build your application
 flutterjs build
 ```
 
-Output is in `dist/` — deploy to any static hosting (Netlify, Vercel, GitHub Pages).
+This creates a `dist/` directory with:
+- `index.html` (Entry point)
+- `assets/` (Static resources)
+- `main.js` (Compiled app)
+- `vercel.json` (Deployment config)
+
+### 5. Deploy to Vercel
+
+Since `flutterjs build` automatically generates `vercel.json`, deployment is zero-config:
+
+```bash
+# Using Vercel CLI
+vercel deploy
+```
+
+Or connect your GitHub repository to Vercel—it will automatically detect the output.
+
+---
+
+## Deployment
+
+### Vercel (Recommended)
+Deployment is **zero-config** and optimized for cleanliness (no duplicate `node_modules`).
+
+1. **Build**:
+   ```bash
+   flutterjs build
+   ```
+   *(Creates `dist/` with app files, keeps dependencies in root)*
+
+2. **Deploy**:
+   ```bash
+   cd ./build/flutterjs
+   vercel deploy --prod
+   ```
+
+The build automatically generates `vercel.json` and `.vercelignore` to ensure:
+-   **Routing**: SPAs work correctly (all routes → `index.html`)
+-   **Dependencies**: `node_modules` are uploaded efficiently
+-   **Cleanliness**: Your project remains unpolluted
+
+### Other Providers
+You can deploy the contents of `build/flutterjs/dist/` to any static host (Netlify, GitHub Pages, Firebase Hosting).
+*Note: Ensure your provider handles SPA routing (redirect 404s to index.html).*
 
 ---
 
@@ -206,7 +250,8 @@ Flutter/Dart Source
 flutterjs build --mode ssr         # Server-side rendering
 flutterjs build --mode csr         # Client-side rendering (default)
 flutterjs build --mode hybrid      # Best of both
-flutterjs build --no-minify        # Skip minification
+flutterjs build -O 0               # Debug build (No optimization / No minification)
+flutterjs build -O 3               # Production build (Aggressive optimization)
 flutterjs build --output ./dist    # Custom output directory
 ```
 

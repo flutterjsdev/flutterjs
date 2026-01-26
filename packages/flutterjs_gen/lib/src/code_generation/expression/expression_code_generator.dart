@@ -676,6 +676,110 @@ class ExpressionCodeGen {
 
     // Try to extract usable info from the unknown expression
     if (expr.source != null && expr.source!.isNotEmpty) {
+      final source = expr.source!.trim();
+
+      // ✅ Handle collection-if: if (condition) ...elements or if (condition) element
+      if (source.startsWith('if (')) {
+        print(
+          '🔧 Converting collection-if: ${source.length > 60 ? source.substring(0, 60) + '...' : source}',
+        );
+
+        // Find the condition
+        final condStart = source.indexOf('(');
+        var parenCount = 0;
+        var condEnd = -1;
+        for (var i = condStart; i < source.length; i++) {
+          if (source[i] == '(') parenCount++;
+          if (source[i] == ')') {
+            parenCount--;
+            if (parenCount == 0) {
+              condEnd = i;
+              break;
+            }
+          }
+        }
+
+        if (condEnd > condStart) {
+          final condition = source.substring(condStart + 1, condEnd);
+          final rest = source.substring(condEnd + 1).trim();
+
+          // Check if it's a spread: ...[
+          if (rest.startsWith('...[')) {
+            final elementsEnd = rest.lastIndexOf(']');
+            if (elementsEnd > 3) {
+              var elements = rest.substring(4, elementsEnd);
+              // Convert const to new for valid JavaScript
+              elements = elements.replaceAll(RegExp(r'\bconst\s+'), 'new ');
+              // Add 'new' to constructor calls (UpperCase names)
+              elements = _addNewToConstructors(elements);
+              final converted = '...(($condition) ? [$elements] : [])';
+              print('   → Spread: $converted');
+              return converted;
+            }
+          } else if (rest.isNotEmpty) {
+            // Single element
+            var singleElement = rest;
+            // Convert const to new for valid JavaScript
+            singleElement = singleElement.replaceAll(
+              RegExp(r'\bconst\s+'),
+              'new ',
+            );
+            // Add 'new' to constructor calls
+            singleElement = _addNewToConstructors(singleElement);
+            final converted = '(($condition) ? $singleElement : null)';
+            print(
+              '   → Single: ${converted.length > 80 ? converted.substring(0, 80) + '...' : converted}',
+            );
+            return converted;
+          }
+        }
+      }
+
+      // ✅ WORKAROUND: Detect widget constructors with named parameters
+      // Pattern: UpperCaseName(param: value, ...)
+      if (RegExp(r'^[A-Z]\w*\s*\(').hasMatch(source)) {
+        // Check if it has named parameters (contains ':' but not '::' or 'http:')
+        if (source.contains(':') &&
+            !source.contains('::') &&
+            !source.contains('http:')) {
+          // Find the constructor name
+          final nameMatch = RegExp(
+            r'^([A-Z]\w*)(\.\w+)?\s*\(',
+          ).firstMatch(source);
+          if (nameMatch != null) {
+            final constructorName = nameMatch
+                .group(0)!
+                .replaceAll('(', '')
+                .trim();
+            final afterName = source.substring(nameMatch.end);
+
+            // Check if parameters are already wrapped in {}
+            if (!afterName.trimLeft().startsWith('{')) {
+              // Find the closing paren
+              var parenCount = 1;
+              var endIdx = 0;
+              for (var i = 0; i < afterName.length; i++) {
+                if (afterName[i] == '(') parenCount++;
+                if (afterName[i] == ')') {
+                  parenCount--;
+                  if (parenCount == 0) {
+                    endIdx = i;
+                    break;
+                  }
+                }
+              }
+
+              if (endIdx > 0) {
+                final params = afterName.substring(0, endIdx);
+                final wrapped = 'new $constructorName({$params})';
+                print('🔧 Wrapped named parameters in UnknownExpressionIR');
+                return wrapped;
+              }
+            }
+          }
+        }
+      }
+
       print('   Fallback: Using source text: "${expr.source}"');
       warnings.add(
         CodeGenWarning(
@@ -722,7 +826,16 @@ class ExpressionCodeGen {
     switch (expr.literalType) {
       case LiteralType.stringValue:
         final str = expr.value as String;
-        return _escapeString(str);
+
+        // Check if it's a multi-line string (contains newlines)
+        if (str.contains('\n') || str.contains('\r')) {
+          // Use template literal (backticks) for multi-line strings
+          // This matches Dart's triple-quoted strings '''...'''
+          return _escapeTemplateString(str);
+        } else {
+          // Use regular double quotes for single-line strings
+          return _escapeString(str);
+        }
       case LiteralType.intValue:
         return expr.value.toString();
       case LiteralType.doubleValue:
@@ -750,6 +863,17 @@ class ExpressionCodeGen {
         .replaceAll('\f', '\\f');
 
     return '"$escaped"';
+  }
+
+  String _escapeTemplateString(String str) {
+    // Escape special characters for JavaScript template literals (backticks)
+    // Need to escape: backticks and ${} template expressions
+    final escaped = str
+        .replaceAll('\\', '\\\\') // Escape backslashes first
+        .replaceAll('`', '\\`') // Escape backticks
+        .replaceAll('\$', '\\\$'); // Escape $ to prevent template interpolation
+
+    return '`$escaped`';
   }
 
   // =========================================================================
@@ -793,12 +917,20 @@ class ExpressionCodeGen {
       // 2. Private fields (start with _)
       // 3. The 'widget' property (for StatefulWidget state classes)
       // 4. Properties accessed via 'widget.' (e.g. widget.title)
-      if (isClassField ||
-          name.startsWith('_') ||
-          name == 'widget' ||
-          name.startsWith('widget.') ||
-          name == 'users') {
-        // ✅ Force fix for 'users'
+      // 5. 'context' and 'mounted' (if not parameters)
+      bool isParam = _currentFunctionContext!.parameters.any(
+        (p) => p.name == name,
+      );
+
+      if (!isParam &&
+          (isClassField ||
+              name.startsWith('_') ||
+              name == 'widget' ||
+              name.startsWith('widget.') ||
+              name == 'users' ||
+              name == 'context' ||
+              name == 'mounted')) {
+        // ✅ Force fix for 'users' and State properties
         return 'this.$name';
       }
     }
@@ -1048,11 +1180,32 @@ class ExpressionCodeGen {
   // =========================================================================
 
   String _generateListLiteral(ListExpressionIR expr) {
-    final elements = expr.elements
-        .map((e) => generate(e, parenthesize: false))
-        .join(', ');
+    final parts = <String>[];
 
-    return '[$elements]';
+    for (final element in expr.elements) {
+      final code = generate(element, parenthesize: false);
+
+      // Check if this element is a conditional from collection-if that needs spreading
+      if (element is ConditionalExpressionIR &&
+          element.metadata['fromCollectionIf'] == true &&
+          element.metadata['isSpread'] == true) {
+        // Use spread operator to flatten: ...(condition ? [items] : [])
+        parts.add('...($code)');
+      } else if (element is ConditionalExpressionIR &&
+          element.metadata['fromCollectionIf'] == true) {
+        // Single element conditional: filter out nulls
+        parts.add(
+          '...($code) != null ? [$code] : []]'.replaceAll(
+            '] != null ? [',
+            ' != null ? ',
+          ),
+        );
+      } else {
+        parts.add(code);
+      }
+    }
+
+    return '[${parts.join(', ')}]';
   }
 
   String _generateMapLiteral(MapExpressionIR expr) {
@@ -1728,6 +1881,59 @@ class ExpressionCodeGen {
     print('✅ Generated JS: $jsCode');
 
     return jsCode;
+  }
+
+  /// Helper: Add 'new' keyword to constructor calls in string
+  /// Detects UpperCase identifiers followed by '(' and adds 'new' if missing
+  String _addNewToConstructors(String code) {
+    // Pattern: UpperCase letter followed by alphanumeric and then '('
+    // But NOT preceded by 'new '
+    // Examples: TextButton(...) → new TextButton(...)
+    //          SizedBox(...) → new SizedBox(...)
+
+    final result = code.replaceAllMapped(
+      RegExp(r'(?<!new\s)(?<![.])\b([A-Z][a-zA-Z0-9_]*)\s*\('),
+      (match) {
+        final className = match.group(1)!;
+        // Don't add 'new' to known Flutter constants/enums or types
+        final skipList = {
+          'Colors',
+          'Icons',
+          'EdgeInsets',
+          'FontWeight',
+          'TextAlign',
+          'MainAxisAlignment',
+          'CrossAxisAlignment',
+          'MainAxisSize',
+          'WrapAlignment',
+          'BoxShape',
+          'TextOverflow',
+          'Alignment',
+          'BorderRadius',
+          'Border',
+          'BoxDecoration',
+          'BoxConstraints',
+          'TextStyle',
+          'Color',
+          'Offset',
+          'BoxShadow',
+          'BorderSide',
+          'RoundedRectangleBorder',
+          'ColorScheme',
+          'Theme',
+          'MediaQuery',
+        };
+
+        // If it's a known utility class with static methods, don't add 'new'
+        if (skipList.contains(className)) {
+          return match.group(0)!;
+        }
+
+        return 'new $className(';
+      },
+    );
+
+    return result;
   }
 }
 

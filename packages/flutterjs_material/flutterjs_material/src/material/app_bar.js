@@ -94,6 +94,8 @@ class AppBar extends StatelessWidget {
         // or let _AppBarBody handle the VNode styles, but we need fgColor for IconTheme.
 
         // ... Re-using the logic from the original file ...
+        const colorScheme = theme.colorScheme;
+
         let effectiveBgColorString = bgColor;
         if (bgColor && typeof bgColor.toCSSString === 'function') {
             effectiveBgColorString = bgColor.toCSSString();

@@ -408,7 +408,7 @@ class JSOptimizer {
     ];
     for (final token in safeTokens) {
       result = result.replaceAll(
-        RegExp('\\s*\\${RegExp.escape(token)}\\s*'),
+        RegExp(r'\s*' + RegExp.escape(token) + r'\s*'),
         token,
       );
     }

@@ -49,6 +49,8 @@ class Padding extends Widget {
 
         this.padding = padding;
         this.child = child;
+        this.isFullWidth = child && child.isFullWidth;
+        this.isFullHeight = child && child.isFullHeight;
     }
 
     debugFillProperties(properties) {
@@ -79,7 +81,9 @@ class PaddingElement extends Element {
         const paddingCSS = this.widget.padding.toCSSShorthand();
         const style = {
             padding: paddingCSS,
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            width: this.widget.isFullWidth ? '100%' : 'auto',
+            height: this.widget.isFullHeight ? '100%' : 'auto'
         };
 
         return new VNode({

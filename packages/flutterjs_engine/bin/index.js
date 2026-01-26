@@ -159,11 +159,13 @@ program
   .option('--sourcemap', 'Generate source maps')
   .option('--minify', 'Minify output', true)
   .option('--no-minify', 'Disable minification')
+  .option('--to-js', 'Generate JavaScript output only (internal use)')
   .action(async (options) => {
     try {
       const globalOpts = program.opts();
       const projectContext = loadProjectContext(globalOpts.config);
       await build({ ...options, ...globalOpts }, projectContext);
+      process.exit(0);
     } catch (error) {
       handleError(error, program.opts());
     }

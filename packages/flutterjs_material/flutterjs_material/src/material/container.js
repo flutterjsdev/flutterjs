@@ -213,7 +213,9 @@ class DecoratedBox extends Widget {
     key = null,
     decoration = null,
     position = DecorationPosition.background,
-    child = null
+    child = null,
+    fullWidth = false,
+    fullHeight = false
   } = {}) {
     super(key);
 
@@ -224,6 +226,10 @@ class DecoratedBox extends Widget {
     this.decoration = decoration;
     this.position = position;
     this.child = child;
+    this.fullWidth = fullWidth || (child && child.isFullWidth);
+    this.fullHeight = fullHeight || (child && child.isFullHeight);
+    this.isFullWidth = this.fullWidth;
+    this.isFullHeight = this.fullHeight;
     this._renderObject = null;
   }
 
@@ -263,6 +269,9 @@ class DecoratedBox extends Widget {
 
     const style = {
       position: 'relative',
+      width: this.fullWidth ? '100%' : 'auto',
+      height: this.fullHeight ? '100%' : 'auto',
+      boxSizing: 'border-box',
       ...decorationStyle
     };
 
@@ -373,12 +382,16 @@ class Container extends StatelessWidget {
     this.clipBehavior = clipBehavior;
 
     // Apply width/height to constraints
+    this.constraints = constraints;
     if (width !== null || height !== null) {
-      this.constraints = constraints?.tighten({ width, height }) ||
-        BoxConstraints.tightFor({ width, height });
-    } else {
-      this.constraints = constraints;
+      this.constraints = (this.constraints || new BoxConstraints()).tighten({ width, height });
+    } else if (width === null && height === null && constraints === null) {
+      // If everything is null, we stay with null constraints to allow expansion
     }
+
+    // Size Intent Bubbling
+    this.isFullWidth = (width === Infinity) || (child && child.isFullWidth);
+    this.isFullHeight = (height === Infinity) || (child && child.isFullHeight);
   }
 
   /**
@@ -438,7 +451,9 @@ class Container extends StatelessWidget {
     if (this.clipBehavior !== Clip.none && this.decoration !== null) {
       current = new ClipPath({
         clipBehavior: this.clipBehavior,
-        child: current
+        child: current,
+        isFullWidth: this.isFullWidth,
+        isFullHeight: this.isFullHeight
       });
     }
 
@@ -446,7 +461,9 @@ class Container extends StatelessWidget {
     if (this.decoration !== null) {
       current = new DecoratedBox({
         decoration: this.decoration,
-        child: current
+        child: current,
+        fullWidth: this.isFullWidth,
+        fullHeight: this.isFullHeight
       });
     }
 

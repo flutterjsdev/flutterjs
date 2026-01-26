@@ -115,6 +115,40 @@ class CodeTransformer {
     this.result = new TransformResult();
     this.classRegex = /class\s+(\w+)(?:\s+extends\s+([\w<>\.]+))?\s*\{/g;
     this.methodRegex = /(\w+)\s*\(\s*([^)]*)\s*\)\s*\{/g;
+    this.stringMap = new Map();
+  }
+
+  /**
+   * Mask string literals to prevent transformation inside them
+   */
+  maskStrings(code) {
+    this.stringMap.clear();
+    let counter = 0;
+
+    // Regex for strings:
+    // 1. Template literals (backticks) - capturing group 1
+    // 2. Double quoted strings - capturing group 2
+    // 3. Single quoted strings - capturing group 3
+    // We prioritize backticks for multiline support
+    const stringRegex = /(`(?:\\.|[^`\\])*`)|("(?:\\.|[^"\\])*")|('(?:\\.|[^'\\])*')/g;
+
+    return code.replace(stringRegex, (match) => {
+      const placeholder = `__FJS_STRING_LITERAL_${counter++}__`;
+      this.stringMap.set(placeholder, match);
+      return placeholder;
+    });
+  }
+
+  /**
+   * Restore masked strings
+   */
+  restoreStrings(code) {
+    let result = code;
+    this.stringMap.forEach((value, key) => {
+      // Use split/join to replace all instances
+      result = result.split(key).join(value);
+    });
+    return result;
   }
 
   /**
@@ -130,33 +164,39 @@ class CodeTransformer {
     }
 
     try {
-      // Step 1: Extract widget metadata
-      this.extractWidgetMetadata(sourceCode);
+      // Step 1: Rewrite package imports (must be done BEFORE masking)
+      let processingCode = this.rewriteImports(sourceCode);
 
-      // Step 2: Inject state management
+      // Step 2: Mask strings to prevent transformation inside them
+      processingCode = this.maskStrings(processingCode);
+
+      // Step 3: Extract widget metadata
+      this.extractWidgetMetadata(processingCode);
+
+      // Step 4: Inject state management
       if (this.config.injectState) {
-        sourceCode = this.injectStateManagement(sourceCode);
+        processingCode = this.injectStateManagement(processingCode);
       }
 
-      // Step 3: Inject lifecycle hooks
+      // Step 5: Inject lifecycle hooks
       if (this.config.injectLifecycle) {
-        sourceCode = this.injectLifecycleHooks(sourceCode);
+        processingCode = this.injectLifecycleHooks(processingCode);
       }
 
-      // Step 4: Add metadata
+      // Step 6: Add metadata
       if (this.config.addMetadata) {
-        sourceCode = this.addMetadata(sourceCode);
+        processingCode = this.addMetadata(processingCode);
       }
 
-      // Step 4.5: Rewrite package imports
-      sourceCode = this.rewriteImports(sourceCode);
+      // Step 7: Restore strings
+      processingCode = this.restoreStrings(processingCode);
 
-      // Step 5: Ensure exports
+      // Step 8: Ensure exports
       if (this.config.validateExports) {
-        sourceCode = this.ensureExports(sourceCode);
+        processingCode = this.ensureExports(processingCode);
       }
 
-      this.result.transformedCode = sourceCode;
+      this.result.transformedCode = processingCode;
 
       if (this.config.debugMode) {
         this.printSummary();

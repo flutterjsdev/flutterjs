@@ -159,7 +159,8 @@ class PackageCollector {
 
     this.projectRoot = this.options.projectRoot;
     this.outputDir = path.join(this.projectRoot, this.options.outputDir);
-    this.nodeModulesDir = path.join(this.outputDir, 'node_modules');
+    // ✅ Use root node_modules (managed by pubjs) - No duplication!
+    this.nodeModulesDir = path.join(this.projectRoot, 'node_modules');
     this.flutterJsDir = path.join(this.nodeModulesDir, '@flutterjs');
     this.currentSession = null;
 
@@ -171,66 +172,43 @@ class PackageCollector {
   }
 
   /**
-   * Main entry point: Collect and copy packages
+   * Main entry point: Collect/Verify packages
    */
   async collectAndCopyPackages(resolution) {
-    console.log(chalk.blue('\n📦 Phase 4: Collecting packages...'));
+    console.log(chalk.blue('\n📦 Phase 4: Verifying Packages...'));
     console.log(chalk.blue('='.repeat(70)));
 
     const session = new CollectionSession();
     this.currentSession = session;
 
     try {
-      // ✅ Create output directory: dist/node_modules/@flutterjs
-      // This is for the production build / distribution
-      const nodeModulesDir = this.flutterJsDir;
-      await fs.promises.mkdir(nodeModulesDir, { recursive: true });
-      console.log(chalk.gray(`Output ready: ${nodeModulesDir}\n`));
+      // ✅ Strategy: Use root node_modules directly.
+      // We do NOT copy to dist. Vercel will serve from root using routes.
 
-      if (!resolution || !resolution.packages || resolution.packages.size === 0) {
-        console.log(chalk.yellow('ℹ️  No packages to collect'));
-        session.endTime = Date.now();
-        return session;
+      if (!fs.existsSync(this.nodeModulesDir)) {
+        throw new Error(`node_modules not found at ${this.nodeModulesDir}. Did pubjs preparation fail?`);
       }
 
-      // ✅ NEW STEP: Install dependencies for each package FIRST
-      if (this.options.autoInstall) {
-        await this.installDependenciesForPackages(resolution, session);
-      }
+      console.log(chalk.green(`  ✓ Using existing node_modules at project root`));
+      console.log(chalk.gray(`    Path: ${this.nodeModulesDir}`));
 
-      // Copy each main package
-      const packages = Array.from(resolution.packages.entries());
-      console.log(chalk.gray(`\nPackages to copy: ${packages.length}\n`));
+      // We still "collect" stats effectively by scanning, or just report success.
+      // For speed, just report success.
 
-      for (const [packageName, packageInfo] of packages) {
-        try {
-          await this.copyPackage(packageName, packageInfo, session, nodeModulesDir);
-        } catch (pkgError) {
-          console.error(chalk.red(`\n✗ Error copying ${packageName}: ${pkgError.message}`));
-          session.addResult({
-            packageName,
-            success: false,
-            copiedFiles: [],
-            totalSize: 0,
-            error: pkgError.message
-          });
-        }
-      }
-
-      // Copy nested dependencies
-      console.log(chalk.yellow(`\n📦 Handling nested dependencies...`));
-      await this.copyNestedDependencies(packages, nodeModulesDir);
+      session.addResult({
+        packageName: 'node_modules',
+        success: true,
+        copiedFiles: 0,
+        totalSize: 0 // We aren't moving bytes, which is good!
+      });
 
       session.endTime = Date.now();
-
-      // Print report
       this.printCollectionReport(session);
 
       return session;
 
     } catch (error) {
-      console.error(chalk.red(`✗ Collection failed: ${error.message}`));
-      console.error(chalk.red(`  Stack: ${error.stack}`));
+      console.error(chalk.red(`✗ Package verification failed: ${error.message}`));
       session.endTime = Date.now();
       return session;
     }

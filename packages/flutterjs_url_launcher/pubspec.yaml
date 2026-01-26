@@ -1,0 +1,18 @@
+name: flutterjs_url_launcher
+description: FlutterJS implementation of url_launcher.
+version: 0.0.1
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      web:
+        pluginClass: UrlLauncherPlugin
+        fileName: url_launcher_web.dart
