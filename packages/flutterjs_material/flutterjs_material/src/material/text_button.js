@@ -8,6 +8,56 @@ import { Center } from '../widgets/compoment/center.js';
 import { TextStyle } from '../painting/text_style.js';
 
 export class TextButton extends ButtonStyleButton {
+    static styleFrom({
+        foregroundColor,
+        backgroundColor,
+        disabledForegroundColor,
+        disabledBackgroundColor,
+        shadowColor,
+        surfaceTintColor,
+        elevation,
+        textStyle,
+        padding,
+        minimumSize,
+        fixedSize,
+        maximumSize,
+        side,
+        shape,
+        enabledMouseCursor,
+        disabledMouseCursor,
+        visualDensity,
+        tapTargetSize,
+        animationDuration,
+        enableFeedback,
+        alignment,
+        splashFactory,
+    } = {}) {
+        return {
+            foregroundColor,
+            backgroundColor,
+            disabledForegroundColor,
+            disabledBackgroundColor,
+            shadowColor,
+            surfaceTintColor,
+            elevation,
+            textStyle,
+            padding,
+            minimumSize,
+            fixedSize,
+            maximumSize,
+            side,
+            shape,
+            enabledMouseCursor,
+            disabledMouseCursor,
+            visualDensity,
+            tapTargetSize,
+            animationDuration,
+            enableFeedback,
+            alignment,
+            splashFactory,
+        };
+    }
+
     constructor({
         key,
         onPressed,

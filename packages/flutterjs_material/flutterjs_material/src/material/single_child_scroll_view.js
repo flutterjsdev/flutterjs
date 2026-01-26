@@ -50,6 +50,7 @@ export class SingleChildScrollView extends StatelessWidget {
             // Remove height: '100%' - it conflicts with flex and prevents scrolling
             boxSizing: 'border-box',
             padding: paddingCss,
+            alignItems: 'stretch', // Ensure child fills the cross-axis (width for vertical)
             WebkitOverflowScrolling: 'touch' // Smooth scrolling on iOS
         };
 

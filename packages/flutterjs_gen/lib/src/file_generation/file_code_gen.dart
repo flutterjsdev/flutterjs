@@ -309,7 +309,11 @@ class FileCodeGen {
             widget == 'Icons' ||
             widget == 'IconData' ||
             widget == 'FloatingActionButton' ||
-            widget == 'TextStyle') {
+            widget == 'TextStyle' ||
+            widget == 'MediaQuery' ||
+            widget == 'MediaQueryData' ||
+            widget == 'Spacer' ||
+            widget == 'TextButtonThemeData') {
           materialImports.add(widget);
         }
       }
@@ -332,6 +336,10 @@ class FileCodeGen {
           'Alignment',
           'CrossAxisAlignment',
           'MainAxisAlignment',
+          'MediaQuery',
+          'MediaQueryData',
+          'Spacer',
+          'TextButtonThemeData',
         });
 
         code.writeln('import {');

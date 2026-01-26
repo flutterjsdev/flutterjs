@@ -497,11 +497,138 @@ class FlutterJSEngineBridge {
 ///
 /// Flow:
 /// 1. Dart CLI generates .fjs files to build/flutterjs/lib/
-/// 2. EngineBridgeManager.initProject() runs flutterjs.exe init in build/flutterjs/
-/// 3. EngineBridgeManager.startAfterBuild() runs flutterjs.exe dev from build/flutterjs/
+///   2. EngineBridgeManager.initProject() runs flutterjs.exe init in build/flutterjs/
+///   3. EngineBridgeManager.startAfterBuild() runs flutterjs.exe dev from build/flutterjs/
+///   4. EngineBridgeManager.buildProject() runs flutterjs.exe build from build/flutterjs/
 class EngineBridgeManager {
   FlutterJSEngineBridge? _bridge;
   String? _lastEnginePath;
+
+  /// Build the JS project (Production Build)
+  ///
+  /// Invokes `flutterjs build` in the output directory.
+  Future<bool> buildProject({
+    required String buildPath,
+    bool verbose = false,
+  }) async {
+    if (verbose) {
+      print('\n🔨 Building JS project (Production)...');
+      print('   Directory: $buildPath');
+    }
+
+    // Reuse bridge discovery logic by creating specific config for build
+    // NOTE: Port is irrelevant for build but required by config
+    final config = EngineBridgeConfig(
+      projectPath: buildPath,
+      outputPath: 'dist',
+      verbose: verbose,
+      mode: 'production',
+      port: 0,
+    );
+
+    _bridge = FlutterJSEngineBridge(config);
+    final enginePath = _bridge!._getEnginePath();
+
+    if (enginePath == null) {
+      print('❌ Failed to locate FlutterJS engine binary/script.');
+      return false;
+    }
+
+    if (verbose) {
+      print('   Using engine: $enginePath');
+    }
+
+    // 1. Create temporary package.json for build (if missing)
+    final pkgFile = File(path.join(buildPath, 'package.json'));
+    bool createdPkg = false;
+    if (!pkgFile.existsSync()) {
+      if (verbose) print('   📝 Creating temporary package.json...');
+      pkgFile.writeAsStringSync(
+        '{"type": "module", "name": "temp-build", "private": true}',
+      );
+      createdPkg = true;
+    }
+
+    try {
+      // Determine executable and args
+      final isJsSource = enginePath.endsWith('.js');
+      final String executable = isJsSource ? 'node' : enginePath;
+      final List<String> args = isJsSource
+          ? [enginePath, 'build', '--to-js', '--output', config.outputPath]
+          : ['build', '--to-js', '--output', config.outputPath];
+
+      if (verbose) args.add('--verbose');
+
+      if (verbose) {
+        print('   Executing: $executable ${args.join(' ')}');
+      }
+
+      final process = await Process.start(
+        executable,
+        args,
+        workingDirectory: buildPath,
+        mode: ProcessStartMode.inheritStdio,
+      );
+
+      final exitCode = await process.exitCode;
+
+      if (exitCode == 0 ||
+          File(path.join(buildPath, 'dist', 'index.html')).existsSync()) {
+        print('\n✅ JS Build successful (or verified)!');
+
+        // 2. Ensuring Clean Build: Remove dist/node_modules if present
+        // (It shouldn't be there with new PackageCollector, but forcing cleanup just in case)
+        final distNodeModules = Directory(
+          path.join(buildPath, 'dist', 'node_modules'),
+        );
+        if (distNodeModules.existsSync()) {
+          if (verbose)
+            print('   🧹 Cleaning up duplicate dist/node_modules...');
+          try {
+            distNodeModules.deleteSync(recursive: true);
+          } catch (e) {
+            print(
+              '   ⚠️ Warning: Could not separate node_modules from dist: $e',
+            );
+          }
+        }
+
+        // Ensure Vercel config exists
+        final vercelFile = File(path.join(buildPath, 'vercel.json'));
+        if (!vercelFile.existsSync()) {
+          vercelFile.writeAsStringSync('''
+{
+  "version": 2,
+  "routes": [
+    { "src": "^/node_modules/(.*)", "dest": "/node_modules/\$1" },
+    { "src": "^/assets/(.*)", "dest": "/dist/assets/\$1" },
+    { "src": "^/(.*)", "dest": "/dist/\$1" },
+    { "handle": "filesystem" },
+    { "src": "^/(.*)", "dest": "/dist/index.html" }
+  ]
+}
+''');
+          if (verbose) print('   Created vercel.json');
+        }
+
+        return true;
+      } else {
+        print('\n❌ JS Build failed with exit code $exitCode');
+        return false;
+      }
+    } catch (e) {
+      print('❌ internal error running build: $e');
+      return false;
+    } finally {
+      // 3. Remove temporary package.json
+      if (createdPkg && pkgFile.existsSync()) {
+        try {
+          if (verbose) print('   🗑️  Removing temporary package.json');
+          pkgFile.deleteSync();
+        } catch (_) {}
+      }
+    }
+  }
 
   /// Initialize the JS project structure in buildPath
   ///
@@ -575,7 +702,7 @@ class EngineBridgeManager {
         '@flutterjs/runtime',
         '@flutterjs/vdom',
         '@flutterjs/material',
-        '@flutterjs/analyzer'
+        '@flutterjs/analyzer',
       ];
 
       final packagePathsConfig = sdkPackages.entries
@@ -997,7 +1124,42 @@ npm-debug.log*
         }
       }
 
-      // 6. Create assets directory
+      // 6. Generate .vercelignore
+      final vercelignoreFile = File(path.join(buildPath, '.vercelignore'));
+      if (!vercelignoreFile.existsSync()) {
+        final vercelignoreContent = '''
+# Ignore public folder (template only, not for deployment)
+public/
+
+# Ignore source files (Dart/Flutter source)
+src/*.fjs
+src/*.dart
+
+# Ignore package files to prevent npm install attempt
+package.json
+package-lock.json
+
+# Ignore build config
+flutterjs.config.js
+
+# Ignore development artifacts
+.dev/
+.debug/
+
+# We include both 'dist' and 'node_modules' in upload
+# so Vercel can serve efficiently from root
+!node_modules
+!node_modules/**/*
+!dist
+!dist/**/*
+''';
+        await vercelignoreFile.writeAsString(vercelignoreContent);
+        if (verbose) {
+          print('   ✅ Created .vercelignore');
+        }
+      }
+
+      // 7. Create assets directory
       final assetsDir = Directory(path.join(buildPath, 'assets'));
       await assetsDir.create(recursive: true);
 

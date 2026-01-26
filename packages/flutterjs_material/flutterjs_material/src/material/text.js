@@ -111,7 +111,7 @@ class Text extends StatelessWidget {
       display: 'inline-block',
       textAlign: this._mapTextAlign(),
       direction: this.textDirection === TextDirection.rtl ? 'rtl' : 'ltr',
-      whiteSpace: this.softWrap ? 'normal' : 'nowrap',
+      whiteSpace: this.softWrap ? 'pre-wrap' : 'pre', // Use pre-wrap to preserve newlines and wrap
       overflow: this._mapOverflow(),
       textOverflow: this.overflow === TextOverflow.ellipsis ? 'ellipsis' : 'clip',
       boxSizing: 'border-box'

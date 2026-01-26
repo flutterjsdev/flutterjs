@@ -50,3 +50,12 @@ export {
     TextWidthBasis,
     TextBaseline
 } from "./compoment/rich_text.js";
+
+export {
+    Spacer
+} from "./compoment/spacer.js";
+
+export {
+    MediaQuery,
+    MediaQueryData
+} from "./media_query.js";

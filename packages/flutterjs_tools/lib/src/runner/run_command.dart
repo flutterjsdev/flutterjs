@@ -18,7 +18,6 @@ import 'package:dart_analyzer/dart_analyzer.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:pubjs/pubjs.dart';
 
-
 /// ============================================================================
 /// RunCommand
 /// ============================================================================
@@ -587,7 +586,7 @@ class RunCommand extends Command<void> {
 
     final result = await _engineBridgeManager!.startAfterBuild(
       buildPath: context.buildPath, // JS CLI runs from here
-      jsOutputPath: context.jsOutputPath, // .fjs files are in lib/
+      jsOutputPath: 'src', // .fjs files are in src/ (relative to buildPath)
       port: config.serverPort,
       openBrowser: config.openBrowser,
       verbose: config.verbose,
@@ -1439,7 +1438,7 @@ class JSConverter {
           final fileNameWithoutExt = path.basenameWithoutExtension(
             normalizedDartPath,
           );
-          final jsFileName = '$fileNameWithoutExt.js';
+          final jsFileName = '$fileNameWithoutExt.fjs';
 
           final jsOutputFile = relativeDir.isEmpty
               ? File(path.join(context.jsOutputPath, jsFileName))

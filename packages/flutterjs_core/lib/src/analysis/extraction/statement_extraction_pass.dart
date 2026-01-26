@@ -994,9 +994,28 @@ class StatementExtractionPass {
 
     // List literals
     if (expr is ListLiteral) {
+      final extractedElements = <ExpressionIR>[];
+
+      // DEBUG: Print what elements we're processing
+      if (expr.elements.isNotEmpty) {
+        print(
+          '🔍 ListLiteral with ${expr.elements.length} elements at ${_extractSourceLocation(expr, expr.offset).line}',
+        );
+        for (var i = 0; i < expr.elements.length && i < 5; i++) {
+          final elem = expr.elements[i];
+          print(
+            '   Element $i: ${elem.runtimeType} | ${elem.toString().substring(0, elem.toString().length > 60 ? 60 : elem.toString().length)}',
+          );
+        }
+      }
+
+      for (final element in expr.elements) {
+        extractedElements.addAll(_extractCollectionElement(element));
+      }
+
       return ListExpressionIR(
         id: builder.generateId('expr_list'),
-        elements: expr.elements.map((e) => extractExpression(e)).toList(),
+        elements: extractedElements,
         resultType: SimpleTypeIR(
           id: builder.generateId('type'),
           name: 'List',
@@ -1561,6 +1580,174 @@ class StatementExtractionPass {
 
     // Default fallback
     return 'unknown_expression';
+  }
+
+  /// Extract collection elements (handles if, spread, for, and regular expressions)
+  List<ExpressionIR> _extractCollectionElement(dynamic element) {
+    final sourceLoc = _extractSourceLocation(element, element.offset);
+
+    // DEBUG: Print element type
+    // Check for collection-if FIRST (before Expression check)
+    // Runtime type is 'IfElementImpl' from Dart analyzer
+    if (element.runtimeType.toString().contains('IfElementImpl')) {
+      try {
+        // Handle different analyzer versions (expression vs condition)
+        Expression? conditionNode;
+        try {
+          conditionNode = (element as dynamic).expression;
+        } catch (_) {
+          try {
+            conditionNode = (element as dynamic).condition;
+          } catch (_) {
+            print('⚠️ Could not find condition or expression on IfElementImpl');
+          }
+        }
+
+        if (conditionNode == null) {
+          throw Exception('IfElementImpl has no condition/expression property');
+        }
+
+        final thenElement = (element as dynamic).thenElement;
+        final elseElement = (element as dynamic).elseElement;
+
+        final conditionExpr = extractExpression(conditionNode);
+        final thenElements = _extractCollectionElement(thenElement);
+        final elseElements = elseElement != null
+            ? _extractCollectionElement(elseElement)
+            : <ExpressionIR>[];
+
+        // Detect spread usage (to force list wrapping/spreading)
+        final isThenSpread = thenElement.runtimeType.toString().contains(
+          'SpreadElement',
+        );
+        final isElseSpread =
+            elseElement != null &&
+            elseElement.runtimeType.toString().contains('SpreadElement');
+
+        // Always use spread logic for robustness and consistent JS generation
+        // wrapping single elements in a list if needed.
+        ExpressionIR thenExpr;
+        if (thenElements.length == 1 && isThenSpread) {
+          // Spread element (single) -> use directly as iterable
+          thenExpr = thenElements.first;
+        } else {
+          // Regular element(s) -> wrap in list
+          thenExpr = ListExpressionIR(
+            id: builder.generateId('expr_then_list'),
+            elements: thenElements,
+            resultType: SimpleTypeIR(
+              id: builder.generateId('type'),
+              name: 'List',
+              isNullable: false,
+              sourceLocation: sourceLoc,
+            ),
+            sourceLocation: sourceLoc,
+            metadata: {},
+          );
+        }
+
+        ExpressionIR elseExpr;
+        if (elseElements.isEmpty) {
+          elseExpr = ListExpressionIR(
+            id: builder.generateId('expr_else_empty'),
+            elements: [],
+            resultType: SimpleTypeIR(
+              id: builder.generateId('type'),
+              name: 'List',
+              isNullable: false,
+              sourceLocation: sourceLoc,
+            ),
+            sourceLocation: sourceLoc,
+            metadata: {},
+          );
+        } else if (elseElements.length == 1 && isElseSpread) {
+          elseExpr = elseElements.first;
+        } else {
+          elseExpr = ListExpressionIR(
+            id: builder.generateId('expr_else_list'),
+            elements: elseElements,
+            resultType: SimpleTypeIR(
+              id: builder.generateId('type'),
+              name: 'List',
+              isNullable: false,
+              sourceLocation: sourceLoc,
+            ),
+            sourceLocation: sourceLoc,
+            metadata: {},
+          );
+        }
+
+        return [
+          ConditionalExpressionIR(
+            id: builder.generateId('expr_cond_spread'),
+            condition: conditionExpr,
+            thenExpression: thenExpr,
+            elseExpression: elseExpr,
+            resultType: DynamicTypeIR(
+              id: builder.generateId('type'),
+              sourceLocation: sourceLoc,
+            ),
+            sourceLocation: sourceLoc,
+            metadata: {'fromCollectionIf': true, 'isSpread': true},
+          ),
+        ];
+      } catch (e) {
+        return [
+          UnknownExpressionIR(
+            id: builder.generateId('expr_if_err'),
+            source: element.toString(),
+            sourceLocation: sourceLoc,
+            metadata: {'error': e.toString()},
+          ),
+        ];
+      }
+    }
+
+    // Collection-spread: ...expression
+    // Runtime type is 'SpreadElementImpl' from Dart analyzer
+    if (element.runtimeType.toString().contains('SpreadElementImpl')) {
+      try {
+        final spreadExpr = (element as dynamic).expression;
+        return [extractExpression(spreadExpr)];
+      } catch (e) {
+        return [
+          UnknownExpressionIR(
+            id: builder.generateId('expr_spread_err'),
+            source: element.toString(),
+            sourceLocation: sourceLoc,
+            metadata: {'error': e.toString()},
+          ),
+        ];
+      }
+    }
+
+    // Collection-for: not yet supported
+    // Runtime type is 'ForElementImpl' from Dart analyzer
+    if (element.runtimeType.toString().contains('ForElementImpl')) {
+      return [
+        UnknownExpressionIR(
+          id: builder.generateId('expr_for_elem'),
+          source: element.toString(),
+          sourceLocation: sourceLoc,
+          metadata: {'type': 'for-element'},
+        ),
+      ];
+    }
+
+    // Regular expression element (check AFTER collection-specific types)
+    if (element is Expression) {
+      return [extractExpression(element)];
+    }
+
+    // Unknown
+    return [
+      UnknownExpressionIR(
+        id: builder.generateId('expr_unknown_coll'),
+        source: element.toString(),
+        sourceLocation: sourceLoc,
+        metadata: {},
+      ),
+    ];
   }
 }
 

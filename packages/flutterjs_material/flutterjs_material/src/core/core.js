@@ -15,5 +15,7 @@ export {
     ValueKey,
     ObjectKey,
     GlobalKey,
-    Diagnosticable
+    Diagnosticable,
+    InheritedWidget,
+    InheritedElement
 } from "./widget_element.js";

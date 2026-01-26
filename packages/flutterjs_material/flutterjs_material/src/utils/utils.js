@@ -11,6 +11,7 @@ export * from './border_radius.js';
 export * from './property/border_style.js';
 export * from './property/box_fit.js';
 export * from './box_shadow.js';
+export * from './box_constraints.js';
 export * from './property/clip.js';
 export * from './color.js';
 export * from './property/cross_axis_alignment.js';
@@ -73,4 +74,5 @@ export * from './property/wrap_cross_alignment.js';
 // Other / Misc
 // ===================================================================
 export * from './property/other.js';
+export * from '../material/text_button_theme.js';
 export * from './geometry.js';

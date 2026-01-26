@@ -29,6 +29,8 @@ class SizedBox extends ProxyWidget {
 
         this.width = width;
         this.height = height;
+        this.isFullWidth = width === Infinity || (child && child.isFullWidth);
+        this.isFullHeight = height === Infinity || (child && child.isFullHeight);
         this._renderObject = null;
     }
 
@@ -144,6 +146,8 @@ class SizedBoxElement extends ProxyElement {
             } else {
                 style.width = `${this.widget.width}px`;
             }
+        } else if (this.widget.isFullWidth) {
+            style.width = '100%';
         }
 
         // Apply height
@@ -154,6 +158,8 @@ class SizedBoxElement extends ProxyElement {
             } else {
                 style.height = `${this.widget.height}px`;
             }
+        } else if (this.widget.isFullHeight) {
+            style.height = '100%';
         }
 
         // Get child VNode from parent class (this handles the widget lifecycle)
@@ -225,8 +231,7 @@ class ConstrainedBoxElement extends ProxyElement {
         const constraints = this.widget.constraints;
         const style = {
             boxSizing: 'border-box',
-            display: 'flex', // Ensure it acts as a container
-            flexDirection: 'column', // Default to column-like validation
+            display: 'block', // Use block instead of flex to not interfere with children
             flexShrink: 0
         };
 

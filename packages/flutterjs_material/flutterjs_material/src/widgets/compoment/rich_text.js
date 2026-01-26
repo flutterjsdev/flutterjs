@@ -1,7 +1,7 @@
 import { Widget, } from '../../core/widget_element.js';
 import { Element } from "@flutterjs/runtime"
 import { VNode } from '@flutterjs/vdom/vnode';
-import { TextDirection,TextAlign ,TextOverflow,TextBaseline} from '../../utils/utils.js';
+import { TextDirection, TextAlign, TextOverflow, TextBaseline } from '../../utils/utils.js';
 // ============================================================================
 // ENUMS
 // ============================================================================
@@ -445,7 +445,7 @@ class RichText extends Widget {
     const style = {
       textAlign: textAlignValue,
       direction: effectiveTextDirection === TextDirection.rtl ? 'rtl' : 'ltr',
-      whiteSpace: this.softWrap ? 'normal' : 'nowrap',
+      whiteSpace: this.softWrap ? 'pre-wrap' : 'pre', // Use pre-wrap to preserve newlines AND wrap text
       wordWrap: this.softWrap ? 'break-word' : 'normal',
       display: 'block',
       ...overflowStyle
