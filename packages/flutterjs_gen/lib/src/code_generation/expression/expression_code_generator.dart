@@ -8,6 +8,7 @@
 import 'dart:math';
 
 import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 import 'package:flutterjs_gen/src/widget_generation/stateless_widget/stateless_widget_js_code_gen.dart';
 import 'package:flutterjs_gen/src/utils/code_gen_error.dart'
     hide CodeGenWarning, WarningSeverity;
@@ -292,20 +293,12 @@ class ExpressionCodeGen {
     if (expr is ConstructorCallExpressionIR) {
       return _generateConstructorCall(expr);
     }
-    if (expr is LambdaExpr) {
-      return _generateLambda(expr); // ✅ Line ~180
-    }
-
-    if (expr is AwaitExpr) {
-      return _generateAwait(expr); // ✅ Line ~240
-    }
-
-    if (expr is EnumMemberAccessExpressionIR) {
-      return _generateEnumMemberAccess(expr); // ✅ Line ~160
-    }
-
     if (expr is FunctionExpressionIR) {
-      return _generateFunctionExpression(expr); // ✅ ADD THIS
+      return _generateFunctionExpression(expr);
+    }
+
+    if (expr is NullCoalescingExpressionIR) {
+      return _generateNullCoalescing(expr);
     }
 
     // ✅ NEW: Handle UnknownExpressionIR gracefully
@@ -624,6 +617,57 @@ class ExpressionCodeGen {
       print('⚠️  UnknownExpressionIR detected: ${expr.source}');
     }
 
+    // ✅ FIX: Strip generic type arguments (e.g., identity<E> -> identity)
+    if (expr.source != null && expr.source.contains('<')) {
+      final stripped = expr.source.substring(0, expr.source.indexOf('<'));
+      print('   Stripping generic type args: ${expr.source} → $stripped');
+      return stripped;
+    }
+
+    // ✅ FIX: Add this. prefix to private instance fields and ClassName. to static fields
+    // This handles cases where complex expressions come through as UnknownExpressionIR
+    if (expr.source != null &&
+        _currentClassContext != null &&
+        _currentFunctionContext != null) {
+      String source = expr.source;
+
+      // Find all identifiers that start with _ (private fields)
+      final privateFieldPattern = RegExp(r'\b(_[a-zA-Z]\w*)\b');
+      final matches = privateFieldPattern.allMatches(source);
+
+      for (final match in matches) {
+        final fieldName = match.group(1)!;
+
+        // Check if it's a static field
+        final isStatic = _currentClassContext!.staticFields.any(
+          (f) => f.name == fieldName,
+        );
+        // Check if it's an instance field
+        final isInstance = _currentClassContext!.instanceFields.any(
+          (f) => f.name == fieldName,
+        );
+
+        if (isStatic) {
+          // Replace with ClassName.fieldName
+          source = source.replaceAll(
+            RegExp(r'\b' + fieldName + r'\b'),
+            '${_currentClassContext!.name}.$fieldName',
+          );
+        } else if (isInstance) {
+          // Replace with this.fieldName
+          source = source.replaceAll(
+            RegExp(r'\b' + fieldName + r'\b'),
+            'this.$fieldName',
+          );
+        }
+      }
+
+      if (source != expr.source) {
+        print('   Fixed field references: ${expr.source} → $source');
+        return source;
+      }
+    }
+
     // ✅ FIX: Strip postfix bang operator (!)
     if (expr.source != null &&
         expr.source.endsWith('!') &&
@@ -881,57 +925,57 @@ class ExpressionCodeGen {
   // =========================================================================
 
   String _generateIdentifier(IdentifierExpressionIR expr) {
-    final name = expr.name;
+    // Strip generic type arguments from the name (e.g., identity<E> -> identity)
+    // JavaScript doesn't support generic type parameters
+    String name = expr.name;
+    if (name.contains('<')) {
+      name = name.substring(0, name.indexOf('<'));
+    }
 
     // ✅ Check if we're inside a class method (not top-level)
     if (_currentFunctionContext != null &&
         !_currentFunctionContext!.isTopLevel) {
-      if (name == 'users') {
-        print('🔎 checking users in ${_currentClassContext?.name}');
-        if (_currentClassContext != null) {
-          print(
-            '   Fields: ${_currentClassContext!.instanceFields.map((f) => f.name).join(', ')}',
-          );
-        }
-      }
-      // 1. Explicit 'this.' prefix logic for known fields
-      // If we have class context, check if the identifier is a known field
-      bool isClassField = false;
-      if (_currentClassContext != null) {
-        // Check instance fields
-        isClassField = _currentClassContext!.instanceFields.any(
-          (f) => f.name == name,
-        );
-
-        // DEBUG LOG
-        print(
-          '🔍 Identifier check: $name in ${_currentClassContext!.name}.${_currentFunctionContext!.name}',
-        );
-        print('   Found field? $isClassField');
-
-        // Also check getters/setters if we had that info in IR easily, but fields are main priority
-      }
-
-      // Add 'this.' prefix for:
-      // 1. Known instance fields (e.g. 'users')
-      // 2. Private fields (start with _)
-      // 3. The 'widget' property (for StatefulWidget state classes)
-      // 4. Properties accessed via 'widget.' (e.g. widget.title)
-      // 5. 'context' and 'mounted' (if not parameters)
+      // Check if it's a parameter first
       bool isParam = _currentFunctionContext!.parameters.any(
         (p) => p.name == name,
       );
 
-      if (!isParam &&
-          (isClassField ||
-              name.startsWith('_') ||
-              name == 'widget' ||
-              name.startsWith('widget.') ||
-              name == 'users' ||
-              name == 'context' ||
-              name == 'mounted')) {
-        // ✅ Force fix for 'users' and State properties
+      // Don't add prefixes to parameters
+      if (isParam) {
+        return name;
+      }
+
+      // For private identifiers (start with _), check if they're fields
+      if (name.startsWith('_') && _currentClassContext != null) {
+        // Check if it's a static field
+        final isStaticField = _currentClassContext!.staticFields.any(
+          (f) => f.name == name,
+        );
+
+        if (isStaticField) {
+          return '${_currentClassContext!.name}.$name';
+        }
+
+        // Check if it's an instance field
+        final isInstanceField = _currentClassContext!.instanceFields.any(
+          (f) => f.name == name,
+        );
+
+        if (isInstanceField) {
+          return 'this.$name';
+        }
+
+        // Even if not found in fields list, private identifiers in class methods
+        // are likely instance fields (the IR might not have captured them all)
+        // So default to adding this. prefix for safety
         return 'this.$name';
+      }
+
+      // For known special identifiers
+      if (_currentClassContext != null) {
+        if (name == 'widget' || name == 'context' || name == 'mounted') {
+          return 'this.$name';
+        }
       }
     }
 
@@ -939,8 +983,9 @@ class ExpressionCodeGen {
   }
 
   String _generatePropertyAccess(PropertyAccessExpressionIR expr) {
-    // ✅ FIX: Never parenthesize property access chains
-    var target = generate(expr.target, parenthesize: false);
+    // ✅ FIX: Use parenthesize: true to ensure complex targets (like ternaries)
+    // are correctly wrapped before property access.
+    var target = generate(expr.target, parenthesize: true);
 
     // ✅ FORCE FIX for 'widget' -> 'this.widget' if identifier generation missed it
     if (target == 'widget') {
@@ -1004,7 +1049,8 @@ class ExpressionCodeGen {
   }
 
   String _generateIndexAccess(IndexAccessExpressionIR expr) {
-    final target = generate(expr.target, parenthesize: false);
+    // ✅ FIX: Use parenthesize: true for target
+    final target = generate(expr.target, parenthesize: true);
     final index = generate(expr.index, parenthesize: false);
 
     if (expr.isNullAware) {
@@ -1137,6 +1183,15 @@ class ExpressionCodeGen {
     final target = generate(expr.target, parenthesize: false);
     final value = generate(expr.value, parenthesize: true);
 
+    // Check if this is a variable declaration (used in for loop initialization)
+    final isDeclaration = expr.metadata?['isDeclaration'] == true;
+    if (isDeclaration) {
+      final isConst = expr.metadata?['isConst'] == true;
+      final isFinal = expr.metadata?['isFinal'] == true;
+      final keyword = isConst || isFinal ? 'const' : 'let';
+      return '$keyword $target = $value';
+    }
+
     return '$target = $value';
   }
 
@@ -1265,7 +1320,9 @@ class ExpressionCodeGen {
 
     // If target is explicitly provided, use it
     if (expr.target != null) {
-      final target = generate(expr.target!, parenthesize: false);
+      // ✅ FIX: Use parenthesize: true to ensure complex targets (like casts/ternaries)
+      // are correctly wrapped before method call.
+      final target = generate(expr.target!, parenthesize: true);
       final args = _generateArgumentList(expr.arguments, expr.namedArguments);
 
       if (expr.isNullAware) {
@@ -1443,9 +1500,11 @@ class ExpressionCodeGen {
         ? '.${expr.constructorName}'
         : '';
     final args = _generateArgumentList(expr.arguments, expr.namedArguments);
-    // Note: JavaScript doesn't have 'const' for object instantiation, only 'new'
 
-    return 'new $typeName$constructorName($args)';
+    // ✅ FIX: Use 'new' only for unnamed constructors (static methods don't use 'new')
+    final prefix = (expr.constructorName?.isNotEmpty ?? false) ? '' : 'new ';
+
+    return '$prefix$typeName$constructorName($args)';
   }
 
   /// Handles ConstructorCallExpressionIR (has String className)
@@ -1485,15 +1544,15 @@ class ExpressionCodeGen {
         ? '.${expr.constructorName}'
         : '';
 
-    // ✅ Combine positional and named arguments
-    // Use positionalArguments, not arguments
+    // ✅ Use positionalArguments, not arguments
     final args = _generateArgumentList(
       expr.positionalArguments,
       expr.namedArguments,
     );
 
-    // Note: JavaScript doesn't have 'const' for object instantiation, only 'new'
-    return 'new ${expr.className}$constructorName($args)';
+    // ✅ FIX: Use 'new' only for unnamed constructors
+    final prefix = (expr.constructorName?.isNotEmpty ?? false) ? '' : 'new ';
+    return '$prefix${expr.className}$constructorName($args)';
   }
 
   String _generateArgumentList(
@@ -1608,9 +1667,17 @@ class ExpressionCodeGen {
   // TYPE OPERATIONS (0x40 - 0x42)
   // =========================================================================
 
+  String _stripGenerics(String typeName) {
+    if (typeName.contains('<')) {
+      return typeName.substring(0, typeName.indexOf('<')).trim();
+    }
+    return typeName;
+  }
+
   String _generateCast(CastExpressionIR expr) {
     final value = generate(expr.expression, parenthesize: true);
-    final targetType = expr.targetType.displayName();
+    final rawTargetType = expr.targetType.displayName();
+    final targetType = _stripGenerics(rawTargetType);
 
     // Handle common type casts
     switch (targetType) {
@@ -1624,8 +1691,14 @@ class ExpressionCodeGen {
       case 'bool':
         return 'Boolean($value)';
       default:
+        // ✅ FIX: Handle generic types (usually single letters like E, T, K, V)
+        // JavaScript doesn't have runtime generic types, so 'instanceof E' will fail.
+        if (targetType.length == 1 && targetType == targetType.toUpperCase()) {
+          return value;
+        }
+
         // Generic cast with instanceof check
-        return '($value instanceof $targetType) ? $value : (() => { throw new Error("Cast failed to $targetType"); })()';
+        return '($value instanceof $targetType) ? $value : (() => { throw new Error("Cast failed to $rawTargetType"); })()';
     }
   }
 
@@ -1642,7 +1715,8 @@ class ExpressionCodeGen {
     }
   }
 
-  String _generateTypeCheckExpression(String value, String typeName) {
+  String _generateTypeCheckExpression(String value, String rawTypeName) {
+    final typeName = _stripGenerics(rawTypeName);
     switch (typeName) {
       case 'String':
         return 'typeof $value === \'string\'';
@@ -1667,7 +1741,7 @@ class ExpressionCodeGen {
         warnings.add(
           CodeGenWarning(
             severity: WarningSeverity.warning,
-            message: 'Type check for custom type: $typeName',
+            message: 'Type check for custom type: $rawTypeName',
             suggestion: 'Ensure $typeName is imported in generated code',
           ),
         );
@@ -1730,7 +1804,9 @@ class ExpressionCodeGen {
   String _generateThrow(ThrowExpr expr) {
     final exception = generate(expr.exceptionExpression, parenthesize: true);
 
-    return 'throw $exception';
+    // ✅ FIX: In JS, 'throw' is a statement, not an expression.
+    // Wrapping it in an IIFE allows it to be used in expression contexts (like ternary).
+    return '(() => { throw $exception; })()';
   }
 
   // =========================================================================
@@ -1758,30 +1834,24 @@ class ExpressionCodeGen {
   }
 
   String _generateCascade(CascadeExpressionIR expr) {
-    final target = generate(expr.target, parenthesize: false);
+    final targetCode = generate(expr.target, parenthesize: false);
+    final buffer = StringBuffer();
 
-    final sections = expr.cascadeSections
-        .map((s) {
-          if (s is MethodCallExpressionIR) {
-            final args = _generateArgumentList(s.arguments, s.namedArguments);
-            return '.${s.methodName}($args)';
-          }
-          if (s is PropertyAccessExpressionIR) {
-            return '.${s.propertyName}';
-          }
-          if (s is AssignmentExpressionIR) {
-            return ' = ${generate(s.value, parenthesize: false)}';
-          }
+    // Cascades handle multiple calls on the same object, returning the object.
+    // Pattern: ((obj) => { obj.a(); obj.b(); return obj; })(target)
+    buffer.write('((obj) => { ');
 
-          throw CodeGenError(
-            message: 'Unsupported cascade section type: ${s.runtimeType}',
-            suggestion:
-                'Cascade sections must be method calls, property access, or assignments',
-          );
-        })
-        .join('');
+    for (final section in expr.cascadeSections) {
+      final sectionCode = generate(section, parenthesize: false);
+      if (sectionCode.startsWith('.')) {
+        buffer.write('obj$sectionCode; ');
+      } else {
+        buffer.write('obj.$sectionCode; ');
+      }
+    }
 
-    return '$target$sections';
+    buffer.write('return obj; })($targetCode)');
+    return buffer.toString();
   }
 
   String _generateParenthesized(ParenthesizedExpressionIR expr) {

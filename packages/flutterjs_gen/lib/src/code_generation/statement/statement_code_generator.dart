@@ -324,7 +324,15 @@ class StatementCodeGen {
     buffer.writeln(indenter.line('if ($condition) {'));
     indenter.indent();
 
-    buffer.writeln(generate(stmt.thenBranch));
+    // Generate the then branch inline (without extra braces if it's a BlockStmt)
+    if (stmt.thenBranch is BlockStmt) {
+      final block = stmt.thenBranch as BlockStmt;
+      for (final s in block.statements) {
+        buffer.writeln(generate(s));
+      }
+    } else {
+      buffer.writeln(generate(stmt.thenBranch));
+    }
 
     indenter.dedent();
 
@@ -333,7 +341,15 @@ class StatementCodeGen {
       buffer.writeln(indenter.line('} else {'));
       indenter.indent();
 
-      buffer.writeln(generate(stmt.elseBranch!));
+      // Generate the else branch inline (without extra braces if it's a BlockStmt)
+      if (stmt.elseBranch is BlockStmt) {
+        final block = stmt.elseBranch as BlockStmt;
+        for (final s in block.statements) {
+          buffer.writeln(generate(s));
+        }
+      } else {
+        buffer.writeln(generate(stmt.elseBranch!));
+      }
 
       indenter.dedent();
       buffer.write(indenter.line('}'));
@@ -347,30 +363,36 @@ class StatementCodeGen {
   String _generateForStatement(ForStmt stmt) {
     final buffer = StringBuffer();
 
-    // ✅ NEW: Safe initialization handling
+    // Handle initialization - this is tricky because Dart's `var i = 0`
+    // gets parsed as an expression, not a statement
     String init = '';
     if (stmt.initialization != null) {
-      if (stmt.initialization is VariableDeclarationStmt) {
-        final decl = generate(stmt.initialization as StatementIR);
-        init = decl.trim();
-        if (init.endsWith(';')) {
-          init = init.substring(0, init.length - 1);
-        }
-      } else if (stmt.initialization is ExpressionIR) {
-        init = exprGen.generate(
-          stmt.initialization as ExpressionIR,
-          parenthesize: false,
-        );
+      final initExpr = stmt.initialization!;
+
+      // Check if this looks like a variable declaration pattern
+      // In the IR, `var i = 0` might come through as just the assignment expression
+      final initCode = exprGen.generate(initExpr, parenthesize: false);
+
+      // If it's a simple number or doesn't have 'let'/'const'/'var', assume it needs declaration
+      // This is a heuristic - ideally the IR should preserve variable declarations
+      if (!initCode.contains('let') &&
+          !initCode.contains('const') &&
+          !initCode.contains('var')) {
+        // This might be just the initializer value, we need to infer the variable name
+        // For now, generate as-is but this is a known limitation
+        init = initCode;
+      } else {
+        init = initCode;
       }
     }
 
-    // ✅ NEW: Safe condition with null check
+    // Safe condition with null check
     String condition = '';
     if (stmt.condition != null) {
       condition = exprGen.generate(stmt.condition!, parenthesize: false);
     }
 
-    // ✅ NEW: Safe updaters list handling
+    // Safe updaters list handling
     String updates = '';
     if (stmt.updaters.isNotEmpty) {
       updates = stmt.updaters
@@ -380,7 +402,17 @@ class StatementCodeGen {
 
     buffer.writeln(indenter.line('for ($init; $condition; $updates) {'));
     indenter.indent();
-    buffer.writeln(generate(stmt.body));
+
+    // Generate the body inline (without extra braces if it's a BlockStmt)
+    if (stmt.body is BlockStmt) {
+      final block = stmt.body as BlockStmt;
+      for (final s in block.statements) {
+        buffer.writeln(generate(s));
+      }
+    } else {
+      buffer.writeln(generate(stmt.body));
+    }
+
     indenter.dedent();
     buffer.write(indenter.line('}'));
 

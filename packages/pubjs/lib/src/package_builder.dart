@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package_watcher.dart';
+import 'package:flutterjs_builder/flutterjs_builder.dart';
 
 /// Builds FlutterJS packages by running their build.js scripts
 /// and generating exports.json manifests
@@ -167,9 +168,110 @@ class PackageBuilder {
     return result;
   }
 
+  // ... (existing imports)
+
+  /// Build a package and all its dependencies recursively
+  Future<BuildResult> buildPackageRecursively({
+    required String packageName,
+    required String projectRoot,
+    String? explicitSourcePath,
+    bool force = false,
+    bool verbose = false,
+  }) async {
+    print('🔄 Resolving dependencies for $packageName...');
+
+    // 1. Initialize Resolver
+    final searchPath = explicitSourcePath ?? projectRoot;
+    PackageResolver resolver;
+    try {
+      resolver = await PackageResolver.load(searchPath);
+    } catch (e) {
+      if (verbose) print('   ⚠️ Could not load PackageResolver: $e');
+      // Fallback: Just build the single package if resolver fails (legacy mode)
+      return buildPackage(
+        packageName: packageName,
+        projectRoot: projectRoot,
+        buildPath: '',
+        explicitSourcePath: explicitSourcePath,
+        force: force,
+        verbose: verbose,
+      );
+    }
+
+    // 2. Build Dependency Graph
+    final buildOrder = <String>[];
+    final visited = <String>{};
+    final visiting = <String>{};
+
+    Future<void> visit(String pkg) async {
+      if (visiting.contains(pkg)) {
+        if (verbose) print('   ⚠️ Circular dependency detected: $pkg');
+        return;
+      }
+      if (visited.contains(pkg)) return;
+
+      visiting.add(pkg);
+
+      try {
+        final deps = await resolver.getDependencies(pkg);
+        for (final dep in deps) {
+          // Skip SDK/Flutter specific packages checking if needed
+          // For now, try to resolve all. SDK params might fail lookup, which is fine.
+          if (resolver.resolvePackagePath(dep) != null) {
+            await visit(dep);
+          }
+        }
+      } catch (e) {
+        if (verbose) print('   ⚠️ Could not resolve deps for $pkg: $e');
+      }
+
+      visiting.remove(pkg);
+      visited.add(pkg);
+      buildOrder.add(pkg);
+    }
+
+    // Start resolution
+    // If explicit path, we might not know the package name yet,
+    // but the CLI tries to parse it. If resolving dependencies of "."
+    // we need to know the name.
+
+    await visit(packageName);
+
+    print('📦 Build Order: ${buildOrder.join(' -> ')}');
+
+    // 3. Build All
+    BuildResult finalResult = BuildResult.skipped;
+
+    for (final pkg in buildOrder) {
+      // Find path from resolver
+      final pkgPath = resolver.resolvePackagePath(pkg);
+      if (pkgPath == null) continue;
+
+      // Skip if it's the flutter SDK or similar non-buildable
+      // Simple heuristic: check if it has a lib dir? buildPackage check needsBuild anyway.
+
+      final result = await buildPackage(
+        packageName: pkg,
+        projectRoot: projectRoot,
+        buildPath: '',
+        explicitSourcePath: pkgPath, // Must use explicit path from resolver
+        force: force,
+        verbose: verbose,
+        resolver: resolver,
+      );
+
+      if (pkg == packageName) {
+        finalResult = result;
+      } else if (result == BuildResult.failed) {
+        print('❌ Dependency failed: $pkg');
+        return BuildResult.failed;
+      }
+    }
+
+    return finalResult;
+  }
+
   /// Build a single package
-  ///
-  /// Returns [BuildResult] indicating what happened
   Future<BuildResult> buildPackage({
     required String packageName,
     required String projectRoot,
@@ -177,47 +279,29 @@ class PackageBuilder {
     bool force = false,
     bool verbose = false,
     Map<String, String>? sdkPaths,
+    String? explicitSourcePath,
+    PackageResolver? resolver,
   }) async {
     // 1. Find package source directory
-    final sourcePath = await _findPackageSource(
-      packageName,
-      projectRoot,
-      buildPath,
-      sdkPaths,
-    );
+    String? sourcePath;
+
+    if (explicitSourcePath != null) {
+      sourcePath = explicitSourcePath;
+    } else {
+      sourcePath = await _findPackageSource(
+        packageName,
+        projectRoot,
+        buildPath,
+        sdkPaths,
+      );
+    }
 
     if (sourcePath == null) {
       if (verbose) print('   ⚠️  $packageName not found, skipping');
       return BuildResult.skipped;
     }
 
-    // 2. Check if build.js exists
-    final buildScript = File(p.join(sourcePath, 'build.js'));
-    if (!await buildScript.exists()) {
-      if (verbose) print('   ⚠️  No build.js for $packageName');
-      return BuildResult.skipped;
-    }
-
-    // 2.5 Check for node_modules
-    final nodeModules = Directory(p.join(sourcePath, 'node_modules'));
-    if (!await nodeModules.exists()) {
-      if (verbose) print('   📦 Installing dependencies for $packageName...');
-      final npmCommand = Platform.isWindows ? 'npm.cmd' : 'npm';
-      final installResult = await Process.run(
-        npmCommand,
-        ['install'],
-        workingDirectory: sourcePath,
-        runInShell: true,
-      );
-      if (installResult.exitCode != 0) {
-        print(
-          '❌ npm install failed for $packageName:\n${installResult.stderr}',
-        );
-        return BuildResult.failed;
-      }
-    }
-
-    // 3. Check if build needed
+    // 2. Check if build needed
     if (!force) {
       final needed = await needsBuild(sourcePath);
       if (!needed) {
@@ -226,17 +310,60 @@ class PackageBuilder {
       }
     }
 
-    // 4. Run build
     if (verbose) print('   🔨 Building $packageName...');
 
-    final result = await Process.run('node', [
-      'build.js',
-    ], workingDirectory: sourcePath);
+    // 3. Determine Build Strategy
+    final buildScript = File(p.join(sourcePath, 'build.js'));
 
-    if (result.exitCode != 0) {
-      print('❌ Build failed for $packageName:');
-      print(result.stderr);
-      return BuildResult.failed;
+    if (await buildScript.exists()) {
+      // STRATEGY A: Legacy/Manual build.js
+      if (verbose) print('      Using build.js strategy');
+
+      // Check/Install node_modules
+      final nodeModules = Directory(p.join(sourcePath, 'node_modules'));
+      if (!await nodeModules.exists()) {
+        if (verbose) print('   📦 Installing dependencies for $packageName...');
+        final npmCommand = Platform.isWindows ? 'npm.cmd' : 'npm';
+        final installResult = await Process.run(
+          npmCommand,
+          ['install'],
+          workingDirectory: sourcePath,
+          runInShell: true,
+        );
+        if (installResult.exitCode != 0) {
+          print(
+            '❌ npm install failed for $packageName:\n${installResult.stderr}',
+          );
+          return BuildResult.failed;
+        }
+      }
+
+      final result = await Process.run('node', [
+        'build.js',
+      ], workingDirectory: sourcePath);
+
+      if (result.exitCode != 0) {
+        print('❌ Build failed for $packageName:');
+        print(result.stderr);
+        return BuildResult.failed;
+      }
+    } else {
+      // STRATEGY B: Automatic Dart Compilation (The New Standard)
+      if (verbose) print('      Using Automatic Dart Compiler');
+
+      try {
+        final compiler = PackageCompiler(
+          packagePath: sourcePath,
+          outputDir: p.join(sourcePath, 'dist'),
+          verbose: verbose,
+          resolver: resolver,
+        );
+
+        await compiler.compile();
+      } catch (e) {
+        print('❌ Compilation failed for $packageName: $e');
+        return BuildResult.failed;
+      }
     }
 
     // 5. Verify exports.json was created and is valid

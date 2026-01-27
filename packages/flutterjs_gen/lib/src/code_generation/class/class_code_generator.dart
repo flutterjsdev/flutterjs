@@ -112,13 +112,32 @@ class ClassCodeGen {
       buffer.writeln();
     }
 
+    // ✅ Check if there's a primary constructor (generative unnamed)
+    final hasPrimaryConstructor = cls.constructors.any(
+      (ctor) => !ctor.isFactory && ctor.constructorName == null,
+    );
+
+    if (!hasPrimaryConstructor) {
+      // Generate a default constructor that calls super() if needed
+      buffer.writeln(indenter.apply('constructor() {'));
+      indenter.indent();
+      if (cls.superclass != null) {
+        buffer.writeln(indenter.line('super();'));
+      } else {
+        buffer.writeln(indenter.line('// No superclass'));
+      }
+      indenter.dedent();
+      buffer.writeln(indenter.apply('}'));
+      buffer.writeln();
+    }
+
     // ✅ FIXED: Use FunctionCodeGen for constructors
     if (cls.constructors.isNotEmpty) {
       for (int i = 0; i < cls.constructors.length; i++) {
         final ctorCode = funcGen.generateConstructor(
           cls.constructors[i],
           cls.name,
-          hasSuperclass: cls.superclass != null, // ✅ Fix: Pass supervision info
+          hasSuperclass: cls.superclass != null,
         );
         buffer.writeln(indenter.apply(ctorCode));
         if (i < cls.constructors.length - 1) {
@@ -175,11 +194,6 @@ class ClassCodeGen {
   String _generateClassHeader(ClassDecl cls) {
     final buffer = StringBuffer();
 
-    // Class keyword with modifiers
-    if (cls.isAbstract) {
-      buffer.write('abstract ');
-    }
-
     buffer.write('class ${cls.name}');
 
     // ✅ REMOVED: Type parameters - not valid JavaScript syntax
@@ -199,31 +213,10 @@ class ClassCodeGen {
       buffer.write(' extends $baseClassName');
     }
 
-    // Interfaces - ✅ Strip generic type parameters
-    if (cls.interfaces.isNotEmpty) {
-      final interfaces = cls.interfaces
-          .map((i) {
-            final name = i.displayName();
-            return name.contains('<')
-                ? name.substring(0, name.indexOf('<'))
-                : name;
-          })
-          .join(', ');
-      buffer.write(' implements $interfaces');
-    }
-
-    // Mixins - ✅ Strip generic type parameters
-    if (cls.mixins.isNotEmpty) {
-      final mixins = cls.mixins
-          .map((m) {
-            final name = m.displayName();
-            return name.contains('<')
-                ? name.substring(0, name.indexOf('<'))
-                : name;
-          })
-          .join(', ');
-      buffer.write(' with $mixins');
-    }
+    // NOTE: JS does not support 'implements' or 'with'.
+    // Interfaces are purely build-time in Dart.
+    // Mixins need a runtime helper (e.g. applyMixin), but for now we strip the syntax to avoid crashes.
+    // Future: Implement mixin application logic.
 
     return buffer.toString();
   }

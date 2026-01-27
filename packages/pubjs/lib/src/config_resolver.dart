@@ -162,8 +162,6 @@ class ConfigResolver {
       final section = content.substring(startIndex + 1, endIndex);
       final configs = <String, UserPackageConfig>{};
 
-    
-
       // 2. Object: 'key': { ... }
       // This is hard to regex robustly, but for common cases:
       // We might need a better parser or assume simple formatting.
@@ -180,11 +178,11 @@ class ConfigResolver {
       // Match keys that are strings (quoted or not if simple keys?)
       // JS object keys can be unquoted, but our generator uses quotes.
       // Let's assume quoted for reliability.
-      final keyPattern = RegExp(r'''['"]([\w\-]+)['"]\s*:\s*''');
+      final keyPattern = RegExp(r'''(?:['"]([\w\-]+)['"]|([\w\-]+))\s*:\s*''');
       final matches = keyPattern.allMatches(section);
 
       for (final match in matches) {
-        final key = match.group(1)!;
+        final key = match.group(1) ?? match.group(2)!;
         final start = match.end;
 
         final remainder = section
@@ -215,9 +213,9 @@ class ConfigResolver {
             String? path = pathMatch?.group(1);
 
             final pkgMatch = RegExp(
-              r'''flutterJsPackage\s*:\s*['"]([^'"]+)['"]''',
+              r'''(flutterJsPackage|flutterjs_package)\s*:\s*['"]([^'"]+)['"]''',
             ).firstMatch(objContent);
-            String? pkg = pkgMatch?.group(1);
+            String? pkg = pkgMatch?.group(2);
 
             configs[key] = UserPackageConfig(path: path, flutterJsPackage: pkg);
           }

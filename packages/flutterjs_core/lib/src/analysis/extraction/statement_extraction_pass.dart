@@ -515,9 +515,48 @@ class StatementExtractionPass {
       final variables = parts.variables;
       if (variables.variables.isNotEmpty) {
         final firstVar = variables.variables.first;
-        initialization = firstVar.initializer != null
-            ? extractExpression(firstVar.initializer!)
-            : null;
+        // Create an assignment expression that includes the variable name
+        // This will be transpiled to "let i = 0" in JavaScript
+        if (firstVar.initializer != null) {
+          final varType = _extractTypeFromAnnotation(
+            variables.type,
+            firstVar.offset,
+          );
+          initialization = AssignmentExpressionIR(
+            id: builder.generateId('expr_assign'),
+            target: IdentifierExpressionIR(
+              id: builder.generateId('expr_id'),
+              name: firstVar.name.lexeme,
+              resultType:
+                  varType ??
+                  DynamicTypeIR(
+                    id: builder.generateId('type'),
+                    sourceLocation: _extractSourceLocation(
+                      firstVar,
+                      firstVar.offset,
+                    ),
+                  ),
+              sourceLocation: _extractSourceLocation(firstVar, firstVar.offset),
+              metadata: {},
+            ),
+            value: extractExpression(firstVar.initializer!),
+            resultType:
+                varType ??
+                DynamicTypeIR(
+                  id: builder.generateId('type'),
+                  sourceLocation: _extractSourceLocation(
+                    firstVar,
+                    firstVar.offset,
+                  ),
+                ),
+            sourceLocation: _extractSourceLocation(firstVar, firstVar.offset),
+            metadata: {
+              'isDeclaration': true,
+              'isFinal': variables.isFinal,
+              'isConst': variables.isConst,
+            },
+          );
+        }
       }
       condition = parts.condition != null
           ? extractExpression(parts.condition!)
@@ -793,9 +832,19 @@ class StatementExtractionPass {
 
     // Identifiers
     if (expr is Identifier) {
+      // Strip generic type arguments from identifier names
+      // e.g., "identity<E>" -> "identity"
+      String identifierName = expr.name;
+      if (identifierName.contains('<')) {
+        identifierName = identifierName.substring(
+          0,
+          identifierName.indexOf('<'),
+        );
+      }
+
       return IdentifierExpressionIR(
         id: builder.generateId('expr_id'),
-        name: expr.name,
+        name: identifierName,
         resultType: DynamicTypeIR(
           id: builder.generateId('type'),
           sourceLocation: sourceLoc,
@@ -808,9 +857,24 @@ class StatementExtractionPass {
 
     // Binary expressions
     if (expr is BinaryExpression) {
+      final op = expr.operator.lexeme;
+      if (op == '??') {
+        return NullCoalescingExpressionIR(
+          id: builder.generateId('expr_null_coalesce'),
+          left: extractExpression(expr.leftOperand),
+          right: extractExpression(expr.rightOperand),
+          resultType: DynamicTypeIR(
+            id: builder.generateId('type'),
+            sourceLocation: sourceLoc,
+          ),
+          sourceLocation: sourceLoc,
+          metadata: metadata,
+        );
+      }
+
       return BinaryExpressionIR(
         id: builder.generateId('expr_bin'),
-        operator: _mapBinaryOperator(expr.operator.lexeme),
+        operator: _mapBinaryOperator(op),
         left: extractExpression(expr.leftOperand),
         right: extractExpression(expr.rightOperand),
         resultType: DynamicTypeIR(
@@ -960,6 +1024,28 @@ class StatementExtractionPass {
 
     // Assignment
     if (expr is AssignmentExpression) {
+      final operator = expr.operator.lexeme;
+
+      // Check if this is a compound assignment (+=, -=, *=, etc.)
+      if (operator != '=') {
+        // Extract the base operator (e.g., '-' from '-=')
+        final baseOp = operator.substring(0, operator.length - 1);
+
+        return CompoundAssignmentExpressionIR(
+          id: builder.generateId('expr_compound_assign'),
+          target: extractExpression(expr.leftHandSide),
+          operator: _mapBinaryOperator(baseOp),
+          value: extractExpression(expr.rightHandSide),
+          resultType: DynamicTypeIR(
+            id: builder.generateId('type'),
+            sourceLocation: sourceLoc,
+          ),
+          sourceLocation: sourceLoc,
+          metadata: metadata,
+        );
+      }
+
+      // Simple assignment
       return AssignmentExpressionIR(
         id: builder.generateId('expr_assign'),
         target: extractExpression(expr.leftHandSide),
@@ -1211,6 +1297,75 @@ class StatementExtractionPass {
         isGenerator: funcBody.isGenerator,
       );
     }
+
+    // Parenthesized expressions - unwrap and extract the inner expression
+    if (expr is ParenthesizedExpression) {
+      return extractExpression(expr.expression);
+    }
+
+    // Index access expressions (e.g., array[index], map[key])
+    if (expr is IndexExpression) {
+      return IndexAccessExpressionIR(
+        id: builder.generateId('expr_index'),
+        target: extractExpression(expr.target!),
+        index: extractExpression(expr.index),
+        isNullAware: expr.question != null,
+        resultType: DynamicTypeIR(
+          id: builder.generateId('type'),
+          sourceLocation: sourceLoc,
+        ),
+        sourceLocation: sourceLoc,
+        metadata: metadata,
+      );
+    }
+
+    // Cascade expressions (obj..a()..b=1)
+    if (expr is CascadeExpression) {
+      return CascadeExpressionIR(
+        id: builder.generateId('expr_cascade'),
+        target: extractExpression(expr.target),
+        cascadeSections: expr.cascadeSections
+            .map((s) => extractExpression(s))
+            .toList(),
+        resultType: DynamicTypeIR(
+          id: builder.generateId('type'),
+          sourceLocation: sourceLoc,
+        ),
+        sourceLocation: sourceLoc,
+        metadata: metadata,
+      );
+    }
+
+    // Assignment expressions (x = 5)
+    if (expr is AssignmentExpression) {
+      return AssignmentExpressionIR(
+        id: builder.generateId('expr_assign'),
+        target: extractExpression(expr.leftHandSide),
+        value: extractExpression(expr.rightHandSide),
+        resultType: DynamicTypeIR(
+          id: builder.generateId('type'),
+          sourceLocation: sourceLoc,
+        ),
+        sourceLocation: sourceLoc,
+        metadata: metadata,
+      );
+    }
+
+    // Throw expression
+    if (expr is ThrowExpression) {
+      return ThrowExpr(
+        id: builder.generateId('expr_throw'),
+        exceptionExpression: extractExpression(expr.expression),
+        resultType: DynamicTypeIR(
+          id: builder.generateId('type'),
+          sourceLocation: sourceLoc,
+        ),
+        sourceLocation: sourceLoc,
+        metadata: metadata,
+      );
+    }
+
+    // Unknown expressions
 
     // Unknown expressions
     return UnknownExpressionIR(
