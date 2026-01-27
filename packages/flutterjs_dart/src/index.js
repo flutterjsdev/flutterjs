@@ -1,3 +1,4 @@
+export * as core from './core/index.js';
 export * as math from './math/index.js';
 export * as async from './async/index.js';
 export * as convert from './convert/index.js';
