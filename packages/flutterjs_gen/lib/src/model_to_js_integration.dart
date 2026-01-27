@@ -28,7 +28,10 @@ class ModelToJSPipeline {
   final List<String> logs = [];
   final List<DiagnosticIssue> issues = [];
 
-  ModelToJSPipeline() {
+  // Optional callback to rewrite import URIs (e.g. package: -> relative path)
+  final String Function(String uri)? importRewriter;
+
+  ModelToJSPipeline({this.importRewriter}) {
     _initializeDiagnostics();
     _initializeGenerators();
   }
@@ -269,45 +272,99 @@ class ModelToJSPipeline {
   String _generateImports(DartFile dartFile) {
     final buffer = StringBuffer();
 
-    // Default Material Imports (Runtime Requirement)
-    buffer.writeln('import {');
-    buffer.writeln('  runApp,');
-    buffer.writeln('  Widget,');
-    buffer.writeln('  State,');
-    buffer.writeln('  StatefulWidget,');
-    buffer.writeln('  StatelessWidget,');
-    buffer.writeln('  BuildContext,');
-    buffer.writeln('  Key,');
-    buffer.writeln('} from \'@flutterjs/material\';');
-    buffer.writeln('import * as Material from \'@flutterjs/material\';');
+    // Default Material Imports (Runtime Requirement) - Only if Material is imported
+    final hasMaterial = dartFile.imports.any(
+      (i) =>
+          i.uri.contains('material.dart') ||
+          i.uri.contains('widgets.dart') ||
+          i.uri.contains('cupertino.dart'),
+    );
+
+    if (hasMaterial) {
+      buffer.writeln('import {');
+      buffer.writeln('  runApp,');
+      buffer.writeln('  Widget,');
+      buffer.writeln('  State,');
+      buffer.writeln('  StatefulWidget,');
+      buffer.writeln('  StatelessWidget,');
+      buffer.writeln('  BuildContext,');
+      buffer.writeln('  Key,');
+      buffer.writeln('} from \'@flutterjs/material\';');
+      buffer.writeln('import * as Material from \'@flutterjs/material\';');
+    }
+
+    // Check if we need dart:core types (Iterator, Iterable, Comparable)
+    // These are implicitly available in Dart but need explicit imports in JS
+    final needsCoreTypes = _needsDartCoreImports(dartFile);
+    if (needsCoreTypes.isNotEmpty) {
+      buffer.writeln(
+        'import { ${needsCoreTypes.join(", ")} } from \'@flutterjs/dart/core\';',
+      );
+    }
 
     // Dynamic Imports from Dart Source
     for (final import in dartFile.imports) {
-      if (import.uri.startsWith('dart:')) {
-        final libName = import.uri.substring(5); // e.g. "math" from "dart:math"
-        final jsPackage = '@flutterjs/dart/$libName';
+      String jsPackage = import.uri;
 
-        if (import.prefix != null) {
-          buffer.writeln('import * as ${import.prefix} from \'$jsPackage\';');
-        } else if (import.showList.isNotEmpty) {
+      if (importRewriter != null) {
+        jsPackage = importRewriter!(jsPackage);
+      }
+
+      // Handle dart: imports
+      if (jsPackage.startsWith('dart:')) {
+        final libName = jsPackage.substring(5); // e.g. "math" from "dart:math"
+        jsPackage = '@flutterjs/dart/$libName';
+      }
+
+      // Generate import statement
+      if (import.prefix != null) {
+        buffer.writeln('import * as ${import.prefix} from \'$jsPackage\';');
+      } else if (import.showList.isNotEmpty) {
+        buffer.writeln(
+          'import { ${import.showList.join(", ")} } from \'$jsPackage\';',
+        );
+      } else {
+        // Check for Standard Library Heuristics
+        if (jsPackage.endsWith('dart/math')) {
           buffer.writeln(
-            'import { ${import.showList.join(", ")} } from \'$jsPackage\';',
+            'import { min, max, sqrt, sin, cos, tan, Random, Point, Rectangle, MutableRectangle } from \'$jsPackage\';',
+          );
+        } else if (jsPackage.endsWith('dart/async')) {
+          buffer.writeln(
+            'import { Future, Stream, StreamController, Timer, Completer, StreamSubscription } from \'$jsPackage\';',
           );
         } else {
-          // Fallback for "import 'dart:math';" (no prefix, no show)
-          // In JS this imports for side-effects only, but Dart implies all symbols.
-          // We'll treat it as a namespace import with a generated name if needed,
-          // but for core libs usually we want specific symbols.
-          // For now, let's map generic imports to wildcard if possible,
-          // or skip if we can't determine usage.
-          // BETTER: Import as namespace and let code generator handle resolution (complex).
-          // SIMPLE FIX: Just import it.
+          // Fallback for others
           buffer.writeln('import \'$jsPackage\';');
         }
       }
     }
 
     return buffer.toString();
+  }
+
+  /// Detect which dart:core types need to be imported
+  /// Returns a list of type names that should be imported from @flutterjs/dart/core
+  List<String> _needsDartCoreImports(DartFile dartFile) {
+    final coreTypes = <String>{};
+    final knownCoreTypes = {'Iterator', 'Iterable', 'Comparable'};
+
+    // Check all classes for interfaces they implement
+    for (final cls in dartFile.classDeclarations) {
+      for (final interface in cls.interfaces) {
+        final interfaceName = interface.displayName();
+        // Strip generics: Iterator<T> -> Iterator
+        final baseName = interfaceName.contains('<')
+            ? interfaceName.substring(0, interfaceName.indexOf('<'))
+            : interfaceName;
+
+        if (knownCoreTypes.contains(baseName)) {
+          coreTypes.add(baseName);
+        }
+      }
+    }
+
+    return coreTypes.toList();
   }
 
   String _generateExports(DartFile dartFile) {
@@ -331,6 +388,35 @@ class ModelToJSPipeline {
     }
 
     buffer.writeln('};');
+
+    // Generate Recursive Exports from 'export' directives
+    if (dartFile.exports.isNotEmpty) {
+      buffer.writeln();
+      buffer.writeln('// RE-EXPORTS');
+      for (final export in dartFile.exports) {
+        String jsPath = export.uri;
+        if (importRewriter != null) {
+          jsPath = importRewriter!(jsPath);
+        } else if (jsPath.endsWith('.dart') && !jsPath.startsWith('dart:')) {
+          jsPath = jsPath.replaceAll('.dart', '.js'); // Basic fallback
+        }
+
+        // Handle 'package:' uris not handled by rewriter (fallback)
+        if (jsPath.startsWith('package:')) {
+          // If rewriter didn't handle it, we might be in trouble, but let's try to keep it valid JS string
+        }
+
+        if (export.showList.isNotEmpty) {
+          buffer.writeln(
+            'export { ${export.showList.join(", ")} } from \'$jsPath\';',
+          );
+        } else {
+          // Note: JS doesn't support 'hide'. We export everything.
+          // TODO: Implement proper hide support by resolving target exports.
+          buffer.writeln('export * from \'$jsPath\';');
+        }
+      }
+    }
 
     return buffer.toString();
   }

@@ -344,6 +344,9 @@ class FunctionCodeGen {
     // Method name and parameters
     final params = paramGen.generate(method.parameters);
 
+    // Sanitize method name for operators
+    final methodName = _sanitizeMethodName(method.name);
+
     // ✅ FIXED: Use arrow functions for private methods to preserve 'this' context in callbacks
     // Exception: Generators cannot be arrow functions
     final useArrowFunction = false; // Generate all methods as standard methods
@@ -351,12 +354,12 @@ class FunctionCodeGen {
     if (useArrowFunction) {
       // Arrow function syntax: _methodName = (params) => {
       // Async handling: _methodName = async (params) => {
-      buffer.write('${method.name} = ');
+      buffer.write('$methodName = ');
       if (method.isAsync) buffer.write('async ');
       buffer.writeln('($params) => {');
     } else {
       // Standard method syntax
-      buffer.writeln('${method.name}($params) {');
+      buffer.writeln('$methodName($params) {');
     }
 
     indenter.indent();
@@ -401,71 +404,88 @@ class FunctionCodeGen {
       buffer.writeln(jsDoc);
     }
 
-    final constructorName = ctor.constructorName != null
-        ? ' ${ctor.constructorName}'
-        : '';
-
+    final isStaticMethod = ctor.isFactory || ctor.isNamedConstructor;
     final params = paramGen.generate(ctor.parameters);
 
-    buffer.writeln('constructor$constructorName($params) {');
+    if (isStaticMethod) {
+      // Named or Factory constructor becomes a static method
+      final methodName = ctor.constructorName ?? 'create';
+      buffer.writeln('static $methodName($params) {');
+    } else {
+      // Unnamed generative constructor becomes the JS constructor
+      buffer.writeln('constructor($params) {');
+    }
+
     indenter.indent();
 
-    // ✅ NEW: Handle super() call with arguments from super parameters
-    final superParams = ctor.parameters
-        .where((p) => p.origin == ParameterOrigin.superParam)
-        .map((p) => p.name)
-        .join(', ');
+    if (isStaticMethod && !ctor.isFactory) {
+      // Named generative: needs to create an instance
+      buffer.writeln(indenter.line('const instance = new $className();'));
+    }
 
-    if (ctor.superCall != null || superParams.isNotEmpty) {
-      buffer.writeln(indenter.line('super($superParams);'));
-    } else if (hasSuperclass) {
-      // ✅ FIX: Force super() call if superclass exists and not generated yet
-      // Check if 'key' parameter is available to pass to super (common for Widgets)
-      final hasKey = ctor.parameters.any((p) => p.name == 'key');
-      if (hasKey) {
-        buffer.writeln(indenter.line('super(key);'));
-      } else {
-        buffer.writeln(indenter.line('super();'));
+    // Handle super() call (only for primary constructor)
+    if (!isStaticMethod) {
+      final superParams = ctor.parameters
+          .where((p) => p.origin == ParameterOrigin.superParam)
+          .map((p) => p.name)
+          .join(', ');
+
+      if (ctor.superCall != null || superParams.isNotEmpty) {
+        buffer.writeln(indenter.line('super($superParams);'));
+      } else if (hasSuperclass) {
+        final hasKey = ctor.parameters.any((p) => p.name == 'key');
+        if (hasKey) {
+          buffer.writeln(indenter.line('super(key);'));
+        } else {
+          buffer.writeln(indenter.line('super();'));
+        }
       }
     }
 
+    // Initialize fields
     for (final param in ctor.parameters) {
-      // Skip if already initialized
       if (ctor.initializers.any((i) => i.fieldName == param.name)) {
         continue;
       }
 
-      // ✅ Handle different parameter types
+      final target = isStaticMethod && !ctor.isFactory ? 'instance' : 'this';
+
       switch (param.origin) {
-        case ParameterOrigin.normal:
-          // Regular parameter: assign to field
-          buffer.writeln(indenter.line('this.${param.name} = ${param.name};'));
-          break;
-
         case ParameterOrigin.field:
-          // Field parameter (this.x): already assigned implicitly in Dart
-          // In JavaScript, we still need to assign
-          buffer.writeln(indenter.line('this.${param.name} = ${param.name};'));
-          break;
-
         case ParameterOrigin.superParam:
-          // Super parameter (super.x): In JavaScript, super() is called first
-          // and the parent initializes its own fields. For the child to access
-          // these, we assign to this.propertyName (which refers to the instance).
-          // Note: super.key = x is NOT valid JavaScript syntax
-          buffer.writeln(indenter.line('this.${param.name} = ${param.name};'));
+          buffer.writeln(
+            indenter.line('$target.${param.name} = ${param.name};'),
+          );
+          break;
+        case ParameterOrigin.normal:
+          // In Dart, normal parameters in constructors don't auto-assign
           break;
       }
     }
 
-    if (ctor.body == null) {
-      buffer.writeln(indenter.line('// TODO: Constructor body'));
-    } else if (ctor.body!.statements.isEmpty) {
-      // Empty - already handled with initializers
-    } else {
-      for (final stmt in ctor.body!.statements) {
-        buffer.writeln(stmtGen.generate(stmt));
+    // Constructor body
+    if (ctor.body != null && ctor.body!.statements.isNotEmpty) {
+      if (isStaticMethod && !ctor.isFactory) {
+        // Wrap body in a closure using .call(instance) to correctly bind 'this'
+        buffer.writeln(indenter.line('(function() {'));
+        indenter.indent();
+        for (final stmt in ctor.body!.statements) {
+          buffer.writeln(stmtGen.generate(stmt));
+        }
+        indenter.dedent();
+        buffer.writeln(indenter.line('}).call(instance);'));
+      } else {
+        // Normal body (or factory body which already has returns)
+        for (final stmt in ctor.body!.statements) {
+          buffer.writeln(stmtGen.generate(stmt));
+        }
       }
+    } else if (ctor.body == null && !ctor.isFactory) {
+      buffer.writeln(indenter.line('// No implementation body'));
+    }
+
+    if (isStaticMethod && !ctor.isFactory) {
+      buffer.writeln(indenter.line('return instance;'));
     }
 
     indenter.dedent();
@@ -695,5 +715,66 @@ class FunctionCodeGen {
       return call.functionName == 'runApp';
     }
     return false;
+  }
+
+  // ✅ HELPER: Sanitize method names for JavaScript compatibility
+  String _sanitizeMethodName(String name) {
+    // Handle Dart operator methods
+    String operator = name;
+    if (name.startsWith('operator')) {
+      // Extract the operator symbol
+      operator = name.substring(8).trim(); // Remove "operator" prefix
+    }
+
+    // Map Dart operators to valid JS method names
+    switch (operator) {
+      case '[]':
+        return 'get'; // Index getter: obj[index] -> obj.get(index)
+      case '[]=':
+        return 'set'; // Index setter: obj[index] = value -> obj.set(index, value)
+      case '+':
+        return 'add';
+      case '-':
+        return 'subtract';
+      case '*':
+        return 'multiply';
+      case '/':
+        return 'divide';
+      case '~/':
+        return 'intDivide';
+      case '%':
+        return 'modulo';
+      case '==':
+        return 'equals';
+      case '<':
+        return 'lessThan';
+      case '>':
+        return 'greaterThan';
+      case '<=':
+        return 'lessOrEqual';
+      case '>=':
+        return 'greaterOrEqual';
+      case '~':
+        return 'bitwiseNot';
+      case '&':
+        return 'bitwiseAnd';
+      case '|':
+        return 'bitwiseOr';
+      case '^':
+        return 'bitwiseXor';
+      case '<<':
+        return 'shiftLeft';
+      case '>>':
+        return 'shiftRight';
+      case '>>>':
+        return 'unsignedShiftRight';
+      default:
+        // If it starts with 'operator' but we don't recognize it
+        if (name.startsWith('operator')) {
+          return 'operator_${operator.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_')}';
+        }
+        // Otherwise return as-is
+        return name;
+    }
   }
 }
