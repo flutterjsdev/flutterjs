@@ -1774,14 +1774,47 @@ export default PackageSourceMapManager;`;
      * ✅ IMPROVED: Actually calls main() instead of trying to instantiate widgets directly
      */
   generateAppBootstrap() {
+    // ✅ ROBUST: Scan transformed code for exports (files often use named export blocks like export { A, B })
+    // This fixes issues where 'export class' is not used, preventing metadata from finding widgets
+    const transformedCode = this.integration.transformed?.transformedCode || "";
+    const exportedSet = new Set();
+
+    // 1. Scan for inline exports: "export class Name" or "export const Name"
+    const inlineRegex = /export\s+(?:class|const|function)\s+([a-zA-Z0-9_$]+)/g;
+    let match;
+    while ((match = inlineRegex.exec(transformedCode)) !== null) {
+      exportedSet.add(match[1]);
+    }
+
+    // 2. Scan for named export blocks: "export { A, B, C }"
+    const blockRegex = /export\s*\{([^}]+)\}/g;
+    while ((match = blockRegex.exec(transformedCode)) !== null) {
+      match[1].split(',').forEach(part => {
+        const cleaned = part.trim();
+        if (!cleaned) return;
+        const parts = cleaned.split(/\s+as\s+/);
+        exportedSet.add(parts[parts.length - 1].trim());
+      });
+    }
+
     const stateless = this.integration.analysis?.widgets?.stateless || [];
     const stateful = this.integration.analysis?.widgets?.stateful || [];
-    const allWidgets = [...stateless, ...stateful].filter(Boolean);
+    const candidates = [...stateless, ...stateful];
+
+    // Filter analysis candidates against actual exports
+    let validWidgets = candidates;
+    if (exportedSet.size > 0) {
+      validWidgets = candidates.filter(w => exportedSet.has(w));
+    }
+
+    const allWidgets = [...new Set(validWidgets.filter(Boolean))];
     const projectName = this.integration.analysis?.metadata?.projectName || "FlutterJS App";
 
-    // ✅ Always import main, plus all discovered widgets
-    const widgetImports = allWidgets.length > 0
-      ? `import { ${allWidgets.join(", ")}, main } from './main.js';`
+    // Filter 'main' from widget list to avoid duplicate import if it's there
+    const widgetsToImport = allWidgets.filter(w => w !== 'main');
+
+    const widgetImports = widgetsToImport.length > 0
+      ? `import { ${widgetsToImport.join(", ")}, main } from './main.js';`
       : `import { main } from './main.js';`;
 
     return `/**

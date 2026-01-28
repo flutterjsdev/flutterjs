@@ -6,6 +6,10 @@ import { DialogTheme } from '../utils/dialog_theme.js';
 import { ProgressIndicatorThemeData } from '../utils/progress_indicator_theme.js';
 import { InputDecorationTheme, TextSelectionThemeData } from '../utils/text_field_theme.js';
 
+import { TextStyle } from '../painting/text_style.js';
+
+// ... imports remain the same
+
 class ThemeData {
     constructor({
         brightness = 'light',
@@ -26,6 +30,9 @@ class ThemeData {
         fontFamily = 'Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI"',
         appBarTheme = null,
         // Component Themes
+        elevatedButtonTheme = null,
+        textButtonTheme = null,
+        outlinedButtonTheme = null,
         checkboxTheme = null,
         switchTheme = null,
         radioTheme = null,
@@ -56,6 +63,9 @@ class ThemeData {
         this.disabledColor = disabledColor;
         this.fontFamily = fontFamily;
         this.appBarTheme = appBarTheme;
+        this.elevatedButtonTheme = elevatedButtonTheme;
+        this.textButtonTheme = textButtonTheme;
+        this.outlinedButtonTheme = outlinedButtonTheme;
 
         // Component Themes
         this.checkboxTheme = checkboxTheme || new CheckboxThemeData();
@@ -92,23 +102,39 @@ class ThemeData {
         const isDark = brightness === 'dark';
         const baseColor = isDark ? '#FFFFFF' : '#000000';
 
-        this.textTheme = textTheme || {
-            displayLarge: { fontFamily: fontFamily, fontSize: 57, fontWeight: '400', color: baseColor },
-            displayMedium: { fontFamily: fontFamily, fontSize: 45, fontWeight: '400', color: baseColor },
-            displaySmall: { fontFamily: fontFamily, fontSize: 36, fontWeight: '400', color: baseColor },
-            headlineLarge: { fontFamily: fontFamily, fontSize: 32, fontWeight: '400', color: baseColor },
-            headlineMedium: { fontFamily: fontFamily, fontSize: 28, fontWeight: '400', color: baseColor },
-            headlineSmall: { fontFamily: fontFamily, fontSize: 24, fontWeight: '400', color: baseColor },
-            titleLarge: { fontFamily: fontFamily, fontSize: 22, fontWeight: '400', color: baseColor },
-            titleMedium: { fontFamily: fontFamily, fontSize: 16, fontWeight: '500', color: baseColor },
-            titleSmall: { fontFamily: fontFamily, fontSize: 14, fontWeight: '500', color: baseColor },
-            bodyLarge: { fontFamily: fontFamily, fontSize: 16, fontWeight: '400', color: baseColor },
-            bodyMedium: { fontFamily: fontFamily, fontSize: 14, fontWeight: '400', color: baseColor },
-            bodySmall: { fontFamily: fontFamily, fontSize: 12, fontWeight: '400', color: baseColor },
-            labelLarge: { fontFamily: fontFamily, fontSize: 14, fontWeight: '500', color: baseColor },
-            labelMedium: { fontFamily: fontFamily, fontSize: 12, fontWeight: '500', color: baseColor },
-            labelSmall: { fontFamily: fontFamily, fontSize: 11, fontWeight: '500', color: baseColor },
+        // Helper to ensure styles are TextStyle instances
+        const createTextStyle = (style) => {
+            if (style instanceof TextStyle) return style;
+            return new TextStyle({ fontFamily, color: baseColor, ...style });
         };
+
+        const defaultTextTheme = {
+            displayLarge: { fontSize: 57, fontWeight: '400' },
+            displayMedium: { fontSize: 45, fontWeight: '400' },
+            displaySmall: { fontSize: 36, fontWeight: '400' },
+            headlineLarge: { fontSize: 32, fontWeight: '400' },
+            headlineMedium: { fontSize: 28, fontWeight: '400' },
+            headlineSmall: { fontSize: 24, fontWeight: '400' },
+            titleLarge: { fontSize: 22, fontWeight: '400' },
+            titleMedium: { fontSize: 16, fontWeight: '500' },
+            titleSmall: { fontSize: 14, fontWeight: '500' },
+            bodyLarge: { fontSize: 16, fontWeight: '400' },
+            bodyMedium: { fontSize: 14, fontWeight: '400' },
+            bodySmall: { fontSize: 12, fontWeight: '400' },
+            labelLarge: { fontSize: 14, fontWeight: '500' },
+            labelMedium: { fontSize: 12, fontWeight: '500' },
+            labelSmall: { fontSize: 11, fontWeight: '500' },
+        };
+
+        this.textTheme = {};
+
+        // Merge provided textTheme with defaults and ensure all are TextStyle instances
+        Object.keys(defaultTextTheme).forEach(key => {
+            const provided = textTheme?.[key];
+            const defaults = defaultTextTheme[key];
+            this.textTheme[key] = createTextStyle(provided || defaults);
+        });
+
     }
 
     static dark() {
