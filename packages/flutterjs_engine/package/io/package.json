@@ -1,9 +1,0 @@
-{
-    "name": "@flutterjs/io",
-    "version": "1.0.0",
-    "type": "module",
-    "main": "src/index.js",
-    "dependencies": {
-        "@flutterjs/core": "1.0.0"
-    }
-}
