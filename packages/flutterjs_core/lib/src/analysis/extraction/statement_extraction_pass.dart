@@ -981,6 +981,7 @@ class StatementExtractionPass {
         target: expr.target != null ? extractExpression(expr.target!) : null,
         arguments: positionalArgs,
         namedArguments: namedArgs,
+        isCascade: expr.isCascaded,
         resultType: DynamicTypeIR(
           id: builder.generateId('type'),
           sourceLocation: sourceLoc,
@@ -992,10 +993,22 @@ class StatementExtractionPass {
 
     // Property access
     if (expr is PropertyAccess) {
+      final target = expr.target != null
+          ? extractExpression(expr.target)
+          : CascadeReceiverExpressionIR(
+              id: builder.generateId('expr_casc_rec'),
+              sourceLocation: sourceLoc,
+              resultType: DynamicTypeIR(
+                id: builder.generateId('type'),
+                sourceLocation: sourceLoc,
+              ),
+            );
+
       return PropertyAccessExpressionIR(
         id: builder.generateId('expr_prop'),
-        target: extractExpression(expr.target),
+        target: target,
         propertyName: expr.propertyName.name,
+        isCascade: expr.isCascaded,
         resultType: DynamicTypeIR(
           id: builder.generateId('type'),
           sourceLocation: sourceLoc,

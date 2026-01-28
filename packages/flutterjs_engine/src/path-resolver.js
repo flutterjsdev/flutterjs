@@ -25,7 +25,7 @@ export class PathResolver {
      * Returns: /full/path/to/project/src/main.fjs
      */
     getSourcePath() {
-        const entryFile = this.config.entry?.main || 'src/main.fjs';
+        const entryFile = this.config.entry?.main || 'src/main.js';
         const resolved = path.resolve(this.projectRoot, entryFile);
 
         // ✅ Debug output
@@ -42,15 +42,20 @@ export class PathResolver {
 
     /**
      * Get compiled file path (.js)
-     * From config: entry.main = 'src/main.fjs'
+     * From config: entry.main = 'src/main.js'
      * Returns: /full/path/to/project/dist/src/main.js
      * (relative to output dir)
      */
     getCompiledPath(outputDir = 'dist') {
-        const entryFile = this.config.entry?.main || 'src/main.fjs';
+        const entryFile = this.config.entry?.main || 'src/main.js';
 
-        // Remove .fjs extension, add .js
-        const jsFile = entryFile.replace(/\.fjs$/, '.js');
+        // Ensure it ends with .js
+        let jsFile = entryFile;
+        if (jsFile.endsWith('.js')) {
+            jsFile = jsFile.replace(/\.js$/, '.js');
+        } else if (!jsFile.endsWith('.js')) {
+            jsFile += '.js';
+        }
 
         return path.resolve(this.projectRoot, outputDir, jsFile);
     }
@@ -61,10 +66,15 @@ export class PathResolver {
      * Returns: './src/main.js' (relative to dist/)
      */
     getImportPath() {
-        const entryFile = this.config.entry?.main || 'src/main.fjs';
+        const entryFile = this.config.entry?.main || 'src/main.js';
 
-        // Remove .fjs, add .js
-        const jsFile = entryFile.replace(/\.fjs$/, '.js');
+        // Ensure it ends with .js
+        let jsFile = entryFile;
+        if (jsFile.endsWith('.js')) {
+            jsFile = jsFile.replace(/\.js$/, '.js');
+        } else if (!jsFile.endsWith('.js')) {
+            jsFile += '.js';
+        }
 
         // Make relative (starts with ./)
         return './' + jsFile;

@@ -1,0 +1,1 @@
+{"timestamp":"2026-01-28T23:23:08.336526","total_issues":2,"issues":[{"type":"AnalysisIssue","message":"[IssueSeverity.error] Import file not found: /packages/uuid/lib/uuid.dart (INVE0000)"},{"type":"AnalysisIssue","message":"[IssueSeverity.hint] Import \"package:uuid/uuid.dart\" may be unused (UNUSED_IMPORT)"}]}

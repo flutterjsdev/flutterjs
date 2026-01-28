@@ -5,8 +5,6 @@
 // Direct IR → JS without intermediate transformations
 // ============================================================================
 
-import 'dart:math';
-
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 import 'package:flutterjs_gen/src/widget_generation/stateless_widget/stateless_widget_js_code_gen.dart';
@@ -61,6 +59,8 @@ class ExpressionCodeGen {
   // ✅ ADD THIS: Track recursion depth
   int _recursionDepth = 0;
   static const int _maxRecursionDepth = 100;
+
+  String? _cascadeReceiver;
 
   ExpressionCodeGen({
     ExpressionGenConfig? config,
@@ -141,6 +141,7 @@ class ExpressionCodeGen {
   bool _needsParentheses(ExpressionIR expr) {
     // These never need parentheses:
     if (expr is IdentifierExpressionIR) return false;
+    if (expr is CascadeReceiverExpressionIR) return false;
     if (expr is LiteralExpressionIR) return false;
     if (expr is PropertyAccessExpressionIR) return false;
     if (expr is IndexAccessExpressionIR) return false;
@@ -265,6 +266,10 @@ class ExpressionCodeGen {
       return _generateTypeCheck(expr);
     }
 
+    if (expr is IsExpressionIR) {
+      return _generateIsExpression(expr);
+    }
+
     if (expr is AwaitExpr) {
       return _generateAwait(expr);
     }
@@ -279,6 +284,10 @@ class ExpressionCodeGen {
 
     if (expr is CascadeExpressionIR) {
       return _generateCascade(expr);
+    }
+
+    if (expr is CascadeReceiverExpressionIR) {
+      return _cascadeReceiver ?? 'obj';
     }
 
     if (expr is ParenthesizedExpressionIR) {
@@ -613,14 +622,9 @@ class ExpressionCodeGen {
   }
 
   String _generateUnknownExpression(UnknownExpressionIR expr) {
-    if (expr.source == 'users') {
-      print('⚠️  UnknownExpressionIR detected: ${expr.source}');
-    }
-
     // ✅ FIX: Strip generic type arguments (e.g., identity<E> -> identity)
     if (expr.source != null && expr.source.contains('<')) {
       final stripped = expr.source.substring(0, expr.source.indexOf('<'));
-      print('   Stripping generic type args: ${expr.source} → $stripped');
       return stripped;
     }
 
@@ -925,14 +929,25 @@ class ExpressionCodeGen {
   // =========================================================================
 
   String _generateIdentifier(IdentifierExpressionIR expr) {
-    // Strip generic type arguments from the name (e.g., identity<E> -> identity)
-    // JavaScript doesn't support generic type parameters
+    if (expr.isSuperReference) return 'super';
+    if (expr.isThisReference) return 'this';
+
+    // Strip generic type arguments from the name
     String name = expr.name;
+
     if (name.contains('<')) {
       name = name.substring(0, name.indexOf('<'));
     }
 
-    // ✅ Check if we're inside a class method (not top-level)
+    // ✅ FORCE FIX: Handle compound identifier "widget.field"
+    if (name.startsWith('widget.')) {
+      return 'this.$name';
+    }
+
+    // Apply JS safety transformation
+    name = safeIdentifier(name);
+
+    // Check if we're inside a class method (not top-level)
     if (_currentFunctionContext != null &&
         !_currentFunctionContext!.isTopLevel) {
       // Check if it's a parameter first
@@ -965,9 +980,7 @@ class ExpressionCodeGen {
           return 'this.$name';
         }
 
-        // Even if not found in fields list, private identifiers in class methods
-        // are likely instance fields (the IR might not have captured them all)
-        // So default to adding this. prefix for safety
+        // Default to adding this. prefix for safety for private names in classes
         return 'this.$name';
       }
 
@@ -989,18 +1002,14 @@ class ExpressionCodeGen {
 
     // ✅ FORCE FIX for 'widget' -> 'this.widget' if identifier generation missed it
     if (target == 'widget') {
-      if (_currentFunctionContext != null &&
-          !_currentFunctionContext!.isTopLevel) {
-        target = 'this.widget';
-      } else {
-        // Even if context is missing, 'widget' property access is almost always 'this.widget' in State classes
-        // But be careful not to break local vars.
-        // Assuming 'widget' is valid property.
-        target = 'this.widget';
-      }
+      // Even if context is missing, 'widget' property access is almost always 'this.widget' in State classes
+      // But be careful not to break local vars.
+      // Assuming 'widget' is valid property.
+      target = 'this.widget';
     }
 
     // ✅ NEW: Handle Dart 3.0+ shorthand enum syntax (.center, .start, etc.)
+
     // When target is empty OR whitespace-only, this is likely shorthand enum access
     if (target.isEmpty || target.trim().isEmpty) {
       // Check if property name matches a known enum member
@@ -1042,8 +1051,13 @@ class ExpressionCodeGen {
     }
 
     if (_isValidIdentifier(expr.propertyName)) {
-      return '$target.${expr.propertyName}';
+      final safeName = safeIdentifier(expr.propertyName);
+      final op = expr.isNullAware ? '?.' : '.';
+      return '$target$op$safeName';
     } else {
+      if (expr.isNullAware) {
+        return '$target?.[${expr.propertyName}]';
+      }
       return "$target['${expr.propertyName}']";
     }
   }
@@ -1325,12 +1339,28 @@ class ExpressionCodeGen {
       final target = generate(expr.target!, parenthesize: true);
       final args = _generateArgumentList(expr.arguments, expr.namedArguments);
 
+      // ✅ NEW: Map Dart math methods to JS Math object
+      if (expr.arguments.isEmpty) {
+        switch (expr.methodName) {
+          case 'floor':
+            return 'Math.floor($target)';
+          case 'round':
+            return 'Math.round($target)';
+          case 'ceil':
+            return 'Math.ceil($target)';
+          case 'truncate':
+            return 'Math.trunc($target)';
+        }
+      }
+
+      final safeMethodName = safeIdentifier(expr.methodName);
+
       if (expr.isNullAware) {
-        return '$target?.${expr.methodName}$typeArgStr($args)';
+        return '$target?.$safeMethodName$typeArgStr($args)';
       } else if (expr.isCascade) {
-        return '$target..${expr.methodName}$typeArgStr($args)';
+        return '$target.$safeMethodName$typeArgStr($args)';
       } else {
-        return '$target.${expr.methodName}$typeArgStr($args)';
+        return '$target.$safeMethodName$typeArgStr($args)';
       }
     }
 
@@ -1715,6 +1745,19 @@ class ExpressionCodeGen {
     }
   }
 
+  String _generateIsExpression(IsExpressionIR expr) {
+    final value = generate(expr.expression, parenthesize: true);
+    final checkType = expr.targetType.displayName();
+
+    String check = _generateTypeCheckExpression(value, checkType);
+
+    if (expr.isNegated) {
+      return '!($check)';
+    } else {
+      return check;
+    }
+  }
+
   String _generateTypeCheckExpression(String value, String rawTypeName) {
     final typeName = _stripGenerics(rawTypeName);
     switch (typeName) {
@@ -1738,6 +1781,12 @@ class ExpressionCodeGen {
       case 'Null':
         return '$value === null';
       default:
+        // ✅ Handle erased generic type parameters (usually single letters like E, T, K, V)
+        // JavaScript doesn't have runtime generic types, so 'instanceof E' will fail.
+        if (typeName.length == 1 && typeName == typeName.toUpperCase()) {
+          return 'true'; // Best we can do in JS for erased generics
+        }
+
         warnings.add(
           CodeGenWarning(
             severity: WarningSeverity.warning,
@@ -1834,23 +1883,29 @@ class ExpressionCodeGen {
   }
 
   String _generateCascade(CascadeExpressionIR expr) {
-    final targetCode = generate(expr.target, parenthesize: false);
-    final buffer = StringBuffer();
+    // Generate the target expression first (it will be evaluated once)
+    final targetCode = generate(expr.target, parenthesize: true);
 
-    // Cascades handle multiple calls on the same object, returning the object.
-    // Pattern: ((obj) => { obj.a(); obj.b(); return obj; })(target)
-    buffer.write('((obj) => { ');
+    // Use a unique name for the cascaded object to avoid collisions.
+    // We'll use a stack-like approach for nested cascades.
+    final varName = '_casc${_recursionDepth}';
 
-    for (final section in expr.cascadeSections) {
-      final sectionCode = generate(section, parenthesize: false);
-      if (sectionCode.startsWith('.')) {
-        buffer.write('obj$sectionCode; ');
-      } else {
-        buffer.write('obj.$sectionCode; ');
+    final buffer = StringBuffer('(($varName) => {\n');
+
+    final oldReceiver = _cascadeReceiver;
+    _cascadeReceiver = varName;
+    try {
+      for (final section in expr.cascadeSections) {
+        final sectionCode = generate(section, parenthesize: false);
+        buffer.writeln('  $sectionCode;');
       }
+    } finally {
+      _cascadeReceiver = oldReceiver;
     }
 
-    buffer.write('return obj; })($targetCode)');
+    buffer.writeln('  return $varName;');
+    buffer.write('})($targetCode)');
+
     return buffer.toString();
   }
 
@@ -1863,6 +1918,73 @@ class ExpressionCodeGen {
   // =========================================================================
   // UTILITY METHODS
   // =========================================================================
+
+  static const _jsReservedWords = {
+    'abstract',
+    'arguments',
+    'await',
+    'boolean',
+    'break',
+    'byte',
+    'case',
+    'catch',
+    'char',
+    'class',
+    'const',
+    'continue',
+    'debugger',
+    'default',
+    'delete',
+    'do',
+    'double',
+    'else',
+    'enum',
+    'eval',
+    'export',
+    'extends',
+    'false',
+    'final',
+    'finally',
+    'float',
+    'for',
+    'function',
+    'goto',
+    'if',
+    'implements',
+    'import',
+    'in',
+    'instanceof',
+    'int',
+    'interface',
+    'let',
+    'long',
+    'native',
+    'new',
+    'null',
+    'package',
+    'private',
+    'protected',
+    'public',
+    'return',
+    'short',
+    'static',
+    'super',
+    'switch',
+    'synchronized',
+    'this',
+    'throw',
+    'throws',
+    'transient',
+    'true',
+    'try',
+    'typeof',
+    'var',
+    'void',
+    'volatile',
+    'while',
+    'with',
+    'yield',
+  };
 
   bool _isValidIdentifier(String name) {
     if (name.isEmpty) return false;
@@ -1877,75 +1999,19 @@ class ExpressionCodeGen {
       return false;
     }
 
-    // Check if it's a reserved word
-    const reserved = {
-      'abstract',
-      'arguments',
-      'await',
-      'boolean',
-      'break',
-      'byte',
-      'case',
-      'catch',
-      'char',
-      'class',
-      'const',
-      'continue',
-      'debugger',
-      'default',
-      'delete',
-      'do',
-      'double',
-      'else',
-      'enum',
-      'eval',
-      'export',
-      'extends',
-      'false',
-      'final',
-      'finally',
-      'float',
-      'for',
-      'function',
-      'goto',
-      'if',
-      'implements',
-      'import',
-      'in',
-      'instanceof',
-      'int',
-      'interface',
-      'let',
-      'long',
-      'native',
-      'new',
-      'null',
-      'package',
-      'private',
-      'protected',
-      'public',
-      'return',
-      'short',
-      'static',
-      'super',
-      'switch',
-      'synchronized',
-      'this',
-      'throw',
-      'throws',
-      'transient',
-      'true',
-      'try',
-      'typeof',
-      'var',
-      'void',
-      'volatile',
-      'while',
-      'with',
-      'yield',
-    };
+    return !_jsReservedWords.contains(name);
+  }
 
-    return !reserved.contains(name);
+  String safeIdentifier(String name) {
+    // These are reserved in JS and cannot be used as identifiers or member names
+    // in various contexts (like variable names or static class fields)
+    const reservedMembers = {'constructor', 'prototype', '__proto__'};
+
+    if (reservedMembers.contains(name) || _jsReservedWords.contains(name)) {
+      return '\$$name';
+    }
+
+    return name;
   }
 
   String generateEnumMemberAccess(EnumMemberAccessExpressionIR expr) {

@@ -121,6 +121,25 @@ abstract class ExpressionIR extends IRNode {
   }
 }
 
+/// Represents the implicit receiver in a cascade section
+@immutable
+class CascadeReceiverExpressionIR extends ExpressionIR {
+  const CascadeReceiverExpressionIR({
+    required super.id,
+    required super.sourceLocation,
+    required super.resultType,
+    super.metadata,
+  });
+
+  @override
+  String toShortString() => '..';
+
+  @override
+  Map<String, dynamic> toJson() {
+    return {...super.toJson()};
+  }
+}
+
 // =============================================================================
 // ENUMS
 // =============================================================================
@@ -392,6 +411,9 @@ class PropertyAccessExpressionIR extends ExpressionIR {
   /// Whether this is null-aware access (?.property)
   final bool isNullAware;
 
+  /// Whether this is a cascade access (..property)
+  final bool isCascade;
+
   const PropertyAccessExpressionIR({
     required super.id,
     required super.resultType,
@@ -399,12 +421,13 @@ class PropertyAccessExpressionIR extends ExpressionIR {
     required this.target,
     required this.propertyName,
     this.isNullAware = false,
+    this.isCascade = false,
     super.metadata,
   });
 
   @override
   String toShortString() {
-    final op = isNullAware ? '?.' : '.';
+    final op = isNullAware ? '?.' : (isCascade ? '..' : '.');
     return '${target.toShortString()}$op$propertyName';
   }
 

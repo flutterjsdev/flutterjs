@@ -1,0 +1,24 @@
+# Ignore public folder (template only, not for deployment)
+public/
+
+# Ignore source files (Dart/Flutter source)
+src/*.fjs
+src/*.dart
+
+# Ignore package files to prevent npm install attempt
+package.json
+package-lock.json
+
+# Ignore build config
+flutterjs.config.js
+
+# Ignore development artifacts
+.dev/
+.debug/
+
+# We include both 'dist' and 'node_modules' in upload
+# so Vercel can serve efficiently from root
+!node_modules
+!node_modules/**/*
+!dist
+!dist/**/*

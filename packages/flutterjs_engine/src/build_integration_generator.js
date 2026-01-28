@@ -19,6 +19,7 @@ import fs from "fs";
 import path from "path";
 import chalk from "chalk";
 import ora from "ora";
+import { execSync } from "child_process";
 
 class BuildGenerator {
   constructor(buildIntegration) {
@@ -171,7 +172,19 @@ class BuildGenerator {
       const widgetTrackerPath = path.join(outputDir, "widget_tracker.js");
       const widgetTracker = this.genreateWidgetTracker();
       await fs.promises.writeFile(widgetTrackerPath, widgetTracker, "utf-8");
+      await fs.promises.writeFile(widgetTrackerPath, widgetTracker, "utf-8");
       files.push({ name: "widget_tracker.js", size: widgetTracker.length });
+
+
+      // ✅ 8. Generate SSR Runner (if target=ssr)
+      if (this.config.target === 'ssr') {
+        const ssrPath = path.join(outputDir, "ssr_runner.js");
+        const ssrCode = this.generateSSRRunner();
+        await fs.promises.writeFile(ssrPath, ssrCode, "utf-8");
+        files.push({ name: "ssr_runner.js", size: ssrCode.length });
+
+        await this.executeSSR(ssrPath);
+      }
 
 
       this.integration.buildOutput.files = files;
@@ -249,7 +262,7 @@ class BuildGenerator {
 
     try {
       await copyRecursive(srcDir, outputDir);
-      console.log(chalk.gray(`  ✓ Source files copied, renamed (.fjs -> .js), and imports updated`));
+      console.log(chalk.gray(`  ✓ Source files copied`));
     } catch (e) {
       console.warn(chalk.yellow(`  ⚠ Error copying source files: ${e.message}`));
     }
@@ -1859,7 +1872,7 @@ enableWidgetTracking();
       enableHotReload: ${this.config.mode === "development"},
       enableStateTracking: true,
       enablePerformanceTracking: true,
-      mode: 'csr',
+      mode: '${this.config.target === 'ssr' ? 'ssr' : 'csr'}',
       target: '${this.config.target}'
     });
 
@@ -2169,6 +2182,80 @@ export {
       return totalSize;
     } catch (error) {
       return 0;
+    }
+  }
+  /**
+   * Generate SSR Runner Script
+   */
+  generateSSRRunner() {
+    return `import { main } from './main.js';
+import { FlutterJSRuntime } from '@flutterjs/runtime';
+import { SSRRenderer } from '@flutterjs/vdom/ssr_renderer';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+async function runSSR() {
+  console.log('🚀 Starting Server-Side Rendering...');
+  
+  try {
+    // Initialize SSR Runtime
+    const runtime = new FlutterJSRuntime({
+      debugMode: false,
+      mode: 'ssr',
+      target: 'ssr'
+    });
+    
+    // Get Root Widget
+    const app = main();
+    
+    // Render to String
+    const bodyHtml = runtime.renderToString(app);
+    
+    // Inject into index.html
+    const indexPath = path.join(__dirname, 'index.html');
+    let template = fs.readFileSync(indexPath, 'utf-8');
+    
+    // Inject content and hydration marker
+    const rootRegex = /<div id="root">[\s\S]*?<\/div>/;
+    const replacement = \`<div id="root" data-hydrated="true">\${bodyHtml}</div>\`;
+    
+    if (rootRegex.test(template)) {
+       template = template.replace(rootRegex, replacement);
+       fs.writeFileSync(indexPath, template);
+       console.log('✅ SSR Complete: index.html updated');
+    } else {
+       console.error('❌ SSR Failed: #root element not found in index.html');
+       process.exit(1);
+    }
+    
+  } catch (err) {
+    console.error('❌ SSR Failed:', err);
+    process.exit(1);
+  }
+}
+
+runSSR();`;
+  }
+
+  /**
+   * Execute the SSR Runner
+   */
+  async executeSSR(scriptPath) {
+    console.log(chalk.blue('⚡ Executing SSR Pre-rendering...'));
+    try {
+      const cwd = path.dirname(scriptPath);
+      const fileName = path.basename(scriptPath);
+
+      execSync(`node ${fileName}`, {
+        cwd: cwd,
+        stdio: 'inherit'
+      });
+
+    } catch (e) {
+      throw new Error(`SSR Execution failed: ${e.message}`);
     }
   }
 }

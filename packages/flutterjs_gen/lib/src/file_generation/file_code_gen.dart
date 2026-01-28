@@ -398,7 +398,7 @@ class FileCodeGen {
             // Fallback: Just treat it as a path that exists.
             // APPEND .js extension (or replace .dart with .js)
             if (jsPath.endsWith('.dart')) {
-              jsPath = jsPath.substring(0, jsPath.length - 5) + '.fjs';
+              jsPath = jsPath.substring(0, jsPath.length - 5) + '.js';
             } else {
               jsPath += '.js';
             }
@@ -406,7 +406,7 @@ class FileCodeGen {
         } else {
           // Relative import
           if (jsPath.endsWith('.dart')) {
-            jsPath = jsPath.substring(0, jsPath.length - 5) + '.fjs';
+            jsPath = jsPath.substring(0, jsPath.length - 5) + '.js';
           } else {
             jsPath += '.js';
           }

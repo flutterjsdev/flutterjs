@@ -53,7 +53,7 @@ const VERSION = getVersion();
 // PROJECT CONTEXT LOADER
 // ============================================================================
 
-function loadProjectContext(configPath) {
+async function loadProjectContext(configPath) {
   const projectRoot = process.cwd();
 
   // Try to load flutterjs.config.js
@@ -66,7 +66,13 @@ function loadProjectContext(configPath) {
   if (fs.existsSync(finalConfigPath)) {
     try {
       // Dynamic import for ES modules
-      config = require(finalConfigPath);
+      // Convert path to file URL for Windows compatibility
+      const configUrl = path.isAbsolute(finalConfigPath)
+        ? 'file://' + finalConfigPath
+        : 'file://' + path.resolve(finalConfigPath);
+
+      const module = await import(configUrl);
+      config = module.default || module;
     } catch (error) {
       console.warn(
         chalk.yellow(`⚠️  Could not load config: ${error.message}`)
@@ -163,7 +169,7 @@ program
   .action(async (options) => {
     try {
       const globalOpts = program.opts();
-      const projectContext = loadProjectContext(globalOpts.config);
+      const projectContext = await loadProjectContext(globalOpts.config);
       await build({ ...options, ...globalOpts }, projectContext);
       process.exit(0);
     } catch (error) {
@@ -187,7 +193,7 @@ program
   .action(async (options) => {
     try {
       const globalOpts = program.opts();
-      const projectContext = loadProjectContext(globalOpts.config);
+      const projectContext = await loadProjectContext(globalOpts.config);
       await dev({ ...options, ...globalOpts }, projectContext);
     } catch (error) {
       handleError(error, program.opts());
@@ -211,7 +217,7 @@ program
   .action(async (options) => {
     try {
       const globalOpts = program.opts();
-      const projectContext = loadProjectContext(globalOpts.config);
+      const projectContext = await loadProjectContext(globalOpts.config);
       await run({ ...options, ...globalOpts }, projectContext);
     } catch (error) {
       handleError(error, program.opts());
@@ -232,7 +238,7 @@ program
   .action(async (options) => {
     try {
       const globalOpts = program.opts();
-      const projectContext = loadProjectContext(globalOpts.config);
+      const projectContext = await loadProjectContext(globalOpts.config);
       await preview({ ...options, ...globalOpts }, projectContext);
     } catch (error) {
       handleError(error, program.opts());
