@@ -1,6 +1,6 @@
 name: flutterjs_seo_example
 description: Example app for flutterjs_seo
-
+resolution: workspace
 publish_to: 'none'
 
 environment:
