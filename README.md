@@ -263,32 +263,31 @@ flutterjs build --output ./dist    # Custom output directory
 
 Application renders in the browser. Good for SPAs.
 
-```javascript
-// flutter.config.js
-module.exports = {
-  mode: 'csr'
-};
-```
+### CSR (Client-Side Rendering) — Default
+
+Application renders entirely in the browser using JavaScript.
+- **Best for**: Dynamic web apps, Dashboards, Admin panels.
+- **CLI**: `flutterjs run --target spa` (or just `flutterjs run`)
+- **Config**: `mode: 'csr'`
 
 ### SSR (Server-Side Rendering)
 
-Pre-renders on server. Best for SEO.
+Pre-renders HTML on the server (build time) and hydrates on the client.
+- **Best for**: Marketing sites, Blogs, SEO-critical content.
+- **CLI**: `flutterjs run --target ssr`
+- **Config**: `mode: 'ssr'`
+- **How it works**:
+    1. Build generates a pre-rendered `index.html`.
+    2. Client downloads HTML (instant paint).
+    3. Client hydrates (attaches event listeners).
 
-```javascript
-module.exports = {
-  mode: 'ssr'
-};
-```
+### Hybrid (Coming Soon)
 
-### Hybrid
-
-SSR for initial load, CSR for interactions.
-
-```javascript
-module.exports = {
-  mode: 'hybrid'
-};
-```
+A mix of Static Site Generation (SSG) and SPA.
+- **Best for**: Large sites with mixed content.
+- **CLI**: `flutterjs run --target hybrid`
+- **Config**: `mode: 'hybrid'`
+- **Note**: Currently experimental. Use SSR for best SEO results.
 
 ---
 
@@ -348,7 +347,7 @@ FlutterJS supports the most commonly used Flutter widgets:
 
 ## Configuration
 
-Create `flutter.config.js` in your project root:
+Create `flutterjs.config.js` in your project root:
 
 ```javascript
 module.exports = {

@@ -807,8 +807,17 @@ class StatefulWidgetJSCodeGen {
       indenter.dedent();
       buffer.write(indenter.line('}'));
     } else {
+      // ✅ FIX: Set context for expression generation
+      // This ensures 'widget', 'context', 'mounted' are correctly prefixed with 'this.'
+      buildMethodGen.exprGen.setClassContext(stateClass.declaration);
+      buildMethodGen.exprGen.setFunctionContext(lifecycleMapping.build!);
+
       // Use buildMethodGen to generate build
       final buildCode = buildMethodGen.generateBuild(lifecycleMapping.build!);
+
+      // Clear context to avoid side effects (optional but safe)
+      // buildMethodGen.exprGen.setClassContext(null);
+      // buildMethodGen.exprGen.setFunctionContext(null);
 
       // Indent the build code
       final lines = buildCode.split('\n');

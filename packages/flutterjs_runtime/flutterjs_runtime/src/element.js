@@ -439,7 +439,8 @@ class Element extends Diagnosticable {
             if (patches.length > 0) {
               // Pass the renderer to PatchApplier so it can create SVGs correctly
               const result = PatchApplier.apply(parent, patches, {
-                renderer: this.runtime.renderer
+                renderer: this.runtime.renderer,
+                debugMode: this.runtime.config.debugMode
               });
 
               if (!result.success) {

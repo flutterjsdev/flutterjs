@@ -586,7 +586,7 @@ class RunCommand extends Command<void> {
 
     final result = await _engineBridgeManager!.startAfterBuild(
       buildPath: context.buildPath, // JS CLI runs from here
-      jsOutputPath: 'src', // .fjs files are in src/ (relative to buildPath)
+      jsOutputPath: 'src', // .js files are in src/ (relative to buildPath)
       port: config.serverPort,
       openBrowser: config.openBrowser,
       verbose: config.verbose,
@@ -733,7 +733,22 @@ class SetupManager {
         'reports',
       ); // Keep reports outside flutterjs
 
-      if (config.toJs) await Directory(jsOutputPath).create(recursive: true);
+      if (config.toJs) {
+        await Directory(jsOutputPath).create(recursive: true);
+
+        // ✅ NEW: Generate package.json with type: module for ES imports
+        final packageJsonPath = path.join(flutterJsDir, 'package.json');
+        final packageJsonContent =
+            '''
+{
+  "name": "${path.basename(absoluteProjectPath)}",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "FlutterJS generated project"
+}
+''';
+        await File(packageJsonPath).writeAsString(packageJsonContent);
+      }
       if (config.generateReports) {
         await Directory(reportsPath).create(recursive: true);
       }
@@ -1002,7 +1017,7 @@ class JSConversionPhase {
           final fileNameWithoutExt = path.basenameWithoutExtension(
             normalizedDartPath,
           );
-          final jsFileName = '$fileNameWithoutExt.fjs';
+          final jsFileName = '$fileNameWithoutExt.js';
 
           final jsOutputFile = relativeDir.isEmpty
               ? File(path.join(context.jsOutputPath, jsFileName))

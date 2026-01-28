@@ -23,6 +23,8 @@ import {
 } from "../src/element.js";
 
 import { InheritedElement, } from "../src/inherited_element.js";
+import { Hydrator } from '@flutterjs/vdom/hydrator';
+import { SSRRenderer } from '@flutterjs/vdom/ssr_renderer';
 
 // Polyfill Dart print
 if (typeof window !== 'undefined') {
@@ -105,9 +107,18 @@ class RuntimeEngine {
         throw new Error('Root element build() returned null');
       }
 
-      // Render to DOM
+      // Render to DOM or Hydrate
       const startRender = performance.now();
-      this.renderVNode(vnode, containerElement);
+
+      if (this.config.mode === 'ssr') {
+        // Hydrate existing server-rendered HTML
+        if (this.config.debugMode) console.log('[RuntimeEngine] Hydrating...');
+        Hydrator.hydrate(containerElement, vnode);
+      } else {
+        // Client-side render
+        this.renderVNode(vnode, containerElement);
+      }
+
       this.renderTime = performance.now() - startRender;
 
       // Store DOM reference in element
@@ -232,8 +243,16 @@ class RuntimeEngine {
           element.className = value;
         } else if (key === 'style' && typeof value === 'object') {
           Object.assign(element.style, value);
-        } else if (!key.startsWith('data-')) {
-          element.setAttribute(key, value);
+        } else if (key.startsWith('data-')) {
+          // Optimization: Skip debug attributes unless in debug mode
+          const isDebugAttr =
+            key === 'data-element-id' ||
+            key === 'data-widget-path' ||
+            key === 'data-widget';
+
+          if (!isDebugAttr || this.config.debugMode) {
+            element.setAttribute(key, value);
+          }
         } else {
           element.setAttribute(key, value);
         }
@@ -445,6 +464,41 @@ class RuntimeEngine {
    */
   getService(name) {
     return this.serviceRegistry.get(name);
+  }
+
+  /**
+   * Render application to HTML string (for SSR)
+   * @param {Widget} rootWidget - Root widget to render
+   * @returns {string} HTML string
+   */
+  renderToString(rootWidget) {
+    if (!rootWidget) {
+      throw new Error('Root widget is required');
+    }
+
+    try {
+      this.rootWidget = rootWidget;
+
+      // Create root element
+      this.elementTree = this.createElement(rootWidget, null);
+
+      // Build VNode tree
+      const vnode = this.elementTree.build();
+
+      if (!vnode) {
+        return '';
+      }
+
+      // Render to string
+      return SSRRenderer.render(vnode);
+    } catch (error) {
+      console.error('[RuntimeEngine] SSR failed:', error);
+      throw error;
+    }
+  }
+
+  enableHotReload() {
+    // Helper for hot reload
   }
 
   /**

@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:flutterjs_tools/command.dart';
-import 'package:flutterjs_dev_tools/dev_tools.dart';
 
 /// ============================================================================
 /// Flutter.js CLI Entry Point
@@ -99,13 +98,6 @@ const String kVersion = '2.0.0';
 const String kAppName = 'Flutter.js';
 
 Future<void> main(List<String> args) async {
-  final debugFile = File(
-    'c:/Jay/_Plugin/flutterjs/examples/routing_app/debug_main.txt',
-  );
-  debugFile.writeAsStringSync('DEBUG: BIN MAIN START\n');
-  print('DEBUG: BIN MAIN START');
-  print('🦖 FLUTTERJS CLI - DEBUG MODE ACTIVE 🦖');
-
   // Parse verbose flags early
   final bool veryVerbose = args.contains('-vv');
   final bool verbose =
@@ -134,56 +126,26 @@ Future<void> main(List<String> args) async {
   final bool muteCommandLogging = (help || doctor) && !veryVerbose;
   final bool verboseHelp = help && verbose;
 
-  debugFile.writeAsStringSync(
-    'DEBUG: Parsed args. Creating runner...\n',
-    mode: FileMode.append,
-  );
-  // ✅ INITIALIZE DEBUGGER HERE
-  /*
-  FlutterJSIntegratedDebugger.initFromCliFlags(
-    verbose: verbose,
-    verboseHelp: veryVerbose,
-    watch: watch,
-  );
-  */
   // Create and run command runner
-  print('DEBUG: Creating runner...');
   final runner = FlutterJSCommandRunner(
     verbose: verbose,
     verboseHelp: verboseHelp,
     muteCommandLogging: muteCommandLogging,
   );
-  print('DEBUG: Runner created');
-  debugFile.writeAsStringSync('DEBUG: Runner created\n', mode: FileMode.append);
 
   try {
-    print('DEBUG: Calling runner.run(args)...');
-    debugFile.writeAsStringSync(
-      'DEBUG: Calling runner.run(args)...\n',
-      mode: FileMode.append,
-    );
     await runner.run(args);
-    print('DEBUG: runner.run(args) returned');
-    debugFile.writeAsStringSync(
-      'DEBUG: runner.run(args) returned\n',
-      mode: FileMode.append,
-    );
   } on UsageException catch (e) {
     print('${e.message}\n');
     print(e.usage);
     exit(64); // Command line usage error
-  } catch (e, st) {
-    debugFile.writeAsStringSync(
-      'ERROR: $e\nSTACK: $st\n',
-      mode: FileMode.append,
-    );
+  } catch (e) {
     if (verbose) {
       print('Error: $e');
     } else {
       print('Error: $e');
       print('Run with -v for more details.');
     }
-    debugger.printSummary(); // ✅ Print metrics on exit
     exit(1);
   }
 }

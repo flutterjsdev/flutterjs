@@ -61,17 +61,12 @@ class ClassCodeGen {
     FunctionCodeGen? funcGen,
     ParameterCodeGen? paramGen, // ✅ ADD THIS
     FlutterPropConverter? propConverter,
-  }) : propConverter = propConverter ?? FlutterPropConverter(),
-       config = config ?? const ClassGenConfig(),
-       exprGen = exprGen ?? ExpressionCodeGen(),
+  }) : exprGen = exprGen ?? ExpressionCodeGen(),
        stmtGen = stmtGen ?? StatementCodeGen(),
        funcGen = funcGen ?? FunctionCodeGen(),
-       paramGen =
-           paramGen ??
-           ParameterCodeGen(
-             // ✅ ADD THIS
-             exprGen: exprGen ?? ExpressionCodeGen(),
-           ) {
+       propConverter = propConverter ?? FlutterPropConverter(exprGen: exprGen),
+       config = config ?? const ClassGenConfig(),
+       paramGen = paramGen ?? ParameterCodeGen(exprGen: exprGen) {
     indenter = Indenter(this.config.indent);
   }
 
@@ -246,7 +241,8 @@ class ClassCodeGen {
         ? ' // ${field.type.displayName()}'
         : '';
 
-    String declaration = '$staticKeyword${field.name}';
+    final safeName = exprGen.safeIdentifier(field.name);
+    String declaration = '$staticKeyword$safeName';
 
     if (field.initializer != null) {
       final result = propConverter.convertProperty(

@@ -8,6 +8,7 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart';
 import 'package:flutterjs_gen/src/validation_optimization/js_optimizer.dart';
 import 'package:flutterjs_gen/src/model_to_js_diagnostic.dart';
+import 'package:flutterjs_gen/src/utils/import_analyzer.dart';
 
 // ============================================================================
 // GENERATION PIPELINE ORCHESTRATOR
@@ -45,10 +46,14 @@ class ModelToJSPipeline {
 
   void _initializeGenerators() {
     exprGen = ExpressionCodeGen();
-    stmtGen = StatementCodeGen();
-    classGen = ClassCodeGen();
-    funcGen = FunctionCodeGen();
-    buildMethodGen = BuildMethodCodeGen();
+    stmtGen = StatementCodeGen(exprGen: exprGen);
+    funcGen = FunctionCodeGen(exprGen: exprGen, stmtGen: stmtGen);
+    classGen = ClassCodeGen(
+      exprGen: exprGen,
+      stmtGen: stmtGen,
+      funcGen: funcGen,
+    );
+    buildMethodGen = BuildMethodCodeGen(exprGen: exprGen, stmtGen: stmtGen);
   }
 
   // =========================================================================
@@ -272,6 +277,10 @@ class ModelToJSPipeline {
   String _generateImports(DartFile dartFile) {
     final buffer = StringBuffer();
 
+    // ✅ NEW: Analyze symbol usage
+    final analyzer = ImportAnalyzer();
+    final usedSymbols = analyzer.analyzeUsedSymbols(dartFile);
+
     // Default Material Imports (Runtime Requirement) - Only if Material is imported
     final hasMaterial = dartFile.imports.any(
       (i) =>
@@ -302,41 +311,38 @@ class ModelToJSPipeline {
       );
     }
 
-    // Dynamic Imports from Dart Source
+    // Generate imports with symbol analysis
     for (final import in dartFile.imports) {
-      String jsPackage = import.uri;
+      String importPath = import.uri;
 
-      if (importRewriter != null) {
-        jsPackage = importRewriter!(jsPackage);
+      // Convert package: URI to JS import path
+      if (importPath.startsWith('package:')) {
+        importPath = _convertPackageUriToJsPath(importPath);
+      } else if (importPath.startsWith('dart:')) {
+        importPath = _convertDartUriToJsPath(importPath);
+      } else if (importRewriter != null) {
+        importPath = importRewriter!(importPath);
       }
 
-      // Handle dart: imports
-      if (jsPackage.startsWith('dart:')) {
-        final libName = jsPackage.substring(5); // e.g. "math" from "dart:math"
-        jsPackage = '@flutterjs/dart/$libName';
-      }
+      // Get symbols used from this import
+      final symbols = usedSymbols[import.uri] ?? {};
 
       // Generate import statement
       if (import.prefix != null) {
-        buffer.writeln('import * as ${import.prefix} from \'$jsPackage\';');
+        buffer.writeln('import * as ${import.prefix} from \'$importPath\';');
       } else if (import.showList.isNotEmpty) {
+        // Explicit show list takes precedence
         buffer.writeln(
-          'import { ${import.showList.join(", ")} } from \'$jsPackage\';',
+          'import { ${import.showList.join(", ")} } from \'$importPath\';',
+        );
+      } else if (symbols.isNotEmpty) {
+        // ✅ NEW: Use analyzed symbols
+        buffer.writeln(
+          'import { ${symbols.join(", ")} } from \'$importPath\';',
         );
       } else {
-        // Check for Standard Library Heuristics
-        if (jsPackage.endsWith('dart/math')) {
-          buffer.writeln(
-            'import { min, max, sqrt, sin, cos, tan, Random, Point, Rectangle, MutableRectangle } from \'$jsPackage\';',
-          );
-        } else if (jsPackage.endsWith('dart/async')) {
-          buffer.writeln(
-            'import { Future, Stream, StreamController, Timer, Completer, StreamSubscription } from \'$jsPackage\';',
-          );
-        } else {
-          // Fallback for others
-          buffer.writeln('import \'$jsPackage\';');
-        }
+        // Side-effect only import (rare)
+        buffer.writeln('import \'$importPath\';');
       }
     }
 
@@ -365,6 +371,42 @@ class ModelToJSPipeline {
     }
 
     return coreTypes.toList();
+  }
+
+  /// Convert package: URI to JS import path with full path
+  /// package:uuid/uuid.dart -> uuid/dist/uuid.js
+  /// package:collection/collection.dart -> collection/dist/collection.js
+  /// package:flutterjs_material/flutterjs_material.dart -> @flutterjs/material/dist/index.js
+  String _convertPackageUriToJsPath(String packageUri) {
+    // Remove 'package:' prefix
+    final path = packageUri.substring(8); // 'uuid/uuid.dart'
+
+    // Split into package name and file path
+    final parts = path.split('/');
+    final packageName = parts[0]; // 'uuid'
+    final filePath = parts.length > 1 ? parts.sublist(1).join('/') : '';
+
+    // Special handling for @flutterjs packages
+    if (packageName.startsWith('flutterjs_')) {
+      final scopedName = packageName.substring(10); // 'material'
+      return '@flutterjs/$scopedName/dist/index.js';
+    }
+
+    // For third-party packages, convert .dart to .js and add dist/
+    if (filePath.isNotEmpty) {
+      final jsFile = filePath.replaceAll('.dart', '.js');
+      return '$packageName/dist/$jsFile';
+    }
+
+    // Default to package/dist/package.js
+    return '$packageName/dist/$packageName.js';
+  }
+
+  /// Convert dart: URI to JS import path
+  /// dart:math -> @flutterjs/dart/math/dist/math.js
+  String _convertDartUriToJsPath(String dartUri) {
+    final libName = dartUri.substring(5); // 'math'
+    return '@flutterjs/dart/$libName/dist/$libName.js';
   }
 
   String _generateExports(DartFile dartFile) {

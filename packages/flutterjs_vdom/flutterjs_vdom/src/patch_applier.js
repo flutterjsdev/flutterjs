@@ -95,7 +95,7 @@ export class PatchApplier {
       case 'REPLACE':
         return this._replace(rootElement, patch, options);
       case 'UPDATE_PROPS':
-        return this._updateProps(rootElement, patch);
+        return this._updateProps(rootElement, patch, options);
       case 'UPDATE_STYLE':
         return this._updateStyle(rootElement, patch);
       case 'UPDATE_TEXT':
@@ -203,7 +203,7 @@ export class PatchApplier {
     if (options.renderer) {
       newElement = options.renderer.createDOMNode(newNode);
     } else {
-      newElement = this._createDOMNode(newNode);
+      newElement = this._createDOMNode(newNode, options);
     }
 
     if (!newElement) {
@@ -268,7 +268,7 @@ export class PatchApplier {
     if (options.renderer) {
       newElement = options.renderer.createDOMNode(newNode);
     } else {
-      newElement = this._createDOMNode(newNode);
+      newElement = this._createDOMNode(newNode, options);
     }
 
     if (!newElement) {
@@ -291,7 +291,7 @@ export class PatchApplier {
   /**
    * UPDATE_PROPS - Update HTML attributes
    */
-  static _updateProps(rootElement, patch) {
+  static _updateProps(rootElement, patch, options = {}) {
     const { index, value } = patch;
 
     if (!value || !value.changes) {
@@ -316,14 +316,14 @@ export class PatchApplier {
     // Update properties
     if (changes.updated) {
       Object.entries(changes.updated).forEach(([key, val]) => {
-        this._setProp(element, key, val);
+        this._setProp(element, key, val, options);
       });
     }
 
     // Add properties
     if (changes.added) {
       Object.entries(changes.added).forEach(([key, val]) => {
-        this._setProp(element, key, val);
+        this._setProp(element, key, val, options);
       });
     }
   }
@@ -444,7 +444,7 @@ export class PatchApplier {
   /**
    * Create a DOM node from VNode
    */
-  static _createDOMNode(vnode) {
+  static _createDOMNode(vnode, options = {}) {
     // Text node
     if (typeof vnode === 'string') {
       return document.createTextNode(vnode);
@@ -465,7 +465,7 @@ export class PatchApplier {
     // Apply properties
     if (vnode.props && typeof vnode.props === 'object') {
       Object.entries(vnode.props).forEach(([key, val]) => {
-        this._setProp(element, key, val);
+        this._setProp(element, key, val, options);
       });
     }
 
@@ -483,7 +483,7 @@ export class PatchApplier {
     // Add children
     if (vnode.children && Array.isArray(vnode.children)) {
       vnode.children.forEach(child => {
-        const childNode = this._createDOMNode(child);
+        const childNode = this._createDOMNode(child, options);
         if (childNode) {
           element.appendChild(childNode);
         }
@@ -507,7 +507,7 @@ export class PatchApplier {
   /**
    * Set a property on element
    */
-  static _setProp(element, key, value) {
+  static _setProp(element, key, value, options = {}) {
     if (value === null || value === undefined) {
       this._removeProp(element, key);
       return;
@@ -547,6 +547,12 @@ export class PatchApplier {
 
     // data-* and aria-* attributes
     if (key.startsWith('data-') || key.startsWith('aria-')) {
+      if (['data-widget', 'data-element-id', 'data-widget-path'].includes(key)) {
+        if (options && options.debugMode) {
+          element.setAttribute(key, String(value));
+        }
+        return;
+      }
       element.setAttribute(key, String(value));
       return;
     }

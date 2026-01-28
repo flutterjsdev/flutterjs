@@ -144,7 +144,7 @@ function getDefaultConfig() {
       version: '1.0.0',
     },
     entry: {
-      main: 'lib/main.fjs',
+      main: 'src/main.js',
       rootWidget: 'MyApp',
     },
     build: {
@@ -186,7 +186,7 @@ export async function build(options, projectContext) {
     const config = await loadConfig(projectContext);
 
     // Resolve entry file path
-    const entryFile = config.entry?.main || 'lib/main.fjs';
+    const entryFile = config.entry?.main || 'src/main.js';
     const entryPath = path.resolve(projectContext.projectRoot, entryFile);
 
     if (!fs.existsSync(entryPath)) {
@@ -305,7 +305,7 @@ export async function dev(options, projectContext) {
     const config = await loadConfig(projectContext);
 
     // Resolve entry file path
-    const entryFile = config.entry?.main || 'lib/main.fjs';
+    const entryFile = config.entry?.main || 'src/main.js';
     const entryPath = path.resolve(projectContext.projectRoot, entryFile);
 
     if (!fs.existsSync(entryPath)) {
@@ -566,7 +566,7 @@ export async function analyze(options, projectContext) {
     const config = await loadConfig(projectContext);
 
     // Resolve entry file path
-    const entryFile = config.entry?.main || 'lib/main.fjs';
+    const entryFile = config.entry?.main || 'src/main.js';
     const entryPath = path.resolve(projectContext.projectRoot, entryFile);
 
     if (!fs.existsSync(entryPath)) {

@@ -71,9 +71,11 @@ class StatementCodeGen {
     StatementGenConfig? config,
     ExpressionCodeGen? exprGen,
     FlutterPropConverter? propConverter,
-  }) : propConverter = propConverter ?? FlutterPropConverter(),
+  }) : exprGen = exprGen ?? ExpressionCodeGen(),
        config = config ?? const StatementGenConfig(),
-       exprGen = exprGen ?? ExpressionCodeGen() {
+       propConverter =
+           propConverter ??
+           FlutterPropConverter(exprGen: exprGen ?? ExpressionCodeGen()) {
     indenter = Indenter(this.config.indent);
   }
 

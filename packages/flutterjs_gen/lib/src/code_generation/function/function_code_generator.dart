@@ -194,8 +194,9 @@ class FunctionCodeGen {
     }
 
     final params = paramGen.generate(func.parameters);
+    final safeName = exprGen.safeIdentifier(func.name);
 
-    buffer.writeln('$header ${func.name}($params) {');
+    buffer.writeln('$header $safeName($params) {');
     indenter.indent();
 
     if (func.body == null) {
@@ -303,7 +304,8 @@ class FunctionCodeGen {
 
     // ✅ FIXED: Only use 'const' for arrow functions (not function declarations)
     // 'const' signals this is an immutable function assignment
-    return 'const ${func.name} = ($params) => $expr;';
+    final safeName = exprGen.safeIdentifier(func.name);
+    return 'const $safeName = ($params) => $expr;';
   }
 
   String _generateMethod(MethodDecl method, {bool isStatic = false}) {
@@ -442,7 +444,7 @@ class FunctionCodeGen {
       }
     }
 
-    // Initialize fields
+    // Initialize fields from parameters (this.fieldName)
     for (final param in ctor.parameters) {
       if (ctor.initializers.any((i) => i.fieldName == param.name)) {
         continue;
@@ -461,6 +463,13 @@ class FunctionCodeGen {
           // In Dart, normal parameters in constructors don't auto-assign
           break;
       }
+    }
+
+    // ✅ NEW: Initialize fields from the initializer list (: _field = value)
+    for (final init in ctor.initializers) {
+      final target = isStaticMethod && !ctor.isFactory ? 'instance' : 'this';
+      final valueCode = exprGen.generate(init.value, parenthesize: false);
+      buffer.writeln(indenter.line('$target.${init.fieldName} = $valueCode;'));
     }
 
     // Constructor body
@@ -773,8 +782,8 @@ class FunctionCodeGen {
         if (name.startsWith('operator')) {
           return 'operator_${operator.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_')}';
         }
-        // Otherwise return as-is
-        return name;
+        // ✅ NEW: Handled JS reserved names (like 'constructor')
+        return exprGen.safeIdentifier(name);
     }
   }
 }

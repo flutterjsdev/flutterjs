@@ -17,6 +17,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 
 // ============================================================================
@@ -157,8 +158,13 @@ class PackageExportConfig {
 
   /**
    * Get all export entries for import map
+   * Returns Map of logical path -> physical path
+   * 
+   * Examples:
+   *   @flutterjs/material: '@flutterjs/material/dist/index.js' -> '/node_modules/@flutterjs/material/dist/index.js'
+   *   uuid: 'uuid/dist/uuid.js' -> '/node_modules/uuid/dist/uuid.js'
    */
-  getExportEntries(baseDir = '/node_modules') {  // ✅ Changed from /node_modules/@flutterjs
+  getExportEntries(baseDir = '/node_modules') {
     const entries = new Map();
 
     console.log(`[DEBUG] getExportEntries for ${this.packageName}`);
@@ -167,13 +173,28 @@ class PackageExportConfig {
     console.log(`  mainEntry: ${this.mainEntry}`);
     console.log(`  exports size: ${this.exports.size}`);
 
-    // ✅ FIXED: Build full path correctly
-    const buildPath = (filePath) => {
-      // Input: "./dist/core.js" or "dist/core.js"
-      let cleaned = filePath.replace(/^\.\//, '');  // Remove leading ./
+    // ✅ NEW: Determine if this is a scoped package
+    const isScoped = this.packageName.startsWith('@');
 
-      // Build: /node_modules/@flutterjs/material/dist/core.js
-      let fullPath = `${baseDir}/@flutterjs/${this.scopedName}/${cleaned}`;
+    // ✅ NEW: Build logical path (what appears in import statements)
+    const buildLogicalPath = (filePath) => {
+      let cleaned = filePath.replace(/^\.\//, '');
+
+      // For @flutterjs packages: @flutterjs/material/dist/index.js
+      if (isScoped) {
+        return `${this.packageName}/${cleaned}`;
+      }
+
+      // For third-party packages: uuid/dist/uuid.js
+      return `${this.packageName}/${cleaned}`;
+    };
+
+    // ✅ NEW: Build physical path (actual file location)
+    const buildPhysicalPath = (filePath) => {
+      let cleaned = filePath.replace(/^\.\//, '');
+
+      // Build full path: /node_modules/uuid/dist/uuid.js
+      let fullPath = `${baseDir}/${this.packageName}/${cleaned}`;
 
       // Clean up any double slashes
       fullPath = fullPath.replace(/\/+/g, '/');
@@ -186,20 +207,35 @@ class PackageExportConfig {
       return fullPath;
     };
 
-    // Main export: @flutterjs/material
-    const mainPath = buildPath(this.mainEntry);
-    entries.set(this.packageName, mainPath);
-    console.log(`  Main: ${this.packageName} → ${mainPath}`);
+    // Main export
+    const logicalPath = buildLogicalPath(this.mainEntry);
+    const physicalPath = buildPhysicalPath(this.mainEntry);
+    entries.set(logicalPath, physicalPath);
 
-    // Named exports: @flutterjs/material/core, @flutterjs/material/widgets, etc.
+    // ✅ NEW: Explicitly add bare package name mapping
+    // This ensures 'import ... from "@flutterjs/material"' works
+    entries.set(this.packageName, physicalPath);
+
+    console.log(`  Main: ${logicalPath} → ${physicalPath}`);
+    console.log(`  Bare: ${this.packageName} → ${physicalPath}`);
+
+    // Named exports
     for (const [exportName, filePath] of this.exports) {
       if (exportName === 'default') continue;
 
-      const fullPath = buildPath(filePath);
-      const entryKey = `${this.packageName}/${exportName}`;
-      entries.set(entryKey, fullPath);
+      // 1. Map by file path (existing behavior)
+      // Maps: @flutterjs/vdom/dist/vnode_differ.js -> ...
+      const logical = buildLogicalPath(filePath);
+      const physical = buildPhysicalPath(filePath);
+      entries.set(logical, physical);
 
-      console.log(`  Export: ${entryKey} → ${fullPath}`);
+      // 2. Map by export alias (NEW behavior)
+      // Maps: @flutterjs/vdom/vnode_differ -> ...
+      const aliasPath = `${this.packageName}/${exportName}`;
+      entries.set(aliasPath, physical);
+
+      console.log(`  Export: ${logical} → ${physical}`);
+      console.log(`  Alias:  ${aliasPath} → ${physical}`);
     }
 
     return entries;
@@ -417,19 +453,35 @@ class ImportRewriter {
           continue;
         }
 
-        const packageJsonPath = path.join(sourcePath, 'package.json');
-
-        if (this.config.debugMode) {
-          console.log(chalk.gray(`  Reading: ${packageJsonPath}`));
+        // Resolve absolute path
+        let cleanPath = sourcePath;
+        if (cleanPath.startsWith('file://')) {
+          cleanPath = fileURLToPath(cleanPath);
         }
 
-        // Check if file exists first
+        const absolutePath = path.isAbsolute(cleanPath)
+          ? cleanPath
+          : path.resolve(this.config.projectRoot || process.cwd(), cleanPath);
+
+        const packageJsonPath = path.join(absolutePath, 'package.json');
+
+        if (this.config.debugMode) {
+          console.log(`[ImportRewriter] Analyzing package: ${packageName}`);
+          console.log(`[ImportRewriter]   Provided Path: ${sourcePath}`);
+          console.log(`[ImportRewriter]   Absolute Path: ${absolutePath}`);
+          console.log(`[ImportRewriter]   Checking: ${packageJsonPath}`);
+        }
+
         if (!fs.existsSync(packageJsonPath)) {
           this.result.addWarning(`package.json not found for ${packageName} at ${packageJsonPath}`);
           if (this.config.debugMode) {
-            console.log(chalk.yellow(`  ⚠ ${packageName}: package.json not found at ${packageJsonPath}`));
+            console.error(chalk.yellow(`  ⚠ ${packageName}: package.json not found at ${packageJsonPath}`));
           }
           continue;
+        }
+
+        if (this.config.debugMode) {
+          console.log(`[ImportRewriter]   ✅ Found package.json`);
         }
 
         const config = new PackageExportConfig(packageName, packageJsonPath);
@@ -479,24 +531,25 @@ class ImportRewriter {
       console.log(chalk.gray('📋 Parsing import statements...\n'));
     }
 
-    const lines = sourceCode.split('\n');
-    const importRegex = /^import\s+(?:(.+?)\s+)?from\s+['"]([^'"]+)['"]/;
+    // Regex to match import statements (global, multiline, handling minified)
+    // Matches:
+    // 1. import { Foo } from 'bar'
+    // 2. import Foo from 'bar'
+    // 3. import * as Foo from 'bar'
+    // 4. import 'bar' (side effect)
+    // 5. import{Foo}from'bar' (minified)
+    const importRegex = /import\s*(?:(\{[\s\S]*?\}|[\w$*,\s]+)\s*from\s*)?['"]([^'"]+)['"]/g;
 
-    let lineNumber = 1;
-
-    for (const line of lines) {
-      const match = line.match(importRegex);
-
-      if (!match) {
-        lineNumber++;
-        continue;
-      }
-
+    let match;
+    while ((match = importRegex.exec(sourceCode)) !== null) {
       const specifiersStr = match[1] || '';
       const source = match[2];
 
+      // Calculate line number
+      const lineNumber = sourceCode.substring(0, match.index).split('\n').length;
+
       const importStmt = new ImportStatement(source);
-      importStmt.original = line.trim();
+      importStmt.original = match[0];
       importStmt.lineNumber = lineNumber;
 
       // Categorize import type
@@ -520,8 +573,6 @@ class ImportRewriter {
           console.log(chalk.gray(`   Imports: ${importStmt.specifiers.map(s => s.name).join(', ')}`));
         }
       }
-
-      lineNumber++;
     }
 
     if (this.config.debugMode) {
@@ -636,6 +687,17 @@ class ImportRewriter {
     for (const [packageName, exportConfig] of this.result.packageExports) {
       try {
         const entries = exportConfig.getExportEntries(baseDir);  // ✅ Pass /node_modules
+
+        // ✅ NEW: Add bare package mapping (e.g. "@flutterjs/runtime" -> "/node_modules/@flutterjs/runtime/dist/index.js")
+        if (exportConfig.mainEntry) {
+          const physicalPath = `${baseDir}/${packageName}/${exportConfig.mainEntry}`.replace(/^\.\//, '').replace(/\/+/g, '/');
+          this.result.importMap.addImport(packageName, physicalPath);
+
+          if (this.config.debugMode) {
+            console.log(chalk.gray(`${packageName}`));
+            console.log(chalk.gray(`  → ${physicalPath} (BARE)`));
+          }
+        }
 
         for (const [importName, importPath] of entries) {
           this.result.importMap.addImport(importName, importPath);
