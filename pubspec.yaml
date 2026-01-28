@@ -20,6 +20,7 @@ workspace:
   - packages/flutterjs_dev_tools/
   - packages/pubjs/
   - packages/flutterjs_seo/
+  - packages/flutterjs_seo/example/
 
 environment:
   sdk: ^3.10.0-227.0.dev
