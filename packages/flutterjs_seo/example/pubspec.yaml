@@ -4,7 +4,7 @@ resolution: workspace
 publish_to: 'none'
 
 environment:
-  sdk: '>=2.19.0 <4.0.0'
+  sdk: '>=3.7.0 <4.0.0'   # REQUIRED for workspace
 
 dependencies:
   flutter:
