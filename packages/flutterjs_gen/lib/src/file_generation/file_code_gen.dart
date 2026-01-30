@@ -1030,9 +1030,13 @@ function _filterNamespace(ns, show, hide) {
       }
     } else if (expr is MapExpressionIR) {
       // ✅ FIX: Handle Map Literals (e.g. routes: {'/': ...})
-      for (final entry in expr.entries) {
-        _detectWidgetsInExpression(entry.key);
-        _detectWidgetsInExpression(entry.value);
+      for (final element in expr.elements) {
+        if (element is MapEntryIR) {
+          _detectWidgetsInExpression(element.key);
+          _detectWidgetsInExpression(element.value);
+        } else {
+          _detectWidgetsInExpression(element);
+        }
       }
     } else if (expr is SetExpressionIR) {
       // ✅ FIX: Handle Set Literals

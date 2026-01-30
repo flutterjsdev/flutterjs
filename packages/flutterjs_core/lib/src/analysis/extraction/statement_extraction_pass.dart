@@ -41,36 +41,42 @@ class StatementExtractionPass {
   final String filePath;
   final String fileContent;
   final DartFileBuilder builder;
+  final bool verbose;
 
   StatementExtractionPass({
     required this.filePath,
     required this.fileContent,
     required this.builder,
+    this.verbose = false,
   });
+
+  void _log(String message) {
+    if (verbose) print(message);
+  }
 
   void debugFunctionBodyType(FunctionBody? body) {
     if (body == null) return;
 
-    print('=== DEBUG: FunctionBody Type Info ===');
-    print('runtimeType: ${body.runtimeType}');
-    print('toString(): ${body.toString()}');
-    print('Type name: ${body.runtimeType.toString()}');
+    _log('=== DEBUG: FunctionBody Type Info ===');
+    _log('runtimeType: ${body.runtimeType}');
+    _log('toString(): ${body.toString()}');
+    _log('Type name: ${body.runtimeType.toString()}');
 
     // Check ALL possible is relationships
-    print('\n--- Is Checks ---');
+    _log('\n--- Is Checks ---');
     // ignore: unnecessary_type_check
-    print('is FunctionBody: ${body is FunctionBody}');
-    print('is BlockFunctionBody: ${body is BlockFunctionBody}');
-    print('is ExpressionFunctionBody: ${body is ExpressionFunctionBody}');
+    _log('is FunctionBody: ${body is FunctionBody}');
+    _log('is BlockFunctionBody: ${body is BlockFunctionBody}');
+    _log('is ExpressionFunctionBody: ${body is ExpressionFunctionBody}');
 
     // Try to access properties
-    print('\n--- Property Access ---');
+    _log('\n--- Property Access ---');
     try {
       if (body is BlockFunctionBody) {
-        print('✅ CAN access BlockFunctionBody.block');
-        print('   block.statements.length: ${body.block.statements.length}');
+        _log('✅ CAN access BlockFunctionBody.block');
+        _log('   block.statements.length: ${body.block.statements.length}');
       } else {
-        print('❌ CANNOT cast to BlockFunctionBody');
+        _log('❌ CANNOT cast to BlockFunctionBody');
       }
     } catch (e) {
       print('❌ ERROR: $e');
@@ -78,25 +84,25 @@ class StatementExtractionPass {
 
     try {
       if (body is ExpressionFunctionBody) {
-        print('✅ CAN access ExpressionFunctionBody.expression');
+        _log('✅ CAN access ExpressionFunctionBody.expression');
       } else {
-        print('❌ CANNOT cast to ExpressionFunctionBody');
+        _log('❌ CANNOT cast to ExpressionFunctionBody');
       }
     } catch (e) {
       print('❌ ERROR: $e');
     }
 
     // Print class hierarchy using reflection
-    print('\n--- Class Hierarchy ---');
+    _log('\n--- Class Hierarchy ---');
     var type = body.runtimeType;
-    print('Type: $type');
-    print('Type string: ${type.toString()}');
+    _log('Type: $type');
+    _log('Type string: ${type.toString()}');
 
     // Manual check: does body have .block property?
-    print('\n--- Has Properties ---');
+    _log('\n--- Has Properties ---');
     try {
       final block = (body as dynamic).block;
-      print('✅ Has .block property: $block');
+      _log('✅ Has .block property: $block');
     } catch (e) {
       print('❌ No .block property: $e');
     }
@@ -104,31 +110,31 @@ class StatementExtractionPass {
 
   List<ExpressionIR> extractBodyExpressions(FunctionBody? body) {
     if (body == null) {
-      print('⚠️  [extractBodyExpressions] FunctionBody is null');
+      _log('⚠️  [extractBodyExpressions] FunctionBody is null');
       return [];
     }
 
     final expressions = <ExpressionIR>[];
-    print('📊 [extractBodyExpressions] Type: ${body.runtimeType}');
+    _log('📊 [extractBodyExpressions] Type: ${body.runtimeType}');
 
     // TYPE 1: BlockFunctionBody - extract expressions from all statements
     if (body is BlockFunctionBody) {
-      print('   ✅ BlockFunctionBody');
+      _log('   ✅ BlockFunctionBody');
       _extractExpressionsFromStatements(body.block.statements, expressions);
-      print('   ✓ Extracted: ${expressions.length} expressions');
+      _log('   ✓ Extracted: ${expressions.length} expressions');
       return expressions;
     }
 
     // TYPE 2: ExpressionFunctionBody - the expression itself
     if (body is ExpressionFunctionBody) {
-      print('   ✅ ExpressionFunctionBody (arrow syntax)');
+      _log('   ✅ ExpressionFunctionBody (arrow syntax)');
       expressions.add(extractExpression(body.expression));
-      print('   ✓ Extracted: ${expressions.length} expressions');
+      _log('   ✓ Extracted: ${expressions.length} expressions');
       return expressions;
     }
 
     // TYPE 3: EmptyFunctionBody
-    print('   ℹ️  EmptyFunctionBody');
+    _log('   ℹ️  EmptyFunctionBody');
     return [];
   }
 
@@ -242,22 +248,22 @@ class StatementExtractionPass {
   /// USAGE in your code
   List<StatementIR> extractBodyStatements(FunctionBody? body) {
     if (body == null) {
-      print(
+      _log(
         '⚠️  [extractBodyStatements] FunctionBody is null (abstract/external)',
       );
       return [];
     }
 
     final statements = <StatementIR>[];
-    print('📊 [extractBodyStatements] Type: ${body.runtimeType}');
+    _log('📊 [extractBodyStatements] Type: ${body.runtimeType}');
 
     // ✅ TYPE 1: BlockFunctionBody - { statements }
     if (body is BlockFunctionBody) {
       final stmtCount = body.block.statements.length;
-      print('   ✅ BlockFunctionBody - $stmtCount statements');
+      _log('   ✅ BlockFunctionBody - $stmtCount statements');
 
       if (stmtCount == 0) {
-        print('   ⚠️  Empty block: { }');
+        _log('   ⚠️  Empty block: { }');
       } else {
         for (final stmt in body.block.statements) {
           final extracted = _extractStatement(stmt);
@@ -267,13 +273,13 @@ class StatementExtractionPass {
         }
       }
 
-      print('   ✓ Extracted: ${statements.length} statements');
+      _log('   ✓ Extracted: ${statements.length} statements');
       return statements; // ⬅️ RETURN HERE!
     }
 
     // ✅ TYPE 2: ExpressionFunctionBody - => expression;
     if (body is ExpressionFunctionBody) {
-      print('   ✅ ExpressionFunctionBody (arrow syntax: =>)');
+      _log('   ✅ ExpressionFunctionBody (arrow syntax: =>)');
       statements.add(
         ReturnStmt(
           id: builder.generateId('stmt_return'),
@@ -283,13 +289,13 @@ class StatementExtractionPass {
         ),
       );
 
-      print('   ✓ Extracted: ${statements.length} statements');
+      _log('   ✓ Extracted: ${statements.length} statements');
       return statements; // ⬅️ RETURN HERE!
     }
 
     // ✅ TYPE 3: EmptyFunctionBody (abstract/external/etc)
     // If it's not BlockFunctionBody or ExpressionFunctionBody, it MUST be EmptyFunctionBody
-    print('   ℹ️  EmptyFunctionBody (abstract/external/no implementation)');
+    _log('   ℹ️  EmptyFunctionBody (abstract/external/no implementation)');
     return []; // ⬅️ No statements to extract
   }
 
@@ -725,7 +731,7 @@ class StatementExtractionPass {
       );
     }
     if (expr is StringInterpolation) {
-      print('   [StringInterpolation] Found: ${expr.toString()}');
+      _log('   [StringInterpolation] Found: ${expr.toString()}');
 
       final interpolationParts = <StringInterpolationPart>[];
 
@@ -735,7 +741,7 @@ class StatementExtractionPass {
           // This is literal text part
           final literalText = element.value;
           interpolationParts.add(StringInterpolationPart.text(literalText));
-          print('      [Text Part] "$literalText"');
+          _log('      [Text Part] "$literalText"');
         } else if (element is InterpolationExpression) {
           // This is an expression like $variable or ${expression}
           final exprValue = element.expression;
@@ -743,7 +749,7 @@ class StatementExtractionPass {
           interpolationParts.add(
             StringInterpolationPart.expression(extractedExpr),
           );
-          print('      [Expr Part] ${exprValue.toString()}');
+          _log('      [Expr Part] ${exprValue.toString()}');
         }
       }
 
@@ -761,7 +767,7 @@ class StatementExtractionPass {
         metadata: metadata,
       );
 
-      print('      ✓ Created StringInterpolationExpressionIR');
+      _log('      ✓ Created StringInterpolationExpressionIR');
       return result;
     }
     if (expr is StringLiteral) {
@@ -1097,12 +1103,12 @@ class StatementExtractionPass {
 
       // DEBUG: Print what elements we're processing
       if (expr.elements.isNotEmpty) {
-        print(
+        _log(
           '🔍 ListLiteral with ${expr.elements.length} elements at ${_extractSourceLocation(expr, expr.offset).line}',
         );
         for (var i = 0; i < expr.elements.length && i < 5; i++) {
           final elem = expr.elements[i];
-          print(
+          _log(
             '   Element $i: ${elem.runtimeType} | ${elem.toString().substring(0, elem.toString().length > 60 ? 60 : elem.toString().length)}',
           );
         }
@@ -1129,28 +1135,111 @@ class StatementExtractionPass {
 
     // Map literals
     if (expr is SetOrMapLiteral) {
+      final elements = <ExpressionIR>[];
+
+      for (final element in expr.elements) {
+        if (element is MapLiteralEntry) {
+          elements.add(
+            MapEntryIR(
+              id: builder.generateId('expr_entry'),
+              sourceLocation: _extractSourceLocation(element, element.offset),
+              key: extractExpression(element.key),
+              value: extractExpression(element.value),
+              metadata: {},
+            ),
+          );
+        } else if (element is IfElement) {
+          // Handle collection if: if (c) k: v
+          // Converted to: (c) ? {k: v} : {}
+
+          // Extract "then" branch
+          ExpressionIR thenExpr;
+          if (element.thenElement is MapLiteralEntry) {
+            final entry = element.thenElement as MapLiteralEntry;
+            thenExpr = MapEntryIR(
+              id: builder.generateId('expr_entry_then'),
+              sourceLocation: _extractSourceLocation(entry, entry.offset),
+              key: extractExpression(entry.key),
+              value: extractExpression(entry.value),
+              metadata: {},
+            );
+          } else {
+            // Nested collection element (e.g. another if)?
+            // For now, handling single entry. Complex nesting might require recursive helper.
+            // Fallback to empty map to avoid crash if complex
+            thenExpr = MapExpressionIR(
+              id: builder.generateId('expr_map_fallback'),
+              sourceLocation: sourceLoc,
+              elements: [],
+              resultType: DynamicTypeIR(id: 'dyn', sourceLocation: sourceLoc),
+            );
+          }
+
+          // Extract "else" branch
+          ExpressionIR elseExpr;
+          if (element.elseElement != null) {
+            if (element.elseElement is MapLiteralEntry) {
+              final entry = element.elseElement as MapLiteralEntry;
+              elseExpr = MapEntryIR(
+                id: builder.generateId('expr_entry_else'),
+                sourceLocation: _extractSourceLocation(entry, entry.offset),
+                key: extractExpression(entry.key),
+                value: extractExpression(entry.value),
+                metadata: {},
+              );
+            } else {
+              elseExpr = MapExpressionIR(
+                id: builder.generateId('expr_map_empty_else'),
+                sourceLocation: sourceLoc,
+                elements: [],
+                resultType: DynamicTypeIR(id: 'dyn', sourceLocation: sourceLoc),
+              );
+            }
+          } else {
+            elseExpr = MapExpressionIR(
+              id: builder.generateId('expr_map_empty'),
+              sourceLocation: sourceLoc,
+              elements: [],
+              resultType: DynamicTypeIR(id: 'dyn', sourceLocation: sourceLoc),
+            );
+          }
+
+          elements.add(
+            ConditionalExpressionIR(
+              id: builder.generateId('expr_cond_entry'),
+              condition: extractExpression(element.expression),
+              thenExpression: thenExpr,
+              elseExpression: elseExpr,
+              resultType: DynamicTypeIR(id: 'dyn', sourceLocation: sourceLoc),
+              sourceLocation: sourceLoc,
+            ),
+          );
+        } else if (element is ForElement) {
+          // Collection for: for (x in y) k: v
+          // Complex to implement in IR without IIFE/Helpers.
+          // TODO: Implement ForElement for Maps
+          // Generating NULL literal to skip safeley in generator
+          elements.add(
+            LiteralExpressionIR(
+              id: builder.generateId('expr_skip_for'),
+              sourceLocation: sourceLoc,
+              value: null,
+              literalType: LiteralType.nullValue,
+              resultType: DynamicTypeIR(id: 'dyn', sourceLocation: sourceLoc),
+            ),
+          );
+        }
+      }
+
       return MapExpressionIR(
         id: builder.generateId('expr_map'),
-        entries: expr.elements
-            .whereType<MapLiteralEntry>()
-            .map(
-              (e) => MapEntryIR(
-                id: builder.generateId('expr_entry'),
-                sourceLocation: _extractSourceLocation(e, e.offset),
-                key: extractExpression(e.key),
-                value: extractExpression(e.value),
-                metadata: {},
-              ),
-            )
-            .toList(),
-        resultType: SimpleTypeIR(
+        elements: elements,
+        resultType: DynamicTypeIR(
           id: builder.generateId('type'),
-          name: 'Map',
-          isNullable: false,
           sourceLocation: sourceLoc,
-          // metadata: {},
         ),
         sourceLocation: sourceLoc,
+        isConst: expr.isConst,
         metadata: metadata,
       );
     }
@@ -1259,7 +1348,9 @@ class StatementExtractionPass {
           builder: builder,
           fileContent: fileContent,
           filePath: filePath,
+          verbose: verbose,
         ),
+        verbose: verbose,
       );
 
       final parameters = formalParamExtractor.extractLambdaParameters(
@@ -1369,6 +1460,20 @@ class StatementExtractionPass {
       return ThrowExpr(
         id: builder.generateId('expr_throw'),
         exceptionExpression: extractExpression(expr.expression),
+        resultType: DynamicTypeIR(
+          id: builder.generateId('type'),
+          sourceLocation: sourceLoc,
+        ),
+        sourceLocation: sourceLoc,
+        metadata: metadata,
+      );
+    }
+
+    // Await expression
+    if (expr is AwaitExpression) {
+      return AwaitExpr(
+        id: builder.generateId('expr_await'),
+        futureExpression: extractExpression(expr.expression),
         resultType: DynamicTypeIR(
           id: builder.generateId('type'),
           sourceLocation: sourceLoc,

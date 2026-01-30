@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:analyzer/dart/analysis/utilities.dart';
@@ -7,6 +8,30 @@ import 'package:flutterjs_gen/flutterjs_gen.dart';
 import 'package:flutterjs_core/src/analysis/visitors/declaration_pass.dart';
 import 'package:flutterjs_core/src/ir/declarations/dart_file_builder.dart';
 import 'package_resolver.dart';
+
+/// Helper class for showing heartbeat progress during long operations
+class _ProgressHeartbeat {
+  Timer? _timer;
+  final String taskName;
+  final Duration interval;
+  int _elapsed = 0;
+
+  _ProgressHeartbeat(
+    this.taskName, {
+    this.interval = const Duration(seconds: 10),
+  });
+
+  void start() {
+    _timer = Timer.periodic(interval, (timer) {
+      _elapsed += interval.inSeconds;
+      print('  ⏳ Still working on $taskName... (${_elapsed}s elapsed)');
+    });
+  }
+
+  void stop() {
+    _timer?.cancel();
+  }
+}
 
 /// Compiles a Dart package to FlutterRS-compatible JavaScript
 class PackageCompiler {
@@ -53,54 +78,13 @@ class PackageCompiler {
       await distDir.create(recursive: true);
     }
 
-    print('Compiling package at $packagePath (using $_sourceDirName)...');
+    final stopwatch = Stopwatch()..start();
 
-    final exportsList = <Map<String, String>>[];
-
-    await for (final entity in sourceDir.list(recursive: true)) {
-      if (entity is File && entity.path.endsWith('.dart')) {
-        final dartFile = await _compileFile(entity);
-        if (dartFile != null) {
-          final relativePath = p.relative(
-            entity.path,
-            from: p.join(packagePath, sourceDirName),
-          );
-          final jsPath =
-              './dist/${p.setExtension(relativePath, '.js')}'; // path seems to need ./dist prefix
-
-          for (final cls in dartFile.classDeclarations) {
-            exportsList.add({
-              'name': cls.name,
-              'path': jsPath,
-              'type': 'class',
-            });
-          }
-          for (final func in dartFile.functionDeclarations) {
-            exportsList.add({
-              'name': func.name,
-              'path': jsPath,
-              'type':
-                  'class', // Using class as generic export type based on existing files
-            });
-          }
-          // Add others if needed
-        }
-      }
-    }
-
-    // Generate exports.json
+    // Extract package name for better progress messages
+    var packageName = p.basename(packagePath);
     final pubspecFile = File(p.join(packagePath, 'pubspec.yaml'));
-    String version = '0.0.1';
-    String packageName = 'unknown';
-
     if (await pubspecFile.exists()) {
       final pubspecContent = await pubspecFile.readAsString();
-      final versionMatch = RegExp(
-        r'^version:\s+(.+)$',
-        multiLine: true,
-      ).firstMatch(pubspecContent);
-      if (versionMatch != null) version = versionMatch.group(1)!.trim();
-
       final nameMatch = RegExp(
         r'^name:\s+(.+)$',
         multiLine: true,
@@ -108,16 +92,89 @@ class PackageCompiler {
       if (nameMatch != null) packageName = nameMatch.group(1)!.trim();
     }
 
-    final manifest = {
-      'package': packageName,
-      'version': version,
-      'exports': exportsList,
-    };
+    final heartbeat = _ProgressHeartbeat(
+      packageName,
+      interval: Duration(seconds: 10),
+    );
+    heartbeat.start();
 
-    await File(
-      p.join(packagePath, 'exports.json'),
-    ).writeAsString(jsonEncode(manifest));
-    print('✅ Generated exports.json for $packageName');
+    if (verbose) {
+      print('Compiling package at $packagePath (using $_sourceDirName)...');
+    }
+
+    try {
+      final exportsList = <Map<String, String>>[];
+
+      await for (final entity in sourceDir.list(recursive: true)) {
+        if (entity is File && entity.path.endsWith('.dart')) {
+          final dartFile = await _compileFile(entity);
+          if (dartFile != null) {
+            final relativePath = p.relative(
+              entity.path,
+              from: p.join(packagePath, sourceDirName),
+            );
+            final jsPath =
+                './dist/${p.setExtension(relativePath, '.js')}'; // path seems to need ./dist prefix
+
+            for (final cls in dartFile.classDeclarations) {
+              exportsList.add({
+                'name': cls.name,
+                'path': jsPath,
+                'type': 'class',
+              });
+            }
+            for (final func in dartFile.functionDeclarations) {
+              exportsList.add({
+                'name': func.name,
+                'path': jsPath,
+                'type':
+                    'class', // Using class as generic export type based on existing files
+              });
+            }
+            // Add others if needed
+          }
+        }
+      }
+
+      // Generate exports.json
+      final pubspecFile = File(p.join(packagePath, 'pubspec.yaml'));
+      String version = '0.0.1';
+      String packageName = 'unknown';
+
+      if (await pubspecFile.exists()) {
+        final pubspecContent = await pubspecFile.readAsString();
+        final versionMatch = RegExp(
+          r'^version:\s+(.+)$',
+          multiLine: true,
+        ).firstMatch(pubspecContent);
+        if (versionMatch != null) version = versionMatch.group(1)!.trim();
+
+        final nameMatch = RegExp(
+          r'^name:\s+(.+)$',
+          multiLine: true,
+        ).firstMatch(pubspecContent);
+        if (nameMatch != null) packageName = nameMatch.group(1)!.trim();
+      }
+
+      final manifest = {
+        'package': packageName,
+        'version': version,
+        'exports': exportsList,
+      };
+
+      await File(
+        p.join(packagePath, 'exports.json'),
+      ).writeAsString(jsonEncode(manifest));
+
+      stopwatch.stop();
+      if (verbose || stopwatch.elapsedMilliseconds > 1000) {
+        print('✅ Compiled $packageName in ${stopwatch.elapsedMilliseconds}ms');
+      } else if (!verbose) {
+        // Minimal output for fast builds if needed, or keep silent
+      }
+    } finally {
+      heartbeat.stop();
+    }
   }
 
   Future<DartFile?> _compileFile(File file) async {
@@ -150,6 +207,7 @@ class PackageCompiler {
         filePath: file.path,
         fileContent: content,
         builder: builder,
+        verbose: verbose,
       );
 
       pass.extractDeclarations(unit);
@@ -165,9 +223,9 @@ class PackageCompiler {
       )) {
         if (verbose)
           print(
-            '   ⚠️ Skipping $relativePath (platform specific dependencies)',
+            '   ⚠️ Warning: $relativePath uses platform specific dependencies (runtime failure possible)',
           );
-        return null;
+        // Continue compilation anyway
       }
 
       // 3. Generate JS from IR
@@ -227,6 +285,7 @@ class PackageCompiler {
           }
           return uri;
         },
+        verbose: verbose,
       );
       final result = await pipeline.generateFile(dartFile);
 

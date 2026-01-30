@@ -16,7 +16,6 @@ import 'package:flutterjs_tools/src/runner/helper.dart';
 import 'package:path/path.dart' as path;
 import 'package:dart_analyzer/dart_analyzer.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
-import 'package:pubjs/pubjs.dart';
 
 /// ============================================================================
 /// RunCommand
@@ -758,6 +757,25 @@ class SetupManager {
       // BEFORE code generation starts (so imports can be resolved correctly)
       if (!config.jsonOutput) print('\n📦 Preparing packages...');
 
+      // ✅ NEW: Verify Packages are Ready
+      // The user must run `flutterjs get` manually before running.
+      final packageConfigPath = path.join(
+        absoluteProjectPath,
+        '.dart_tool',
+        'package_config.json',
+      );
+      if (!File(packageConfigPath).existsSync()) {
+        print(
+          '❌ Project not initialized or missing dependencies.\n👉 Please run `flutterjs get` first.',
+        );
+        return null;
+      }
+      // Also check if node_modules/@flutterjs exists as a sanity check?
+      // Probably sufficient to check package_config for now.
+      if (!config.jsonOutput) print('✓ Dependencies verified.');
+
+      /*
+      // REMOVED: Implicit get/prepare. User must do it manually.
       final packageManager = RuntimePackageManager();
       final packagesReady = await packageManager.preparePackages(
         projectPath: absoluteProjectPath,
@@ -769,6 +787,7 @@ class SetupManager {
         print('❌ Package preparation failed. Cannot continue.');
         return null;
       }
+      */
 
       // Initialize parser
       if (!config.jsonOutput) print('Initializing Dart parser...\n');

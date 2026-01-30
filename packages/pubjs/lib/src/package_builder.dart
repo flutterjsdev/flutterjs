@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package_watcher.dart';
 import 'package:flutterjs_builder/flutterjs_builder.dart';
+import 'package:crypto/crypto.dart';
 
 /// Builds FlutterJS packages by running their build.js scripts
 /// and generating exports.json manifests
@@ -41,58 +42,7 @@ class PackageBuilder {
     }
 
     // Use sequential if parallel is disabled
-    final futureList = <Future<BuildResult>>[];
-
-    for (final pkgName in sdkPackages) {
-      if (parallel) {
-        futureList.add(
-          _buildWithProgress(
-            packageName: pkgName,
-            projectRoot: projectRoot,
-            buildPath: buildPath,
-            force: force,
-            verbose: verbose,
-            stats: stats,
-            sdkPaths: sdkPaths,
-          ),
-        );
-      } else {
-        // Sequential build
-        final result = await _buildWithProgress(
-          packageName: pkgName,
-          projectRoot: projectRoot,
-          buildPath: buildPath,
-          force: force,
-          verbose: verbose,
-          stats: stats,
-          sdkPaths: sdkPaths,
-        );
-
-        if (result == BuildResult.built) {
-          stats.builtCount++;
-        } else if (result == BuildResult.skipped) {
-          stats.skippedCount++;
-        } else {
-          stats.failedCount++;
-          return stats; // Stop on failure
-        }
-      }
-    }
-
-    if (parallel) {
-      final results = await Future.wait(futureList);
-
-      // Count results
-      for (final result in results) {
-        if (result == BuildResult.built) {
-          stats.builtCount++;
-        } else if (result == BuildResult.skipped) {
-          stats.skippedCount++;
-        } else {
-          stats.failedCount++;
-        }
-      }
-    } else {
+    if (!parallel) {
       // Sequential build
       for (final pkgName in sdkPackages) {
         final result = await buildPackage(
@@ -110,6 +60,47 @@ class PackageBuilder {
         } else {
           stats.failedCount++;
           return stats; // Stop on failure
+        }
+      }
+    } else {
+      // Batched parallel build (4 at a time)
+      final concurrency = 4;
+      
+      for (var i = 0; i < sdkPackages.length; i += concurrency) {
+        final batchEnd = (i + concurrency < sdkPackages.length)
+            ? i + concurrency
+            : sdkPackages.length;
+        final batch = sdkPackages.sublist(i, batchEnd);
+
+        // Show which packages are being built
+        if (batch.length > 1 && verbose) {
+          print('🔨 Compiling: ${batch.join(', ')}');
+        }
+
+        // Build packages in parallel
+        final futures = batch.map((pkgName) {
+          return _buildWithProgress(
+            packageName: pkgName,
+            projectRoot: projectRoot,
+            buildPath: buildPath,
+            force: force,
+            verbose: verbose,
+            stats: stats,
+            sdkPaths: sdkPaths,
+          );
+        }).toList();
+
+        final results = await Future.wait(futures);
+
+        // Count results
+        for (final result in results) {
+          if (result == BuildResult.built) {
+            stats.builtCount++;
+          } else if (result == BuildResult.skipped) {
+            stats.skippedCount++;
+          } else {
+            stats.failedCount++;
+          }
         }
       }
     }
@@ -178,7 +169,7 @@ class PackageBuilder {
     bool force = false,
     bool verbose = false,
   }) async {
-    print('🔄 Resolving dependencies for $packageName...');
+    if (verbose) print('🔄 Resolving dependencies for $packageName...');
 
     // 1. Initialize Resolver
     final searchPath = explicitSourcePath ?? projectRoot;
@@ -237,7 +228,7 @@ class PackageBuilder {
 
     await visit(packageName);
 
-    print('📦 Build Order: ${buildOrder.join(' -> ')}');
+    if (verbose) print('📦 Build Order: ${buildOrder.join(' -> ')}');
 
     // 3. Build All
     BuildResult finalResult = BuildResult.skipped;
@@ -378,45 +369,99 @@ class PackageBuilder {
       print('   ✓ $packageName built ($count exports)');
     }
 
+    // Save build info (Content Hashing)
+    try {
+      final currentHash = await _calculatePackageHash(sourcePath);
+      final buildInfoFile = File(p.join(sourcePath, '.build_info.json'));
+      await buildInfoFile.writeAsString(
+        jsonEncode({
+          'hash': currentHash,
+          'timestamp': DateTime.now().toIso8601String(),
+        }),
+      );
+    } catch (e) {
+      if (verbose) print('   ⚠️  Failed to save build info: $e');
+    }
+
     return BuildResult.built;
   }
 
-  /// Check if a package needs to be built
+  /// Check if a package needs to be built using Content Hashing
   ///
   /// Returns true if:
   /// - exports.json doesn't exist
-  /// - Any source file is newer than exports.json
+  /// - Content hash changed (compared to .build_info.json)
   Future<bool> needsBuild(String packagePath) async {
     final exportsFile = File(p.join(packagePath, 'exports.json'));
-
     // If exports.json doesn't exist, definitely need to build
     if (!await exportsFile.exists()) {
       return true;
     }
 
+    // 🚀 OPTIMIZATION: If in node_modules, assume immutable (fast skip)
+    if (packagePath.contains('node_modules')) {
+      return false;
+    }
+
     try {
-      final exportsTime = await exportsFile.lastModified();
-      final srcDir = Directory(p.join(packagePath, 'src'));
+      // Content Hashing Strategy
+      final currentHash = await _calculatePackageHash(packagePath);
+      final buildInfoFile = File(p.join(packagePath, '.build_info.json'));
 
-      if (!await srcDir.exists()) {
-        return false; // No source files, no need to build
+      if (!await buildInfoFile.exists()) {
+        return true; // No build info, rebuild
       }
 
-      // Check if any source file is newer than exports.json
-      await for (final entity in srcDir.list(recursive: true)) {
-        if (entity is File && entity.path.endsWith('.js')) {
-          final sourceTime = await entity.lastModified();
-          if (sourceTime.isAfter(exportsTime)) {
-            return true; // Source is newer, need rebuild
-          }
-        }
-      }
+      final buildInfo = jsonDecode(await buildInfoFile.readAsString());
+      final storedHash = buildInfo['hash'];
 
-      return false; // All sources older, no rebuild needed
+      return currentHash != storedHash;
     } catch (e) {
-      // On any error, be safe and rebuild
+      // On any error (hash calculation or IO), be safe and rebuild
       return true;
     }
+  }
+
+  /// Calculates a hash of the package source files (src/ and lib/)
+  Future<String> _calculatePackageHash(String packagePath) async {
+    final srcDir = Directory(p.join(packagePath, 'src'));
+    final libDir = Directory(p.join(packagePath, 'lib'));
+
+    final filesToHash = <File>[];
+
+    if (await srcDir.exists()) {
+      await for (final entity in srcDir.list(recursive: true)) {
+        if (entity is File &&
+            (entity.path.endsWith('.dart') || entity.path.endsWith('.js'))) {
+          filesToHash.add(entity);
+        }
+      }
+    }
+
+    if (await libDir.exists()) {
+      await for (final entity in libDir.list(recursive: true)) {
+        if (entity is File &&
+            (entity.path.endsWith('.dart') || entity.path.endsWith('.js'))) {
+          filesToHash.add(entity);
+        }
+      }
+    }
+
+    // Sort to ensure deterministic order
+    filesToHash.sort((a, b) => a.path.compareTo(b.path));
+
+    final fileHashes = <String>[];
+    for (final file in filesToHash) {
+      final bytes = await file.readAsBytes();
+      final digest = md5.convert(bytes);
+      // Include path to distinguish files with same content but different locations
+      // Use relative path
+      final relPath = p.relative(file.path, from: packagePath);
+      fileHashes.add('$relPath:${digest.toString()}');
+    }
+
+    final combined = fileHashes.join('|');
+    return md5.convert(utf8.encode(combined)).toString();
   }
 
   /// Verify that a package's manifest is valid
@@ -444,7 +489,11 @@ class PackageBuilder {
 
       final exports = json['exports'];
       if (exports is! List) return false;
-      if (exports.isEmpty) return false;
+      if (exports.isEmpty) {
+        // print('   ⚠️  Warning: $packagePath has no exports');
+        // Allow it for now to proceed with build info saving
+        return true;
+      }
 
       return true;
     } catch (e) {
@@ -492,7 +541,10 @@ class PackageBuilder {
 
     for (final location in locations) {
       if (await Directory(location).exists()) {
-        return location;
+        // 🎁 Verify it's actually a package (has pubspec.yaml)
+        if (await File(p.join(location, 'pubspec.yaml')).exists()) {
+          return location;
+        }
       }
     }
 

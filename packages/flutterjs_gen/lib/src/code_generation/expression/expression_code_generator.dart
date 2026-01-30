@@ -49,6 +49,7 @@ class ExpressionCodeGen {
   final ExpressionGenConfig config;
   final List<CodeGenError> errors = [];
   final List<CodeGenWarning> warnings = [];
+  final bool verbose;
 
   /// ✅ NEW: Track the current function context
   FunctionDecl? _currentFunctionContext;
@@ -66,9 +67,14 @@ class ExpressionCodeGen {
     ExpressionGenConfig? config,
     FunctionDecl? currentFunctionContext,
     ClassDecl? currentClassContext,
+    this.verbose = false,
   }) : config = config ?? const ExpressionGenConfig(),
        _currentFunctionContext = currentFunctionContext,
        _currentClassContext = currentClassContext;
+
+  void _log(String message) {
+    if (verbose) print(message);
+  }
 
   /// ✅ NEW: Set context when generating expressions for a function
   void setFunctionContext(FunctionDecl? func) {
@@ -238,6 +244,10 @@ class ExpressionCodeGen {
       return _generateMapLiteral(expr);
     }
 
+    if (expr is MapEntryIR) {
+      return _generateMapEntry(expr); // ✅ Handle MapEntryIR as expression
+    }
+
     if (expr is SetExpressionIR) {
       return _generateSetLiteral(expr);
     }
@@ -323,13 +333,11 @@ class ExpressionCodeGen {
 
   // Add this new method:
   String _generateFunctionExpression(FunctionExpressionIR expr) {
-    print('   🔵 [FunctionExpression] Generating lambda...');
+    _log('   🔵 [FunctionExpression] Generating lambda...');
 
-    // =========================================================================
-    // STEP 1: Generate parameter list
-    // =========================================================================
+    // Block with multiple print calls using _log
     final params = expr.parameter.map((p) => p.name).join(', ');
-    print('   📍 Parameters: $params');
+    _log('   📍 Parameters: $params');
 
     // =========================================================================
     // STEP 2: Extract the body expression
@@ -344,14 +352,14 @@ class ExpressionCodeGen {
         final returnStmt = statements.first as ReturnStmt;
         if (returnStmt.expression != null) {
           bodyCode = generate(returnStmt.expression!, parenthesize: false);
-          print('   📍 Body type: single return');
+          _log('   📍 Body type: single return');
         }
       }
       // Single expression statement: (x) => expr
       else if (statements.length == 1 && statements.first is ExpressionStmt) {
         final exprStmt = statements.first as ExpressionStmt;
         bodyCode = generate(exprStmt.expression, parenthesize: false);
-        print('   📍 Body type: single expression');
+        _log('   📍 Body type: single expression');
       }
       // Multiple statements: (x) { stmt1; stmt2; }
       else {
@@ -369,10 +377,10 @@ class ExpressionCodeGen {
             .join(' ');
 
         bodyCode = '{ $stmtCode }';
-        print('   📍 Body type: multiple statements');
+        _log('   📍 Body type: multiple statements');
       }
     } else {
-      print('   ⚠️  No body statements found');
+      _log('   ⚠️  No body statements found');
     }
 
     // =========================================================================
@@ -391,7 +399,7 @@ class ExpressionCodeGen {
       result = '($params) => $bodyCode';
     }
 
-    print('   ✅ Generated: $result');
+    _log('   ✅ Generated: $result');
     return result;
   }
   // =========================================================================
@@ -828,7 +836,7 @@ class ExpressionCodeGen {
         }
       }
 
-      print('   Fallback: Using source text: "${expr.source}"');
+      _log('   Fallback: Using source text: "${expr.source}"');
       warnings.add(
         CodeGenWarning(
           severity: WarningSeverity.warning,
@@ -980,8 +988,10 @@ class ExpressionCodeGen {
           return 'this.$name';
         }
 
-        // Default to adding this. prefix for safety for private names in classes
-        return 'this.$name';
+        // ⚠️ FIX: Do NOT default to 'this.' if not found in fields.
+        // It could be a top-level function or variable (e.g. _closeSink).
+        // Dart guarantees resolution; if it's not a field, it must be top-level/imported.
+        return name;
       }
 
       // For known special identifiers
@@ -1285,15 +1295,45 @@ class ExpressionCodeGen {
   }
 
   String _generateMapLiteral(MapExpressionIR expr) {
-    final entries = expr.entries
-        .map((entry) {
-          final key = _generateMapKey(entry.key);
-          final value = generate(entry.value, parenthesize: false);
-          return '$key: $value';
-        })
-        .join(', ');
+    if (expr.elements.isEmpty) {
+      return '{}';
+    }
 
-    return '{$entries}';
+    final entryStrings = <String>[];
+
+    for (final element in expr.elements) {
+      // ✅ Start handling diverse map elements
+
+      // 1. Literal NULL (from skipped ForElement etc.)
+      if (element is LiteralExpressionIR &&
+          element.literalType == LiteralType.nullValue) {
+        continue;
+      }
+
+      // 2. Standard MapEntryIR
+      if (element is MapEntryIR) {
+        final key = _generateMapKey(element.key);
+        final value = generate(element.value, parenthesize: false);
+        entryStrings.add('$key: $value');
+        continue;
+      }
+
+      // 3. Conditional / Spread / Other Expression
+      // Assuming these evaluate to an object we can spread
+      // e.g. Conditional: (c) ? {k:v} : {}
+      final spreadExpr = generate(element, parenthesize: true);
+      entryStrings.add('...$spreadExpr');
+    }
+
+    return '{ ${entryStrings.join(', ')} }';
+  }
+
+  // ✅ Add helper for MapEntryIR (used when it appears as expression in conditional)
+  // Generates { key: value } as a standalone object
+  String _generateMapEntry(MapEntryIR expr) {
+    final key = _generateMapKey(expr.key);
+    final value = generate(expr.value, parenthesize: false);
+    return '{ $key: $value }';
   }
 
   String _generateMapKey(ExpressionIR keyExpr) {
@@ -1312,8 +1352,10 @@ class ExpressionCodeGen {
       return _escapeString(str);
     }
 
-    // Otherwise compute key
-    return generate(keyExpr, parenthesize: true);
+    // Otherwise compute key (Use brackets for computed property names in JS)
+    // e.g. { [new Foo()]: 'bar' }
+    final keyExprCode = generate(keyExpr, parenthesize: false);
+    return '[$keyExprCode]';
   }
 
   String _generateSetLiteral(SetExpressionIR expr) {
@@ -1532,7 +1574,11 @@ class ExpressionCodeGen {
     final args = _generateArgumentList(expr.arguments, expr.namedArguments);
 
     // ✅ FIX: Use 'new' only for unnamed constructors (static methods don't use 'new')
-    final prefix = (expr.constructorName?.isNotEmpty ?? false) ? '' : 'new ';
+    // Also skip 'new' for RequestInit (package:web interop)
+    final prefix =
+        (expr.constructorName?.isNotEmpty ?? false) || typeName == 'RequestInit'
+        ? ''
+        : 'new ';
 
     return '$prefix$typeName$constructorName($args)';
   }
@@ -1597,14 +1643,14 @@ class ExpressionCodeGen {
         // NEW: Skip null literals
         if (expr is LiteralExpressionIR &&
             expr.literalType == LiteralType.nullValue) {
-          print('⚠️  Skipping null positional argument');
+          _log('⚠️  Skipping null positional argument');
           continue;
         }
 
         final code = generate(expr, parenthesize: false);
         parts.add(code);
       } catch (e) {
-        print('❌ Error generating positional argument: $e');
+        _log('❌ Error generating positional argument: $e');
         warnings.add(
           CodeGenWarning(
             severity: WarningSeverity.warning,
@@ -1630,7 +1676,7 @@ class ExpressionCodeGen {
           // ✅ FIX 2: Skip null named arguments
           if (argExpr is LiteralExpressionIR &&
               argExpr.literalType == LiteralType.nullValue) {
-            print('⚠️  Skipping null named argument: $argName');
+            _log('⚠️  Skipping null named argument: $argName');
             continue;
           }
 
@@ -1727,6 +1773,22 @@ class ExpressionCodeGen {
           return value;
         }
 
+        // ✅ FIX: Skip cast validation for package:web / JS interop types
+        // These often don't exist as classes at runtime (interfaces/typedefs)
+        if (targetType.endsWith('Init') ||
+            targetType.endsWith('Info') ||
+            targetType.endsWith('Options') ||
+            targetType.endsWith('Event') ||
+            targetType.startsWith('JS') ||
+            targetType == 'Promise' ||
+            targetType == 'Object' ||
+            targetType == 'String' ||
+            targetType == 'Number' ||
+            targetType == 'Boolean' ||
+            targetType == 'Function') {
+          return value;
+        }
+
         // Generic cast with instanceof check
         return '($value instanceof $targetType) ? $value : (() => { throw new Error("Cast failed to $rawTargetType"); })()';
     }
@@ -1759,7 +1821,16 @@ class ExpressionCodeGen {
   }
 
   String _generateTypeCheckExpression(String value, String rawTypeName) {
-    final typeName = _stripGenerics(rawTypeName);
+    var typeName = _stripGenerics(rawTypeName);
+
+    // ✅ FIX: Handle generic function types (e.g. "void Function()")
+    // rawTypeName might be "void Function(Object)", stripGenerics returns "void Function(Object)" (incomplete logic)
+    // or if stripped, it might be "Function".
+    // If it contains "Function" or starts with "Function", treat as function type
+    if (rawTypeName.contains('Function') || typeName == 'Function') {
+      return 'typeof $value === \'function\'';
+    }
+
     switch (typeName) {
       case 'String':
         return 'typeof $value === \'string\'';
@@ -1777,14 +1848,25 @@ class ExpressionCodeGen {
       case 'Set':
         return '$value instanceof Set';
       case 'null':
-        return '$value === null';
       case 'Null':
         return '$value === null';
+      case 'dynamic':
+      case 'Object':
+        return 'true'; // Always true
       default:
         // ✅ Handle erased generic type parameters (usually single letters like E, T, K, V)
         // JavaScript doesn't have runtime generic types, so 'instanceof E' will fail.
         if (typeName.length == 1 && typeName == typeName.toUpperCase()) {
           return 'true'; // Best we can do in JS for erased generics
+        }
+
+        // ✅ FIX: Skip instanceof for JS interop types or invalid identifiers
+        if (typeName.contains(' ') ||
+            typeName.contains('<') ||
+            typeName.contains('(')) {
+          // Fallback for complex types that got through stripping
+          // Likely a function type signature that wasn't caught above
+          return 'true /* approximate check for $rawTypeName */';
         }
 
         warnings.add(

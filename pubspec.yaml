@@ -20,9 +20,9 @@ workspace:
   - packages/flutterjs_dev_tools/
   - packages/pubjs/
   - packages/flutterjs_seo/
-  - packages/flutterjs_seo/example/
   - packages/flutterjs_builder/
   - examples/pub_test_app/
+  - examples/flutterjs_website/
 
 environment:
   sdk: ^3.10.0-227.0.dev
@@ -45,5 +45,6 @@ dependencies:
 dev_dependencies:
   lints: ^6.0.0
   test: ^1.25.6
+
 
 
