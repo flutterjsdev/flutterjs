@@ -5,8 +5,16 @@ import 'package:path/path.dart' as p;
 
 class PackageDownloader {
   final http.Client _client;
+  final bool verbose;
 
-  PackageDownloader({http.Client? client}) : _client = client ?? http.Client();
+  PackageDownloader({
+    http.Client? client,
+    this.verbose = false,
+  }) : _client = client ?? http.Client();
+
+  void _log(String message) {
+    if (verbose) print(message);
+  }
 
   /// Downloads a tarball from [url] and extracts it to [destinationPath].
   ///
@@ -16,7 +24,7 @@ class PackageDownloader {
   ///
   /// Returns the path to the extracted package root.
   Future<String> downloadAndExtract(String url, String destinationPath) async {
-    print('Downloading $url...');
+    _log('Downloading $url...');
     final response = await _client.get(Uri.parse(url));
 
     if (response.statusCode != 200) {
@@ -25,7 +33,7 @@ class PackageDownloader {
       );
     }
 
-    print('Extracting to $destinationPath...');
+    _log('Extracting to $destinationPath...');
 
     // Detect archive type by URL or try both decoders
     Archive archive;
@@ -94,7 +102,7 @@ class PackageDownloader {
       }
     }
 
-    print('Extraction complete: $destinationPath');
+    _log('Extraction complete: $destinationPath');
     return destinationPath;
   }
 }

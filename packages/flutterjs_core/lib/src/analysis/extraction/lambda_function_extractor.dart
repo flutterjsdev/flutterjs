@@ -15,13 +15,19 @@ class SimpleLambdaExtractor {
   final String fileContent;
   final DartFileBuilder builder;
   final StatementExtractionPass statementExtractor;
+  final bool verbose;
 
   SimpleLambdaExtractor({
     required this.filePath,
     required this.fileContent,
     required this.builder,
     required this.statementExtractor,
+    this.verbose = false,
   });
+
+  void _log(String message) {
+    if (verbose) print(message);
+  }
 
   /// Extract lambda using extractBodyStatements directly
   FunctionExpressionIR extractLambda({
@@ -34,7 +40,7 @@ class SimpleLambdaExtractor {
       // STEP 1: Extract parameters (same for both block and arrow)
       // =========================================================================
       final parameters = extractLambdaParameters(expr.parameters);
-      print('   🔹 Lambda parameters: ${parameters.length}');
+      _log('   🔹 Lambda parameters: ${parameters.length}');
 
       // =========================================================================
       // STEP 2: Extract body using extractBodyStatements directly
@@ -42,7 +48,7 @@ class SimpleLambdaExtractor {
       final bodyStatements = statementExtractor.extractBodyStatements(
         expr.body,
       );
-      print('   ✅ Body statements extracted: ${bodyStatements.length}');
+      _log('   ✅ Body statements extracted: ${bodyStatements.length}');
 
       // =========================================================================
       // STEP 3: Classify lambda
@@ -52,13 +58,13 @@ class SimpleLambdaExtractor {
         paramCount: parameters.length,
         statementCount: bodyStatements.length,
       );
-      print('   🔹 Classification: $classification');
+      _log('   🔹 Classification: $classification');
 
       // =========================================================================
       // STEP 4: Infer return type
       // =========================================================================
       final returnType = _inferReturnType(bodyStatements, sourceLocation);
-      print('   🔹 Return type: ${returnType.runtimeType}');
+      _log('   🔹 Return type: ${returnType.runtimeType}');
 
       // =========================================================================
       // STEP 5: Build metadata
@@ -91,7 +97,7 @@ class SimpleLambdaExtractor {
         isGenerator: expr.body.isGenerator,
       );
     } catch (e, st) {
-      print('   ❌ Lambda extraction failed: $e\n$st');
+      _log('   ❌ Lambda extraction failed: $e\n$st');
       return _createFallbackLambda(expr, sourceLocation, e.toString());
     }
   }

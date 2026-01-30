@@ -31,8 +31,9 @@ class ModelToJSPipeline {
 
   // Optional callback to rewrite import URIs (e.g. package: -> relative path)
   final String Function(String uri)? importRewriter;
+  final bool verbose;
 
-  ModelToJSPipeline({this.importRewriter}) {
+  ModelToJSPipeline({this.importRewriter, this.verbose = false}) {
     _initializeDiagnostics();
     _initializeGenerators();
   }
@@ -315,6 +316,16 @@ class ModelToJSPipeline {
     for (final import in dartFile.imports) {
       String importPath = import.uri;
 
+      // ✅ Resolve conditional imports (Prioritize Web)
+      for (final config in import.configurations) {
+        if (config.name == 'dart.library.js_interop' ||
+            config.name == 'dart.library.html' ||
+            config.name == 'dart.library.ui_web') {
+          importPath = config.uri;
+          break;
+        }
+      }
+
       // Convert package: URI to JS import path
       if (importPath.startsWith('package:')) {
         importPath = _convertPackageUriToJsPath(importPath);
@@ -437,6 +448,16 @@ class ModelToJSPipeline {
       buffer.writeln('// RE-EXPORTS');
       for (final export in dartFile.exports) {
         String jsPath = export.uri;
+
+        // ✅ Resolve conditional exports (Prioritize Web)
+        for (final config in export.configurations) {
+          if (config.name == 'dart.library.js_interop' ||
+              config.name == 'dart.library.html' ||
+              config.name == 'dart.library.ui_web') {
+            jsPath = config.uri;
+            break;
+          }
+        }
         if (importRewriter != null) {
           jsPath = importRewriter!(jsPath);
         } else if (jsPath.endsWith('.dart') && !jsPath.startsWith('dart:')) {
@@ -487,7 +508,7 @@ class ModelToJSPipeline {
     final timestamp = DateTime.now().toString().split('.')[0];
     final logLine = '[$timestamp] $message';
     logs.add(logLine);
-    print(logLine);
+    if (verbose) print(logLine);
   }
 
   String getFullLog() => logs.join('\n');

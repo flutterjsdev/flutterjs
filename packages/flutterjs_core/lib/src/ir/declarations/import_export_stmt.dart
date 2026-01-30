@@ -61,6 +61,9 @@ class ImportStmt {
   /// Metadata annotations on the import
   final List<AnnotationIR> annotations;
 
+  /// Conditional import configurations (e.g. if (dart.library.io) '...')
+  final List<ImportConfiguration> configurations;
+
   const ImportStmt({
     required this.uri,
     this.prefix,
@@ -70,6 +73,7 @@ class ImportStmt {
     required this.sourceLocation,
     this.documentation,
     this.annotations = const [],
+    this.configurations = const [],
   });
 
   /// Whether this import shows a specific name
@@ -117,6 +121,8 @@ class ImportStmt {
       if (documentation != null) 'documentation': documentation,
       if (annotations.isNotEmpty)
         'annotations': annotations.map((a) => a.toJson()).toList(),
+      if (configurations.isNotEmpty)
+        'configurations': configurations.map((c) => c.toJson()).toList(),
     };
   }
 
@@ -148,12 +154,16 @@ class ExportStmt {
   /// Optional documentation comment
   final String? documentation;
 
+  /// Conditional export configurations
+  final List<ImportConfiguration> configurations;
+
   const ExportStmt({
     required this.uri,
     this.showList = const [],
     this.hideList = const [],
     required this.sourceLocation,
     this.documentation,
+    this.configurations = const [],
   });
 
   /// Whether this export exposes a specific name
@@ -199,6 +209,8 @@ class ExportStmt {
       if (hideList.isNotEmpty) 'hideList': hideList,
       'sourceLocation': sourceLocation.toJson(),
       if (documentation != null) 'documentation': documentation,
+      if (configurations.isNotEmpty)
+        'configurations': configurations.map((c) => c.toJson()).toList(),
     };
   }
 }
@@ -235,4 +247,25 @@ class PartOfStmt {
 
   @override
   String toString() => 'part of $libraryName;';
+}
+
+/// Represents a configuration for conditional imports/exports
+@immutable
+class ImportConfiguration {
+  /// The condition name (e.g. 'dart.library.io')
+  final String name;
+
+  /// The condition value (e.g. 'true')
+  final String value;
+
+  /// The URI to use if the condition is met
+  final String uri;
+
+  const ImportConfiguration({
+    required this.name,
+    required this.value,
+    required this.uri,
+  });
+
+  Map<String, dynamic> toJson() => {'name': name, 'value': value, 'uri': uri};
 }

@@ -20,6 +20,7 @@ class RuntimePackageManager {
   final ConfigResolver _configResolver;
   final ConfigGenerator _configGenerator;
   final FlutterJSRegistryClient _registryClient;
+  final bool verbose;
 
   RuntimePackageManager({
     PubDevClient? pubDevClient,
@@ -28,9 +29,10 @@ class RuntimePackageManager {
     ConfigResolver? configResolver,
     ConfigGenerator? configGenerator,
     FlutterJSRegistryClient? registryClient,
+    this.verbose = false,
   }) : _pubDevClient = pubDevClient ?? PubDevClient(),
 
-       _downloader = downloader ?? PackageDownloader(),
+       _downloader = downloader ?? PackageDownloader(verbose: verbose),
        _configResolver = configResolver ?? ConfigResolver(),
        _configGenerator = configGenerator ?? ConfigGenerator(),
        _registryClient = registryClient ?? FlutterJSRegistryClient();
@@ -179,11 +181,11 @@ class RuntimePackageManager {
               bool found = false;
 
               if (await innerPackageDir.exists()) {
-                final pkgJsonPath = p.join(
+                final pubspecPath = p.join(
                   innerPackageDir.path,
-                  'package.json',
+                  'pubspec.yaml',
                 );
-                if (await File(pkgJsonPath).exists()) {
+                if (await File(pubspecPath).exists()) {
                   found = true;
                   // Extract package name: flutterjs_material -> material
                   final pkgName = dirName.substring('flutterjs_'.length);
@@ -197,8 +199,8 @@ class RuntimePackageManager {
 
               // 2. Try flat package (new): packages/flutterjs_dart/
               if (!found) {
-                final pkgJsonPath = p.join(entity.path, 'package.json');
-                if (await File(pkgJsonPath).exists()) {
+                final pubspecPath = p.join(entity.path, 'pubspec.yaml');
+                if (await File(pubspecPath).exists()) {
                   // Extract package name: flutterjs_dart -> dart
                   final pkgName = dirName.substring('flutterjs_'.length);
                   final relativePath = p.relative(
@@ -228,7 +230,12 @@ class RuntimePackageManager {
     required String buildPath,
     bool verbose = false,
     Map<String, String>? preResolvedSdkPackages,
+    PackageBuilder? builder,
+    List<String> overridePackages = const [],
+    bool force = false,
   }) async {
+    final totalStopwatch = Stopwatch()..start();
+
     if (verbose) {
       print('🔍 Resolving FlutterJS project dependencies...');
     }
@@ -305,157 +312,132 @@ class RuntimePackageManager {
       final queue = dependencies.keys.map((k) => k.toString()).toList();
       final processed = <String>{};
 
-      bool configurationNeeded = false;
+      var currentBatch = List<String>.from(queue);
 
-      while (queue.isNotEmpty) {
-        final packageName = queue.removeAt(0);
+      while (currentBatch.isNotEmpty) {
+        final nextBatch = <String>{};
+        final futures = <Future<List<String>?>>[];
 
-        if (processed.contains(packageName)) continue;
-        processed.add(packageName);
+        for (final pkg in currentBatch) {
+          if (processed.contains(pkg)) continue;
+          processed.add(pkg);
 
-        // Skip Flutter SDK
-        if (packageName == 'flutter') continue;
+          if (pkg == 'flutter' || pkg == 'flutter_web_plugins') continue;
 
-        // 0. SDK Package Override (Highest Priority for Monorepo Dev)
-        if (sdkPackages.containsKey(packageName)) {
-          if (verbose) print('   🔗 $packageName (Local SDK)');
-          final relativePath = sdkPackages[packageName]!;
-          final absoluteSource = p.join(projectPath, relativePath);
-
-          await _linkLocalPackage(
-            packageName,
-            absoluteSource,
-            nodeModulesFlutterJS,
+          futures.add(
+            _resolveAndInstallPackage(
+              pkg,
+              projectPath: projectPath,
+              userPackageConfigs: userPackageConfigs,
+              sdkPackages: sdkPackages,
+              registryPackages: registryPackages,
+              topLevelDependencies: dependencies,
+              nodeModulesFlutterJS: nodeModulesFlutterJS,
+              nodeModulesRoot: nodeModulesRoot,
+              verbose: verbose,
+              force: force,
+              overridePackages: overridePackages,
+              builder: builder,
+            ),
           );
+        }
+
+        if (futures.isEmpty) {
+          currentBatch = nextBatch.toList();
           continue;
         }
 
-        // Check User Config for this package
-        final userConfig = userPackageConfigs[packageName];
+        final results = await Future.wait(futures);
 
-        // A. Local Path (Highest Priority)
-        if (userConfig != null && userConfig.path != null) {
-          if (verbose) print('   🔗 $packageName (Local Config)');
-
-          final sourcePath = userConfig.path!;
-          final absoluteSource = p.isAbsolute(sourcePath)
-              ? sourcePath
-              : p.normalize(p.join(projectPath, sourcePath));
-
-          if (!await Directory(absoluteSource).exists()) {
-            print(
-              '❌ Error: Local path for $packageName does not exist: $absoluteSource',
-            );
+        for (final result in results) {
+          if (result == null) {
+            // Error occurred in one of the packages
             return false;
           }
-
-          await _linkLocalPackage(packageName, absoluteSource, nodeModulesRoot);
-
-          // ADD TRANSITIVE DEPS from local package
-          final deps = await _getDependenciesFromPubspec(absoluteSource);
-          queue.addAll(deps);
-          continue;
+          nextBatch.addAll(result);
         }
 
-        // A-2. Pubspec Path Override (High priority) - handled from original map only usually,
-        // but here we are in a flattened queue. Dependencies of dependencies won't have this override map usually.
-        // However, if the top-level pubspec had a path override, we honor it.
-        // We can optimize by passing the override map around or checking if it was in the original map.
-        // For simplicity, let's check the original `dependencies` map if this package was a direct dependency.
-        if (dependencies.containsKey(packageName)) {
-          final depEntry = dependencies[packageName];
-          if (depEntry is Map && depEntry['path'] != null) {
-            final sourcePath = depEntry['path'] as String;
-            if (verbose) print('   🔗 $packageName (Pubspec Path)');
-            final absoluteSource = p.isAbsolute(sourcePath)
-                ? sourcePath
-                : p.normalize(p.join(projectPath, sourcePath));
+        currentBatch = nextBatch.toList();
+      }
 
-            if (!await Directory(absoluteSource).exists()) {
-              print('❌ Error: Pubspec path for $packageName does not exist');
-              return false;
-            }
-            await _linkLocalPackage(
-              packageName,
-              absoluteSource,
-              nodeModulesRoot,
-            );
+      // PHASE 1.5: Build Packages if builder is provided
+      if (builder != null) {
+        if (verbose) print('\nProcessing downloaded packages for build...');
 
-            // ADD TRANSITIVE DEPS
-            final deps = await _getDependenciesFromPubspec(absoluteSource);
-            queue.addAll(deps);
+        // We need to build packages that are in node_modules now.
+        // We can get them from processed list?
+        // processed contains ALL dependencies found.
+
+        final buildFutures = <Future>[];
+        final packagesToBuild = <String>[];
+
+        for (final pkgName in processed) {
+          // Skip SDK packages as they are already built
+          if (sdkPackages.containsKey(pkgName) ||
+              pkgName.startsWith('@flutterjs/'))
             continue;
-          }
+          if (pkgName == 'flutter' || pkgName == 'flutter_web_plugins')
+            continue;
+
+          packagesToBuild.add(pkgName);
         }
 
-        // B. Registry/PubDev Resolution
-        String? targetFlutterJsPackage;
-        String? targetVersion;
-
-        if (userConfig != null && userConfig.flutterJsPackage != null) {
-          targetFlutterJsPackage = userConfig.flutterJsPackage;
-          targetVersion = userConfig.version;
-          if (verbose)
-            print(
-              '   📦 $packageName -> $targetFlutterJsPackage (Config Override)',
-            );
-        } else {
-          dynamic registryEntry;
-          try {
-            registryEntry = registryPackages.firstWhere(
-              (pkg) => pkg['name'] == packageName,
-            );
-          } catch (_) {}
-
-          if (registryEntry != null) {
-            targetFlutterJsPackage = registryEntry['flutterjs_package'];
-            if (verbose)
-              print('   📦 $packageName -> $targetFlutterJsPackage (Registry)');
-          } else {
-            // Fallback: Assume direct pub.dev package
-            targetFlutterJsPackage = packageName;
-            if (verbose) print('   📦 $packageName (Direct PubDev)');
-          }
-        }
-
-        if (targetFlutterJsPackage != null) {
-          final isCached = await _isPackageCached(
-            targetFlutterJsPackage,
-            nodeModulesRoot,
-            targetVersion,
+        // Show total package count
+        final totalPackages = packagesToBuild.length;
+        if (totalPackages > 0) {
+          print(
+            '\n📦 Building $totalPackages package${totalPackages == 1 ? '' : 's'}...\n',
           );
-
-          if (isCached) {
-            if (verbose) print('      ✓ Using cached $packageName');
-            // ADD TRANSITIVE DEPS from cached package
-            final pkgPath = p.join(nodeModulesRoot, targetFlutterJsPackage);
-            final deps = await _getDependenciesFromPubspec(pkgPath);
-            queue.addAll(deps);
-          } else {
-            final success = await _installPubDevPackage(
-              targetFlutterJsPackage,
-              nodeModulesRoot,
-              targetVersion,
-              verbose,
-            );
-            if (!success) return false;
-
-            // ADD TRANSITIVE DEPS from newly installed package
-            final pkgPath = p.join(nodeModulesRoot, targetFlutterJsPackage);
-            final deps = await _getDependenciesFromPubspec(pkgPath);
-            queue.addAll(deps);
-          }
-          continue;
         }
 
-        print('\n❌ MISSING CONFIGURATION: "$packageName"');
-        configurationNeeded = true;
+        var completedPackages = 0;
+        final concurrency = 4; // Build 4 packages in parallel
+
+        // Split packages into batches for parallel processing
+        for (var i = 0; i < packagesToBuild.length; i += concurrency) {
+          final batchEnd = (i + concurrency < packagesToBuild.length)
+              ? i + concurrency
+              : packagesToBuild.length;
+          final batch = packagesToBuild.sublist(i, batchEnd);
+
+          // Show which packages are being built
+          if (batch.length > 1) {
+            print('🔨 Building: ${batch.join(', ')}');
+          }
+
+          // Build packages in parallel
+          final futures = batch.map((pkgName) async {
+            final sw = Stopwatch()..start();
+            await builder.buildPackage(
+              packageName: pkgName,
+              projectRoot: projectPath,
+              buildPath: buildPath,
+              verbose: verbose,
+            );
+            sw.stop();
+            
+            // Thread-safe increment and display
+            completedPackages++;
+            final percentage =
+                (completedPackages / totalPackages * 100).round();
+            final duration = (sw.elapsedMilliseconds / 1000).toStringAsFixed(1);
+            print(
+              '[$completedPackages/$totalPackages] ($percentage%) ✓ $pkgName (${duration}s)',
+            );
+          }).toList();
+
+          await Future.wait(futures);
+        }
+
+        if (totalPackages > 0) {
+          print('\n✅ All packages built successfully!\n');
+        }
       }
 
-      if (configurationNeeded) {
-        // ... existing error logic
-        return false;
-      }
+      totalStopwatch.stop();
+      final totalSeconds = (totalStopwatch.elapsedMilliseconds / 1000)
+          .toStringAsFixed(1);
+      print('⏱️  Total time: ${totalSeconds}s\n');
 
       return true;
     } catch (e) {
@@ -478,11 +460,65 @@ class RuntimePackageManager {
       return deps.keys
           .map((k) => k.toString())
           .where((d) => d != 'flutter')
+          .where((d) => !_isNonWebPlatformPackage(d))
           .toList();
     } catch (e) {
       print('Warning: Failed to parse pubspec in $packagePath: $e');
       return [];
     }
+  }
+
+  bool _isNonWebPlatformPackage(String packageName) {
+    // Always keep explicitly web packages
+    if (packageName.endsWith('_web')) return false;
+
+    // Filter out ONLY specific native implementations that are definitely not transpilable
+    // "pure" dart packages (like bloc, provider, http) should pass.
+    // We only exclude packages that are strictly for other platforms AND likely contain native code
+    // or are plugins for those platforms.
+
+    // If it's a "platform interface" package, it's usually fine (Dart).
+    if (packageName.endsWith('_platform_interface')) return false;
+
+    // Known native-only suffix
+    const nativeSuffixes = [
+      '_android',
+      '_ios',
+      '_macos',
+      '_windows',
+      '_linux',
+      '_fuchsia',
+    ];
+
+    for (final suffix in nativeSuffixes) {
+      // If package ends with _android, it likely depends on android embedding
+      if (packageName.endsWith(suffix)) return true;
+    }
+
+    // Explicit blacklist for known non-web packages
+    const blacklisted = {
+      'native_toolchain_c',
+      'ffi',
+      'dart_flutter_team_lints', // Dev dependency only usually
+      'objective_c',
+      'path_provider_foundation',
+      'path_provider_windows',
+      'path_provider_linux',
+      'path_provider_android',
+      'path_provider_ios',
+      'path_provider_macos',
+      'url_launcher_windows',
+      'url_launcher_linux',
+      'url_launcher_android',
+      'url_launcher_ios',
+      'url_launcher_macos',
+      'flutter_plugin_android_lifecycle',
+      'win32',
+      'xdg_directories',
+    };
+    if (blacklisted.contains(packageName)) return true;
+
+    return false;
   }
 
   /// Complete package preparation: download, build, and verify manifests
@@ -502,6 +538,7 @@ class RuntimePackageManager {
     required String buildPath,
     bool force = false,
     bool verbose = false,
+    List<String> overridePackages = const [],
   }) async {
     print('\n📦 Preparing FlutterJS packages...\n');
 
@@ -539,6 +576,9 @@ class RuntimePackageManager {
       buildPath: buildPath,
       verbose: verbose,
       preResolvedSdkPackages: sdkPaths,
+      builder: builder,
+      overridePackages: overridePackages,
+      force: force,
     );
 
     if (!resolved) {
@@ -777,8 +817,9 @@ class RuntimePackageManager {
     String packageName,
     String nodeModulesPath,
     String? version,
-    bool verbose,
-  ) async {
+    bool verbose, {
+    PackageBuilder? builder,
+  }) async {
     try {
       final packageInfo = version != null
           ? await _pubDevClient.fetchPackageVersion(packageName, version)
@@ -799,12 +840,31 @@ class RuntimePackageManager {
       }
 
       final packagePath = p.join(nodeModulesPath, packageName);
+
       await _downloader.downloadAndExtract(
         packageInfo.archiveUrl!,
         packagePath,
       );
 
       await _createPackageJson(packagePath, packageInfo);
+
+      // Automatic Transpilation of downloaded package
+      if (builder != null) {
+        if (verbose) print('      Building $packageName...');
+        try {
+          // Uses explicit source path because it's not in the regular project structure yet/detected by resolver
+          await builder.buildPackage(
+            packageName: packageName,
+            projectRoot: '',
+            buildPath: '',
+            explicitSourcePath: packagePath,
+            verbose: verbose,
+            force: true,
+          );
+        } catch (e) {
+          print('      ⚠️  Build failed for $packageName: $e');
+        }
+      }
 
       if (verbose) {
         print('      ✓ Installed ${packageInfo.version}');
@@ -825,7 +885,7 @@ class RuntimePackageManager {
       'name': packageInfo.npmPackageName,
       'version': packageInfo.version,
       'description': 'FlutterJS package: ${packageInfo.name}',
-      'main': 'lib/index.js',
+      'main': 'dist/${packageInfo.name}.js',
       'type': 'module',
     };
 
@@ -843,5 +903,157 @@ class RuntimePackageManager {
       await dir.delete(recursive: true);
       print('✓ Cache cleaned: $nodeModulesPath');
     }
+  }
+
+  /// Resolves a single package, installs it, and returns its dependencies.
+  /// Returns null if resolution fails.
+  Future<List<String>?> _resolveAndInstallPackage(
+    String packageName, {
+    required String projectPath,
+    required Map<String, UserPackageConfig>? userPackageConfigs,
+    required Map<String, String> sdkPackages,
+    required List<dynamic> registryPackages,
+    required Map<dynamic, dynamic> topLevelDependencies,
+    required String nodeModulesFlutterJS,
+    required String nodeModulesRoot,
+    required bool verbose,
+    required bool force,
+    required List<String> overridePackages,
+    PackageBuilder? builder,
+  }) async {
+    // 0. SDK Package Override (Highest Priority for Monorepo Dev)
+    if (sdkPackages.containsKey(packageName)) {
+      if (verbose) print('   🔗 $packageName (Local SDK)');
+      final relativePath = sdkPackages[packageName]!;
+      final absoluteSource = p.join(projectPath, relativePath);
+
+      await _linkLocalPackage(
+        packageName,
+        absoluteSource,
+        nodeModulesFlutterJS,
+      );
+      // SDK packages dependencies are usually handled by building them,
+      // but if we want to be correct we should return them.
+      // However, SDK packages in this system usually rely on other SDK packages
+      // which are already in sdkPackages map.
+      // But they might depend on external packages (like meta, path).
+      // So we SHOULD return deps.
+      return _getDependenciesFromPubspec(absoluteSource);
+    }
+
+    // Check User Config for this package
+    final userConfig = userPackageConfigs?[packageName];
+
+    // A. Local Path (Highest Priority)
+    if (userConfig != null && userConfig.path != null) {
+      if (verbose) print('   🔗 $packageName (Local Config)');
+
+      final sourcePath = userConfig.path!;
+      final absoluteSource = p.isAbsolute(sourcePath)
+          ? sourcePath
+          : p.normalize(p.join(projectPath, sourcePath));
+
+      if (!await Directory(absoluteSource).exists()) {
+        print(
+          '❌ Error: Local path for $packageName does not exist: $absoluteSource',
+        );
+        return null;
+      }
+
+      await _linkLocalPackage(packageName, absoluteSource, nodeModulesRoot);
+
+      // ADD TRANSITIVE DEPS from local package
+      return _getDependenciesFromPubspec(absoluteSource);
+    }
+
+    // A-2. Pubspec Path Override (High priority)
+    if (topLevelDependencies.containsKey(packageName)) {
+      final depEntry = topLevelDependencies[packageName];
+      if (depEntry is Map && depEntry['path'] != null) {
+        final sourcePath = depEntry['path'] as String;
+        if (verbose) print('   🔗 $packageName (Pubspec Path)');
+        final absoluteSource = p.isAbsolute(sourcePath)
+            ? sourcePath
+            : p.normalize(p.join(projectPath, sourcePath));
+
+        if (!await Directory(absoluteSource).exists()) {
+          print('❌ Error: Pubspec path for $packageName does not exist');
+          return null;
+        }
+        await _linkLocalPackage(packageName, absoluteSource, nodeModulesRoot);
+
+        // ADD TRANSITIVE DEPS
+        return _getDependenciesFromPubspec(absoluteSource);
+      }
+    }
+
+    // B. Registry/PubDev Resolution
+    String? targetFlutterJsPackage;
+    String? targetVersion;
+
+    if (userConfig != null && userConfig.flutterJsPackage != null) {
+      targetFlutterJsPackage = userConfig.flutterJsPackage;
+      targetVersion = userConfig.version;
+      if (verbose)
+        print(
+          '   📦 $packageName -> $targetFlutterJsPackage (Config Override)',
+        );
+    } else {
+      dynamic registryEntry;
+      try {
+        registryEntry = registryPackages.firstWhere(
+          (pkg) => pkg['name'] == packageName,
+        );
+      } catch (_) {}
+
+      if (registryEntry != null) {
+        targetFlutterJsPackage = registryEntry['flutterjs_package'];
+        if (verbose)
+          print('   📦 $packageName -> $targetFlutterJsPackage (Registry)');
+      } else {
+        // Fallback: Assume direct pub.dev package
+        targetFlutterJsPackage = packageName;
+        if (verbose) print('   📦 $packageName (Direct PubDev)');
+      }
+    }
+
+    if (targetFlutterJsPackage != null) {
+      final isOverridden = force || overridePackages.contains(packageName);
+
+      final isCached =
+          !isOverridden &&
+          await _isPackageCached(
+            targetFlutterJsPackage,
+            nodeModulesRoot,
+            targetVersion,
+          );
+
+      if (isCached) {
+        if (verbose) print('      ✓ Using cached $packageName');
+        // ADD TRANSITIVE DEPS from cached package
+        final pkgPath = p.join(nodeModulesRoot, targetFlutterJsPackage);
+        return _getDependenciesFromPubspec(pkgPath);
+      } else {
+        if (isOverridden && verbose) {
+          print('   ⚡ Force converting $packageName...');
+        }
+
+        final success = await _installPubDevPackage(
+          targetFlutterJsPackage,
+          nodeModulesRoot,
+          targetVersion,
+          verbose,
+          builder: builder,
+        );
+        if (!success) return null;
+
+        // ADD TRANSITIVE DEPS from newly installed package
+        final pkgPath = p.join(nodeModulesRoot, targetFlutterJsPackage);
+        return _getDependenciesFromPubspec(pkgPath);
+      }
+    }
+
+    print('\n❌ MISSING CONFIGURATION: "$packageName"');
+    return null;
   }
 }

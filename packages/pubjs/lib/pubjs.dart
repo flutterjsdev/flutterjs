@@ -1,4 +1,3 @@
-
 export 'src/model/package_info.dart';
 export 'src/publisher.dart';
 export 'src/pubspec_parser.dart';
@@ -12,3 +11,4 @@ export 'src/package_downloader.dart';
 export 'src/package_scaffold.dart';
 export 'src/package_builder.dart';
 export 'src/package_watcher.dart';
+export 'src/commands.dart';

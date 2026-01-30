@@ -673,8 +673,8 @@ class ListExpressionIR extends ExpressionIR {
 /// Represents a map literal
 @immutable
 class MapExpressionIR extends ExpressionIR {
-  /// Key-value pairs
-  final List<MapEntryIR> entries;
+  /// Elements (entries, conditionals, spreads)
+  final List<ExpressionIR> elements;
 
   /// Whether declared with const keyword
   final bool isConst;
@@ -683,27 +683,68 @@ class MapExpressionIR extends ExpressionIR {
     required super.id,
     required super.resultType,
     required super.sourceLocation,
-    required this.entries,
+    required this.elements,
     this.isConst = false,
     super.metadata,
   }) : super(isConstant: isConst);
 
   @override
-  bool get isConstant => isConst && entries.every((e) => e.isConstant);
+  bool get isConstant => isConst && elements.every((e) => e.isConstant);
   @override
-  String toShortString() => '{${entries.length} entries}';
+  String toShortString() => '{${elements.length} entries}';
 
   @override
   Map<String, dynamic> toJson() {
     return {
-      ...super.toJson(),
-      'entries': entries.map((e) => e.toJson()).toList(),
+      'elements': elements.map((e) => e.toJson()).toList(),
       'isConst': isConst,
     };
   }
 }
 
 /// A single key-value entry in a map literal
+@immutable
+class MapEntryIR extends ExpressionIR {
+  /// The key expression in this map entry
+  final ExpressionIR key;
+
+  /// The value expression in this map entry
+  final ExpressionIR value;
+
+  MapEntryIR({
+    required super.id,
+    required super.sourceLocation,
+    required this.key,
+    required this.value,
+    super.metadata,
+  }) : super(
+         resultType: DynamicTypeIR(
+           id: 'dynamic',
+           sourceLocation: sourceLocation,
+         ),
+         isConstant: false,
+       ); // Usually not an expression in itself but used here as one
+
+  /// Whether both key and value are constant expressions
+  @override
+  bool get isConstant => key.isConstant && value.isConstant;
+
+  /// Short string representation of this map entry
+  @override
+  String toShortString() => '${key.toShortString()}: ${value.toShortString()}';
+
+  /// Convert to JSON for serialization
+  @override
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'sourceLocation': sourceLocation.toJson(),
+      'key': key.toJson(),
+      'value': value.toJson(),
+      if (metadata.isNotEmpty) 'metadata': metadata,
+    };
+  }
+}
 
 /// Represents a set literal
 @immutable

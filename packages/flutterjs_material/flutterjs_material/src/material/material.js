@@ -564,6 +564,14 @@ export {
     UserAccountsDrawerHeader
 } from "./user_accounts_drawer_header.js";
 
+export {
+    GoogleFonts
+} from "../painting/google_fonts.js";
+
+export {
+    TextStyle
+} from "../painting/text_style.js";
+
 
 
 

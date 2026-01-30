@@ -105,11 +105,14 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   // CONSTRUCTOR
   // =========================================================================
 
+  final bool verbose;
+
   DeclarationPass({
     required this.filePath,
     required this.fileContent,
     required this.builder,
     this.widgetDetector, // ✅ UPDATED: Accept WidgetProducerDetector
+    this.verbose = false,
   }) {
     _statementExtractor = StatementExtractionPass(
       filePath: filePath,
@@ -120,12 +123,16 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     _initializeComponentSystem();
   }
 
+  void _log(String message) {
+    if (verbose) print(message);
+  }
+
   // =========================================================================
   // ✓ NEW: Component System Initialization
   // =========================================================================
 
   void _initializeComponentSystem() {
-    print('🔧 [ComponentSystem] Initializing for: $filePath');
+    _log('🔧 [ComponentSystem] Initializing for: $filePath');
 
     // Create registry
     componentRegistry = EnhancedComponentRegistry();
@@ -138,7 +145,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         filePath,
         fileContent,
       );
-      print('   ✓ AST adapter registered');
+      _log('   ✓ AST adapter registered');
     }
 
     // Create extractor
@@ -156,7 +163,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       id: builder.generateId('pure_extractor'),
     );
 
-    print('   ✓ Component system ready');
+    _log('   ✓ Component system ready');
   }
 
   // =========================================================================
@@ -164,7 +171,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   // =========================================================================
 
   void extractDeclarations(CompilationUnit unit) {
-    print('🔋 [DeclarationPass] Starting extraction for: $filePath');
+    _log('🔋 [DeclarationPass] Starting extraction for: $filePath');
 
     unit.accept(this);
 
@@ -201,7 +208,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       builder.addClass(classDecl);
     }
 
-    print('✅ [DeclarationPass] Extraction complete for: $filePath');
+    _log('✅ [DeclarationPass] Extraction complete for: $filePath');
   }
 
   // =========================================================================
@@ -212,7 +219,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   void visitLibraryDirective(LibraryDirective node) {
     _currentLibraryName =
         node.name?.components.map((n) => n.name).join('.') ?? '';
-    print('📦 [LibraryDirective] Library: $_currentLibraryName');
+    _log('📦 [LibraryDirective] Library: $_currentLibraryName');
     super.visitLibraryDirective(node);
   }
 
@@ -223,7 +230,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       sourceLocation: _extractSourceLocation(node, node.offset),
     );
     _parts.add(partStmt);
-    print('📄 [PartDirective] Part: ${node.uri.stringValue}');
+    _log('📄 [PartDirective] Part: ${node.uri.stringValue}');
     super.visitPartDirective(node);
   }
 
@@ -236,7 +243,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           '',
       sourceLocation: _extractSourceLocation(node, node.offset),
     );
-    print('📚 [PartOfDirective] Part of: ${_partOf!.libraryName}');
+    _log('📚 [PartOfDirective] Part of: ${_partOf!.libraryName}');
     super.visitPartOfDirective(node);
   }
 
@@ -254,9 +261,10 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       hideList: _extractHideCombinators(node),
       sourceLocation: _extractSourceLocation(node, node.offset),
       annotations: _extractAnnotations(node.metadata),
+      configurations: _extractConfigurations(node.configurations),
     );
     _imports.add(import);
-    print(
+    _log(
       '📥 [Import] ${node.uri.stringValue}${node.prefix != null ? ' as ${node.prefix!.name}' : ''}',
     );
     super.visitImportDirective(node);
@@ -269,9 +277,10 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       showList: _extractShowCombinators(node),
       hideList: _extractHideCombinators(node),
       sourceLocation: _extractSourceLocation(node, node.offset),
+      configurations: _extractConfigurations(node.configurations),
     );
     _exports.add(export);
-    print('📤 [Export] ${node.uri.stringValue}');
+    _log('📤 [Export] ${node.uri.stringValue}');
     super.visitExportDirective(node);
   }
 
@@ -331,7 +340,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     final funcName = node.name.lexeme;
     final funcId = builder.generateId('func', funcName);
 
-    print('🔧 [Function] $funcName()');
+    _log('🔧 [Function] $funcName()');
 
     try {
       // =========================================================================
@@ -349,9 +358,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
           if (isWidgetFunc) {
             widgetKind = _getWidgetKind(execElement);
-            print(
-              '   ✅ [WIDGET FUNCTION] - Kind: ${widgetKind?.displayName()}',
-            );
+            _log('   ✅ [WIDGET FUNCTION] - Kind: ${widgetKind?.displayName()}');
           }
         }
       }
@@ -364,7 +371,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         node.functionExpression.body,
       );
 
-      print('   📦 Body statements: ${bodyStatements.length}');
+      _log('   📦 Body statements: ${bodyStatements.length}');
 
       // =========================================================================
       // PHASE 4: Create FunctionBody with extraction data
@@ -406,7 +413,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       // =========================================================================
 
       if (isWidgetFunc && bodyStatements.isNotEmpty) {
-        print('   📊 [WidgetAnalyzer] Analyzing widget function...');
+        _log('   📊 [WidgetAnalyzer] Analyzing widget function...');
 
         final analyzer = StatementWidgetAnalyzer(
           filePath: filePath,
@@ -415,7 +422,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         );
 
         analyzer.analyzeStatementsForWidgets(bodyStatements);
-        print('   ✅ [Widgets analyzed and attached to statements]');
+        _log('   ✅ [Widgets analyzed and attached to statements]');
       }
 
       // =========================================================================
@@ -423,10 +430,10 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       // =========================================================================
 
       _topLevelFunctions.add(functionDecl);
-      print('   ✅ [Added to top-level functions]');
+      _log('   ✅ [Added to top-level functions]');
     } catch (e, st) {
-      print('   ❌ Error processing function: $e');
-      print('   Stack: $st');
+      _log('   ❌ Error processing function: $e');
+      _log('   Stack: $st');
 
       // Error recovery with empty FunctionBody
       final fallbackBody = FunctionBodyIR(
@@ -467,7 +474,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
     try {
       final className = node.name.lexeme;
-      print('🏛️  [Class] $className');
+      _log('🏛️  [Class] $className');
 
       final fields = _extractClassFields(node);
       final (:methods, :constructors) = _extractMethodsAndConstructors(node);
@@ -484,7 +491,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
             method.metadata['isWidgetMethod'] == true;
 
         if (isWidgetMethod) {
-          print(
+          _log(
             '   📊 [ComponentSystem] Analyzing widget method: ${method.name}',
           );
 
@@ -493,7 +500,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
             final functionBody = method.body!;
 
             if (functionBody.statements.isNotEmpty) {
-              print('      ℹ️  No extraction data, analyzing statements...');
+              _log('      ℹ️  No extraction data, analyzing statements...');
 
               for (final stmt in functionBody.statements) {
                 if (stmt is ReturnStmt && stmt.expression != null) {
@@ -504,17 +511,17 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
                     );
 
                     classComponents.add(component);
-                    print('      ✅ ${component.describe()}');
+                    _log('      ✅ ${component.describe()}');
                   } catch (e) {
-                    print('      ❌ Failed to extract component: $e');
+                    _log('      ❌ Failed to extract component: $e');
                   }
                 }
               }
             } else {
-              print('      ℹ️  Method has no statements to analyze');
+              _log('      ℹ️  Method has no statements to analyze');
             }
           } else {
-            print('      ℹ️  Method body is null (abstract/external)');
+            _log('      ℹ️  Method body is null (abstract/external)');
           }
         }
       }
@@ -526,9 +533,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       if (classComponents.isNotEmpty) {
         final classId = builder.generateId('class', className);
         this.classComponents[classId] = classComponents;
-        print(
-          '   ✅ Stored ${classComponents.length} components for $className',
-        );
+        _log('   ✅ Stored ${classComponents.length} components for $className');
       }
 
       // =========================================================================
@@ -561,7 +566,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         final classElement = node.declaredFragment?.element;
         if (classElement != null) {
           if (widgetDetector!.producesWidget(classElement)) {
-            print('   ✅ [WIDGET CLASS] $className');
+            _log('   ✅ [WIDGET CLASS] $className');
 
             final chain = _getInheritanceChain(classElement);
             String category = 'custom';
@@ -595,8 +600,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       _classes.add(classDecl);
       super.visitClassDeclaration(node);
     } catch (e, st) {
-      print('   ❌ Error processing class: $e');
-      print('   Stack: $st');
+      _log('   ❌ Error processing class: $e');
+      _log('   Stack: $st');
 
       // Error recovery - still add class but mark it
       final fallbackClassDecl = ClassDecl(
@@ -676,7 +681,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   ) {
     final constructorName = member.name?.lexeme ?? '';
 
-    print(
+    _log(
       '   🔨 [Constructor] $className${constructorName.isNotEmpty ? '.$constructorName' : ''}',
     );
 
@@ -684,9 +689,9 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       member.body,
     );
 
-    print('      Statements: ${bodyStatements.length}');
-    print('      Const: ${member.constKeyword != null}');
-    print('      Factory: ${member.factoryKeyword != null}');
+    _log('      Statements: ${bodyStatements.length}');
+    _log('      Const: ${member.constKeyword != null}');
+    _log('      Factory: ${member.factoryKeyword != null}');
 
     // Create FunctionBody for constructor
     final constructorBody = FunctionBodyIR(
@@ -725,7 +730,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       ),
     );
 
-    print(
+    _log(
       '      ✅ Extracted: $className${constructorName.isNotEmpty ? '.$constructorName' : '()'}',
     );
 
@@ -753,7 +758,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       final methodName = member.name.lexeme;
       final methodId = builder.generateId('method', '$className.$methodName');
 
-      print('🔧 [Method] $methodName() in class $className');
+      _log('🔧 [Method] $methodName() in class $className');
       final extractionStartTime = DateTime.now();
 
       try {
@@ -767,7 +772,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
             isWidgetFunc = widgetDetector!.producesWidget(methodElement);
             if (isWidgetFunc) {
               widgetKind = _getWidgetKind(methodElement);
-              print(
+              _log(
                 '   ✅ [WIDGET METHOD] $methodName - Kind: ${widgetKind?.displayName()}',
               );
             }
@@ -783,8 +788,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           member.body,
         );
 
-        print('   📦 Body statements: ${bodyStatements.length}');
-        print('   📦 Body expressions: ${bodyExpressions.length}');
+        _log('   📦 Body statements: ${bodyStatements.length}');
+        _log('   📦 Body expressions: ${bodyExpressions.length}');
 
         // PHASE 4: Create FunctionBody with extraction data
         final methodBody = FunctionBodyIR(
@@ -827,7 +832,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         final durationMs = DateTime.now()
             .difference(extractionStartTime)
             .inMilliseconds;
-        print('   ⏱️  Extraction time: ${durationMs}ms');
+        _log('   ⏱️  Extraction time: ${durationMs}ms');
 
         methods.add(methodDecl);
       } catch (e, stack) {
@@ -1346,5 +1351,17 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     if (_scopeStack.isNotEmpty) {
       _scopeStack.removeLast();
     }
+  }
+
+  List<ImportConfiguration> _extractConfigurations(
+    NodeList<Configuration> configurations,
+  ) {
+    return configurations.map((config) {
+      return ImportConfiguration(
+        name: config.name.toSource(),
+        value: config.value?.toSource() ?? 'true',
+        uri: config.uri.stringValue ?? '',
+      );
+    }).toList();
   }
 }

@@ -206,7 +206,7 @@ class StatementWidgetAnalyzer {
       }
     } else if (expr is StringInterpolationExpressionIR) {
       // String interpolation in widget properties - preserve it
-      print('   [StringInterpolation] Preserving in property');
+     // print('   [StringInterpolation] Preserving in property');
       // Just track that we've seen it, don't try to extract widgets from it
       // (unless it contains widget expressions, which is unlikely)
       return;
@@ -358,14 +358,33 @@ class StatementWidgetAnalyzer {
     }
     // ✅ Map literals (used for widget configuration)
     else if (expr is MapExpressionIR) {
-      for (final entry in expr.entries) {
-        _extractWidgetsFromExpression(
-          entry.value,
-          widgets,
-          statementType: 'map_value',
-          sourceLocation: sourceLocation,
-          isConditional: isConditional,
-        );
+      for (final element in expr.elements) {
+        if (element is MapEntryIR) {
+          _extractWidgetsFromExpression(
+            element.key,
+            widgets,
+            statementType:
+                'map_key', // Assuming keys can also contain widgets, or at least need processing
+            sourceLocation: sourceLocation,
+            isConditional: isConditional,
+          );
+          _extractWidgetsFromExpression(
+            element.value,
+            widgets,
+            statementType: 'map_value',
+            sourceLocation: sourceLocation,
+            isConditional: isConditional,
+          );
+        } else {
+          // Handle other elements like spread elements in maps
+          _extractWidgetsFromExpression(
+            element,
+            widgets,
+            statementType: 'map_element',
+            sourceLocation: sourceLocation,
+            isConditional: isConditional,
+          );
+        }
       }
     }
   }

@@ -178,10 +178,12 @@ class ImportAnalyzer {
         _scanExpression(element);
       }
     } else if (expr is MapExpressionIR) {
-      for (final entry in expr.entries) {
-        _scanExpression(entry.key);
-        _scanExpression(entry.value);
+      for (final element in expr.elements) {
+        _scanExpression(element);
       }
+    } else if (expr is MapEntryIR) {
+      _scanExpression(expr.key);
+      _scanExpression(expr.value);
     } else if (expr is LambdaExpr) {
       if (expr.body != null) {
         _scanExpression(expr.body!);

@@ -166,41 +166,6 @@ class MapLiteralExpr extends ExpressionIR {
 }
 
 @immutable
-class MapEntryIR extends IRNode {
-  /// The key expression in this map entry
-  final ExpressionIR key;
-
-  /// The value expression in this map entry
-  final ExpressionIR value;
-
-  const MapEntryIR({
-    required super.id,
-    required super.sourceLocation,
-    required this.key,
-    required this.value,
-    super.metadata,
-  });
-
-  /// Whether both key and value are constant expressions
-  bool get isConstant => key.isConstant && value.isConstant;
-
-  /// Short string representation of this map entry
-  @override
-  String toShortString() => '${key.toShortString()}: ${value.toShortString()}';
-
-  /// Convert to JSON for serialization
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'sourceLocation': sourceLocation.toJson(),
-      'key': key.toJson(),
-      'value': value.toJson(),
-      if (metadata.isNotEmpty) 'metadata': metadata,
-    };
-  }
-}
-
-@immutable
 class SetLiteralExpr extends ExpressionIR {
   final List<ExpressionIR> elements;
   final TypeIR elementType;

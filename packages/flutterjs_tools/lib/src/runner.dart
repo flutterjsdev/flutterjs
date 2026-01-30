@@ -1,4 +1,5 @@
 import 'package:args/command_runner.dart';
+import 'package:pubjs/pubjs.dart';
 import 'analyzer/analyze_command.dart';
 import 'builder/build_command.dart';
 import 'cleaner/clean_command.dart';
@@ -160,6 +161,8 @@ class FlutterJSCommandRunner extends CommandRunner<void> {
     addCommand(CleanCommand(verbose: verbose));
     addCommand(VersionCommand());
     addCommand(PublishCommand());
+    addCommand(GetCommand());
+    addCommand(PubBuildCommand());
   }
 
   @override
