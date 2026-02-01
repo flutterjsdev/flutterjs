@@ -6,7 +6,7 @@ import 'package:path/path.dart' as path;
 import 'dart:io';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
-import 'package:analyzer/diagnostic/diagnostic.dart' as analyzer_diagnostic;
+import 'package:analyzer/error/error.dart' as analyzer_error;
 import 'package:analyzer/dart/element/element.dart' as analyzer_results;
 
 import 'TypeDeclarationVisitor.dart';
@@ -48,7 +48,6 @@ class ProjectAnalyzer {
     this.enableVerboseLogging = true,
     this.generateOutputFiles = true,
     this.excludePatterns = const [
-      '**/.dart_tool/**',
       '**/build/**',
       '**/*.g.dart',
       '**/*.freezed.dart',
@@ -90,11 +89,9 @@ class ProjectAnalyzer {
 
         print('DEBUG: ProjectAnalyzer.initialize: creating context collection');
         // Initialize analysis context
-        final libPath = path.normalize(
-          path.absolute(path.join(projectPath, 'lib')),
-        );
         _collection = AnalysisContextCollection(
-          includedPaths: [libPath],
+          includedPaths: [projectPath],
+          excludedPaths: [],
           resourceProvider: PhysicalResourceProvider.INSTANCE,
         );
         debugger.log(
@@ -599,7 +596,7 @@ class ProjectAnalyzer {
           path: filePath,
           unit: result.unit,
           libraryElement: result.libraryElement,
-          errors: result.diagnostics,
+          errors: result.errors,
           imports: _extractImports(result.unit),
           exports: _extractExports(result.unit),
           parts: _extractParts(result.unit),
@@ -758,7 +755,7 @@ class FileAnalysisResult {
   final String path;
   final CompilationUnit unit;
   final analyzer_results.LibraryElement libraryElement;
-  final List<analyzer_diagnostic.Diagnostic> errors;
+  final List<analyzer_error.AnalysisError> errors;
   final List<ImportInfo> imports;
   final List<String> exports;
   final List<String> parts;
@@ -775,15 +772,23 @@ class FileAnalysisResult {
     required this.hash,
   });
 
-  bool get hasErrors =>
-      errors.any((e) => e.severity == analyzer_diagnostic.Severity.error);
+  bool get hasErrors => errors.any(
+    (e) => (e.severity as dynamic).toString().toUpperCase().contains('ERROR'),
+  );
 
-  List<analyzer_diagnostic.Diagnostic> get errorList => errors
-      .where((e) => e.severity == analyzer_diagnostic.Severity.error)
+  List<analyzer_error.AnalysisError> get errorList => errors
+      .where(
+        (e) =>
+            (e.severity as dynamic).toString().toUpperCase().contains('ERROR'),
+      )
       .toList();
 
-  List<analyzer_diagnostic.Diagnostic> get warnings => errors
-      .where((e) => e.severity == analyzer_diagnostic.Severity.warning)
+  List<analyzer_error.AnalysisError> get warnings => errors
+      .where(
+        (e) => (e.severity as dynamic).toString().toUpperCase().contains(
+          'WARNING',
+        ),
+      )
       .toList();
 }
 

@@ -4,6 +4,7 @@
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_gen/flutterjs_gen.dart';
+import 'dart:io';
 import 'package:flutterjs_gen/src/file_generation/runtime_requirements.dart';
 import '../widget_generation/stateless_widget/stateless_widget_js_code_gen.dart';
 import '../utils/indenter.dart';
@@ -70,6 +71,15 @@ class FileCodeGen {
     int optimizationLevel = 1,
   }) async {
     try {
+        try {
+          final f = File('DEBUG_GEN.txt');
+          f.writeAsStringSync('FileCodeGen.generate called for ${dartFile.package}/${dartFile.library}\n', mode: FileMode.append);
+        } catch (_) {}
+
+        if (dartFile.package == 'term_glyph' || (dartFile.library ?? '').contains('term_glyph')) {
+             throw 'DEBUG EXCEPTION: PROCESSING TERM_GLYPH';
+        }
+
       // Step 1: Analyze file (can be async)
       await _analyzeFileAsync(dartFile);
 
@@ -190,6 +200,15 @@ class FileCodeGen {
   // =========================================================================
 
   Future<String> _generateCodeAsync(DartFile dartFile) async {
+    try {
+      final logFile = File(r'C:\Jay\_Plugin\flutterjs\debug_entry_log.txt');
+      logFile.writeAsStringSync('Processing File: ${dartFile.package} / ${dartFile.library}\nFunctions: ${dartFile.functionDeclarations.length}, Variables: ${dartFile.variableDeclarations.length}\n', mode: FileMode.append);
+      for(var f in dartFile.functionDeclarations) logFile.writeAsStringSync('  Func: ${f.name}\n', mode: FileMode.append);
+      for(var v in dartFile.variableDeclarations) logFile.writeAsStringSync('  Var: ${v.name}\n', mode: FileMode.append);
+    } catch (e) {
+      // ignore
+    }
+
     var code = StringBuffer();
 
     // Generate each section sequentially to avoid buffer corruption
@@ -416,7 +435,8 @@ class FileCodeGen {
         // Valid for any path that doesn't start with '.', '/', or '@' (scoped packages)
         if (!jsPath.startsWith('.') &&
             !jsPath.startsWith('/') &&
-            !jsPath.startsWith('@')) {
+            !jsPath.startsWith('@') &&
+            !jsPath.startsWith('package:')) {
           jsPath = './$jsPath';
         }
 
@@ -750,21 +770,117 @@ function _filterNamespace(ns, show, hide) {
 
     code.writeln('// ===== FUNCTIONS =====\n');
 
-    for (int i = 0; i < dartFile.functionDeclarations.length; i++) {
-      try {
-        code.writeln(
-          await funcCodeGen.generate(dartFile.functionDeclarations[i]),
-        );
-        if (i < dartFile.functionDeclarations.length - 1) {
+    // Group functions by name to detect getter/setter pairs
+    final funcsByName = <String, List<FunctionDecl>>{};
+    for (var f in dartFile.functionDeclarations) {
+      // Normalize name: setters might have '=' suffix in IR
+      if (f.name.contains('ascii')) {
+        // Reverted debug throw
+      }
+      var key = f.name;
+      if (f.isSetter && key.endsWith('=')) {
+        key = key.substring(0, key.length - 1);
+      }
+      funcsByName.putIfAbsent(key, () => []).add(f);
+    }
+
+    for (var name in funcsByName.keys) {
+      final group = funcsByName[name]!;
+
+      // Check for getter/setter pair
+      FunctionDecl? getter;
+      FunctionDecl? setter;
+
+      for (var f in group) {
+        if (f.isGetter) getter = f;
+        if (f.isSetter) setter = f;
+      }
+
+      if (group.length == 2 && getter != null && setter != null) {
+        // Handle getter/setter pair
+        try {
+          code.writeln(await _generateMergedGetterSetter(getter, setter));
           code.writeln();
+        } catch (e) {
+          code.writeln(
+            '// ERROR: Failed to generate getter/setter pair for $name: $e',
+          );
         }
-      } catch (e) {
-        code.writeln('// ERROR: Failed to generate function');
+      } else {
+        // Handle normally (single functions or non-pairs)
+        for (var i = 0; i < group.length; i++) {
+          try {
+            code.writeln(await funcCodeGen.generate(group[i]));
+            code.writeln();
+          } catch (e) {
+            code.writeln(
+              '// ERROR: Failed to generate function ${group[i].name}',
+            );
+          }
+        }
       }
     }
 
     code.writeln();
     return code.toString();
+  }
+
+  Future<String> _generateMergedGetterSetter(
+    FunctionDecl getter,
+    FunctionDecl setter,
+  ) async {
+    final buffer = StringBuffer();
+    final name = getter.name;
+    final safeName = exprCodeGen.safeIdentifier(name);
+
+    // Generate unified function
+    // const name = (value = undefined) => { ... }
+    buffer.writeln('const $safeName = (value = undefined) => {');
+    indenter.indent();
+
+    // Setter Block
+    buffer.writeln(indenter.line('if (value !== undefined) {'));
+    indenter.indent();
+
+    // Map setter parameter to 'value'
+    if (setter.parameters.isNotEmpty) {
+      final paramName = setter.parameters.first.name;
+      // Define the expected parameter variable just in case body uses it
+      if (paramName != 'value') {
+        buffer.writeln(indenter.line('let $paramName = value;'));
+      }
+    }
+
+    if (setter.body != null) {
+      for (final stmt in setter.body!.statements) {
+        buffer.writeln(
+          stmtCodeGen.generateWithContext(stmt, functionContext: setter),
+        );
+      }
+    }
+    // Return the value to behave like an assignment expression if needed,
+    // though Dart setters return void. JS assignment returns value.
+    buffer.writeln(indenter.line('return value;'));
+
+    indenter.dedent();
+    buffer.writeln(indenter.line('} else {'));
+
+    // Getter Block
+    indenter.indent();
+    if (getter.body != null) {
+      for (final stmt in getter.body!.statements) {
+        buffer.writeln(
+          stmtCodeGen.generateWithContext(stmt, functionContext: getter),
+        );
+      }
+    }
+    indenter.dedent();
+    buffer.writeln(indenter.line('}')); // Close else
+
+    indenter.dedent();
+    buffer.writeln('};'); // Close function
+
+    return buffer.toString();
   }
 
   Future<String> _generateExportsAsync(DartFile dartFile) async {

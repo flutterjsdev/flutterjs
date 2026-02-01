@@ -145,14 +145,17 @@ class DartFileParser {
 
     try {
       final rootPath = projectRoot ?? Directory.current.path;
+      print('DEBUG: DartFileParser.initialize: rootPath=$rootPath');
+      final pkgConfig = File(
+        p.join(rootPath, '.dart_tool', 'package_config.json'),
+      );
+      print(
+        'DEBUG: DartFileParser.initialize: pkgConfig exists=${pkgConfig.existsSync()} at ${pkgConfig.path}',
+      );
 
       _contextCollection = AnalysisContextCollection(
         includedPaths: [rootPath],
-        excludedPaths: [
-          p.join(rootPath, 'build'),
-          p.join(rootPath, '.dart_tool'),
-          p.join(rootPath, 'node_modules'),
-        ],
+        excludedPaths: [],
         resourceProvider: PhysicalResourceProvider.INSTANCE,
       );
 

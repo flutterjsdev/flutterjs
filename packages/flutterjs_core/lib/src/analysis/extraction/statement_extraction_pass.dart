@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/element/element.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:flutterjs_core/src/ir/expressions/cascade_expression_ir.dart';
 
@@ -856,6 +857,7 @@ class StatementExtractionPass {
           sourceLocation: sourceLoc,
           // metadata: {},
         ),
+        resolvedLibraryUri: _resolveLibraryUri(expr),
         sourceLocation: sourceLoc,
         metadata: metadata,
       );
@@ -992,6 +994,7 @@ class StatementExtractionPass {
           id: builder.generateId('type'),
           sourceLocation: sourceLoc,
         ),
+        resolvedLibraryUri: _resolveLibraryUri(expr.methodName),
         sourceLocation: sourceLoc,
         metadata: metadata,
       );
@@ -1300,6 +1303,7 @@ class StatementExtractionPass {
         sourceLocation: sourceLoc,
         metadata: metadata,
         isConstant: isConst,
+        resolvedLibraryUri: _resolveLibraryUri(expr.constructorName),
       );
     }
 
@@ -1592,6 +1596,34 @@ class StatementExtractionPass {
       default:
         return UnaryOperator.negate;
     }
+  }
+
+  /// Helper to resolve the library URI from an AST node
+  String? _resolveLibraryUri(AstNode node) {
+    Element? element;
+    try {
+      if (node is Identifier) {
+        element = (node as dynamic).staticElement;
+      } else if (node is MethodInvocation) {
+        element = (node.methodName as dynamic).staticElement;
+      } else if (node is ConstructorName) {
+        final ctorElement = (node as dynamic).staticElement;
+        element = (ctorElement as Element?)?.enclosingElement;
+      }
+    } catch (_) {
+      // Ignore errors if staticElement is missing
+    }
+
+    if (element != null) {
+      // Return the defining library's source URI
+      // Use dynamic to bypass potential linter issues with source/uri access
+      try {
+        return (element.library as dynamic)?.source?.uri?.toString();
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
   }
 
   TypeIR _extractTypeFromAnnotation(

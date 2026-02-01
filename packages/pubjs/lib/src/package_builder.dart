@@ -65,7 +65,7 @@ class PackageBuilder {
     } else {
       // Batched parallel build (4 at a time)
       final concurrency = 4;
-      
+
       for (var i = 0; i < sdkPackages.length; i += concurrency) {
         final batchEnd = (i + concurrency < sdkPackages.length)
             ? i + concurrency
@@ -541,8 +541,10 @@ class PackageBuilder {
 
     for (final location in locations) {
       if (await Directory(location).exists()) {
-        // 🎁 Verify it's actually a package (has pubspec.yaml)
-        if (await File(p.join(location, 'pubspec.yaml')).exists()) {
+        // 🎁 Verify it's actually a package (has pubspec.yaml OR package.json)
+        // Modified to support pure JS packages (like flutterjs_material inner dir)
+        if (await File(p.join(location, 'pubspec.yaml')).exists() ||
+            await File(p.join(location, 'package.json')).exists()) {
           return location;
         }
       }

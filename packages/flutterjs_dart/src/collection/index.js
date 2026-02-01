@@ -59,3 +59,6 @@ export class LinkedListEntry {
 // Maps and Sets are just native JS Map/Set usually, but we can export helpers
 export const HashMap = Map;
 export const HashSet = Set;
+
+export * from './priority_queue.js';
+export * from './queue_list.js';

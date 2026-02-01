@@ -104,11 +104,18 @@ class BuildGenerator {
       await fs.promises.writeFile(mainPath, transformedCode, "utf-8");
       files.push({ name: "main.js", size: transformedCode.length });
 
+      // ✅ 7. Write importmap.json
+      const importMapPath = path.join(outputDir, "importmap.json");
+      const importMapJSON = JSON.stringify(this.integration.importMap || {}, null, 2);
+      await fs.promises.writeFile(importMapPath, importMapJSON, "utf-8");
+      files.push({ name: "importmap.json", size: importMapJSON.length });
+
       // ✅ 2. Write HTML
       const htmlPath = path.join(outputDir, "index.html");
       const htmlWrapper = this.wrapHTMLWithTemplate(
         this.integration.generatedHTML,
-        metadata
+        metadata,
+        importMapJSON
       );
       await fs.promises.writeFile(htmlPath, htmlWrapper, "utf-8");
       files.push({ name: "index.html", size: htmlWrapper.length });
@@ -149,7 +156,9 @@ class BuildGenerator {
       await fs.promises.writeFile(stylesPath, styles, "utf-8");
       files.push({ name: "styles.css", size: styles.length });
 
-      // ✅ 7. Write manifest
+
+
+      // ✅ 8. Write manifest
       const manifestPath = path.join(outputDir, "manifest.json");
       const manifest = this.buildManifest();
       await fs.promises.writeFile(
@@ -162,7 +171,7 @@ class BuildGenerator {
         size: JSON.stringify(manifest).length,
       });
 
-      // ✅ 7. Write SourceMaps
+      // ✅ 9. Write SourceMaps
       const sourceMapperPath = path.join(outputDir, "source_mapper.js");
       const sourceMapper = this.generateSourceMapper();
       await fs.promises.writeFile(sourceMapperPath, sourceMapper, "utf-8");
@@ -436,12 +445,11 @@ class BuildGenerator {
 
   /**
    * Wrap HTML shell with full HTML template
-   * ✅ UPDATED: Gets import map from ImportRewriter
+   * ✅ UPDATED: Gets import map from JSON argument
    */
-  wrapHTMLWithTemplate(bodyHTML, metadata) {
-    // ✅ Get import map from ImportRewriter
-    const importRewriter = this.integration.analyzer.importRewriter;
-    const importMapScript = importRewriter.getImportMapScript();
+  wrapHTMLWithTemplate(bodyHTML, metadata, importMapJSON) {
+    // ✅ Use passed JSON or fall back to empty
+    const mapContent = importMapJSON || '{}';
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -453,9 +461,11 @@ class BuildGenerator {
   <title>${metadata.projectName}</title>
   <link rel="stylesheet" href="./styles.css">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <!-- ✅ Import Map from ImportRewriter -->
-  <!-- Maps @flutterjs/* packages to ./node_modules/@flutterjs/ -->
-  ${importMapScript}
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <!-- ✅ Import Map: Inline for reliability -->
+  <script type="importmap">
+    ${importMapJSON}
+  </script>
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1877,14 +1887,15 @@ async function bootApp() {
   console.log('Project:', '${projectName}');
   
   try {
-  // Initialize source maps for ALL packages
-await initializeSourceMaps({
-  baseNodeModules: '/node_modules/@flutterjs',  // Your packages location
-  debugMode: BUILD_MODE !== 'production',
-  autoDiscover: true,  // Auto-find all packages
-  intercept: true,     // Intercept console
-});
-enableWidgetTracking();
+    // Initialize source maps for ALL packages
+    await initializeSourceMaps({
+      baseNodeModules: '/node_modules/@flutterjs',
+      debugMode: BUILD_MODE !== 'production',
+      autoDiscover: true,
+      intercept: true,
+    });
+
+    enableWidgetTracking();
     const rootElement = document.getElementById('root');
     if (!rootElement) {
       throw new Error('Fatal: Root element #root not found in DOM');

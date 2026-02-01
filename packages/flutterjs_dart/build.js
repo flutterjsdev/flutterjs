@@ -110,7 +110,7 @@ function generateExports(sourceFiles) {
             exports[exportKey] = exportPath;
         } else {
             // Normal file
-            const exportKey = './' + normalizedPath.replaceAll(".js", "");
+            const exportKey = './' + normalizedPath.replace(/\.js$/, ''); // Ensure only last .js is removed
             const exportPath = './dist/' + normalizedPath;
             exports[exportKey] = exportPath;
         }

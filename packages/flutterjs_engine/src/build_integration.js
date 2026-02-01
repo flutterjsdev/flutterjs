@@ -95,7 +95,8 @@ class BuildIntegration {
       const packages = {};
 
       // Extract each package entry
-      const pkgRegex = /'(@flutterjs\/[^']+)':\s*\{\s*path:\s*'([^']+)'\s*\}/g;
+      // ✅ FIX: Match ANY package name, not just @flutterjs/ scoped ones
+      const pkgRegex = /'([^']+)':\s*\{\s*path:\s*'([^']+)'\s*\}/g;
       let match;
       while ((match = pkgRegex.exec(packagesMatch[1])) !== null) {
         packages[match[1]] = { path: match[2] };

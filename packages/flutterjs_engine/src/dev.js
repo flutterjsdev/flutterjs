@@ -21,6 +21,7 @@ import { WebSocketServer } from "ws";
 import compression from "compression";
 import cors from "cors";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import open from "open";
 
 // ✅ NEW: Import SourceMapGenerator
 import { SourceMapGenerator } from "./source_map_generator.js";
@@ -90,7 +91,20 @@ export class DevServer {
 
     // Paths
     this.projectRoot = projectContext.projectRoot;
-    this.buildDir = path.join(this.projectRoot, '.dev');
+
+    // ✅ FIXED: Build output is nested in build/flutterjs/.dev
+    // Detect correct build directory, handling clean state (where neither might exist yet)
+
+    const nestedBuildDir = path.join(this.projectRoot, 'build', 'flutterjs', '.dev');
+    const legacyBuildDir = path.join(this.projectRoot, '.dev');
+
+    // If legacy exists, use it. Otherwise default to nested (standard for new builds).
+    if (fs.existsSync(legacyBuildDir)) {
+      this.buildDir = legacyBuildDir;
+    } else {
+      this.buildDir = nestedBuildDir;
+    }
+
     this.sourceDir = path.join(this.projectRoot, config.build?.source || 'src');
     this.mapsDir = path.join(this.buildDir, 'maps');  // ✅ Store maps here
     this.entryFile = config.entry?.main || 'src/main.fjs';
@@ -258,7 +272,7 @@ export class DevServer {
         entry: {
           main: this.entryFile
         },
-        outputDir: '.dev',
+        outputDir: path.relative(this.projectRoot, this.buildDir),
         debugMode: this.config.debugMode || false,
         verbose: false
       });
@@ -441,32 +455,56 @@ export class DevServer {
     this.app.use(express.urlencoded({ extended: true }));
 
     // ✅ FIXED: Simple and direct node_modules serving
-    const nodeModulesPath = path.join(this.projectRoot, 'node_modules');
+    let nodeModulesPath = path.join(this.projectRoot, 'node_modules');
+
+    // If node_modules not found in root, check build/flutterjs/node_modules (Dart build output)
+    if (!fs.existsSync(nodeModulesPath)) {
+      const buildNodeModules = path.join(this.projectRoot, 'build', 'flutterjs', 'node_modules');
+      if (fs.existsSync(buildNodeModules)) {
+        nodeModulesPath = buildNodeModules;
+        console.log(chalk.magenta(`[Debug] Using node_modules from: ${nodeModulesPath}`));
+      }
+    }
 
     if (fs.existsSync(nodeModulesPath)) {
       try {
         // Create a custom handler for node_modules to avoid errors
         this.app.use('/node_modules', (req, res, next) => {
+          // Debugging
+          console.log(chalk.gray(`[Debug] Request for node_modules matching: ${req.path}`));
+
           const filePath = path.join(nodeModulesPath, req.path);
 
           // Security: prevent directory traversal
           if (!filePath.startsWith(nodeModulesPath)) {
+            console.log(chalk.red(`[Debug] Forbidden traversal: ${filePath}`));
             res.status(403).json({ error: 'Forbidden' });
             return;
           }
 
           // Check if file exists
           if (!fs.existsSync(filePath)) {
+            console.log(chalk.yellow(`[Debug] File not found in node_modules: ${filePath}`));
+            // Pass to next middleware (might be in another location or handled by fallback)
+            // But usually node_modules requests are specific.
+            // Let's return 404 for now to avoid SPA fallback for scripts
             res.status(404).json({ error: 'Not found', path: req.path });
             return;
           }
 
           // Check if it's a directory
-          const stat = fs.statSync(filePath);
-          if (stat.isDirectory()) {
-            res.status(400).json({ error: 'Is a directory', path: req.path });
+          try {
+            const stat = fs.statSync(filePath);
+            if (stat.isDirectory()) {
+              res.status(400).json({ error: 'Is a directory', path: req.path });
+              return;
+            }
+          } catch (statError) {
+            res.status(500).json({ error: 'Stat failed', message: statError.message });
             return;
           }
+
+          console.log(chalk.green(`[Debug] Serving: ${filePath}`));
 
           // Set correct MIME type
           let contentType = 'application/octet-stream';
@@ -478,19 +516,23 @@ export class DevServer {
             contentType = 'application/json; charset=utf-8';
           } else if (filePath.endsWith('.css')) {
             contentType = 'text/css; charset=utf-8';
+          } else if (filePath.endsWith('.dart')) {
+            contentType = 'text/plain; charset=utf-8'; // Allow viewing Dart sources
           }
 
           // Read and send file
           try {
-            const content = fs.readFileSync(filePath, 'utf-8');
+            const content = fs.readFileSync(filePath); // Read as buffer to be safe
             res.setHeader('Content-Type', contentType);
             res.setHeader('Cache-Control', 'no-cache');
             res.send(content);
           } catch (error) {
-            console.error(chalk.red(`Error reading ${filePath}:`, error.message));
+            console.error(chalk.red(`Error reading ${filePath}:`));
+            console.error(chalk.red(error.stack));
             res.status(500).json({
               error: 'Internal server error',
-              message: error.message
+              message: error.message,
+              stack: this.config.debugMode ? error.stack : undefined
             });
           }
         });
@@ -665,6 +707,7 @@ export class DevServer {
 
     // SPA fallback
     this.app.get(/^(?!\/api\/).*/, (req, res) => {
+      console.log(chalk.yellow(`[Debug] SPA Fallback triggered used for: ${req.path}`));
       const indexPath = path.join(this.buildDir, 'index.html');
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
@@ -970,6 +1013,38 @@ export class DevServer {
           this.clients.delete(client);
         }
       }
+    });
+  }
+
+  /**
+   * Update internal analysis data after a successful build
+   */
+  updateBuildAnalysis(analysisData) {
+    this.analysisData = analysisData;
+    this.lastBuildTime = Date.now();
+
+    this._broadcastToClients({
+      type: 'rebuild-complete',
+      data: {
+        success: true,
+        timestamp: this.lastBuildTime,
+        analysisData: this.analysisData,
+      },
+    });
+  }
+
+  /**
+   * Report build error to clients
+   */
+  reportBuildError(error) {
+    console.error(chalk.red('Build failure detected:'), error.message);
+
+    this._broadcastToClients({
+      type: 'rebuild-error',
+      data: {
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      },
     });
   }
 

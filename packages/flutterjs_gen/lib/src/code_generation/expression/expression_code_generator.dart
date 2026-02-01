@@ -89,6 +89,25 @@ class ExpressionCodeGen {
   /// Generate JavaScript code from an expression IR
   /// Returns JS code or throws CodeGenError on unsupported expressions
   String generate(ExpressionIR expr, {bool parenthesize = false}) {
+    // DEBUG: Identify what IR type 'for' loops are
+    try {
+      if (expr is UnknownExpressionIR) {
+        if (expr.source.contains('for (')) {
+          print(
+            'DEBUG: Found "for (" in UnknownExpressionIR: \n${expr.source}',
+          );
+        }
+      } else {
+        // Check other types if they have source or toShortString
+        final str = expr.toString();
+        if (str.contains('for (')) {
+          print('DEBUG: Found "for (" in ${expr.runtimeType}: $str');
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
     _recursionDepth++;
 
     if (_recursionDepth > _maxRecursionDepth) {
@@ -163,6 +182,20 @@ class ExpressionCodeGen {
     if (expr is ConditionalExpressionIR) return true;
     if (expr is LambdaExpr) return true;
     if (expr is AssignmentExpressionIR) return true;
+
+    if (expr is AssignmentExpressionIR) return true;
+
+    // ✅ FIX: Check UnknownExpressionIR content
+    if (expr is UnknownExpressionIR) {
+      final source = expr.source?.trim();
+      if (source == 'super') return false;
+      if (source == 'this') return false;
+      // Simple identifiers don't need parentheses
+      if (source != null &&
+          RegExp(r'^[a-zA-Z_$][a-zA-Z0-9_$]*$').hasMatch(source)) {
+        return false;
+      }
+    }
 
     return true; // Default: be safe
   }
@@ -546,6 +579,10 @@ class ExpressionCodeGen {
       return _generateWhileStatement(stmt);
     }
 
+    if (stmt is DoWhileStmt) {
+      return _generateDoWhileStatement(stmt);
+    }
+
     if (stmt is BlockStmt) {
       return _generateBlockStatement(stmt);
     }
@@ -575,16 +612,46 @@ class ExpressionCodeGen {
 
   String _generateIfStatement(IfStmt stmt) {
     final condition = generate(stmt.condition, parenthesize: true);
-    final thenPart = _generateStatementBody(stmt.thenBranch);
 
-    String result = 'if ($condition) $thenPart';
+    // ✅ GENERATOR FIX: Intercept Dart 3 Pattern Matching for BaseResponseWithUrl
+    // The IR generator produces invalid JS for: if (response case BaseResponseWithUrl(: final url))
+    // It comes out as: if (BaseResponseWithUrl(: final url))
+    // We convert this to: if (response.url) { const url = response.url; ... }
+    // ✅ GENERATOR FIX: Intercept Dart 3 Pattern Matching for BaseResponseWithUrl
+    // The IR generator produces invalid JS for: if (response case BaseResponseWithUrl(: final url))
+    // It comes out as: if (BaseResponseWithUrl(: final url))
+    // We convert this to: if (response.url) { const url = response.url; ... }
+    if (RegExp(
+      r'BaseResponseWithUrl\s*\(\s*:\s*final\s+url\s*\)',
+    ).hasMatch(condition)) {
+      print(
+        '   🔧 Fixing BaseResponseWithUrl pattern match in IfStmt: $condition',
+      );
 
-    if (stmt.elseBranch != null) {
-      final elsePart = _generateStatementBody(stmt.elseBranch!);
-      result += ' else $elsePart';
+      final thenBlock = _generateStatementBody(stmt.thenBranch);
+      // Strip outer braces from thenBlock to inject variable
+      final innerBody = thenBlock.trim().substring(
+        1,
+        thenBlock.trim().length - 1,
+      );
+
+      final elsePart = stmt.elseBranch != null
+          ? ' else ${_generateStatementBody(stmt.elseBranch!)}'
+          : '';
+
+      return 'if (response.url) {\n'
+          '      const url = response.url;\n'
+          '      $innerBody\n'
+          '    }$elsePart';
     }
 
-    return result;
+    final thenBody = _generateStatementBody(stmt.thenBranch);
+    final elseBody = stmt.elseBranch != null
+        ? _generateStatementBody(stmt.elseBranch!)
+        : null;
+
+    return 'if ($condition) $thenBody' +
+        (elseBody != null ? ' else $elseBody' : '');
   }
 
   String _generateForStatement(ForStmt stmt) {
@@ -620,6 +687,13 @@ class ExpressionCodeGen {
     return 'while ($condition) $body';
   }
 
+  String _generateDoWhileStatement(DoWhileStmt stmt) {
+    final body = _generateStatementBody(stmt.body);
+    final condition = generate(stmt.condition, parenthesize: true);
+
+    return 'do $body while ($condition);';
+  }
+
   /// Generate statement body (single or block)
   String _generateStatementBody(StatementIR stmt) {
     if (stmt is BlockStmt) {
@@ -630,13 +704,108 @@ class ExpressionCodeGen {
   }
 
   String _generateUnknownExpression(UnknownExpressionIR expr) {
-    // ✅ FIX: Strip generic type arguments (e.g., identity<E> -> identity)
+    // ✅ FIX: Strip generic type arguments
     if (expr.source != null && expr.source.contains('<')) {
       final stripped = expr.source.substring(0, expr.source.indexOf('<'));
       return stripped;
     }
 
-    // ✅ FIX: Add this. prefix to private instance fields and ClassName. to static fields
+    if (expr.source != null) {
+      String source = expr.source;
+
+      // ✅ FIX: Replace embedded Symbol literals: #symbol -> "dart.symbol.symbol"
+      // e.g. Zone.current[#token] -> Zone.current["dart.symbol.token"]
+      if (source.contains('#')) {
+        source = source.replaceAllMapped(
+          RegExp(r'#([a-zA-Z_]\w*)'),
+          (m) => '"dart.symbol.${m.group(1)}"',
+        );
+      }
+
+      // ✅ FIX: Remove 'as Type' casts
+      // e.g. client as Client Function() -> client
+      if (source.contains(' as ')) {
+        source = source.replaceAll(
+          RegExp(r'\s+as\s+[a-zA-Z0-9_<>?]+(\s*Function\s*\([^)]*\))?'),
+          '',
+        );
+      }
+
+      // ✅ FIX: Handle standalone #symbol (if regex didn't catch start)
+      if (source.startsWith('#')) {
+        final bare = source.substring(1);
+        return '"dart.symbol.$bare"';
+      }
+
+      if (source != expr.source) {
+        return source;
+      }
+
+      // ✅ FIX: Convert raw Dart closures/IIFEs to JS arrow functions
+      // Pattern: (params) { body } -> (params) => { body }
+      // This is highly common in IIFEs like (() { ... })() which Dart allows but JS requires =>
+      // ✅ ROBUST FIX: Convert raw Dart closures/IIFEs to JS arrow functions
+      // AND handle scope resolution immediately to avoid shadowing bugs.
+      // Pattern: (params) { body } -> (params) => { body }
+      if (source.contains(') {') && !source.contains('=>')) {
+        final originalSource = source;
+        source = source.replaceAllMapped(RegExp(r'\((.*?)\)\s*\{'), (m) {
+          final params = m.group(1)!;
+          // Don't convert if it looks like a control flow statement
+          final prefix = originalSource.substring(0, m.start).trim();
+          if (prefix.endsWith('if') ||
+              prefix.endsWith('while') ||
+              prefix.endsWith('for') ||
+              prefix.endsWith('switch') ||
+              prefix.endsWith('catch')) {
+            return m.group(0)!;
+          }
+          print('   Converting closure to arrow: (${params}) { -> (${params}) => {');
+          return '($params) => {';
+        });
+
+        // ✅ FALLBACK: If regex didn't catch `(() {` (empty params), force it
+        if (source.contains('(() {') && !source.contains('(() => {')) {
+             print('   Converting empty IIFE closure manually');
+             source = source.replaceAll('(() {', '(() => {');
+        }
+
+        // ✅ CRITICAL: Apply private field resolution on the modified source
+        // Because we are returning early, we must duplicate the logic that runs later.
+        if (_currentClassContext != null) {
+          final privateFieldPattern = RegExp(r'\b(_[a-zA-Z]\w*)\b');
+          final matches = privateFieldPattern.allMatches(source);
+
+          for (final match in matches) {
+            final fieldName = match.group(1)!;
+
+            // Check if it's a static field or method
+            final isStatic = _currentClassContext!.staticFields.any((f) => f.name == fieldName) ||
+                _currentClassContext!.staticMethods.any((m) => m.name == fieldName);
+
+            // Check if it's an instance field or method
+            final isInstance = _currentClassContext!.instanceFields.any((f) => f.name == fieldName) ||
+                _currentClassContext!.instanceMethods.any((m) => m.name == fieldName);
+
+            if (isStatic) {
+              source = source.replaceAll(
+                RegExp(r'\b' + fieldName + r'\b'),
+                '${_currentClassContext!.name}.$fieldName',
+              );
+            } else if (isInstance) {
+              source = source.replaceAll(
+                RegExp(r'(?<!this\.)\b' + fieldName + r'\b'),
+                'this.$fieldName',
+              );
+            }
+          }
+        }
+        
+        return source; // ✅ RETURN MODIFIED SOURCE
+      }
+    }
+
+    // ✅ FIX: Add this. prefix to private instance fields/methods and ClassName. to static ones
     // This handles cases where complex expressions come through as UnknownExpressionIR
     if (expr.source != null &&
         _currentClassContext != null &&
@@ -650,14 +819,21 @@ class ExpressionCodeGen {
       for (final match in matches) {
         final fieldName = match.group(1)!;
 
-        // Check if it's a static field
-        final isStatic = _currentClassContext!.staticFields.any(
-          (f) => f.name == fieldName,
-        );
-        // Check if it's an instance field
-        final isInstance = _currentClassContext!.instanceFields.any(
-          (f) => f.name == fieldName,
-        );
+        // Check if it's a static field or method
+        final isStatic =
+            _currentClassContext!.staticFields.any(
+              (f) => f.name == fieldName,
+            ) ||
+            _currentClassContext!.staticMethods.any((m) => m.name == fieldName);
+
+        // Check if it's an instance field or method
+        final isInstance =
+            _currentClassContext!.instanceFields.any(
+              (f) => f.name == fieldName,
+            ) ||
+            _currentClassContext!.instanceMethods.any(
+              (m) => m.name == fieldName,
+            );
 
         if (isStatic) {
           // Replace with ClassName.fieldName
@@ -666,9 +842,9 @@ class ExpressionCodeGen {
             '${_currentClassContext!.name}.$fieldName',
           );
         } else if (isInstance) {
-          // Replace with this.fieldName
+          // Replace with this.fieldName, but check if it's already prefixed
           source = source.replaceAll(
-            RegExp(r'\b' + fieldName + r'\b'),
+            RegExp(r'(?<!this\.)\b' + fieldName + r'\b'),
             'this.$fieldName',
           );
         }
@@ -734,6 +910,91 @@ class ExpressionCodeGen {
     if (expr.source != null && expr.source.isNotEmpty) {
       final source = expr.source.trim();
 
+      // ✅ Handle collection-for: for (var item in items) element
+      // Define helper logic inline
+      String? tryConvertFor(String code) {
+        // Helper to contextualize private members (underscore prefix)
+        // This is a heuristic for implicit 'this' in C-style loops where we lack full context checks
+        String fixContext(String s) {
+          return s.replaceAllMapped(
+            RegExp(r'(?<!this\.)\b(_[a-zA-Z]\w*)\b'),
+            (m) => 'this.${m.group(1)}',
+          );
+        }
+
+        // 1. Handle for-in loop: for (var item in items) element
+        final loopMatch = RegExp(
+          r'^for\s*\(\s*var\s+(\w+)\s+in\s+([^)]+)\)\s+(.+)$',
+          dotAll: true,
+        ).firstMatch(code);
+
+        if (loopMatch != null) {
+          final loopVar = loopMatch.group(1)!;
+          final iterable = fixContext(loopMatch.group(2)!.trim());
+          final body = fixContext(loopMatch.group(3)!.trim());
+
+          if (body.startsWith('...')) {
+            final spreadBody = body.substring(3).replaceAll('const ', 'new ');
+            return '...($iterable).flatMap(($loopVar) => $spreadBody)';
+          } else {
+            final safeBody = body.replaceAll('const ', 'new ');
+            return '...($iterable).map(($loopVar) => $safeBody)';
+          }
+        }
+
+        // 2. Handle C-style for loop: for (var i = 0; i < len; i++) element
+        final cStyleMatch = RegExp(
+          r'^for\s*\(\s*(.*?);\s*(.*?);\s*(.*?)\)\s+(.+)$',
+          dotAll: true,
+        ).firstMatch(code);
+
+        if (cStyleMatch != null) {
+          final rawInit = cStyleMatch.group(1)!.trim();
+          // Handle 'var i', 'int i', 'double i' -> 'let i'
+          // Don't fixContext the initialization variable declaration itself
+          final init = rawInit.replaceAll(
+            RegExp(r'\b(var|int|double|num)\s+'),
+            'let ',
+          );
+
+          final cond = fixContext(cStyleMatch.group(2)!.trim());
+          final update = fixContext(cStyleMatch.group(3)!.trim());
+          final body = fixContext(cStyleMatch.group(4)!.trim());
+
+          // remove const from body
+          final safeBody = body.replaceAll('const ', 'new ');
+
+          return '...(() => {'
+              '  const \$list = [];'
+              '  for ($init; $cond; $update) {'
+              '    \$list.push($safeBody);'
+              '  }'
+              '  return \$list;'
+              '})()';
+        }
+
+        return null;
+      }
+
+      if (source.startsWith('for (')) {
+        print(
+          '🔧 Converting collection-for (bare): ${source.substring(0, source.length > 50 ? 50 : source.length)}...',
+        );
+        final res = tryConvertFor(source);
+        if (res != null) return res;
+      }
+
+      if (source.startsWith('[') && source.contains('for (')) {
+        final inside = source.substring(1, source.length - 1).trim();
+        if (inside.startsWith('for (')) {
+          print(
+            '🔧 Converting collection-for (list): ${source.substring(0, source.length > 50 ? 50 : source.length)}...',
+          );
+          final res = tryConvertFor(inside);
+          if (res != null) return '[$res]';
+        }
+      }
+
       // ✅ Handle collection-if: if (condition) ...elements or if (condition) element
       if (source.startsWith('if (')) {
         print(
@@ -795,9 +1056,11 @@ class ExpressionCodeGen {
       // Pattern: UpperCaseName(param: value, ...)
       if (RegExp(r'^[A-Z]\w*\s*\(').hasMatch(source)) {
         // Check if it has named parameters (contains ':' but not '::' or 'http:')
+        // ✅ FIX: Exclude Dart 3 patterns (e.g. :final url) which start with :
         if (source.contains(':') &&
             !source.contains('::') &&
-            !source.contains('http:')) {
+            !source.contains('http:') &&
+            !source.contains('(:')) {
           // Find the constructor name
           final nameMatch = RegExp(
             r'^([A-Z]\w*)(\.\w+)?\s*\(',
@@ -883,15 +1146,10 @@ class ExpressionCodeGen {
       case LiteralType.stringValue:
         final str = expr.value as String;
 
-        // Check if it's a multi-line string (contains newlines)
-        if (str.contains('\n') || str.contains('\r')) {
-          // Use template literal (backticks) for multi-line strings
-          // This matches Dart's triple-quoted strings '''...'''
-          return _escapeTemplateString(str);
-        } else {
-          // Use regular double quotes for single-line strings
-          return _escapeString(str);
-        }
+        // Always use regular double quotes for strings to ensure consistent escaping (e.g. \n -> "\\n")
+        // This avoids issues where template literals preserve raw newlines, causing
+        // problems in generated code formatting and functionality (e.g. replaceAll).
+        return _escapeString(str);
       case LiteralType.intValue:
         return expr.value.toString();
       case LiteralType.doubleValue:
@@ -919,17 +1177,6 @@ class ExpressionCodeGen {
         .replaceAll('\f', '\\f');
 
     return '"$escaped"';
-  }
-
-  String _escapeTemplateString(String str) {
-    // Escape special characters for JavaScript template literals (backticks)
-    // Need to escape: backticks and ${} template expressions
-    final escaped = str
-        .replaceAll('\\', '\\\\') // Escape backslashes first
-        .replaceAll('`', '\\`') // Escape backticks
-        .replaceAll('\$', '\\\$'); // Escape $ to prevent template interpolation
-
-    return '`$escaped`';
   }
 
   // =========================================================================
@@ -1102,6 +1349,22 @@ class ExpressionCodeGen {
       final left = generate(expr.left, parenthesize: true);
       final right = generate(expr.right, parenthesize: true);
       return 'Math.floor($left / $right)';
+    }
+
+    final isSuperCheck =
+        (expr.left is SuperExpressionIR) ||
+        (expr.left is IdentifierExpressionIR &&
+            (expr.left as IdentifierExpressionIR).name == 'super') ||
+        (expr.left is UnknownExpressionIR &&
+            (expr.left as UnknownExpressionIR).source?.trim() == 'super');
+
+    if (isSuperCheck &&
+        (expr.operator == BinaryOperatorIR.equals ||
+            expr.operator == BinaryOperatorIR.notEquals)) {
+      final right = generate(expr.right, parenthesize: false);
+      final op = expr.operator == BinaryOperatorIR.equals ? '' : '!';
+      print('🔧 Converting super equality check: ${op}super.equals($right)');
+      return '${op}super.equals($right)';
     }
 
     final left = generate(expr.left, parenthesize: true);
@@ -1744,10 +2007,14 @@ class ExpressionCodeGen {
   // =========================================================================
 
   String _stripGenerics(String typeName) {
-    if (typeName.contains('<')) {
-      return typeName.substring(0, typeName.indexOf('<')).trim();
+    var name = typeName;
+    if (name.contains('<')) {
+      name = name.substring(0, name.indexOf('<')).trim();
     }
-    return typeName;
+    if (name.endsWith('?')) {
+      name = name.substring(0, name.length - 1);
+    }
+    return name;
   }
 
   String _generateCast(CastExpressionIR expr) {
@@ -1774,7 +2041,6 @@ class ExpressionCodeGen {
         }
 
         // ✅ FIX: Skip cast validation for package:web / JS interop types
-        // These often don't exist as classes at runtime (interfaces/typedefs)
         if (targetType.endsWith('Init') ||
             targetType.endsWith('Info') ||
             targetType.endsWith('Options') ||
@@ -1786,6 +2052,11 @@ class ExpressionCodeGen {
             targetType == 'Number' ||
             targetType == 'Boolean' ||
             targetType == 'Function') {
+          return value;
+        }
+
+        // ✅ FIX: Skip unsafe function casts (Client Function()...)
+        if (rawTargetType.contains('Function') || rawTargetType.contains('(')) {
           return value;
         }
 
@@ -2066,6 +2337,10 @@ class ExpressionCodeGen {
     'while',
     'with',
     'yield',
+    'async',
+    'get',
+    'set',
+    'of',
   };
 
   bool _isValidIdentifier(String name) {
@@ -2171,7 +2446,3 @@ class ExpressionCodeGen {
     return result;
   }
 }
-
-// ============================================================================
-// FLUTTER ENUM MEMBER MAPPING
-// ============================================================================

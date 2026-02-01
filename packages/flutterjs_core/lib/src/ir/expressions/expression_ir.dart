@@ -258,6 +258,9 @@ class IdentifierExpressionIR extends ExpressionIR {
   /// Whether this is a reference to `super`
   final bool isSuperReference;
 
+  /// The canonical URI of the library were this symbol is defined.
+  final String? resolvedLibraryUri;
+
   const IdentifierExpressionIR({
     required super.id,
     required super.resultType,
@@ -265,6 +268,7 @@ class IdentifierExpressionIR extends ExpressionIR {
     required this.name,
     this.isThisReference = false,
     this.isSuperReference = false,
+    this.resolvedLibraryUri,
     super.metadata,
   });
 
@@ -278,6 +282,7 @@ class IdentifierExpressionIR extends ExpressionIR {
       'name': name,
       'isThisReference': isThisReference,
       'isSuperReference': isSuperReference,
+      'resolvedLibraryUri': resolvedLibraryUri,
     };
   }
 }
@@ -350,6 +355,9 @@ class MethodCallExpressionIR extends ExpressionIR {
 
   final List<TypeIR> typeArguments; // ← ADD THIS
 
+  /// The canonical URI of the library were this method is defined.
+  final String? resolvedLibraryUri;
+
   const MethodCallExpressionIR({
     required super.id,
     required super.resultType,
@@ -361,6 +369,7 @@ class MethodCallExpressionIR extends ExpressionIR {
     this.namedArguments = const {},
     this.isNullAware = false,
     this.isCascade = false,
+    this.resolvedLibraryUri,
     super.metadata,
   });
 
@@ -391,6 +400,7 @@ class MethodCallExpressionIR extends ExpressionIR {
       'namedArguments': namedArguments.map((k, v) => MapEntry(k, v.toJson())),
       'isNullAware': isNullAware,
       'isCascade': isCascade,
+      'resolvedLibraryUri': resolvedLibraryUri,
     };
   }
 }
@@ -487,6 +497,9 @@ class ConstructorCallExpressionIR extends ExpressionIR {
 
   final List<NamedArgumentIR> namedArgumentsDetailed; // ✅ ADD THIS
 
+  /// The canonical URI of the library were the class/constructor is defined.
+  final String? resolvedLibraryUri;
+
   const ConstructorCallExpressionIR({
     required super.id,
     required super.sourceLocation,
@@ -496,6 +509,7 @@ class ConstructorCallExpressionIR extends ExpressionIR {
     required this.namedArgumentsDetailed,
     this.positionalArguments = const [],
     required super.resultType,
+    this.resolvedLibraryUri,
     super.metadata,
     required List<ExpressionIR> arguments,
     super.isConstant = false,
@@ -521,6 +535,7 @@ class ConstructorCallExpressionIR extends ExpressionIR {
       'namedArgumentsDetailed': namedArgumentsDetailed
           .map((n) => n.toJson())
           .toList(),
+      'resolvedLibraryUri': resolvedLibraryUri,
     };
   }
 }

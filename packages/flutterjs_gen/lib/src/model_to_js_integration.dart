@@ -9,6 +9,7 @@ import 'package:flutterjs_gen/flutterjs_gen.dart';
 import 'package:flutterjs_gen/src/validation_optimization/js_optimizer.dart';
 import 'package:flutterjs_gen/src/model_to_js_diagnostic.dart';
 import 'package:flutterjs_gen/src/utils/import_analyzer.dart';
+import 'package:flutterjs_gen/src/utils/indenter.dart';
 
 // ============================================================================
 // GENERATION PIPELINE ORCHESTRATOR
@@ -25,6 +26,7 @@ class ModelToJSPipeline {
   late final ClassCodeGen classGen;
   late final FunctionCodeGen funcGen;
   late final BuildMethodCodeGen buildMethodGen;
+  late final Indenter indenter;
 
   final List<String> logs = [];
   final List<DiagnosticIssue> issues = [];
@@ -34,6 +36,7 @@ class ModelToJSPipeline {
   final bool verbose;
 
   ModelToJSPipeline({this.importRewriter, this.verbose = false}) {
+    indenter = Indenter('  ');
     _initializeDiagnostics();
     _initializeGenerators();
   }
@@ -48,6 +51,9 @@ class ModelToJSPipeline {
   void _initializeGenerators() {
     exprGen = ExpressionCodeGen();
     stmtGen = StatementCodeGen(exprGen: exprGen);
+    // Share the indenter
+    stmtGen.indenter = indenter;
+
     funcGen = FunctionCodeGen(exprGen: exprGen, stmtGen: stmtGen);
     classGen = ClassCodeGen(
       exprGen: exprGen,
@@ -175,19 +181,91 @@ class ModelToJSPipeline {
     }
 
     // Generate functions
-    for (final func in dartFile.functionDeclarations) {
+    // Group functions by name to detect getter/setter pairs
+    final funcsByName = <String, List<FunctionDecl>>{};
+    for (var f in dartFile.functionDeclarations) {
+      var key = f.name;
+      if (f.isSetter && key.endsWith('=')) {
+        key = key.substring(0, key.length - 1);
+      }
+      funcsByName.putIfAbsent(key, () => []).add(f);
+    }
+
+    for (var name in funcsByName.keys) {
+      final group = funcsByName[name]!;
+
+      // Check for getter/setter pair
+      FunctionDecl? getter;
+      FunctionDecl? setter;
+
+      for (var f in group) {
+        if (f.isGetter) getter = f;
+        if (f.isSetter) setter = f;
+      }
+
+      if (group.length == 2 && getter != null && setter != null) {
+        // Handle getter/setter pair
+        try {
+          _log('  Generating merged getter/setter: $name');
+          buffer.writeln(await _generateMergedGetterSetter(getter, setter));
+          buffer.writeln();
+        } catch (e, st) {
+          _log('  ❌ Error generating getter/setter pair $name: $e');
+          issues.add(
+            DiagnosticIssue(
+              severity: DiagnosticSeverity.error,
+              code: 'GEN003',
+              message: 'Failed to generate getter/setter pair $name: $e',
+              affectedNode: name,
+              stackTrace: st,
+            ),
+          );
+        }
+      } else {
+        // Handle normally (single functions or non-pairs)
+        for (final func in group) {
+          try {
+            _log('  Generating function: ${func.name}');
+            buffer.writeln(funcGen.generate(func));
+            buffer.writeln();
+          } catch (e, st) {
+            _log('  ❌ Error generating function ${func.name}: $e');
+            issues.add(
+              DiagnosticIssue(
+                severity: DiagnosticSeverity.error,
+                code: 'GEN002',
+                message: 'Failed to generate function ${func.name}: $e',
+                affectedNode: func.name,
+                stackTrace: st,
+              ),
+            );
+          }
+        }
+      }
+    }
+
+    // Generate variables
+    for (final variable in dartFile.variableDeclarations) {
       try {
-        _log('  Generating function: ${func.name}');
-        buffer.writeln(funcGen.generate(func));
+        _log('  Generating variable: ${variable.name}');
+        final safeName = exprGen.safeIdentifier(variable.name);
+        final keyword = variable.isFinal || variable.isConst ? 'const' : 'let';
+
+        if (variable.initializer != null) {
+          final init = exprGen.generate(variable.initializer!);
+          buffer.writeln('$keyword $safeName = $init;');
+        } else {
+          buffer.writeln('$keyword $safeName = null;');
+        }
         buffer.writeln();
       } catch (e, st) {
-        _log('  ❌ Error generating function ${func.name}: $e');
+        _log('  ❌ Error generating variable ${variable.name}: $e');
         issues.add(
           DiagnosticIssue(
             severity: DiagnosticSeverity.error,
-            code: 'GEN002',
-            message: 'Failed to generate function ${func.name}: $e',
-            affectedNode: func.name,
+            code: 'GEN004',
+            message: 'Failed to generate variable ${variable.name}: $e',
+            affectedNode: variable.name,
             stackTrace: st,
           ),
         );
@@ -200,11 +278,79 @@ class ModelToJSPipeline {
     return buffer.toString();
   }
 
+  Future<String> _generateMergedGetterSetter(
+    FunctionDecl getter,
+    FunctionDecl setter,
+  ) async {
+    final buffer = StringBuffer();
+    final name = getter.name;
+    final safeName = exprGen.safeIdentifier(name);
+
+    // Generate unified function
+    // const name = (value = undefined) => { ... }
+    buffer.writeln('const $safeName = (value = undefined) => {');
+    indenter.indent();
+
+    // Setter Block
+    buffer.writeln(indenter.line('if (value !== undefined) {'));
+    indenter.indent();
+
+    // Map setter parameter to 'value'
+    if (setter.parameters.isNotEmpty) {
+      final paramName = setter.parameters.first.name;
+      // Define the expected parameter variable just in case body uses it
+      if (paramName != 'value') {
+        buffer.writeln(indenter.line('let $paramName = value;'));
+      }
+    }
+
+    if (setter.body != null) {
+      for (final stmt in setter.body!.statements) {
+        buffer.writeln(
+          stmtGen.generateWithContext(stmt, functionContext: setter),
+        );
+      }
+    }
+    // Return the value to behave like an assignment expression if needed
+    buffer.writeln(indenter.line('return value;'));
+
+    indenter.dedent();
+    _log('    Setter block done for $name');
+    buffer.writeln(indenter.line('} else {'));
+    _log('    Else block header written for $name');
+
+    // Getter Block
+    indenter.indent();
+    if (getter.body != null) {
+      _log(
+        '    Generating getter body for $name (${getter.body!.statements.length} statements)',
+      );
+      for (final stmt in getter.body!.statements) {
+        buffer.writeln(
+          stmtGen.generateWithContext(stmt, functionContext: getter),
+        );
+      }
+    } else {
+      _log('    Getter body is NULL for $name');
+    }
+    indenter.dedent();
+    buffer.writeln(indenter.line('}')); // Close else
+    _log('    Else block closed for $name');
+
+    indenter.dedent();
+    buffer.writeln('};'); // Close function
+
+    return buffer.toString();
+  }
+
   Future<DiagnosticReport> _validateOutput(String jsCode) async {
     final report = DiagnosticReport();
 
     // Basic syntax validation
     if (!_validateBraces(jsCode)) {
+      _log(
+        '❌ Unmatched braces detected. Code snippet:\n${jsCode.substring(0, jsCode.length < 500 ? jsCode.length : 500)}...',
+      );
       report.addIssue(
         DiagnosticIssue(
           severity: DiagnosticSeverity.error,
@@ -312,6 +458,12 @@ class ModelToJSPipeline {
       );
     }
 
+    // Collect all import prefixes to avoid naming conflicts
+    final importPrefixes = dartFile.imports
+        .map((i) => i.prefix)
+        .where((p) => p != null)
+        .toSet();
+
     // Generate imports with symbol analysis
     for (final import in dartFile.imports) {
       String importPath = import.uri;
@@ -327,16 +479,49 @@ class ModelToJSPipeline {
       }
 
       // Convert package: URI to JS import path
+      bool wasPackage = false;
       if (importPath.startsWith('package:')) {
         importPath = _convertPackageUriToJsPath(importPath);
+        wasPackage = true;
       } else if (importPath.startsWith('dart:')) {
         importPath = _convertDartUriToJsPath(importPath);
       } else if (importRewriter != null) {
         importPath = importRewriter!(importPath);
       }
 
+      // ✅ FIX: Ensure relative paths start with ./ for browser compatibility
+      if (!wasPackage &&
+          !importPath.startsWith('package:') &&
+          !importPath.startsWith('dart:') &&
+          !importPath.startsWith('@') &&
+          !importPath.startsWith('/') &&
+          !importPath.startsWith('.')) {
+        importPath = './$importPath';
+      }
+
       // Get symbols used from this import
-      final symbols = usedSymbols[import.uri] ?? {};
+      final symbols = usedSymbols[import.uri] ?? <String>{};
+
+      // ✅ FORCE: Ensure Zone and runZoned are present for dart:async
+      // These are used in zoneClient which contains raw strings the analyzer misses.
+      final isAsync =
+          import.uri == 'dart:async' ||
+          importPath.contains('async/index.js') ||
+          importPath.contains('@flutterjs/dart/async');
+
+      if (isAsync) {
+        symbols.add('Zone');
+        symbols.add('runZoned');
+      }
+
+      // ✅ NEW: Check if this import is redundant (re-exported and no code usage)
+      final importUriNorm = _normalizeUri(import.uri);
+      final isReexported = dartFile.exports.any(
+        (e) => _normalizeUri(e.uri) == importUriNorm,
+      );
+      if (isReexported && symbols.isEmpty && import.prefix == null) {
+        continue;
+      }
 
       // Generate import statement
       if (import.prefix != null) {
@@ -347,10 +532,29 @@ class ModelToJSPipeline {
           'import { ${import.showList.join(", ")} } from \'$importPath\';',
         );
       } else if (symbols.isNotEmpty) {
-        // ✅ NEW: Use analyzed symbols
-        buffer.writeln(
-          'import { ${symbols.join(", ")} } from \'$importPath\';',
-        );
+        // ✅ FIX: Clean symbols to remove Dart syntax (Client?, List<T>)
+        // AND ensure we don't import symbols that conflict with local class names OR prefixes
+        final declaredClasses = dartFile.classDeclarations
+            .map((c) => c.name)
+            .toSet();
+
+        final validSymbols = symbols
+            .map(_cleanSymbol)
+            .where((s) => s.isNotEmpty && !_isInvalidSymbol(s))
+            .where((s) => !declaredClasses.contains(s))
+            .where((s) => !importPrefixes.contains(s)) // ✅ FIX: Avoid conflict with prefixes
+            .toSet();
+
+        // ✅ FORCE: Ensure Zone and runZoned are present for dart:async
+        if (import.uri == 'dart:async') {
+          validSymbols.add('Zone');
+          validSymbols.add('runZoned');
+        }
+
+        if (validSymbols.isNotEmpty) {
+          final symbolsStr = validSymbols.join(', ');
+          buffer.writeln('import { $symbolsStr } from \'$importPath\';');
+        }
       } else {
         // Side-effect only import (rare)
         buffer.writeln('import \'$importPath\';');
@@ -403,6 +607,12 @@ class ModelToJSPipeline {
       return '@flutterjs/$scopedName/dist/index.js';
     }
 
+    // Handle 'flutter' SDK package mapping
+    if (packageName == 'flutter') {
+      final libName = filePath.split('/')[0].replaceAll('.dart', '');
+      return '@flutterjs/$libName/src/index.js';
+    }
+
     // For third-party packages, convert .dart to .js and add dist/
     if (filePath.isNotEmpty) {
       final jsFile = filePath.replaceAll('.dart', '.js');
@@ -413,11 +623,9 @@ class ModelToJSPipeline {
     return '$packageName/dist/$packageName.js';
   }
 
-  /// Convert dart: URI to JS import path
-  /// dart:math -> @flutterjs/dart/math/dist/math.js
   String _convertDartUriToJsPath(String dartUri) {
     final libName = dartUri.substring(5); // 'math'
-    return '@flutterjs/dart/$libName/dist/$libName.js';
+    return '@flutterjs/dart/dist/$libName/index.js';
   }
 
   String _generateExports(DartFile dartFile) {
@@ -430,14 +638,51 @@ class ModelToJSPipeline {
     buffer.writeln(
       '// ============================================================================\n',
     );
+
+    final exportedNames = <String>{};
     buffer.writeln('export {');
 
     for (final cls in dartFile.classDeclarations) {
-      buffer.writeln('  ${cls.name},');
+      if (exportedNames.add(cls.name)) {
+        final safeName = exprGen.safeIdentifier(cls.name);
+        if (safeName != cls.name) {
+          buffer.writeln('  $safeName as ${cls.name},');
+        } else {
+          buffer.writeln('  ${cls.name},');
+        }
+      }
     }
 
+    // Functions (including merged getters/setters)
+    final processedFuncs = <String>{};
     for (final func in dartFile.functionDeclarations) {
-      buffer.writeln('  ${func.name},');
+      var key = func.name;
+      if (func.isSetter && key.endsWith('=')) {
+        key = key.substring(0, key.length - 1);
+      }
+
+      if (processedFuncs.add(key)) {
+        if (exportedNames.add(key)) {
+          final safeName = exprGen.safeIdentifier(key);
+          if (safeName != key) {
+            buffer.writeln('  $safeName as $key,');
+          } else {
+            buffer.writeln('  $key,');
+          }
+        }
+      }
+    }
+
+    // Top-level variables
+    for (final variable in dartFile.variableDeclarations) {
+      if (exportedNames.add(variable.name)) {
+        final safeName = exprGen.safeIdentifier(variable.name);
+        if (safeName != variable.name) {
+          buffer.writeln('  $safeName as ${variable.name},');
+        } else {
+          buffer.writeln('  ${variable.name},');
+        }
+      }
     }
 
     buffer.writeln('};');
@@ -465,8 +710,21 @@ class ModelToJSPipeline {
         }
 
         // Handle 'package:' uris not handled by rewriter (fallback)
+        bool wasPackage = false;
         if (jsPath.startsWith('package:')) {
-          // If rewriter didn't handle it, we might be in trouble, but let's try to keep it valid JS string
+          jsPath = _convertPackageUriToJsPath(jsPath);
+          wasPackage = true;
+        }
+
+        // ✅ FIX: Ensure relative paths start with ./ for browser compatibility
+        // But do NOT touch package imports (bare specifiers)
+        if (!wasPackage &&
+            !jsPath.startsWith('package:') &&
+            !jsPath.startsWith('dart:') &&
+            !jsPath.startsWith('@') &&
+            !jsPath.startsWith('/') &&
+            !jsPath.startsWith('.')) {
+          jsPath = './$jsPath';
         }
 
         if (export.showList.isNotEmpty) {
@@ -512,6 +770,43 @@ class ModelToJSPipeline {
   }
 
   String getFullLog() => logs.join('\n');
+
+  String _normalizeUri(String uri) {
+    if (uri.startsWith('./')) return uri.substring(2);
+    return uri;
+  }
+
+  String _cleanSymbol(String symbol) {
+    // Remove nullable ?
+    var cleaned = symbol.replaceAll('?', '');
+
+    // Remove generics <...>
+    if (cleaned.contains('<')) {
+      cleaned = cleaned.substring(0, cleaned.indexOf('<'));
+    }
+
+    // Handle function types: "Client Function()" -> ignore or just take "Client"?
+    // If it's a function type, it's usually not a class we want to import as a value.
+    if (cleaned.contains(' Function') || cleaned.contains('(')) {
+      // Try to extract the first identifier if it looks valid
+      final match = RegExp(r'^([a-zA-Z_$][a-zA-Z0-9_$]*)').firstMatch(cleaned);
+      if (match != null) {
+        return match.group(0)!;
+      }
+      return ''; // Invalid
+    }
+
+    return cleaned.trim();
+  }
+
+  bool _isInvalidSymbol(String symbol) {
+    if (symbol.isEmpty) return true;
+    if (symbol == 'void') return true;
+    if (symbol == 'dynamic') return true;
+    if (symbol == 'Function') return true;
+    // Check if it's a valid JS identifier
+    return !RegExp(r'^[a-zA-Z_$][a-zA-Z0-9_$]*$').hasMatch(symbol);
+  }
 }
 
 // ============================================================================

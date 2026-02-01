@@ -8,10 +8,14 @@
     ".": "./dist/index.js",
     "./async": "./dist/async/index.js",
     "./collection": "./dist/collection/index.js",
+    "./collection/priority_queue": "./dist/collection/priority_queue.js",
+    "./collection/queue_list": "./dist/collection/queue_list.js",
     "./convert": "./dist/convert/index.js",
+    "./core": "./dist/core/index.js",
     "./developer": "./dist/developer/index.js",
     "./math": "./dist/math/index.js",
-    "./typed_data": "./dist/typed_data/index.js"
+    "./typed_data": "./dist/typed_data/index.js",
+    "./ui": "./dist/ui/index.js"
   },
   "scripts": {
     "build": "node build.js",

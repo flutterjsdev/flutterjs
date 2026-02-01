@@ -349,6 +349,9 @@ class RunCommand extends Command<void> {
       await _reportResults(config, context, results);
 
       // Start dev server if --serve flag is set (requires --to-js)
+      print(
+        '[DEBUG] Checking DevServer conditions: serve=${config.serve}, toJs=${config.toJs}, filesGenerated=${results.jsConversion.filesGenerated}',
+      );
       if (config.serve &&
           config.toJs &&
           results.jsConversion.filesGenerated > 0) {

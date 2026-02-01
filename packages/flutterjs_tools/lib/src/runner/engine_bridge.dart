@@ -645,6 +645,33 @@ class EngineBridgeManager {
     String projectName = 'flutterjs-app',
     bool verbose = false,
   }) async {
+    // ✅ COPY PACKAGE MAP: Always copy authoritative map to JS build directory
+    // Do this BEFORE early return so it updates on every run
+    try {
+      final projectRoot = Directory(buildPath).parent.parent.path;
+      final packageMapSource = File(
+        path.join(projectRoot, '.dart_tool', 'flutterjs', 'package_map.json'),
+      );
+      final packageMapDest = File(path.join(buildPath, 'package_map.json'));
+
+      stderr.writeln(
+        '   [DEBUG-FORCE] Checking package_map source: ${packageMapSource.path}',
+      );
+      if (packageMapSource.existsSync()) {
+        stderr.writeln(
+          '   [DEBUG-FORCE] Copying package_map.json to build directory...',
+        );
+        packageMapSource.copySync(packageMapDest.path);
+        stderr.writeln('   [DEBUG-FORCE] Copy success.');
+      } else {
+        stderr.writeln(
+          '   [DEBUG-FORCE] package_map.json not found at ${packageMapSource.path}',
+        );
+      }
+    } catch (e) {
+      stderr.writeln('   ⚠️ Warning: Failed to copy package_map.json: $e');
+    }
+
     // Check if already initialized (flutterjs.config.js exists)
     final configFile = File(path.join(buildPath, 'flutterjs.config.js'));
     if (configFile.existsSync()) {
@@ -672,13 +699,41 @@ class EngineBridgeManager {
       // Note: Need to add import at top of file
       final packageManager = RuntimePackageManager();
 
-      // Get SDK packages (all @flutterjs/* packages)
+      // Get SDK packages (all @flutterjs/* packages) AND project dependencies
+      if (verbose)
+        print('   [DEBUG] Calling packageManager.resolvePackages...');
       final sdkPackages = await packageManager.resolvePackages(
-        [], // Empty list since we want all SDK packages
+        [], // Empty list since we want all SDK packages initially
         projectPath: Directory(buildPath).parent.parent.path,
         includeSDK: true,
+        includeProjectDependencies: true, // ✅ Resolve all pubspec dependencies
+        lookupNodeModulesPath: path.join(
+          buildPath,
+          'node_modules',
+        ), // ✅ Scan installed modules
         verbose: verbose,
       );
+
+      // ✅ COPY PACKAGE MAP: Copy authoritative map to JS build directory
+      try {
+        final projectRoot = Directory(buildPath).parent.parent.path;
+        final packageMapSource = File(
+          path.join(projectRoot, '.dart_tool', 'flutterjs', 'package_map.json'),
+        );
+        final packageMapDest = File(path.join(buildPath, 'package_map.json'));
+
+        if (packageMapSource.existsSync()) {
+          if (verbose)
+            print('   [DEBUG] Copying package_map.json to build directory...');
+          packageMapSource.copySync(packageMapDest.path);
+        } else {
+          print(
+            '   ⚠️ Warning: package_map.json not found at ${packageMapSource.path}',
+          );
+        }
+      } catch (e) {
+        print('   ⚠️ Warning: Failed to copy package_map.json: $e');
+      }
 
       // Validate core packages are present
       final corePackages = [

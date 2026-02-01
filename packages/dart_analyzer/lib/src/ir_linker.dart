@@ -2,7 +2,7 @@
 
 import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:analyzer/dart/ast/visitor.dart';
-import 'analying_project.dart';
+import 'analyzing_project.dart';
 import 'analyze_flutter_app.dart';
 import 'model/analyzer_model.dart';
 import 'model/other.dart' as other;

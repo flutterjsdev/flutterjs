@@ -371,7 +371,13 @@ class ImportRewriter {
    */
   async analyzeImportsWithResolution(sourceCode, resolution) {
     this.result = new ImportAnalysisResult();
-    this.resolution = resolution;
+
+    // ✅ FIX: Handle both object wrapper and direct Map
+    if (resolution instanceof Map) {
+      this.resolution = { packages: resolution };
+    } else {
+      this.resolution = resolution;
+    }
 
     if (this.config.debugMode) {
       console.log(chalk.blue('\n📋 Import Analysis with Package Resolution'));
@@ -434,7 +440,15 @@ class ImportRewriter {
       console.log(chalk.blue('📦 Loading package exports...\n'));
     }
 
+    console.log(`[ImportRewriter] loadPackageExports: Processing ${this.resolution.packages.size} packages`);
     for (const [packageName, packageInfo] of this.resolution.packages) {
+      if (packageName === 'http_parser' || this.config.debugMode) {
+        console.log(`[ImportRewriter]   -> Processing: ${packageName}`);
+        console.log(`[ImportRewriter]      Info: ${JSON.stringify(packageInfo)}`);
+      }
+      if (packageName === 'http_parser') {
+        console.log(`[ImportRewriter]   Found http_parser in resolution! Path: ${packageInfo.path || packageInfo}`);
+      }
       try {
         // ✅ FIX: packageInfo might be an object with different structure
         let sourcePath = packageInfo.source || packageInfo;
@@ -475,7 +489,45 @@ class ImportRewriter {
         if (!fs.existsSync(packageJsonPath)) {
           this.result.addWarning(`package.json not found for ${packageName} at ${packageJsonPath}`);
           if (this.config.debugMode) {
-            console.error(chalk.yellow(`  ⚠ ${packageName}: package.json not found at ${packageJsonPath}`));
+            console.warn(chalk.yellow(`  ⚠ ${packageName}: package.json not found at ${packageJsonPath}`));
+            console.log(chalk.yellow(`  ℹ️  Creating synthetic config for Dart package: ${packageName}`));
+          }
+
+          // ✅ FALLBACK: Create synthetic config for Dart packages (Pub Cache)
+          // They don't have package.json, so we assume a default structure using the package name
+          const config = new PackageExportConfig(packageName, packageJsonPath); // Path doesn't exist but we need it for class
+
+          // Synthesize defaults
+          config.version = '0.0.0-dart-synthetic';
+          // For Dart packages, the JS output is usually [package_name].js or index.js
+          // We'll try both matching patterns in the import map generation, 
+          // but here we set a reasonable default.
+          // Note: The build system (Dart) usually compiles package:foo to foo.js
+          config.mainEntry = `${packageName}.js`;
+
+          config.exports.set('default', config.mainEntry);
+          config.exports.set('.', config.mainEntry);
+
+          // ✅ SPECIAL CASE: @flutterjs/dart requires specific submodules to be exposed
+          // This code path handles the fallback when package.json is missing or incomplete,
+          // ensuring the core SDK modules are always mapped correctly for the browser.
+          if (packageName === '@flutterjs/dart') {
+            config.exports.set('./core', './dist/core/index.js');
+            config.exports.set('./ui', './dist/ui/index.js');
+            config.exports.set('./async', './dist/async/index.js');
+            config.exports.set('./collection', './dist/collection/index.js');
+            config.exports.set('./convert', './dist/convert/index.js');
+            config.exports.set('./math', './dist/math/index.js');
+            config.exports.set('./typed_data', './dist/typed_data/index.js');
+            config.exports.set('./developer', './dist/developer/index.js');
+          }
+
+          this.result.packageExports.set(packageName, config);
+
+          if (this.config.debugMode) {
+            console.log(chalk.green(`  ✓ ${packageName} (SYNTHETIC)`));
+            console.log(chalk.gray(`    Path: ${sourcePath}`));
+            console.log(chalk.gray(`    Main: ${config.mainEntry}`));
           }
           continue;
         }
@@ -489,6 +541,22 @@ class ImportRewriter {
 
         if (loaded) {
           this.result.packageExports.set(packageName, config);
+          if (packageName === 'http_parser') {
+            console.log(`[ImportRewriter]   ✅ Successfully loaded http_parser exports`);
+          }
+
+          // ✅ SPECIAL CASE: Explicitly enforce @flutterjs/dart submodules 
+          // even if package.json exists but is potentially incomplete.
+          if (packageName === '@flutterjs/dart') {
+            config.exports.set('./core', './dist/core/index.js');
+            config.exports.set('./ui', './dist/ui/index.js');
+            config.exports.set('./async', './dist/async/index.js');
+            config.exports.set('./collection', './dist/collection/index.js');
+            config.exports.set('./convert', './dist/convert/index.js');
+            config.exports.set('./math', './dist/math/index.js');
+            config.exports.set('./typed_data', './dist/typed_data/index.js');
+            config.exports.set('./developer', './dist/developer/index.js');
+          }
 
           if (this.config.debugMode) {
             console.log(chalk.green(`  ✓ ${packageName} (v${config.version})`));
@@ -684,7 +752,11 @@ class ImportRewriter {
     // ✅ FIXED: Pass /node_modules as baseDir (NOT /node_modules/@flutterjs)
     const baseDir = '/node_modules';
 
+    console.log(`[ImportRewriter] generateDynamicImportMap: Processing ${this.result.packageExports.size} package exports`);
     for (const [packageName, exportConfig] of this.result.packageExports) {
+      if (packageName === 'http_parser') {
+        console.log(`[ImportRewriter]   Generating mappings for http_parser`);
+      }
       try {
         const entries = exportConfig.getExportEntries(baseDir);  // ✅ Pass /node_modules
 
@@ -693,10 +765,84 @@ class ImportRewriter {
           const physicalPath = `${baseDir}/${packageName}/${exportConfig.mainEntry}`.replace(/^\.\//, '').replace(/\/+/g, '/');
           this.result.importMap.addImport(packageName, physicalPath);
 
-          if (this.config.debugMode) {
-            console.log(chalk.gray(`${packageName}`));
-            console.log(chalk.gray(`  → ${physicalPath} (BARE)`));
-          }
+          // ✅ NEW: Add Dart-style package URI mapping for main entry
+          // package:http/http.js -> /node_modules/http/dist/http.js
+          const dartPackageUri = `package:${packageName}/${packageName}.js`;
+          this.result.importMap.addImport(dartPackageUri, physicalPath);
+        }
+
+        // ✅ NEW: Add trailing slash mapping for sub-module resolution
+        // "collection/" -> "/node_modules/collection/"
+        // This allows imports like 'collection/src/priority_queue.js' to be resolved
+        if (packageName) {
+          const scopeName = `${packageName}/`;
+          const scopePath = `${baseDir}/${packageName}/`.replace(/\/+/g, '/');
+          this.result.importMap.addImport(scopeName, scopePath);
+        }
+
+        // ✅ SPECIAL CASE: Explicitly add scope for collection to map @flutterjs/dart
+        if (packageName === 'collection') {
+          const scopeName = `/node_modules/${packageName}/`;
+          this.result.importMap.addScopeImport(scopeName, '@flutterjs/dart/core', '/node_modules/@flutterjs/dart/dist/core/index.js');
+          this.result.importMap.addScopeImport(scopeName, '@flutterjs/dart/ui', '/node_modules/@flutterjs/dart/dist/ui/index.js');
+          this.result.importMap.addScopeImport(scopeName, '@flutterjs/dart/async', '/node_modules/@flutterjs/dart/dist/async/index.js');
+          this.result.importMap.addScopeImport(scopeName, '@flutterjs/dart/collection', '/node_modules/@flutterjs/dart/dist/collection/index.js');
+          this.result.importMap.addScopeImport(scopeName, '@flutterjs/dart/convert', '/node_modules/@flutterjs/dart/dist/convert/index.js');
+          this.result.importMap.addScopeImport(scopeName, '@flutterjs/dart/math', '/node_modules/@flutterjs/dart/dist/math/index.js');
+          this.result.importMap.addScopeImport(scopeName, '@flutterjs/dart/typed_data', '/node_modules/@flutterjs/dart/dist/typed_data/index.js');
+          this.result.importMap.addScopeImport(scopeName, '@flutterjs/dart/developer', '/node_modules/@flutterjs/dart/dist/developer/index.js');
+          this.result.importMap.addScopeImport(scopeName, '@flutterjs/dart', '/node_modules/@flutterjs/dart/dist/index.js');
+        }
+
+        if (packageName === '@flutterjs/dart') {
+          this.result.importMap.addImport('dart:core', '/node_modules/@flutterjs/dart/dist/core/index.js');
+          this.result.importMap.addImport('dart:async', '/node_modules/@flutterjs/dart/dist/async/index.js');
+          this.result.importMap.addImport('dart:collection', '/node_modules/@flutterjs/dart/dist/collection/index.js');
+          this.result.importMap.addImport('dart:convert', '/node_modules/@flutterjs/dart/dist/convert/index.js');
+          this.result.importMap.addImport('dart:math', '/node_modules/@flutterjs/dart/dist/math/index.js');
+          this.result.importMap.addImport('dart:typed_data', '/node_modules/@flutterjs/dart/dist/typed_data/index.js');
+          this.result.importMap.addImport('dart:developer', '/node_modules/@flutterjs/dart/dist/developer/index.js');
+          this.result.importMap.addImport('dart:ui', '/node_modules/@flutterjs/dart/dist/ui/index.js');
+
+          // ✅ FIX: Redirect missing collection files to manual implementation
+          this.result.importMap.addImport(
+            '/node_modules/collection/dist/src/priority_queue.js', 
+            '/node_modules/@flutterjs/dart/dist/collection/priority_queue.js'
+          );
+          this.result.importMap.addImport(
+            '/node_modules/collection/dist/src/queue_list.js', 
+            '/node_modules/@flutterjs/dart/dist/collection/queue_list.js'
+          );
+        }
+
+
+        // ✅ CRITICAL FIX: ALWAYS add wildcard mapping for every package
+        // This ensures that even if mainEntry is missing or exports are weird,
+        // we can still resolve files inside the package (e.g. http_parser/dist/http_parser.js)
+        const packageRoot = `${baseDir}/${packageName}/`.replace(/\/+/g, '/');
+        this.result.importMap.addImport(`${packageName}/`, packageRoot);
+
+        // ✅ SCOPE SUPPORT: Map internal paths for this package scope
+        // This allows "src/abortable.js" to resolve correctly inside the package
+        // if the generator produced bad relative paths.
+        const packageScope = packageRoot;
+
+        // Map package root to itself to allow root-relative resolution
+        // This fixes `import "src/abortable.js"` -> resolving to `/node_modules/pkg/src/abortable.js`
+        // We add the package root to the scopes
+        // Use ./ prefix to resolve relative to the scope base (which is the package root)
+        this.result.importMap.addScopeImport(packageScope, "src/", "./src/");
+        this.result.importMap.addScopeImport(packageScope, "lib/", "./lib/");
+        this.result.importMap.addScopeImport(packageScope, "dist/", "./dist/");
+
+        if (this.config.debugMode) {
+          console.log(chalk.green(`  Added scope for ${packageName}`));
+        }
+
+
+        if (this.config.debugMode && exportConfig.mainEntry) {
+          console.log(chalk.gray(`${packageName}`));
+          console.log(chalk.gray(`  → ${baseDir}/${packageName}/${exportConfig.mainEntry} (BARE)`));
         }
 
         for (const [importName, importPath] of entries) {
@@ -715,6 +861,18 @@ class ImportRewriter {
         }
       }
     }
+
+    // ✅ FORCE INJECT: Ensure 'collection' scope exists regardless of package discovery
+    const collectionScope = '/node_modules/collection/';
+    this.result.importMap.addScopeImport(collectionScope, '@flutterjs/dart/core', '/node_modules/@flutterjs/dart/dist/core/index.js');
+    this.result.importMap.addScopeImport(collectionScope, '@flutterjs/dart/ui', '/node_modules/@flutterjs/dart/dist/ui/index.js');
+    this.result.importMap.addScopeImport(collectionScope, '@flutterjs/dart/async', '/node_modules/@flutterjs/dart/dist/async/index.js');
+    this.result.importMap.addScopeImport(collectionScope, '@flutterjs/dart/collection', '/node_modules/@flutterjs/dart/dist/collection/index.js');
+    this.result.importMap.addScopeImport(collectionScope, '@flutterjs/dart/convert', '/node_modules/@flutterjs/dart/dist/convert/index.js');
+    this.result.importMap.addScopeImport(collectionScope, '@flutterjs/dart/math', '/node_modules/@flutterjs/dart/dist/math/index.js');
+    this.result.importMap.addScopeImport(collectionScope, '@flutterjs/dart/typed_data', '/node_modules/@flutterjs/dart/dist/typed_data/index.js');
+    this.result.importMap.addScopeImport(collectionScope, '@flutterjs/dart/developer', '/node_modules/@flutterjs/dart/dist/developer/index.js');
+    this.result.importMap.addScopeImport(collectionScope, '@flutterjs/dart', '/node_modules/@flutterjs/dart/dist/index.js');
 
     if (this.config.debugMode) {
       console.log();

@@ -6,18 +6,31 @@
   "type": "module",
   "exports": {
     "./hydrator": "./dist/hydrator.js",
+    "./hydrator.js": "./dist/hydrator.js",
     "./patch_applier": "./dist/patch_applier.js",
+    "./patch_applier.js": "./dist/patch_applier.js",
     "./context_analyzer": "./dist/context_analyzer.js",
+    "./context_analyzer.js": "./dist/context_analyzer.js",
     "./render_engine": "./dist/render_engine.js",
+    "./render_engine.js": "./dist/render_engine.js",
     "./runtime_index": "./dist/runtime_index.js",
+    "./runtime_index.js": "./dist/runtime_index.js",
     "./ssr_renderer": "./dist/ssr_renderer.js",
+    "./ssr_renderer.js": "./dist/ssr_renderer.js",
     "./state_binding": "./dist/state_binding.js",
+    "./state_binding.js": "./dist/state_binding.js",
     "./style_converter": "./dist/style_converter.js",
+    "./style_converter.js": "./dist/style_converter.js",
     "./update_scheduler": "./dist/update_scheduler.js",
+    "./update_scheduler.js": "./dist/update_scheduler.js",
     "./vnode": "./dist/vnode.js",
+    "./vnode.js": "./dist/vnode.js",
     "./vnode_builder": "./dist/vnode_builder.js",
+    "./vnode_builder.js": "./dist/vnode_builder.js",
     "./vnode_differ": "./dist/vnode_differ.js",
-    "./vnode_renderer": "./dist/vnode_renderer.js"
+    "./vnode_differ.js": "./dist/vnode_differ.js",
+    "./vnode_renderer": "./dist/vnode_renderer.js",
+    "./vnode_renderer.js": "./dist/vnode_renderer.js"
   },
   "files": [
     "dist"
