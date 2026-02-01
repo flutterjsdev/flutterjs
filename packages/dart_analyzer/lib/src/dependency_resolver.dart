@@ -25,7 +25,6 @@ class DependencyResolver {
   DependencyResolver(
     this.projectPath, {
     this.excludePatterns = const [
-      '**/.dart_tool/**',
       '**/build/**',
       '**/*.g.dart',
       '**/*.freezed.dart',

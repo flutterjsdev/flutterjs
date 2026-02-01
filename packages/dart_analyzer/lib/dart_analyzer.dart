@@ -1,4 +1,4 @@
-export 'src/analying_project.dart';
+export 'src/analyzing_project.dart';
 export 'src/TypeDeclarationVisitor.dart';
 export 'src/analyze_flutter_app.dart';
 export 'src/dependency_graph.dart';

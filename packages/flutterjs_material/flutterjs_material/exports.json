@@ -171,6 +171,7 @@
     "FractionallySizedBox",
     "GestureDetector",
     "GlobalKey",
+    "GoogleFonts",
     "GridTile",
     "GridTileBar",
     "HitTestBehavior",

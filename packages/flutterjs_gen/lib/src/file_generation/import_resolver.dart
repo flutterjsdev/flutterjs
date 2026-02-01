@@ -21,6 +21,10 @@ class ImportResolver {
 
     // Official Plugins
     'package:flutterjs_seo': '@flutterjs/seo',
+
+    // Core Dart Packages
+    'package:path/path.dart': 'path',
+    'package:term_glyph/term_glyph.dart': 'term_glyph',
   };
 
   final Map<String, String> _libraryToPackageMap;

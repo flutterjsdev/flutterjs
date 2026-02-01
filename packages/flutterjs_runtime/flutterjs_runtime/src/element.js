@@ -9,8 +9,8 @@
  */
 
 import { BuildContext } from './build_context.js';
-import { VNodeDiffer } from '@flutterjs/vdom/vnode_differ';
-import { PatchApplier } from '@flutterjs/vdom/patch_applier';
+import { VNodeDiffer } from '@flutterjs/vdom/vnode_differ.js';
+import { PatchApplier } from '@flutterjs/vdom/patch_applier.js';
 // NOTE: InheritedElement is NOT imported here to avoid circular dependency.
 // InheritedWidget provides its own createElement() method that returns InheritedElement.
 

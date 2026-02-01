@@ -52,6 +52,9 @@ class FunctionCallExpr extends ExpressionIR {
   final Map<String, ExpressionIR> namedArguments;
   final List<TypeIR> typeArguments;
 
+  /// The canonical URI of the library where this function is defined
+  final String? resolvedLibraryUri;
+
   const FunctionCallExpr({
     required super.id,
     required super.sourceLocation,
@@ -60,6 +63,7 @@ class FunctionCallExpr extends ExpressionIR {
     this.arguments = const [],
     this.namedArguments = const {},
     this.typeArguments = const [],
+    this.resolvedLibraryUri,
     super.metadata,
   });
 
@@ -117,6 +121,9 @@ class ConstructorCallExpr extends ExpressionIR {
   final Map<String, ExpressionIR> namedArguments;
   final List<TypeIR> typeArguments;
 
+  /// The canonical URI of the library where the class is defined
+  final String? resolvedLibraryUri;
+
   const ConstructorCallExpr({
     required super.id,
     required super.sourceLocation,
@@ -126,6 +133,7 @@ class ConstructorCallExpr extends ExpressionIR {
     this.arguments = const [],
     this.namedArguments = const {},
     this.typeArguments = const [],
+    this.resolvedLibraryUri,
     super.isConstant = false,
     super.metadata,
   });

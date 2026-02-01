@@ -404,6 +404,8 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         documentation: _extractDocumentation(node),
         annotations: _extractAnnotations(node.metadata),
         sourceLocation: _extractSourceLocation(node, node.name.offset),
+        isGetter: node.isGetter,
+        isSetter: node.isSetter,
         isTopLevel: true,
         owningClassName: null,
       );

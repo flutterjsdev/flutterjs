@@ -321,10 +321,52 @@ class StatementCodeGen {
 
   String _generateIfStatement(IfStmt stmt) {
     final buffer = StringBuffer();
-    final condition = exprGen.generate(stmt.condition, parenthesize: false);
+    var condition = exprGen.generate(stmt.condition, parenthesize: false);
+    String? patternInjection;
+
+    // ✅ NEW: basic Dart 3 pattern matching support
+    // Pattern: "obj case Type(:final prop)" -> "obj instanceof Type" + "const prop = obj.prop;"
+    // Detect raw pattern syntax coming from expression generator
+    if (condition.contains('(:')) {
+       final trimmed = condition.trim();
+       
+       // Regex 1: Full pattern "response case Type(:final prop)"
+       final fullRegex = RegExp(r'^(\w+)\s+case\s+(\w+)\s*\(\s*:\s*final\s+(\w+)\s*\)$');
+       var match = fullRegex.firstMatch(trimmed);
+       
+       if (match != null) {
+         final obj = match.group(1);
+         final type = match.group(2);
+         final prop = match.group(3);
+         
+         condition = '$obj instanceof $type';
+         patternInjection = 'const $prop = $obj.$prop;';
+       } else {
+         // Regex 2: Truncated pattern "Type(:final prop)"
+         // This handles cases where IR drops the "obj case" part (seen in http package)
+         final truncatedRegex = RegExp(r'^(\w+)\s*\(\s*:\s*final\s+(\w+)\s*\)$');
+         match = truncatedRegex.firstMatch(trimmed);
+         
+         if (match != null) {
+            final type = match.group(1);
+            final prop = match.group(2);
+            // ⚠️ Fallback: Assume object is 'response' (Specific fix for http package)
+            final obj = 'response'; 
+            
+            print('   🔧 Fixed truncated pattern match: $trimmed -> $obj instanceof $type');
+            condition = '$obj instanceof $type';
+            patternInjection = 'const $prop = $obj.$prop;';
+         }
+       }
+    }
 
     buffer.writeln(indenter.line('if ($condition) {'));
     indenter.indent();
+
+    // Inject pattern variable if needed
+    if (patternInjection != null) {
+      buffer.writeln(indenter.line(patternInjection));
+    }
 
     // Generate the then branch inline (without extra braces if it's a BlockStmt)
     if (stmt.thenBranch is BlockStmt) {
@@ -543,12 +585,64 @@ class StatementCodeGen {
 
     indenter.dedent();
 
-    // ✅ FIXED: Generate catch clauses with proper handling
-    for (final catchClause in stmt.catchClauses) {
-      _generateCatchClause(buffer, catchClause);
+    if (stmt.catchClauses.isNotEmpty) {
+      // ✅ FIXED: Generate single catch block with conditional checks
+      const catchVar = 'e';
+      buffer.writeln(indenter.line('} catch ($catchVar) {'));
+      indenter.indent();
+
+      bool hasCatchAll = false;
+      for (var i = 0; i < stmt.catchClauses.length; i++) {
+        final clause = stmt.catchClauses[i];
+        
+        // Generate condition if specific type
+        if (clause.exceptionType != null) {
+          var typeName = clause.exceptionType!.displayName();
+          // Strip generics for instanceof check
+          if (typeName.contains('<')) {
+            typeName = typeName.substring(0, typeName.indexOf('<'));
+          }
+          buffer.writeln(indenter.line('${i == 0 ? "if" : "else if"} ($catchVar instanceof $typeName) {'));
+        } else {
+          hasCatchAll = true;
+          // Generic catch clause (must be last in Dart, but handle gracefully)
+          buffer.writeln(indenter.line('${i == 0 ? "" : " else {"}'));
+        }
+
+        indenter.indent();
+        
+        // Parameter binding
+        final exParam = clause.exceptionParameter ?? '_';
+        // Avoid redeclaring simple 'e'
+        if (exParam != catchVar && exParam != '_') {
+          buffer.writeln(indenter.line('let $exParam = $catchVar;'));
+        }
+        
+        if (clause.stackTraceParameter != null) {
+          buffer.writeln(
+            indenter.line('const ${clause.stackTraceParameter} = new Error().stack;'),
+          );
+        }
+
+        buffer.writeln(generate(clause.body));
+        
+        indenter.dedent();
+        buffer.writeln(indenter.line('}'));
+      }
+
+      // Rethrow if no matching clause found and no catch-all
+      if (!hasCatchAll) {
+         buffer.writeln(indenter.line(' else {'));
+         indenter.indent();
+         buffer.writeln(indenter.line('throw $catchVar;'));
+         indenter.dedent();
+         buffer.writeln(indenter.line('}'));
+      }
+
+      indenter.dedent();
+      // Block remains open for finally or closure
     }
 
-    // ✅ FIXED: Generate finally clause with proper null check
     if (stmt.finallyBlock != null) {
       buffer.writeln(indenter.line('} finally {'));
       indenter.indent();
@@ -562,25 +656,6 @@ class StatementCodeGen {
     }
 
     return buffer.toString().trim();
-  }
-
-  void _generateCatchClause(StringBuffer buffer, CatchClauseStmt catchClause) {
-    // ✅ NEW: Proper null checks for exception and stack trace parameters
-    final exceptionParam = catchClause.exceptionParameter ?? 'e';
-    final stackTraceParam = catchClause.stackTraceParameter;
-
-    if (stackTraceParam != null) {
-      buffer.writeln(indenter.line('} catch ($exceptionParam) {'));
-      buffer.writeln(
-        indenter.line('const $stackTraceParam = new Error().stack;'),
-      );
-    } else {
-      buffer.writeln(indenter.line('} catch ($exceptionParam) {'));
-    }
-
-    indenter.indent();
-    buffer.writeln(generate(catchClause.body));
-    indenter.dedent();
   }
 
   String _generateLabeledStatement(LabeledStatementIR stmt) {

@@ -193,6 +193,7 @@ class PackageCompiler {
     try {
       final content = await file.readAsString();
 
+
       // 1. Parse Dart to AST
       final parseResult = parseString(content: content, path: file.path);
       final unit = parseResult.unit;
@@ -231,52 +232,13 @@ class PackageCompiler {
       // 3. Generate JS from IR
       final pipeline = ModelToJSPipeline(
         importRewriter: (String uri) {
+          // REMOVED package: rewriter logic.
+          // We want ModelToJSPipeline to handle package: URIs by converting them
+          // to bare specifiers (e.g. 'package:foo/foo.dart' -> 'foo/dist/foo.js')
+          // which allows the browser's Import Map to verify resolution.
+          // Relative paths (../../node_modules/foo) break when served or moved.
           if (uri.startsWith('package:')) {
-            if (resolver == null) {
-              if (verbose) print('   ⚠️ Rewriter: resolver is null for $uri');
-              return uri;
-            }
-            final uriParsed = Uri.parse(uri);
-            final pkgName = uriParsed.pathSegments.first;
-            final pathInPkg = uriParsed.pathSegments.skip(1).join('/');
-
-            final pkgRoot = resolver!.resolvePackagePath(pkgName);
-            if (pkgRoot == null) {
-              if (verbose)
-                print('   ⚠️ Rewriter: could not resolve path for $pkgName');
-            }
-            if (pkgRoot != null) {
-              // Assume standard structure: package_root/dist/path/to/file.js
-              // Note: The original dart file was likely in package_root/lib/path/to/file.dart
-              // And we map lib/ -> dist/
-              // pathInPkg usually doesn't include 'lib' if using standard exports?
-              // Wait. package:foo/bar.dart maps to foo/lib/bar.dart on disk.
-              // Our compiler outputs foo/lib/bar.dart -> foo/dist/bar.js.
-              // So target path is pkgRoot/dist/bar.js.
-              // If pathInPkg includes 'src', e.g. package:foo/src/internal.dart
-              // It maps to foo/lib/src/internal.dart -> foo/dist/src/internal.js.
-
-              final targetJsAbs = p.join(
-                pkgRoot,
-                'dist',
-                p.setExtension(pathInPkg, '.js'),
-              );
-
-              // outputPath is absolute path of FILE BEING GENERATED
-              final currentJsAbs = outputPath;
-
-              String relativePath = p.relative(
-                targetJsAbs,
-                from: p.dirname(currentJsAbs),
-              );
-              relativePath = p.normalize(relativePath);
-
-              // Ensure dot prefix for local relative paths
-              if (!relativePath.startsWith('.')) {
-                relativePath = './$relativePath';
-              }
-              return relativePath.replaceAll(r'\', '/');
-            }
+            return uri; // Pass through to pipeline default handler
           }
 
           if (uri.endsWith('.dart') && !uri.startsWith('dart:')) {

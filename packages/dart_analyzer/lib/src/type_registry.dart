@@ -3,7 +3,7 @@ import 'package:analyzer/dart/element/element.dart' as aelement;
 import 'package:path/path.dart' as path;
 import 'dart:io';
 
-import 'analying_project.dart';
+import 'analyzing_project.dart';
 
 /// Registry for all types discovered during analysis
 ///

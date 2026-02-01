@@ -210,7 +210,7 @@ class BuildAnalyzer {
     }
 
     // ✅ Always add vdom and runtime as required dependencies
-    const corePackages = ['@flutterjs/vdom', '@flutterjs/runtime', '@flutterjs/seo'];
+    const corePackages = ['@flutterjs/vdom', '@flutterjs/runtime', '@flutterjs/seo', '@flutterjs/dart'];
 
     for (const pkg of corePackages) {
       if (!importObject[pkg]) {
@@ -242,6 +242,20 @@ class BuildAnalyzer {
       );
 
       this.integration.resolution = this.normalizeResolution(resolutionResult);
+
+      // ✅ FIX: Ensure all packages from flutterjs.config.js are included in resolution
+      // This is critical for generic node_modules that might not be explicitly imported
+      // but are required at runtime (e.g. http -> http_parser)
+      if (this.config.packages) {
+        for (const [name, pkg] of Object.entries(this.config.packages)) {
+          if (!this.integration.resolution.packages.has(name)) {
+            if (this.config.debugMode) {
+              console.log(chalk.gray(`  Simulating resolution for config package: ${name}`));
+            }
+            this.integration.resolution.packages.set(name, pkg.path);
+          }
+        }
+      }
 
       if (this.config.debugMode) {
         console.log(chalk.yellow("\nResolved Packages:"));
