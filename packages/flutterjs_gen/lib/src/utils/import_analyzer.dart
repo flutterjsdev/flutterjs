@@ -450,13 +450,31 @@ class ImportAnalyzer {
     final symLower = symbolName.toLowerCase();
 
     // Priority 1: Exact filename match (e.g. 'Client' matches '.../client.dart')
+    // ✅ FIX: Also check for common suffixes like 'Style', 'Widget', etc.
     for (final entry in _symbolsByImport.entries) {
       final importUri = entry.key;
       final fileName = importUri.split('/').last.split('.').first.toLowerCase();
+      
+      // Direct match
       if (symLower == fileName) {
         entry.value.add(symbolName);
         _importBySymbol[symbolName] = importUri;
         return;
+      }
+      
+      // ✅ FIX: Check if symbol minus common suffix matches filename
+      // e.g. 'PosixStyle' -> 'posix' should match 'posix.dart'
+      // e.g. 'UrlStyle' -> 'url' should match 'url.dart'
+      const suffixes = ['style', 'widget', 'state', 'builder', 'delegate', 'controller'];
+      for (final suffix in suffixes) {
+        if (symLower.endsWith(suffix) && symLower.length > suffix.length) {
+          final baseName = symLower.substring(0, symLower.length - suffix.length);
+          if (baseName == fileName) {
+            entry.value.add(symbolName);
+            _importBySymbol[symbolName] = importUri;
+            return;
+          }
+        }
       }
     }
 

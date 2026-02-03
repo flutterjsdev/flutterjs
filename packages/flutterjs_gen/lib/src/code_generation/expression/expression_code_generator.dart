@@ -139,6 +139,19 @@ class ExpressionCodeGen {
         }
       }
 
+      // ✅ FIX: Parenthesize Arrow IIFEs in UnknownExpressionIR (e.g. asserts)
+      // Dart assert(() => ...()) becomes () => ...() in JS, which is invalid without parens
+      if (expr is UnknownExpressionIR) {
+        final src = expr.source.trim();
+        // Check for start with arrow function and end with call parens
+        // Logic: If it starts with '() =>' it is an Arrow Function.
+        // If it starts with '((' it might be already wrapped, so we avoid double wrap if possible,
+        // but '() =>' starts with '(', so we must NOT exclude that.
+        if (src.startsWith('() =>') && src.endsWith('()') && !src.startsWith('((')) {
+          code = '($code)'; 
+        }
+      }
+
       // ✅ FIX: Only parenthesize if truly necessary
       // Property chains don't need parens
       if (parenthesize && config.safeParens && _needsParentheses(expr)) {
@@ -760,14 +773,70 @@ class ExpressionCodeGen {
               prefix.endsWith('catch')) {
             return m.group(0)!;
           }
-          print('   Converting closure to arrow: (${params}) { -> (${params}) => {');
+          print(
+            '   Converting closure to arrow: (${params}) { -> (${params}) => {',
+          );
           return '($params) => {';
         });
 
         // ✅ FALLBACK: If regex didn't catch `(() {` (empty params), force it
         if (source.contains('(() {') && !source.contains('(() => {')) {
-             print('   Converting empty IIFE closure manually');
-             source = source.replaceAll('(() {', '(() => {');
+          print('   Converting empty IIFE closure manually');
+          source = source.replaceAll('(() {', '(() => {');
+        }
+
+        // ✅ FIX: Convert Dart 3 Switch Expressions to JS IIFE
+        // Pattern: switch (expr) { case1 => val1, case2 => val2 }
+        if (source.startsWith('switch') && source.contains('=>')) {
+          print('   🔧 Converting Switch Expression to IIFE');
+
+          // 1. Extract condition
+          final match = RegExp(r'switch\s*\((.*)\)\s*\{').firstMatch(source);
+          if (match != null) {
+            final condition = match.group(1)!;
+            // 2. Wrap in IIFE
+            // We need to process the body to replace `=>` with `return` and `,` with `;`
+            // This is a naive heuristic but works for simple enum/string switches common in packages
+
+            String body = source.substring(match.end, source.lastIndexOf('}'));
+
+            // Replace `case => val,` with `case: return val;`
+            // Regex: (pattern) => (value)(,|$)
+            // We iterate to handle multiple cases safely
+
+            final caseRegex = RegExp(r'(.*?)\s*=>\s*(.*?)(,|$)');
+            final newBody = StringBuffer();
+
+            final lines = body.split('\n');
+            for (var line in lines) {
+              if (line.trim().isEmpty) continue;
+
+              // Check for default case `_ => val`
+              if (line.trim().startsWith('_ =>')) {
+                final val = line.trim().substring(4);
+                final cleanVal = val.endsWith(',')
+                    ? val.substring(0, val.length - 1)
+                    : val;
+                newBody.writeln('default: return $cleanVal;');
+                continue;
+              }
+
+              // Standard case
+              final caseMatch = caseRegex.firstMatch(line);
+              if (caseMatch != null) {
+                var pattern = caseMatch.group(1)!.trim();
+                var value = caseMatch.group(2)!.trim();
+
+                // Fix strings in pattern if needed (usually they are preserved)
+                newBody.writeln('case $pattern: return $value;');
+              } else {
+                // Fallback: keep line as is (comment or weird syntax)
+                newBody.writeln(line);
+              }
+            }
+
+            return '((__val) => { switch(__val) { ${newBody.toString()} } })($condition)';
+          }
         }
 
         // ✅ CRITICAL: Apply private field resolution on the modified source
@@ -780,12 +849,22 @@ class ExpressionCodeGen {
             final fieldName = match.group(1)!;
 
             // Check if it's a static field or method
-            final isStatic = _currentClassContext!.staticFields.any((f) => f.name == fieldName) ||
-                _currentClassContext!.staticMethods.any((m) => m.name == fieldName);
+            final isStatic =
+                _currentClassContext!.staticFields.any(
+                  (f) => f.name == fieldName,
+                ) ||
+                _currentClassContext!.staticMethods.any(
+                  (m) => m.name == fieldName,
+                );
 
             // Check if it's an instance field or method
-            final isInstance = _currentClassContext!.instanceFields.any((f) => f.name == fieldName) ||
-                _currentClassContext!.instanceMethods.any((m) => m.name == fieldName);
+            final isInstance =
+                _currentClassContext!.instanceFields.any(
+                  (f) => f.name == fieldName,
+                ) ||
+                _currentClassContext!.instanceMethods.any(
+                  (m) => m.name == fieldName,
+                );
 
             if (isStatic) {
               source = source.replaceAll(
@@ -800,7 +879,7 @@ class ExpressionCodeGen {
             }
           }
         }
-        
+
         return source; // ✅ RETURN MODIFIED SOURCE
       }
     }
@@ -1184,6 +1263,18 @@ class ExpressionCodeGen {
   // =========================================================================
 
   String _generateIdentifier(IdentifierExpressionIR expr) {
+    // ✅ FIX: Prefix static fields with class name inside the class
+    if (_currentClassContext != null) {
+      final isStaticField = _currentClassContext!.staticFields
+          .any((f) => f.name == expr.name);
+
+      if (isStaticField) {
+        // Must use sanitized name (e.g. constructor -> $constructor)
+        final safeName = safeIdentifier(expr.name);
+        return '${_currentClassContext!.name}.$safeName';
+      }
+    }
+
     if (expr.isSuperReference) return 'super';
     if (expr.isThisReference) return 'this';
 
@@ -1777,6 +1868,9 @@ class ExpressionCodeGen {
   }
 
   String _generateFunctionCall(FunctionCallExpr expr) {
+    if (expr.functionName.contains('=>')) {
+      print('DEBUG: _generateFunctionCall with arrow: ${expr.functionName}');
+    }
     final args = _generateArgumentList(expr.arguments, expr.namedArguments);
 
     // ✅ SMART CONTEXT for FunctionCallExpr
@@ -1814,7 +1908,14 @@ class ExpressionCodeGen {
       }
     }
 
-    return '${expr.functionName}($args)';
+    // ✅ FIX: Parenthesize function name if it looks like an arrow function
+    var func = expr.functionName;
+    if (func.contains('=>')) {
+      print('🔧 Fixing arrow function call: $func');
+      func = '($func)';
+    }
+
+    return '$func($args)';
   }
 
   /// Handles InstanceCreationExpressionIR (has TypeIR type)

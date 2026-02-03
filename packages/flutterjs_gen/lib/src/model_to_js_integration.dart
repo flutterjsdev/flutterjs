@@ -537,11 +537,34 @@ class ModelToJSPipeline {
         final declaredClasses = dartFile.classDeclarations
             .map((c) => c.name)
             .toSet();
+        
+        // ✅ FIX: Also collect all class field names - these are local, not imports
+        final declaredFields = <String>{};
+        for (final cls in dartFile.classDeclarations) {
+          for (final field in cls.fields) {
+            declaredFields.add(field.name);
+          }
+          // Also add method names to avoid importing them
+          for (final method in cls.methods) {
+            declaredFields.add(method.name);
+            // ✅ FIX: Also add method parameter names - they're local, not imports
+            for (final param in method.parameters) {
+              declaredFields.add(param.name);
+            }
+          }
+          // ✅ FIX: Also add constructor parameter names
+          for (final ctor in cls.constructors) {
+            for (final param in ctor.parameters) {
+              declaredFields.add(param.name);
+            }
+          }
+        }
 
         final validSymbols = symbols
             .map(_cleanSymbol)
             .where((s) => s.isNotEmpty && !_isInvalidSymbol(s))
             .where((s) => !declaredClasses.contains(s))
+            .where((s) => !declaredFields.contains(s)) // ✅ FIX: Exclude class fields
             .where((s) => !importPrefixes.contains(s)) // ✅ FIX: Avoid conflict with prefixes
             .toSet();
 
@@ -804,6 +827,15 @@ class ModelToJSPipeline {
     if (symbol == 'void') return true;
     if (symbol == 'dynamic') return true;
     if (symbol == 'Function') return true;
+    
+    // ✅ FIX: Reject common loop variable names that should never be imports
+    // These are typically local variables used in for-loops, not external symbols
+    const loopVariables = {'i', 'j', 'k', 'n', 'm', 'x', 'y', 'z', '_', 'e'};
+    if (loopVariables.contains(symbol)) return true;
+    
+    // ✅ FIX: Reject single-character symbols in general (they're almost never exports)
+    if (symbol.length == 1) return true;
+    
     // Check if it's a valid JS identifier
     return !RegExp(r'^[a-zA-Z_$][a-zA-Z0-9_$]*$').hasMatch(symbol);
   }

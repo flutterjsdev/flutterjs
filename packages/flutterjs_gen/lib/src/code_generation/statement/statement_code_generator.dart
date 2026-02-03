@@ -199,6 +199,11 @@ class StatementCodeGen {
       return _generateFunctionDeclarationStatement(stmt);
     }
 
+    // ✅ NEW: Handle Dart 3 if-case statement
+    if (stmt is IfCaseStmt) {
+      return _generateIfCaseStatement(stmt);
+    }
+
     // Fallback
     throw CodeGenError(
       message: 'Unsupported statement type: ${stmt.runtimeType}',
@@ -220,7 +225,8 @@ class StatementCodeGen {
   String _generateVariableDeclaration(VariableDeclarationStmt stmt) {
     // Determine keyword
     String keyword = 'let';
-    if (stmt.isFinal || stmt.isConst) {
+    // Fix: JS 'const' requires an initializer. If declared without one (e.g. late final), use 'let'.
+    if ((stmt.isFinal || stmt.isConst) && stmt.initializer != null) {
       keyword = 'const';
     }
 
@@ -283,7 +289,17 @@ class StatementCodeGen {
   }
 
   String _generateAssertStatement(AssertStatementIR stmt) {
-    final cond = exprGen.generate(stmt.condition, parenthesize: false);
+    var cond = exprGen.generate(stmt.condition, parenthesize: false);
+
+    // ✅ FIX: Parenthesize Arrow IIFE (e.g. () => {}()) which is invalid JS if unwrapped
+    // Must wrap ONLY the arrow function, then add the call () after the closing paren
+    // Wrong: ((() => {...}())  Correct: ((() => {...})())
+    final trimmedCond = cond.trim();
+    if (trimmedCond.startsWith('() =>') && trimmedCond.endsWith('()')) {
+      // Remove trailing () call, wrap arrow function, then re-add ()
+      final arrowFunc = trimmedCond.substring(0, trimmedCond.length - 2);
+      cond = '($arrowFunc)()';
+    }
 
     if (stmt.message != null) {
       final msg = exprGen.generate(stmt.message!, parenthesize: false);
@@ -327,37 +343,100 @@ class StatementCodeGen {
     // ✅ NEW: basic Dart 3 pattern matching support
     // Pattern: "obj case Type(:final prop)" -> "obj instanceof Type" + "const prop = obj.prop;"
     // Detect raw pattern syntax coming from expression generator
-    if (condition.contains('(:')) {
-       final trimmed = condition.trim();
-       
-       // Regex 1: Full pattern "response case Type(:final prop)"
-       final fullRegex = RegExp(r'^(\w+)\s+case\s+(\w+)\s*\(\s*:\s*final\s+(\w+)\s*\)$');
-       var match = fullRegex.firstMatch(trimmed);
-       
-       if (match != null) {
-         final obj = match.group(1);
-         final type = match.group(2);
-         final prop = match.group(3);
-         
-         condition = '$obj instanceof $type';
-         patternInjection = 'const $prop = $obj.$prop;';
-       } else {
-         // Regex 2: Truncated pattern "Type(:final prop)"
-         // This handles cases where IR drops the "obj case" part (seen in http package)
-         final truncatedRegex = RegExp(r'^(\w+)\s*\(\s*:\s*final\s+(\w+)\s*\)$');
-         match = truncatedRegex.firstMatch(trimmed);
-         
-         if (match != null) {
-            final type = match.group(1);
-            final prop = match.group(2);
-            // ⚠️ Fallback: Assume object is 'response' (Specific fix for http package)
-            final obj = 'response'; 
-            
-            print('   🔧 Fixed truncated pattern match: $trimmed -> $obj instanceof $type');
-            condition = '$obj instanceof $type';
+    if (condition.contains('case ') || condition.contains('(:')) {
+      final trimmed = condition.trim();
+
+      // Regex 1: Full pattern "response case BaseResponseWithUrl(:final url)"
+      // Handles optional spacing, simple property extraction, and dot notation
+      final fullRegex = RegExp(
+        r'^([a-zA-Z0-9_.]+)\s+case\s+([a-zA-Z0-9_<>?.]+)\s*\(\s*:\s*final\s+(\w+)\s*\)$',
+      );
+      var match = fullRegex.firstMatch(trimmed);
+
+      if (match != null) {
+        final obj = match.group(1);
+        final type = match.group(2);
+        final prop = match.group(3);
+        // Strip generics from type if present for instanceof Check
+        final cleanType = type!.contains('<')
+            ? type.substring(0, type.indexOf('<'))
+            : type;
+
+        condition = '$obj instanceof $cleanType';
+        patternInjection = 'const $prop = $obj.$prop;';
+      } else {
+        // Regex 2: Pattern match with LHS check "lhs case Type(:final prop?)"
+        // Matches: request case Abortable(:final abortTrigger?)
+        if (trimmed.contains(' case ')) {
+          final parts = trimmed.split(' case ');
+          if (parts.length == 2) {
+            final lhs = parts[0];
+            final pattern = parts[1];
+
+            if (pattern.contains('DOMException') &&
+                pattern.contains("'AbortError'")) {
+              print('   🔧 Fixed DOMException pattern: $trimmed');
+              condition =
+                  '$lhs instanceof DOMException && $lhs.name == "AbortError"';
+              match = RegExp('').firstMatch('matched');
+            }
+
+            final objectPatternRegex = RegExp(
+              r'^([a-zA-Z0-9_<>?]+)\s*\(\s*:\s*final\s+([a-zA-Z0-9_]+)(\?)?\s*\)$',
+            );
+            final objectMatch = objectPatternRegex.firstMatch(pattern);
+
+            if (objectMatch != null) {
+              final type = objectMatch.group(1)!;
+              final prop = objectMatch.group(2)!;
+              final isNullable = objectMatch.group(3) == '?';
+
+              final cleanType = type.contains('<')
+                  ? type.substring(0, type.indexOf('<'))
+                  : type;
+
+              print(
+                '   🔧 Fixed pattern match: $trimmed -> $lhs instanceof $cleanType',
+              );
+              condition = '$lhs instanceof $cleanType';
+              if (isNullable) {
+                condition += ' && $lhs.$prop != null';
+              }
+              patternInjection = 'const $prop = $lhs.$prop;';
+              match = objectMatch;
+            }
+          }
+        }
+
+        if (match == null) {
+          // Fallback or other patterns
+          final truncatedRegex = RegExp(
+            r'^([a-zA-Z0-9_<>?]+)\s*\(\s*:\s*final\s+([a-zA-Z0-9_]+)(\?)?\s*\)$',
+          );
+          match = truncatedRegex.firstMatch(trimmed);
+
+          if (match != null) {
+            final type = match.group(1)!;
+            final prop = match.group(2)!;
+            final isNullable = match.group(3) == '?';
+
+            final cleanType = type.contains('<')
+                ? type.substring(0, type.indexOf('<'))
+                : type;
+
+            final obj = 'response'; // Fallback
+
+            print(
+              '   🔧 Fixed truncated pattern match: $trimmed -> $obj instanceof $cleanType',
+            );
+            condition = '$obj instanceof $cleanType';
+            if (isNullable) {
+              condition += ' && $obj.$prop != null';
+            }
             patternInjection = 'const $prop = $obj.$prop;';
-         }
-       }
+          }
+        }
+      }
     }
 
     buffer.writeln(indenter.line('if ($condition) {'));
@@ -581,12 +660,19 @@ class StatementCodeGen {
     buffer.writeln(indenter.line('try {'));
     indenter.indent();
 
-    buffer.writeln(generate(stmt.tryBlock));
+    if (stmt.tryBlock is BlockStmt) {
+      final block = stmt.tryBlock as BlockStmt;
+      for (final s in block.statements) {
+        buffer.writeln(generate(s));
+      }
+    } else {
+      buffer.writeln(generate(stmt.tryBlock));
+    }
 
     indenter.dedent();
 
     if (stmt.catchClauses.isNotEmpty) {
-      // ✅ FIXED: Generate single catch block with conditional checks
+      // ✅ FIXED: Generate catch block transitions
       const catchVar = 'e';
       buffer.writeln(indenter.line('} catch ($catchVar) {'));
       indenter.indent();
@@ -594,65 +680,105 @@ class StatementCodeGen {
       bool hasCatchAll = false;
       for (var i = 0; i < stmt.catchClauses.length; i++) {
         final clause = stmt.catchClauses[i];
-        
+        final isLast = i == stmt.catchClauses.length - 1;
+
         // Generate condition if specific type
+        bool openedScope = false;
+
         if (clause.exceptionType != null) {
           var typeName = clause.exceptionType!.displayName();
           // Strip generics for instanceof check
           if (typeName.contains('<')) {
             typeName = typeName.substring(0, typeName.indexOf('<'));
           }
-          buffer.writeln(indenter.line('${i == 0 ? "if" : "else if"} ($catchVar instanceof $typeName) {'));
+          buffer.writeln(
+            indenter.line(
+              '${i == 0 ? "if" : "else if"} ($catchVar instanceof $typeName) {',
+            ),
+          );
+          openedScope = true;
         } else {
           hasCatchAll = true;
-          // Generic catch clause (must be last in Dart, but handle gracefully)
-          buffer.writeln(indenter.line('${i == 0 ? "" : " else {"}'));
+          // Generic catch clause
+          if (i > 0) {
+            buffer.writeln(indenter.line('else {'));
+            openedScope = true;
+          }
+          // If i==0, we are already inside the catch block, no new scope needed
         }
 
         indenter.indent();
-        
+
         // Parameter binding
         final exParam = clause.exceptionParameter ?? '_';
-        // Avoid redeclaring simple 'e'
         if (exParam != catchVar && exParam != '_') {
           buffer.writeln(indenter.line('let $exParam = $catchVar;'));
         }
-        
+
         if (clause.stackTraceParameter != null) {
           buffer.writeln(
-            indenter.line('const ${clause.stackTraceParameter} = new Error().stack;'),
+            indenter.line(
+              'const ${clause.stackTraceParameter} = new Error().stack;',
+            ),
           );
         }
 
-        buffer.writeln(generate(clause.body));
-        
+        if (clause.body is BlockStmt) {
+          final block = clause.body as BlockStmt;
+          for (final s in block.statements) {
+            buffer.writeln(generate(s));
+          }
+        } else {
+          buffer.writeln(generate(clause.body));
+        }
+
         indenter.dedent();
-        buffer.writeln(indenter.line('}'));
+
+        if (openedScope) {
+          buffer.writeln(indenter.line('}'));
+        }
       }
 
       // Rethrow if no matching clause found and no catch-all
       if (!hasCatchAll) {
-         buffer.writeln(indenter.line(' else {'));
-         indenter.indent();
-         buffer.writeln(indenter.line('throw $catchVar;'));
-         indenter.dedent();
-         buffer.writeln(indenter.line('}'));
+        buffer.writeln(indenter.line('else {'));
+        indenter.indent();
+        buffer.writeln(indenter.line('throw $catchVar;'));
+        indenter.dedent();
+        buffer.writeln(indenter.line('}'));
       }
 
       indenter.dedent();
-      // Block remains open for finally or closure
+      // ⚠️ MOVED: Do not close catch block here; let finally/else close it
     }
 
     if (stmt.finallyBlock != null) {
       buffer.writeln(indenter.line('} finally {'));
       indenter.indent();
 
-      buffer.writeln(generate(stmt.finallyBlock!));
+      if (stmt.finallyBlock is BlockStmt) {
+        final block = stmt.finallyBlock as BlockStmt;
+        for (final s in block.statements) {
+          buffer.writeln(generate(s));
+        }
+      } else {
+        buffer.writeln(generate(stmt.finallyBlock!));
+      }
 
       indenter.dedent();
       buffer.write(indenter.line('}'));
     } else {
-      buffer.write(indenter.line('}'));
+      // If no finally block, check if we need to close try or catch
+      if (stmt.catchClauses.isEmpty) {
+        // Case: try { ... }
+        // JS requires catch or finally. Generate empty finally.
+        buffer.writeln(indenter.line('} finally {'));
+        buffer.write(indenter.line('}'));
+      } else {
+        // Case: try { ... } catch { ... }
+        // Close the catch block
+        buffer.write(indenter.line('}'));
+      }
     }
 
     return buffer.toString().trim();
@@ -688,5 +814,121 @@ class StatementCodeGen {
     return indenter.line(
       '// TODO: Function declaration: ${stmt.function.name}',
     );
+  }
+
+  // =========================================================================
+  // DART 3 PATTERN MATCHING
+  // =========================================================================
+
+  /// Generate JavaScript for Dart 3 `if-case` statements.
+  /// Converts: `if (input case TypedData data) { ... }`
+  /// To: `if (input instanceof TypedData) { let data = input; ... }`
+  String _generateIfCaseStatement(IfCaseStmt stmt) {
+    final buffer = StringBuffer();
+    final exprCode = exprGen.generate(stmt.expression, parenthesize: false);
+
+    // Generate the condition based on pattern type
+    final condition = _generatePatternCondition(stmt.pattern, exprCode);
+
+    // Handle guard clause (when condition)
+    String fullCondition = condition;
+    if (stmt.guard != null) {
+      final guardCode = exprGen.generate(stmt.guard!.condition);
+      fullCondition = '($condition) && ($guardCode)';
+    }
+
+    buffer.writeln(indenter.line('if ($fullCondition) {'));
+    indenter.indent();
+
+    // Bind variables from pattern
+    for (final varName in _getPatternBoundVariables(stmt.pattern)) {
+      buffer.writeln(indenter.line('let $varName = $exprCode;'));
+    }
+
+    // Generate then branch
+    if (stmt.thenBranch is BlockStmt) {
+      final block = stmt.thenBranch as BlockStmt;
+      for (final s in block.statements) {
+        buffer.writeln(generate(s));
+      }
+    } else {
+      buffer.writeln(generate(stmt.thenBranch));
+    }
+
+    indenter.dedent();
+
+    // Handle else branch
+    if (stmt.elseBranch != null) {
+      buffer.writeln(indenter.line('} else {'));
+      indenter.indent();
+
+      if (stmt.elseBranch is BlockStmt) {
+        final block = stmt.elseBranch as BlockStmt;
+        for (final s in block.statements) {
+          buffer.writeln(generate(s));
+        }
+      } else {
+        buffer.writeln(generate(stmt.elseBranch!));
+      }
+
+      indenter.dedent();
+    }
+
+    buffer.write(indenter.line('}'));
+
+    return buffer.toString().trim();
+  }
+
+  /// Generate JavaScript condition for pattern matching
+  String _generatePatternCondition(PatternIR pattern, String exprCode) {
+    if (pattern is VariablePatternIR) {
+      // Type pattern: `TypedData data` -> `input instanceof TypedData`
+      if (pattern.hasExplicitType) {
+        final typeName = pattern.matchedType.displayName();
+        return '$exprCode instanceof $typeName';
+      }
+      // Just variable binding (var x) - always matches
+      return 'true';
+    }
+
+    if (pattern is ConstantPatternIR) {
+      // Constant pattern: `case 42` -> `input === 42`
+      final valueCode = exprGen.generate(pattern.value);
+      return '$exprCode === $valueCode';
+    }
+
+    if (pattern is WildcardPatternIR) {
+      // Wildcard: `_` always matches
+      return 'true';
+    }
+
+    if (pattern is NullCheckPatternIR) {
+      // Null check: `x?` -> `x != null`
+      return '$exprCode != null';
+    }
+
+    if (pattern is NullAssertPatternIR) {
+      // Null assert: `x!` -> same as null check for now
+      return '$exprCode != null';
+    }
+
+    if (pattern is ObjectPatternIR) {
+      // Object pattern: `SomeClass(field: x)` -> `input instanceof SomeClass`
+      final typeName = pattern.matchedType.displayName();
+      return '$exprCode instanceof $typeName';
+    }
+
+    // Fallback: generate true and add a comment
+    return 'true /* unsupported pattern: ${pattern.runtimeType} */';
+  }
+
+  /// Extract bound variables from pattern
+  List<String> _getPatternBoundVariables(PatternIR pattern) {
+    if (pattern is VariablePatternIR) {
+      return [pattern.variableName];
+    }
+
+    // For other patterns, use the boundVariables property
+    return pattern.boundVariables;
   }
 }
