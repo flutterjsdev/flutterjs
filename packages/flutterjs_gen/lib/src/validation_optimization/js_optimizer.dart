@@ -144,6 +144,10 @@ class JSOptimizer {
     bool inUnreachable = false;
     int unreachableBraceLevel = -1;
     int removedLines = 0;
+    
+    // ✅ FIX: Track try block depth to avoid removing finally blocks
+    int tryBlockDepth = 0;
+    final tryBraceLevels = <int>[]; // Stack of try block starting brace levels
 
     for (var line in lines) {
       final trimmed = line.trim();
@@ -156,9 +160,33 @@ class JSOptimizer {
 
       final openBraces = '{'.allMatches(trimmed).length;
       final closeBraces = '}'.allMatches(trimmed).length;
+      
+      // ✅ FIX: Track try blocks
+      if (trimmed.startsWith('try ') || trimmed == 'try {' || trimmed.contains('try {')) {
+        tryBlockDepth++;
+        tryBraceLevels.add(braceLevel + openBraces);
+      }
+      
+      // ✅ FIX: Track finally blocks (they're NOT dead code)
+      if (trimmed.startsWith('} finally {') || trimmed == '} finally {') {
+        // We're entering a finally block - this is NOT dead code
+        inUnreachable = false;
+        unreachableBraceLevel = -1;
+      }
+      
+      // ✅ FIX: Track end of try-catch-finally blocks
+      if (closeBraces > 0 && tryBraceLevels.isNotEmpty) {
+        final newBraceLevel = braceLevel + openBraces - closeBraces;
+        while (tryBraceLevels.isNotEmpty && newBraceLevel < tryBraceLevels.last) {
+          tryBraceLevels.removeLast();
+          tryBlockDepth--;
+        }
+      }
 
       // Detect return/break/continue/throw (unreachable code markers)
+      // ✅ FIX: Only mark as unreachable if NOT inside a try block
       final isUnreachableMarker =
+          tryBlockDepth == 0 && // ✅ Don't mark as unreachable inside try blocks
           (trimmed.startsWith('return ') ||
               trimmed.startsWith('break') ||
               trimmed.startsWith('continue') ||
@@ -199,6 +227,7 @@ class JSOptimizer {
     }
     return result.join('\n');
   }
+
 
   // =========================================================================
   // LEVEL 2: INTERMEDIATE OPTIMIZATIONS

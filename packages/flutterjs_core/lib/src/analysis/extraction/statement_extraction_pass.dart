@@ -303,6 +303,7 @@ class StatementExtractionPass {
   /// Extract a single statement
   StatementIR? _extractStatement(AstNode? stmt) {
     if (stmt == null) return null;
+    
 
     if (stmt is VariableDeclarationStatement) {
       return _extractVariableDeclarationStatement(stmt);
@@ -320,12 +321,45 @@ class StatementExtractionPass {
     }
 
     if (stmt is IfStatement) {
-      final condition = stmt.caseClause != null
-          ? _extractPatternCondition(stmt.caseClause!)
-          : extractExpression(stmt.expression);
+      // ✅ FIX: Handle if-case statements (Dart 3 pattern matching)
+      if (stmt.caseClause != null) {
+        // This is an if-case statement: if (expr case Pattern) { ... }
+        final caseClause = stmt.caseClause!;
+        final guardedPattern = caseClause.guardedPattern;
+        final pattern = guardedPattern.pattern;
+        final whenClause = guardedPattern.whenClause;
+        
+        // Extract the pattern
+        final patternIR = _extractPattern(pattern);
+        
+        // Extract guard condition if present
+        final guardIR = whenClause != null
+            ? GuardClause(
+                condition: extractExpression(whenClause.expression),
+                sourceLocation: _extractSourceLocation(whenClause, whenClause.offset),
+                id: builder.generateId('guard'),
+              )
+            : null;
+        
+        return IfCaseStmt(
+          id: builder.generateId('stmt_if_case'),
+          sourceLocation: _extractSourceLocation(stmt, stmt.offset),
+          expression: extractExpression(stmt.expression),
+          pattern: patternIR,
+          guard: guardIR,
+          thenBranch: _extractStatementAsBlock(stmt.thenStatement),
+          elseBranch: stmt.elseStatement != null
+              ? _extractStatement(stmt.elseStatement)
+              : null,
+          boundVariables: patternIR.getBoundVariables(),
+          metadata: {},
+        );
+      }
+      
+      // Regular if statement without pattern matching
       return IfStmt(
         id: builder.generateId('stmt_if'),
-        condition: condition,
+        condition: extractExpression(stmt.expression),
         thenBranch: _extractStatementAsBlock(stmt.thenStatement),
         elseBranch: stmt.elseStatement != null
             ? _extractStatement(stmt.elseStatement)
@@ -350,7 +384,7 @@ class StatementExtractionPass {
         body: _extractStatementAsBlock(stmt.body),
         sourceLocation: _extractSourceLocation(stmt, stmt.offset),
         metadata: {},
-      );
+      ); 
     }
 
     if (stmt is DoStatement) {
@@ -633,6 +667,7 @@ class StatementExtractionPass {
 
   /// Extract try-catch-finally statement
   TryStmt _extractTryStatement(TryStatement stmt) {
+    print('DEBUG_EXTRACT: TryStmt in $filePath. Catch: ${stmt.catchClauses.length}, Finally: ${stmt.finallyBlock != null}');
     return TryStmt(
       id: builder.generateId('stmt_try'),
       tryBlock: _extractBlockStatement(stmt.body),
@@ -1707,7 +1742,10 @@ class StatementExtractionPass {
     );
   }
 
-  ExpressionIR _extractPatternCondition(CaseClause caseClause) {
+  ExpressionIR _extractPatternCondition(
+    CaseClause caseClause,
+    Expression lhs,
+  ) {
     // CaseClause has guardedPattern which contains the pattern
     final guardedPattern = caseClause.guardedPattern;
     final pattern = guardedPattern.pattern;
@@ -1721,7 +1759,7 @@ class StatementExtractionPass {
     return UnknownExpressionIR(
       id: builder.generateId('expr_pattern'),
       source:
-          pattern.toString() +
+          '${lhs.toSource()} case ${pattern.toString()}' +
           (whenClause != null
               ? ' when ${whenClause.expression.toString()}'
               : ''),
@@ -2053,6 +2091,68 @@ class StatementExtractionPass {
         metadata: {},
       ),
     ];
+  }
+
+  /// ✅ NEW: Extract a pattern from Dart 3 pattern matching
+  PatternIR _extractPattern(DartPattern pattern) {
+    final offset = pattern.offset;
+    final sourceLocation = _extractSourceLocation(pattern, offset);
+
+    // Handle different pattern types
+    if (pattern is WildcardPattern) {
+      // Wildcard: _ (matches anything, binds nothing)
+      return WildcardPatternIR(
+        id: builder.generateId('pattern_wildcard'),
+        sourceLocation: sourceLocation,
+        matchedType: _extractTypeFromAnnotation(pattern.type, offset) ??
+            DynamicTypeIR(
+              id: builder.generateId('type_dynamic'),
+              sourceLocation: sourceLocation,
+            ),
+      );
+    }
+
+    if (pattern is DeclaredVariablePattern) {
+      // Variable pattern with type: TypeName varName or var varName
+      final varName = pattern.name.lexeme;
+      final hasExplicitType = pattern.type != null;
+      
+      return VariablePatternIR(
+        id: builder.generateId('pattern_var'),
+        sourceLocation: sourceLocation,
+        variableName: varName,
+        matchedType: _extractTypeFromAnnotation(pattern.type, offset) ??
+            DynamicTypeIR(
+              id: builder.generateId('type_dynamic'),
+              sourceLocation: sourceLocation,
+            ),
+        hasExplicitType: hasExplicitType,
+        isFinal: pattern.keyword?.keyword.toString() == 'final',
+      );
+    }
+
+    if (pattern is ConstantPattern) {
+      // Constant pattern: 42, 'hello', MyEnum.value, etc.
+      return ConstantPatternIR(
+        id: builder.generateId('pattern_const'),
+        sourceLocation: sourceLocation,
+        value: extractExpression(pattern.expression),
+        matchedType: DynamicTypeIR(
+          id: builder.generateId('type_dynamic'),
+          sourceLocation: sourceLocation,
+        ),
+      );
+    }
+
+    // Fallback for unsupported patterns
+    return WildcardPatternIR(
+      id: builder.generateId('pattern_wildcard'),
+      sourceLocation: sourceLocation,
+      matchedType: DynamicTypeIR(
+        id: builder.generateId('type_dynamic'),
+        sourceLocation: sourceLocation,
+      ),
+    );
   }
 }
 

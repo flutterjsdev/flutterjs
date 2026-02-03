@@ -100,7 +100,8 @@ class FileCodeGen {
       }
 
       return generatedCode;
-    } catch (e) {
+    } catch (e, stack) {
+      print('❌ ERROR generating ${dartFile.library}: $e\n$stack');
       return _generateErrorOutput(e);
     }
   }
@@ -202,9 +203,9 @@ class FileCodeGen {
   Future<String> _generateCodeAsync(DartFile dartFile) async {
     try {
       final logFile = File(r'C:\Jay\_Plugin\flutterjs\debug_entry_log.txt');
-      logFile.writeAsStringSync('Processing File: ${dartFile.package} / ${dartFile.library}\nFunctions: ${dartFile.functionDeclarations.length}, Variables: ${dartFile.variableDeclarations.length}\n', mode: FileMode.append);
+      logFile.writeAsStringSync('Processing File: ${dartFile.package} / ${dartFile.library}\nClasses: ${dartFile.classDeclarations.length}, Functions: ${dartFile.functionDeclarations.length}\n', mode: FileMode.append);
+      for(var c in dartFile.classDeclarations) logFile.writeAsStringSync('  Class: ${c.name}\n', mode: FileMode.append);
       for(var f in dartFile.functionDeclarations) logFile.writeAsStringSync('  Func: ${f.name}\n', mode: FileMode.append);
-      for(var v in dartFile.variableDeclarations) logFile.writeAsStringSync('  Var: ${v.name}\n', mode: FileMode.append);
     } catch (e) {
       // ignore
     }

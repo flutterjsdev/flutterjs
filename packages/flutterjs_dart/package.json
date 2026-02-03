@@ -13,6 +13,8 @@
     "./convert": "./dist/convert/index.js",
     "./core": "./dist/core/index.js",
     "./developer": "./dist/developer/index.js",
+    "./js_interop": "./dist/js_interop/index.js",
+    "./js_interop_unsafe": "./dist/js_interop_unsafe/index.js",
     "./math": "./dist/math/index.js",
     "./typed_data": "./dist/typed_data/index.js",
     "./ui": "./dist/ui/index.js"
