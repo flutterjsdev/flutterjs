@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../src/index.js"],
+  "sourcesContent": ["// Stub for @flutterjs/rendering\r\nexport default {};\r\n"],
+  "mappings": "AACA,IAAO,gBAAQ,CAAC;",
+  "names": []
+}

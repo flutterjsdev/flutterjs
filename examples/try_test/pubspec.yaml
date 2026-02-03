@@ -1,0 +1,6 @@
+name: try_test
+description: Minimal test for try/catch/finally
+version: 0.0.1
+
+environment:
+  sdk: ^3.0.0

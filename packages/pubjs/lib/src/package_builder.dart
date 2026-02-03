@@ -399,9 +399,12 @@ class PackageBuilder {
     }
 
     // 🚀 OPTIMIZATION: If in node_modules, assume immutable (fast skip)
-    if (packagePath.contains('node_modules')) {
-      return false;
-    }
+    // DISABLED: We need to build 3rd party packages like http that live in node_modules
+    // if (packagePath.contains('node_modules')) {
+    //   return false;
+    // }
+    
+    print('🔍 DEBUG: needsBuild($packagePath) -> checking hash...');
 
     try {
       // Content Hashing Strategy
@@ -526,6 +529,9 @@ class PackageBuilder {
     final locations = [
       // In build directory (runtime packages)
       p.join(buildPath, 'node_modules', '@flutterjs', simpleName),
+
+      // 🎁 NEW: Standard packages in root node_modules (e.g. http, url_launcher)
+      p.join(buildPath, 'node_modules', packageName),
 
       // In packages directory (SDK source - nested)
       p.join(

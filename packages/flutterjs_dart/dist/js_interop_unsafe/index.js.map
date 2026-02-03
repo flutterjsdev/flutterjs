@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/js_interop_unsafe/index.js"],
+  "sourcesContent": ["\r\n/**\r\n * Dart JS Interop Unsafe Library\r\n * Implements dart:js_interop_unsafe functionality for FlutterJS\r\n */\r\n\r\nimport { globalJS } from '../js_interop/index.js';\r\n\r\nexport { globalJS };\r\n\r\n/**\r\n * Gets a property from a JS object.\r\n * Corresponds to `extension JSObjectUtilExtension on JSObject { getProperty ... }`\r\n */\r\nexport function getProperty(obj, key) {\r\n    return obj[key];\r\n}\r\n\r\n/**\r\n * Sets a property on a JS object.\r\n */\r\nexport function setProperty(obj, key, value) {\r\n    obj[key] = value;\r\n}\r\n\r\n/**\r\n * Calls a method on a JS object.\r\n */\r\nexport function callMethod(obj, method, ...args) {\r\n    if (typeof obj[method] === 'function') {\r\n        return obj[method](...args);\r\n    }\r\n    throw new Error(`Method ${method} not found on object`);\r\n}\r\n\r\n/**\r\n * Type check helper if needed\r\n */\r\nexport function hasProperty(obj, key) {\r\n    return key in obj;\r\n}\r\n"],
+  "mappings": "AAMA,OAAS,YAAAA,MAAgB,yBAQlB,SAASC,EAAYC,EAAKC,EAAK,CAClC,OAAOD,EAAIC,CAAG,CAClB,CAKO,SAASC,EAAYF,EAAKC,EAAKE,EAAO,CACzCH,EAAIC,CAAG,EAAIE,CACf,CAKO,SAASC,EAAWJ,EAAKK,KAAWC,EAAM,CAC7C,GAAI,OAAON,EAAIK,CAAM,GAAM,WACvB,OAAOL,EAAIK,CAAM,EAAE,GAAGC,CAAI,EAE9B,MAAM,IAAI,MAAM,UAAUD,CAAM,sBAAsB,CAC1D,CAKO,SAASE,EAAYP,EAAKC,EAAK,CAClC,OAAOA,KAAOD,CAClB",
+  "names": ["globalJS", "getProperty", "obj", "key", "setProperty", "value", "callMethod", "method", "args", "hasProperty"]
+}
