@@ -37,3 +37,6 @@ packages/flutterjs_engine/dist/
 .idea/
 *.iml
 pubspec_overrides.yaml
+
+# ✅ NEW: Ignore build info files
+**/.build_info.json

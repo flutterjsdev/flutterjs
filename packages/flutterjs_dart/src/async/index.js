@@ -257,3 +257,44 @@ export class StreamController {
         this._listeners = [];
     }
 }
+
+// --- Zone ---
+export class Zone {
+    static get current() {
+        return _root;
+    }
+
+    fork({ specification, zoneValues } = {}) {
+        return this;
+    }
+
+    run(action) {
+        return action();
+    }
+
+    bindCallback(callback) {
+        return callback;
+    }
+
+    bindUnaryCallback(callback) {
+        return callback;
+    }
+
+    bindBinaryCallback(callback) {
+        return callback;
+    }
+}
+
+const _root = new Zone();
+
+export function runZoned(body, { zoneValues, zoneSpecification, onError } = {}) {
+    return body();
+}
+
+export function runZonedGuarded(body, onError, { zoneValues, zoneSpecification } = {}) {
+    try {
+        return body();
+    } catch (e) {
+        onError(e, null);
+    }
+}
