@@ -1,5 +1,25 @@
 // dart:convert implementation
 
+// --- Encoding Base Class ---
+export class Encoding {
+    name = "unknown";
+
+    decode(bytes) {
+        throw new Error("Unimplemented: Encoding.decode");
+    }
+
+    encode(string) {
+        throw new Error("Unimplemented: Encoding.encode");
+    }
+
+    static getByName(name) {
+        if (name === 'utf-8' || name === 'utf8') return utf8;
+        if (name === 'json') return json;
+        // fallback
+        return null;
+    }
+}
+
 // --- JSON ---
 export const json = {
     decode: (source) => JSON.parse(source),
@@ -20,6 +40,7 @@ const _encoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
 const _decoder = typeof TextDecoder !== 'undefined' ? new TextDecoder() : null;
 
 export const utf8 = {
+    name: 'utf-8',
     encode: (string) => {
         if (_encoder) return _encoder.encode(string);
         // Fallback or error if not in browser/node
@@ -32,17 +53,16 @@ export const utf8 = {
 };
 
 // --- Base64 ---
-export const base64 = {
-    encode: (bytes) => {
-        // Handle bytes -> string
+export class base64 {
+    static encode(bytes) {
         let binary = '';
         const len = bytes.byteLength;
         for (let i = 0; i < len; i++) {
             binary += String.fromCharCode(bytes[i]);
         }
         return btoa(binary);
-    },
-    decode: (source) => {
+    }
+    static decode(source) {
         const binary = atob(source);
         const len = binary.length;
         const bytes = new Uint8Array(len);
@@ -51,7 +71,21 @@ export const base64 = {
         }
         return bytes;
     }
-};
+}
+
+export class Converter {
+    convert(input) { return input; }
+}
+
+export class Codec {
+    get encoder() { return new Converter(); }
+    get decoder() { return new Converter(); }
+    encode(input) { return this.encoder.convert(input); }
+    decode(input) { return this.decoder.convert(input); }
+}
+
+export class Utf8Encoder extends Converter {}
+export class Utf8Decoder extends Converter {}
 
 export function base64Encode(bytes) {
     return base64.encode(bytes);

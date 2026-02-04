@@ -60,5 +60,43 @@ export class LinkedListEntry {
 export const HashMap = Map;
 export const HashSet = Set;
 
+export class UnmodifiableListView {
+    constructor(source) {
+        this._list = Array.from(source);
+    }
+    get length() { return this._list.length; }
+    operator_get(index) { return this._list[index]; }
+}
+
+export class UnmodifiableMapView {
+    constructor(source) {
+        this._map = source;
+    }
+}
+
+export class UnmodifiableSetView {
+    constructor(source) {
+        this._set = source;
+    }
+}
+
+export class ListMixin {
+    get isEmpty() { return this.length === 0; }
+    get isNotEmpty() { return this.length > 0; }
+}
+export class MapMixin {
+    get isEmpty() { return this.length === 0; }
+    get isNotEmpty() { return this.length > 0; }
+}
+export class SetMixin {
+    get isEmpty() { return this.length === 0; }
+    get isNotEmpty() { return this.length > 0; }
+}
+
+export class IterableBase {}
+export class ListBase extends ListMixin {}
+export class MapBase extends MapMixin {}
+export class SetBase extends SetMixin {}
+
 export * from './priority_queue.js';
 export * from './queue_list.js';

@@ -836,6 +836,21 @@ class ModelToJSPipeline {
     // ✅ FIX: Reject single-character symbols in general (they're almost never exports)
     if (symbol.length == 1) return true;
     
+    // ✅ FIX: Reject lowercase-starting symbols - class names are PascalCase
+    // Symbols like 'context', 'path', 'style' are typically local variables or getters
+    // not external class imports
+    if (symbol.isNotEmpty && symbol[0].toLowerCase() == symbol[0]) {
+      // Exception: some known lowercase exports (like 'runApp', 'kIsWeb')
+      const knownLowercaseExports = {
+        'runApp', 'runZoned', 'jsonDecode', 'jsonEncode', 'utf8', 'base64',
+        'max', 'min', 'sqrt', 'sin', 'cos', 'tan', 'pi', 'e', 'log', 'pow',
+        'kIsWeb', 'kDebugMode', 'kProfileMode', 'kReleaseMode',
+      };
+      if (!knownLowercaseExports.contains(symbol)) {
+        return true;
+      }
+    }
+    
     // Check if it's a valid JS identifier
     return !RegExp(r'^[a-zA-Z_$][a-zA-Z0-9_$]*$').hasMatch(symbol);
   }

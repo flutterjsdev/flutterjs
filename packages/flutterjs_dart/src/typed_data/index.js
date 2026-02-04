@@ -32,10 +32,39 @@ export class ByteData {
     getInt16(byteOffset, endian) { return this._view.getInt16(byteOffset, endian === 1); } // endian 1 = little? check consts
     setInt16(byteOffset, value, endian) { this._view.setInt16(byteOffset, value, endian === 1); }
 
-    // ... add others as needed
+// ... add others as needed
 
     get buffer() { return this._view.buffer; }
 }
+
+export class ByteBuffer {
+    constructor(data) {
+        this._data = data;
+    }
+    get lengthInBytes() {
+        return this._data.byteLength || this._data.length || 0;
+    }
+}
+
+export class Int32x4 {
+    constructor(x, y, z, w) {}
+}
+
+export class Float32x4 {
+    constructor(x, y, z, w) {}
+    static zero() { return new Float32x4(0, 0, 0, 0); }
+}
+
+export class Float64x2 {
+    constructor(x, y) {}
+    static zero() { return new Float64x2(0, 0); }
+}
+
+export class Int32x4List {}
+export class Float32x4List {}
+export class Float64x2List {}
+export class Uint64List {}
+export class Int64List {}
 
 export class BytesBuilder {
     constructor({ copy = true } = {}) {

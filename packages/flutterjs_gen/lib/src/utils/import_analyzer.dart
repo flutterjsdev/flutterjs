@@ -6,6 +6,7 @@
 // ============================================================================
 
 import 'package:flutterjs_core/flutterjs_core.dart';
+import 'package:path/path.dart' as p;
 
 /// Analyzes import usage and tracks which symbols are referenced in code
 class ImportAnalyzer {
@@ -36,9 +37,13 @@ class ImportAnalyzer {
   }
 
   void _buildSymbolMap(DartFile dartFile) {
+    print('DEBUG: ImportAnalyzer._buildSymbolMap for ${dartFile.filePath}');
     for (final import in dartFile.imports) {
       final importUri = import.uri;
-      _symbolsByImport.putIfAbsent(importUri, () => {});
+      if (import.uri.contains('style')) {
+        print('DEBUG: ImportAnalyzer registered import: ${import.uri}');
+      }
+      _symbolsByImport[importUri] = {};
 
       // For explicit show list, record which symbols come from this import
       if (import.showList.isNotEmpty) {
@@ -310,7 +315,10 @@ class ImportAnalyzer {
         }
       }
     } else if (expr is FunctionCallExpr) {
-      _recordSymbolUsage(expr.functionName, libraryUri: expr.resolvedLibraryUri);
+      _recordSymbolUsage(
+        expr.functionName,
+        libraryUri: expr.resolvedLibraryUri,
+      );
       for (final arg in expr.arguments) {
         _scanExpression(arg);
       }
@@ -332,7 +340,7 @@ class ImportAnalyzer {
         _recordTypeUsage(typeArg);
       }
     } else if (expr is UnknownExpressionIR) {
-       _scanUnknownExpression(expr);
+      _scanUnknownExpression(expr);
     }
   }
 
@@ -362,8 +370,11 @@ class ImportAnalyzer {
     for (final match in wordMatches) {
       final word = match.group(1)!;
       // Filter out likely keywords or non-types (Basic filter)
-      if (word != 'Future' && word != 'Stream' && word != 'List' && word != 'Map') {
-         _recordSymbolUsage(word);
+      if (word != 'Future' &&
+          word != 'Stream' &&
+          word != 'List' &&
+          word != 'Map') {
+        _recordSymbolUsage(word);
       }
     }
   } // End _scanUnknownExpression
@@ -413,16 +424,28 @@ class ImportAnalyzer {
       }
       // Try to find a matching import (e.g. relative vs package)
       for (final importUri in _symbolsByImport.keys) {
-        // 1. Exact or suffix match
-        if (importUri == libraryUri ||
-            (importUri.startsWith('package:') &&
-                libraryUri.startsWith('package:') &&
-                importUri == libraryUri) ||
-            libraryUri.endsWith(importUri) ||
-            importUri.endsWith(libraryUri)) {
+        // 1. Exact or suffix match (fixing base_request.dart incorrectly matching request.dart)
+        if (importUri == libraryUri) {
           _symbolsByImport[importUri]!.add(symbolName);
           _importBySymbol[symbolName] = importUri;
           return;
+        }
+
+        // Relative path check: package:http/src/base_request.dart should match base_request.dart
+        // but package:http/src/base_request.dart should NOT match request.dart
+        final normalizedLib =
+            _normalizeUri(libraryUri).replaceAll('package:', '');
+        final normalizedImport = _normalizeUri(importUri);
+
+        if (normalizedLib.endsWith(normalizedImport)) {
+          // Verify it's a full path segment match (e.g., ends with /request.dart or is request.dart)
+          if (normalizedLib.length == normalizedImport.length ||
+              normalizedLib[normalizedLib.length - normalizedImport.length - 1] ==
+                  '/') {
+            _symbolsByImport[importUri]!.add(symbolName);
+            _importBySymbol[symbolName] = importUri;
+            return;
+          }
         }
 
         // 2. Package-level match (e.g. package:http/src/client.dart -> package:http/http.dart)
@@ -449,60 +472,73 @@ class ImportAnalyzer {
     // 3. Heuristic matching
     final symLower = symbolName.toLowerCase();
 
-    // Priority 1: Exact filename match (e.g. 'Client' matches '.../client.dart')
-    // ✅ FIX: Also check for common suffixes like 'Style', 'Widget', etc.
-    for (final entry in _symbolsByImport.entries) {
-      final importUri = entry.key;
-      final fileName = importUri.split('/').last.split('.').first.toLowerCase();
-      
-      // Direct match
-      if (symLower == fileName) {
-        entry.value.add(symbolName);
-        _importBySymbol[symbolName] = importUri;
-        return;
+    String? bestImport;
+    int bestScore = 0;
+
+    // Sort keys to ensure deterministic behavior for identical scores
+    final sortedImports = _symbolsByImport.keys.toList()..sort();
+
+    for (final importUri in sortedImports) {
+      // 1. Normalize path
+      String baseImportPath = _normalizeUri(importUri);
+      if (baseImportPath.startsWith('package:')) {
+        baseImportPath = baseImportPath.substring(8);
+      } else if (baseImportPath.startsWith('dart:')) {
+        baseImportPath = baseImportPath.substring(5);
       }
-      
-      // ✅ FIX: Check if symbol minus common suffix matches filename
-      // e.g. 'PosixStyle' -> 'posix' should match 'posix.dart'
-      // e.g. 'UrlStyle' -> 'url' should match 'url.dart'
-      const suffixes = ['style', 'widget', 'state', 'builder', 'delegate', 'controller'];
-      for (final suffix in suffixes) {
-        if (symLower.endsWith(suffix) && symLower.length > suffix.length) {
-          final baseName = symLower.substring(0, symLower.length - suffix.length);
-          if (baseName == fileName) {
-            entry.value.add(symbolName);
-            _importBySymbol[symbolName] = importUri;
-            return;
-          }
+
+      // Remove extension
+      if (baseImportPath.endsWith('.dart')) {
+        baseImportPath = baseImportPath.substring(0, baseImportPath.length - 5);
+      }
+
+      String baseFileName = baseImportPath.split('/').last.toLowerCase();
+      // Normalize: remove underscores to match CamelCase symbols correctly
+      final fileName = baseFileName.replaceAll('_', '');
+
+      int score = 0;
+
+      // === SCORING STRATEGY ===
+
+      // 1. Exact Name Match (Highest Priority)
+      if (symLower == fileName) {
+        score = 100;
+
+        // 2. "Main Library" Bonus
+        // Prefer shorter paths when filenames match (e.g. 'style.dart' vs 'src/style.dart')
+        final segments = baseImportPath.split('/').length;
+        score += (10 - segments).clamp(0, 9).toInt();
+      }
+      // 2. Suffix Match
+      else {
+        if (fileName.endsWith(symLower)) {
+          score = 60; // Partial match on end
+        } else if (symLower.endsWith(fileName)) {
+          score = 50; // Use case like 'Context' from 'path_context.dart'
         }
+      }
+
+      if (symbolName == 'BaseRequest') {
+        print('DEBUG: [BaseRequest] Candidate: $importUri');
+        print('DEBUG: [BaseRequest]   - baseImportPath: $baseImportPath');
+        print('DEBUG: [BaseRequest]   - fileName (normalized): $fileName');
+        print('DEBUG: [BaseRequest]   - Final Score: $score');
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestImport = importUri;
       }
     }
 
-    // Priority 2: Partial path match (for things like 'BaseResponse' matching 'src/response.dart')
-    for (final entry in _symbolsByImport.entries) {
-      final importUri = entry.key;
-      final symbols = entry.value;
+    if (symbolName == 'BaseRequest') {
+      print('DEBUG: [BaseRequest] SELECTED IMPORT: $bestImport with score: $bestScore');
+    }
 
-      String matchPath = _normalizeUri(importUri);
-      if (matchPath.startsWith('package:')) {
-        matchPath = matchPath.substring(8);
-      } else if (matchPath.startsWith('dart:')) {
-        matchPath = matchPath.substring(5);
-      }
-
-      if (matchPath.endsWith('.dart')) {
-        matchPath = matchPath.substring(0, matchPath.length - 5);
-      }
-
-      final parts = matchPath.toLowerCase().split(RegExp(r'[/_]'));
-      for (final part in parts) {
-        if (part.isNotEmpty &&
-            (symLower.contains(part) || part.contains(symLower))) {
-          symbols.add(symbolName);
-          _importBySymbol[symbolName] = importUri;
-          return;
-        }
-      }
+    if (bestImport != null) {
+      _symbolsByImport[bestImport]!.add(symbolName);
+      _importBySymbol[symbolName] = bestImport;
+      return;
     }
 
     // Check known symbols for common Dart libraries

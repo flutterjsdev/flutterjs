@@ -253,8 +253,10 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
   @override
   void visitImportDirective(ImportDirective node) {
+    final uri = node.uri.stringValue ?? '';
+
     final import = ImportStmt(
-      uri: node.uri.stringValue ?? '',
+      uri: uri,
       prefix: node.prefix?.name,
       isDeferred: node.deferredKeyword != null,
       showList: _extractShowCombinators(node),
@@ -623,6 +625,64 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     }
   }
 
+  @override
+  void visitExtensionTypeDeclaration(ExtensionTypeDeclaration node) {
+    _pushScope('extension_type', node.name.lexeme);
+
+    try {
+      final typeName = node.name.lexeme;
+      _log('🏛️  [ExtensionType] $typeName');
+
+      final fields = <FieldDecl>[];
+      // Representation field
+      final rep = node.representation;
+      final fieldName = rep.fieldName.lexeme;
+      final fieldDecl = FieldDecl(
+        id: builder.generateId('field', '${typeName}_$fieldName'),
+        name: fieldName,
+        type: _extractTypeFromAnnotation(rep.fieldType, rep.fieldName.offset),
+        isFinal: true,
+        isStatic: false,
+        sourceLocation: _extractSourceLocation(rep, rep.fieldName.offset),
+      );
+      fields.add(fieldDecl);
+
+      final methods = <MethodDecl>[];
+      final constructors = <ConstructorDecl>[];
+
+      for (final member in node.members) {
+        if (member is MethodDeclaration) {
+          final method = _extractSingleMethod(member, typeName);
+          methods.add(method);
+        } else if (member is ConstructorDeclaration) {
+          final constructor = _extractSingleConstructor(member, typeName);
+          constructors.add(constructor);
+        }
+      }
+
+      final classDecl = ClassDecl(
+        id: builder.generateId('class', typeName),
+        name: typeName,
+        fields: fields,
+        methods: methods,
+        constructors: constructors,
+        documentation: _extractDocumentation(node),
+        annotations: _extractAnnotations(node.metadata),
+        sourceLocation: _extractSourceLocation(node, node.name.offset),
+      );
+
+      classDecl.metadata['isExtensionType'] = true;
+
+      _classes.add(classDecl);
+      super.visitExtensionTypeDeclaration(node);
+    } catch (e, st) {
+      _log('   ❌ Error processing extension type: $e');
+      _log('   Stack: $st');
+    } finally {
+      _popScope();
+    }
+  }
+
   /// Export all extracted components
   Map<String, dynamic> exportComponents() {
     return {
@@ -756,128 +816,278 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     // Extract methods with full symmetric extraction
     for (final member in node.members) {
       if (member is! MethodDeclaration) continue;
-
-      final methodName = member.name.lexeme;
-      final methodId = builder.generateId('method', '$className.$methodName');
-
-      _log('🔧 [Method] $methodName() in class $className');
-      final extractionStartTime = DateTime.now();
-
-      try {
-        // PHASE 1: Determine if this is a widget-producing method
-        bool isWidgetFunc = false;
-        TypeIR? widgetKind;
-
-        if (widgetDetector != null) {
-          final methodElement = member.declaredFragment?.element;
-          if (methodElement != null) {
-            isWidgetFunc = widgetDetector!.producesWidget(methodElement);
-            if (isWidgetFunc) {
-              widgetKind = _getWidgetKind(methodElement);
-              _log(
-                '   ✅ [WIDGET METHOD] $methodName - Kind: ${widgetKind?.displayName()}',
-              );
-            }
-          }
-        }
-
-        // PHASE 2: Extract body statements AND expressions
-        final bodyStatements = _statementExtractor.extractBodyStatements(
-          member.body,
-        );
-
-        final bodyExpressions = _statementExtractor.extractBodyExpressions(
-          member.body,
-        );
-
-        _log('   📦 Body statements: ${bodyStatements.length}');
-        _log('   📦 Body expressions: ${bodyExpressions.length}');
-
-        // PHASE 4: Create FunctionBody with extraction data
-        final methodBody = FunctionBodyIR(
-          id: builder.generateId('ctor_body', '$className.$methodName.body'),
-          sourceLocation: _extractSourceLocation(member, member.name.offset),
-          statements: bodyStatements,
-        );
-
-        // PHASE 5: Create MethodDecl with FunctionBody
-        final methodDecl = MethodDecl(
-          id: methodId,
-          name: methodName,
-          returnType: _extractTypeFromAnnotation(
-            member.returnType,
-            member.name.offset,
-          ),
-          parameters: _extractParameters(member.parameters),
-          body: methodBody,
-          isAsync: member.body.isAsynchronous,
-          isGenerator: member.body.isGenerator,
-          isStatic: member.isStatic,
-          isAbstract: member.isAbstract,
-          isGetter: member.isGetter,
-          isSetter: member.isSetter,
-          typeParameters: _extractTypeParameters(member.typeParameters),
-          documentation: _extractDocumentation(member),
-          annotations: _extractAnnotations(member.metadata),
-          sourceLocation: _extractSourceLocation(member, member.name.offset),
-          className: className,
-        );
-
-        // PHASE 6: Mark as widget and attach metadata
-        if (isWidgetFunc) {
-          methodDecl.markAsWidgetFunction(isWidgetFun: true);
-          if (widgetKind != null) {
-            methodDecl.metadata['widgetKind'] = widgetKind;
-          }
-        }
-
-        final durationMs = DateTime.now()
-            .difference(extractionStartTime)
-            .inMilliseconds;
-        _log('   ⏱️  Extraction time: ${durationMs}ms');
-
-        methods.add(methodDecl);
-      } catch (e, stack) {
-        print('   ❌ Error extracting method $className.$methodName: $e');
-        print('   Stack: $stack');
-
-        // Error recovery
-        final fallbackBody = FunctionBodyIR(
-          statements: [],
-
-          id: builder.generateId('ctor_body', '$className.$methodName.body'),
-          sourceLocation: _extractSourceLocation(member, member.name.offset),
-        );
-
-        final fallbackDecl = MethodDecl(
-          id: methodId,
-          name: methodName,
-          returnType: _extractTypeFromAnnotation(
-            member.returnType,
-            member.name.offset,
-          ),
-          parameters: _extractParameters(member.parameters),
-          body: fallbackBody,
-          isAsync: member.body.isAsynchronous,
-          isGenerator: member.body.isGenerator,
-          isStatic: member.isStatic,
-          isAbstract: member.isAbstract,
-          isGetter: member.isGetter,
-          isSetter: member.isSetter,
-          typeParameters: _extractTypeParameters(member.typeParameters),
-          documentation: _extractDocumentation(member),
-          annotations: _extractAnnotations(member.metadata),
-          sourceLocation: _extractSourceLocation(member, member.name.offset),
-          className: className,
-        );
-
-        fallbackDecl.metadata['extractionError'] = e.toString();
-        methods.add(fallbackDecl);
-      }
+      final method = _extractSingleMethod(member, className);
+      methods.add(method);
     }
 
     return (methods: methods, constructors: constructors);
   }
+
+  MethodDecl _extractSingleMethod(MethodDeclaration member, String className) {
+    final methodName = member.name.lexeme;
+    final methodId = builder.generateId('method', '$className.$methodName');
+
+    _log('🔧 [Method] $methodName() in class $className');
+    final extractionStartTime = DateTime.now();
+
+    try {
+      // PHASE 1: Determine if this is a widget-producing method
+      bool isWidgetFunc = false;
+      TypeIR? widgetKind;
+
+      if (widgetDetector != null) {
+        final methodElement = member.declaredFragment?.element;
+        if (methodElement != null) {
+          isWidgetFunc = widgetDetector!.producesWidget(methodElement);
+          if (isWidgetFunc) {
+            widgetKind = _getWidgetKind(methodElement);
+            _log(
+              '   ✅ [WIDGET METHOD] $methodName - Kind: ${widgetKind?.displayName()}',
+            );
+          }
+        }
+      }
+
+      // PHASE 2: Extract body statements AND expressions
+      final bodyStatements = _statementExtractor.extractBodyStatements(
+        member.body,
+      );
+
+      final bodyExpressions = _statementExtractor.extractBodyExpressions(
+        member.body,
+      );
+
+      _log('   📦 Body statements: ${bodyStatements.length}');
+      _log('   📦 Body expressions: ${bodyExpressions.length}');
+
+      // PHASE 4: Create FunctionBody with extraction data
+      final methodBody = FunctionBodyIR(
+        id: builder.generateId('ctor_body', '$className.$methodName.body'),
+        sourceLocation: _extractSourceLocation(member, member.name.offset),
+        statements: bodyStatements,
+      );
+
+      // PHASE 5: Create MethodDecl with FunctionBody
+      final methodDecl = MethodDecl(
+        id: methodId,
+        name: methodName,
+        returnType: _extractTypeFromAnnotation(
+          member.returnType,
+          member.name.offset,
+        ),
+        parameters: _extractParameters(member.parameters),
+        body: methodBody,
+        isAsync: member.body.isAsynchronous,
+        isGenerator: member.body.isGenerator,
+        isStatic: member.isStatic,
+        isAbstract: member.isAbstract,
+        isGetter: member.isGetter,
+        isSetter: member.isSetter,
+        typeParameters: _extractTypeParameters(member.typeParameters),
+        documentation: _extractDocumentation(member),
+        annotations: _extractAnnotations(member.metadata),
+        sourceLocation: _extractSourceLocation(member, member.name.offset),
+        className: className,
+      );
+
+      // PHASE 6: Mark as widget and attach metadata
+      if (isWidgetFunc) {
+        methodDecl.markAsWidgetFunction(isWidgetFun: true);
+        if (widgetKind != null) {
+          methodDecl.metadata['widgetKind'] = widgetKind;
+        }
+      }
+
+      final durationMs =
+          DateTime.now().difference(extractionStartTime).inMilliseconds;
+      _log('   ⏱️  Extraction time: ${durationMs}ms');
+
+      return methodDecl;
+    } catch (e, stack) {
+      // Error recovery
+      final fallbackBody = FunctionBodyIR(
+        statements: [],
+        id: builder.generateId('ctor_body', '$className.$methodName.body'),
+        sourceLocation: _extractSourceLocation(member, member.name.offset),
+      );
+
+      final fallbackDecl = MethodDecl(
+        id: methodId,
+        name: methodName,
+        returnType: _extractTypeFromAnnotation(
+          member.returnType,
+          member.name.offset,
+        ),
+        parameters: _extractParameters(member.parameters),
+        body: fallbackBody,
+        isAsync: member.body.isAsynchronous,
+        isGenerator: member.body.isGenerator,
+        isStatic: member.isStatic,
+        isAbstract: member.isAbstract,
+        isGetter: member.isGetter,
+        isSetter: member.isSetter,
+        typeParameters: _extractTypeParameters(member.typeParameters),
+        documentation: _extractDocumentation(member),
+        annotations: _extractAnnotations(member.metadata),
+        sourceLocation: _extractSourceLocation(member, member.name.offset),
+        className: className,
+      );
+
+      fallbackDecl.metadata['extractionError'] = e.toString();
+      return fallbackDecl;
+    }
+  }
+
+  @override
+  void visitEnumDeclaration(EnumDeclaration node) {
+    _pushScope('enum', node.name.lexeme);
+
+    try {
+      final enumName = node.name.lexeme;
+      _log('🏛️  [Enum] $enumName');
+
+      final fields = <FieldDecl>[];
+
+      // Add constants as static fields
+      for (final constant in node.constants) {
+        final fieldDecl = FieldDecl(
+          id: builder.generateId('field', '${enumName}_${constant.name.lexeme}'),
+          name: constant.name.lexeme,
+          type: SimpleTypeIR(
+            id: builder.generateId('type'),
+            name: enumName,
+            sourceLocation: _extractSourceLocation(constant, constant.name.offset),
+          ),
+          isStatic: true,
+          isFinal: true,
+          sourceLocation: _extractSourceLocation(constant, constant.name.offset),
+        );
+        fields.add(fieldDecl);
+      }
+
+      for (final member in node.members) {
+        if (member is FieldDeclaration) {
+          for (final variable in member.fields.variables) {
+            final fieldName = variable.name.lexeme;
+            final fieldDecl = FieldDecl(
+              id: builder.generateId('field', '${enumName}_$fieldName'),
+              name: fieldName,
+              type: _extractTypeFromAnnotation(member.fields.type, variable.name.offset),
+              isStatic: member.isStatic,
+              isFinal: member.fields.isFinal,
+              sourceLocation: _extractSourceLocation(
+                member,
+                variable.name.offset,
+              ),
+            );
+            fields.add(fieldDecl);
+          }
+        }
+      }
+
+      final methods = <MethodDecl>[];
+      final constructors = <ConstructorDecl>[];
+
+      for (final member in node.members) {
+        if (member is MethodDeclaration) {
+          final method = _extractSingleMethod(member, enumName);
+          methods.add(method);
+        } else if (member is ConstructorDeclaration) {
+          final constructor = _extractSingleConstructor(member, enumName);
+          constructors.add(constructor);
+        }
+      }
+
+      final classDecl = ClassDecl(
+        id: builder.generateId('class', enumName),
+        name: enumName,
+        fields: fields,
+        methods: methods,
+        constructors: constructors,
+        documentation: _extractDocumentation(node),
+        annotations: _extractAnnotations(node.metadata),
+        sourceLocation: _extractSourceLocation(node, node.name.offset),
+      );
+
+      classDecl.metadata['isEnum'] = true;
+
+      _classes.add(classDecl);
+      super.visitEnumDeclaration(node);
+    } catch (e, st) {
+      _log('   ❌ Error processing enum: $e');
+      _log('   Stack: $st');
+    } finally {
+      _popScope();
+    }
+  }
+
+  @override
+  void visitMixinDeclaration(MixinDeclaration node) {
+    _pushScope('mixin', node.name.lexeme);
+
+    try {
+      final mixinName = node.name.lexeme;
+      _log('🏛️  [Mixin] $mixinName');
+
+      final fields = _extractMixinFields(node);
+      final methods = _extractMixinMethods(node);
+
+      final classDecl = ClassDecl(
+        id: builder.generateId('class', mixinName),
+        name: mixinName,
+        fields: fields,
+        methods: methods,
+        isMixin: true,
+        documentation: _extractDocumentation(node),
+        annotations: _extractAnnotations(node.metadata),
+        sourceLocation: _extractSourceLocation(node, node.name.offset),
+      );
+
+      _classes.add(classDecl);
+      super.visitMixinDeclaration(node);
+    } catch (e, st) {
+      _log('   ❌ Error processing mixin: $e');
+      _log('   Stack: $st');
+    } finally {
+      _popScope();
+    }
+  }
+
+  List<FieldDecl> _extractMixinFields(MixinDeclaration node) {
+    final fields = <FieldDecl>[];
+    for (final member in node.members) {
+      if (member is FieldDeclaration) {
+        for (final variable in member.fields.variables) {
+          final fieldName = variable.name.lexeme;
+          final fieldDecl = FieldDecl(
+            id: builder.generateId('field', '${node.name.lexeme}_$fieldName'),
+            name: fieldName,
+            type: _extractTypeFromAnnotation(member.fields.type, variable.name.offset),
+            isStatic: member.isStatic,
+            isFinal: member.fields.isFinal,
+            sourceLocation: _extractSourceLocation(
+              member,
+              variable.name.offset,
+            ),
+          );
+          fields.add(fieldDecl);
+        }
+      }
+    }
+    return fields;
+  }
+
+  List<MethodDecl> _extractMixinMethods(MixinDeclaration node) {
+    final methods = <MethodDecl>[];
+    for (final member in node.members) {
+      if (member is MethodDeclaration) {
+        final method = _extractSingleMethod(member, node.name.lexeme);
+        methods.add(method);
+      }
+    }
+    return methods;
+  }
+
   // =========================================================================
   // ✅ NEW HELPER: Get widget kind from element (returns TypeIR)
   // =========================================================================

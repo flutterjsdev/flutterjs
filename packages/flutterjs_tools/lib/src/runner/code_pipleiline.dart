@@ -45,7 +45,17 @@ class UnifiedConversionPipeline {
   void _initializeEngines() {
     try {
       diagnosticEngine = ModelToJSDiagnosticEngine();
-      integrationPipeline = ModelToJSPipeline();
+      integrationPipeline = ModelToJSPipeline(
+        importRewriter: (uri) {
+          // Critical Fix: Path resolution for peer packages in node_modules
+          // 'collection' is generated as 'collection/dist/...' but needs to be relative
+          // from 'node_modules/http_parser/dist/src/' -> '../../../collection/...'
+          if (uri.startsWith('collection/')) {
+            return '../../../$uri';
+          }
+          return uri;
+        },
+      );
 
       // ✅ NEW: Initialize and load package registry
       packageRegistry = PackageRegistry();
@@ -76,7 +86,7 @@ class UnifiedConversionPipeline {
       // Manifests are in build/flutterjs/node_modules/@flutterjs/
       // This is where preparePackages() puts them
       final buildManifestPath = path.join(
-        config.projectPath ,
+        config.projectPath,
         'build',
         'flutterjs',
         'node_modules',
@@ -343,6 +353,35 @@ class UnifiedConversionPipeline {
         optimize: optimize,
         optimizationLevel: optimizationLevel,
       );
+
+      // [CRITICAL FIX] Post-processing to fix relative imports for peer packages
+      // The FileCodeGen produces 'collection/dist/...' which is incorrect for nested files
+      // We manually correct it to properly traverse up to node_modules
+      if (jsCode.contains("collection/")) {
+        // Calculate depth from node_modules
+        // outputPath example: .../node_modules/http_parser/dist/src/file.js
+        // We want to reach .../node_modules/collection/...
+        // Count segments after 'node_modules'
+        final parts = path.split(outputPath);
+        int nodeModulesIndex = parts.lastIndexOf('node_modules');
+
+        if (nodeModulesIndex != -1) {
+          int depth =
+              parts.length -
+              nodeModulesIndex -
+              2; // -1 for index, -1 for filename
+          if (depth > 0) {
+            String prefix = '../' * depth;
+            jsCode = jsCode
+                .replaceAll("from 'collection/", "from '${prefix}collection/")
+                .replaceAll(
+                  "import 'collection/",
+                  "import '${prefix}collection/",
+                );
+            _log('  - 🔧 Fixed collection import path with prefix: $prefix');
+          }
+        }
+      }
 
       _log('  - Generated code length: ${jsCode.length} bytes');
 
