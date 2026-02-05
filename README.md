@@ -139,7 +139,7 @@ class MyApp extends StatelessWidget {
 ### 3. Run Development Server
 
 ```bash
-flutterjs dev
+flutterjs run --to-js --serve
 ```
 
 Open `http://localhost:3000` — inspect the page to see **real HTML elements**, not canvas!
