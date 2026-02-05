@@ -40,3 +40,6 @@ pubspec_overrides.yaml
 
 # ✅ NEW: Ignore build info files
 **/.build_info.json
+
+# Marketing and private drafts
+marketing_drafts/
