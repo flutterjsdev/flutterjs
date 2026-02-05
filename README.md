@@ -33,13 +33,17 @@ Flutter Web is amazing for apps, but terrible for the web:
 | 🐢 **Slow first paint** | WASM/CanvasKit takes time to initialize |
 
 **Your beautiful Flutter app is invisible to search engines.**
-
 ---
 
 ## The Solution
 
 
 FlutterJS compiles your Flutter/Dart code to **semantic HTML + CSS + JavaScript** instead of Canvas/WASM.
+
+  <a href="https://github.com/user-attachments/assets/e46c88fb-4bb5-4600-a613-adcdcfd1c159">
+    <img src="https://github.com/user-attachments/assets/e46c88fb-4bb5-4600-a613-adcdcfd1c159"
+         width="48%" />
+  </a>
 
 ```
 ┌─────────────────────────────────────────────────────────┐
