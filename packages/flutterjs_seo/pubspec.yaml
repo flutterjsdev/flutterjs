@@ -1,10 +1,17 @@
 name: flutterjs_seo
 version: 0.1.0
-description: SEO metadata management for FlutterJS Applications
+description: SEO metadata management for FlutterJS Applications. Lightweight and efficient metadata injection for FlutterJS web apps.
 
 homepage: https://flutterjs.dev
 repository: https://github.com/flutterjs/flutterjs_seo
 issue_tracker: https://github.com/flutterjs/flutterjs_seo/issues
+
+topics:
+  - seo
+  - flutterjs
+  - web
+  - metadata
+  - head
 
 environment:
   sdk: ^3.10.0
