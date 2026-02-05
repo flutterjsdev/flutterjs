@@ -2554,4 +2554,3 @@ class ExpressionCodeGen {
     return result;
   }
 }
-
