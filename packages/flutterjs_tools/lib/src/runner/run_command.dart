@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // ============================================================================
 // UNIFIED COMMAND - Complete Analysis → IR Generation → JS Conversion Pipeline
 // WITH INTEGRATED DEVTOOLS IR VIEWER SERVER
@@ -31,7 +35,7 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///   ✔ Reporting
 ///   ✔ DevTools IR Viewer (live server)
 ///
-/// This is the most powerful and feature-complete command in the Flutter.js CLI.
+/// This is the most powerful and feature-complete command in the FlutterJS CLI.
 /// Its goal is to take a Flutter project directory and produce:
 ///
 ///   - Binary IR files (`.ir`)
@@ -144,7 +148,7 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///
 /// # Summary
 ///
-/// `RunCommand` is the heart of the Flutter.js command-line tool.
+/// `RunCommand` is the heart of the FlutterJS command-line tool.
 /// It unifies:
 ///
 ///   • full static analysis
@@ -157,7 +161,7 @@ import 'package:flutterjs_core/flutterjs_core.dart';
 ///   • a fully integrated DevTools visualization server
 ///
 /// This is the recommended command for end users and CI to produce all artifacts
-/// required for Flutter.js runtime execution.
+/// required for FlutterJS runtime execution.
 ///
 
 /// ============================================================================
@@ -307,31 +311,14 @@ class RunCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final debugFile = File(
-      'c:/Jay/_Plugin/flutterjs/examples/routing_app/debug_runcheck.txt',
-    );
-    try {
-      debugFile.writeAsStringSync("DEBUG: RunCommand.run START\n");
-    } catch (e) {
-      print("DEBUG: Logs file write failed");
-    }
-
-    print("DEBUG: RunCommand.run START");
+    _log("RunCommand.run START");
     try {
       // Parse CLI arguments
       final config = _parseConfig();
-      debugFile.writeAsStringSync(
-        "DEBUG: RunCommand parsed config\n",
-        mode: FileMode.append,
-      );
-      print("DEBUG: RunCommand parsed config");
+      _log("RunCommand parsed config");
 
       // Setup phase
-      debugFile.writeAsStringSync(
-        "DEBUG: RunCommand starting setup_phase\n",
-        mode: FileMode.append,
-      );
-      print("DEBUG: RunCommand starting setup_phase");
+      _log("RunCommand starting setup_phase");
       /*
       final context = await debugger.observe(
         'setup_phase',
@@ -349,8 +336,8 @@ class RunCommand extends Command<void> {
       await _reportResults(config, context, results);
 
       // Start dev server if --serve flag is set (requires --to-js)
-      print(
-        '[DEBUG] Checking DevServer conditions: serve=${config.serve}, toJs=${config.toJs}, filesGenerated=${results.jsConversion.filesGenerated}',
+      _log(
+        'Checking DevServer conditions: serve=${config.serve}, toJs=${config.toJs}, filesGenerated=${results.jsConversion.filesGenerated}',
       );
       if (config.serve &&
           config.toJs &&
@@ -369,6 +356,9 @@ class RunCommand extends Command<void> {
       debugger.printSummary(force: true);
     }
   }
+
+  void _log(String message) =>
+      debugger.log(DebugLevel.debug, message, category: 'run');
 
   // =========================================================================
   // PHASE 0: CONFIGURATION & SETUP
@@ -474,7 +464,7 @@ class RunCommand extends Command<void> {
 
     // Start DevTools if enabled
     if (config.enableDevTools) {
-      print("[DEBUG] TRIGGERING devtools_startup");
+      _log("TRIGGERING devtools_startup");
       _devToolsServer = await debugger.observe(
         'devtools_startup',
         () => DevToolsManager.start(config, context),
@@ -483,14 +473,14 @@ class RunCommand extends Command<void> {
     }
 
     // Run analysis & IR generation
-    print("[DEBUG] TRIGGERING phase_1_analysis");
+    _log("TRIGGERING phase_1_analysis");
     final analysisResults = await debugger.observe(
       'phase_1_analysis',
       () => AnalysisPhase.execute(config, context, verbose),
       category: 'analysis',
     );
 
-    print("[DEBUG] TRIGGERING phase_2_ir_generation");
+    _log("TRIGGERING phase_2_ir_generation");
     final irResults = await debugger.observe(
       'phase_2_ir_generation',
       () =>
@@ -508,7 +498,7 @@ class RunCommand extends Command<void> {
         print('PHASES 4-6: Converting IR to JavaScript...');
       }
 
-      print("[DEBUG] TRIGGERING phase_4_6_js_conversion");
+      _log("TRIGGERING phase_4_6_js_conversion");
       jsResults = await debugger.observe(
         'phase_4_6_js_conversion',
         () => JSConversionPhase.execute(config, context, irResults, verbose),

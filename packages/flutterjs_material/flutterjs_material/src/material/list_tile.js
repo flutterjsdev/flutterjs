@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import { StatelessWidget } from '../core/widget_element.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
 import { Color, CrossAxisAlignment, MainAxisAlignment, MainAxisSize, Alignment } from '../utils/utils.js';

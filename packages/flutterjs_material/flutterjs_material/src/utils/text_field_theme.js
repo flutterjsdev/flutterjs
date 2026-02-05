@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import { Color } from '../utils/color.js';
 import { InputDecoration } from '../material/input_decorator.js';
 import { TextStyle } from '../painting/text_style.js';

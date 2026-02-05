@@ -1,5 +1,9 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 /**
- * Advanced Import Resolver for Flutter.js Framework
+ * Advanced Import Resolver for FlutterJS Framework
  * ✅ FIXED: Now handles multi-line imports correctly
  * 
  * Resolution Chain:

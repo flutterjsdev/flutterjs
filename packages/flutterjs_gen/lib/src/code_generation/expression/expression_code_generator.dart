@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // ============================================================================
 // PHASE 2.1: EXPRESSION CODE GENERATOR
 // ============================================================================
@@ -147,8 +151,10 @@ class ExpressionCodeGen {
         // Logic: If it starts with '() =>' it is an Arrow Function.
         // If it starts with '((' it might be already wrapped, so we avoid double wrap if possible,
         // but '() =>' starts with '(', so we must NOT exclude that.
-        if (src.startsWith('() =>') && src.endsWith('()') && !src.startsWith('((')) {
-          code = '($code)'; 
+        if (src.startsWith('() =>') &&
+            src.endsWith('()') &&
+            !src.startsWith('((')) {
+          code = '($code)';
         }
       }
 
@@ -1265,8 +1271,9 @@ class ExpressionCodeGen {
   String _generateIdentifier(IdentifierExpressionIR expr) {
     // ✅ FIX: Prefix static fields with class name inside the class
     if (_currentClassContext != null) {
-      final isStaticField = _currentClassContext!.staticFields
-          .any((f) => f.name == expr.name);
+      final isStaticField = _currentClassContext!.staticFields.any(
+        (f) => f.name == expr.name,
+      );
 
       if (isStaticField) {
         // Must use sanitized name (e.g. constructor -> $constructor)

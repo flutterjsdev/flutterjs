@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'package:flutterjs_core/flutterjs_core.dart';
 import '../../ir/expressions/cascade_expression_ir.dart';
 
@@ -206,7 +210,7 @@ class StatementWidgetAnalyzer {
       }
     } else if (expr is StringInterpolationExpressionIR) {
       // String interpolation in widget properties - preserve it
-     // print('   [StringInterpolation] Preserving in property');
+      // print('   [StringInterpolation] Preserving in property');
       // Just track that we've seen it, don't try to extract widgets from it
       // (unless it contains widget expressions, which is unlikely)
       return;

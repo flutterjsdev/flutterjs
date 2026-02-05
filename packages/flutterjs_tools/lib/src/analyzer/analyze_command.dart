@@ -1,13 +1,17 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 import 'package:dart_analyzer/dart_analyzer.dart';
 
 /// ============================================================================
-/// AnalyzeCommand – Phase 1 Flutter.js Project Analyzer
+/// AnalyzeCommand – Phase 1 FlutterJS Project Analyzer
 /// ============================================================================
 ///
-/// Performs a **full Phase-1 analysis** of a Flutter.js project, including:
+/// Performs a **full Phase-1 analysis** of a FlutterJS project, including:
 ///
 ///   • Parsing every `.dart` file
 ///   • Dependency resolution
@@ -31,7 +35,7 @@ import 'package:dart_analyzer/dart_analyzer.dart';
 /// - Prepare data for the IR pipeline (Phase 2+)
 ///
 /// This phase is equivalent to:
-/// > *"Flutter.js Analyzer Pass: 0 → 1"*
+/// > *"FlutterJS Analyzer Pass: 0 → 1"*
 ///
 ///
 /// # Key Features
@@ -237,7 +241,7 @@ class AnalyzeCommand extends Command<void> {
     final absolutePath = projectDir.absolute.path;
 
     if (!jsonOutput) {
-      print('📊 Analyzing Flutter.js project...');
+      print('📊 Analyzing FlutterJS project...');
       print('   Project: $absolutePath');
       print(
         '   Mode: Phase 1 Analysis (parsing, dependencies, type resolution)',

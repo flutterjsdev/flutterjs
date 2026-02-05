@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'package:meta/meta.dart';
 import '../core/source_location.dart';
 import '../core/ir_node.dart';
@@ -7,7 +11,7 @@ import '../types/type_ir.dart';
 /// key_type_ir.dart
 /// ----------------------------------------------------------------------------
 ///
-/// IR representation of different widget key types used within Flutter.js.
+/// IR representation of different widget key types used within FlutterJS.
 ///
 /// Purpose:
 /// • Track key usage on IR-based widget nodes

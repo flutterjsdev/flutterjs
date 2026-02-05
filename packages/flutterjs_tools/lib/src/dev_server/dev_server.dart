@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
@@ -6,10 +10,10 @@ import 'package:mime/mime.dart' as mime;
 import 'package:watcher/watcher.dart';
 
 /// ============================================================================
-/// DevServer – Flutter.js Development Server
+/// DevServer – FlutterJS Development Server
 /// ============================================================================
 ///
-/// A fully-featured local development server designed for **Flutter.js**
+/// A fully-featured local development server designed for **FlutterJS**
 /// projects.
 ///
 /// It serves your generated web build output **(SPA or MPA)**, provides
@@ -123,11 +127,11 @@ import 'package:watcher/watcher.dart';
 ///   `/pages/route/index.html`.
 ///
 ///
-/// This class powers the Flutter.js development workflow, enabling a smooth,
+/// This class powers the FlutterJS development workflow, enabling a smooth,
 /// framework-like DX similar to Vite, Next.js, and Flutter’s own hot reload.
 ///
 
-/// Main Dev Server for Flutter.js
+/// Main Dev Server for FlutterJS
 class DevServer {
   late HttpServer _server;
   final String _buildDir;
@@ -374,7 +378,7 @@ class DevServer {
     // Pattern: /route-name -> /pages/route-name.html or /route-name.html
     if (!requestPath.contains('.')) {
       final mpaRoutes = [
-        // Try /pages/{route}.html (Flutter.js Phase 1.5 structure)
+        // Try /pages/{route}.html (FlutterJS Phase 1.5 structure)
         path.join(_buildDir, 'pages', '$relativePath.html'),
         // Try /{route}.html (flat structure)
         path.join(_buildDir, '$relativePath.html'),
@@ -526,7 +530,7 @@ class DevServer {
     _watchDirectory('images');
     _watchDirectory('styles');
     _watchDirectory('scripts');
-    _watchDirectory('runtime'); // Flutter.js runtime
+    _watchDirectory('runtime'); // FlutterJS runtime
   }
 
   /// Watch specific file patterns

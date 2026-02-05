@@ -1,8 +1,10 @@
 name: flutterjs
-description: A sample command-line application.
-version: 0.0.1
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
-# repository: https://github.com/my_org/my_repo
+description: A powerful framework for building web applications using Dart, compiled to efficient JavaScript and CSS.
+version: 1.0.0
+publish_to: 'none'
+repository: https://github.com/flutterjsdev/flutterjs
+homepage: https://flutterjs.dev
+license: BSD-3-Clause
 
 executables:
   flutterjs: flutterjs

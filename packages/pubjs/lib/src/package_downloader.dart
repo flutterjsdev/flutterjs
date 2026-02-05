@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:archive/archive.dart';
@@ -7,10 +11,8 @@ class PackageDownloader {
   final http.Client _client;
   final bool verbose;
 
-  PackageDownloader({
-    http.Client? client,
-    this.verbose = false,
-  }) : _client = client ?? http.Client();
+  PackageDownloader({http.Client? client, this.verbose = false})
+    : _client = client ?? http.Client();
 
   void _log(String message) {
     if (verbose) print(message);

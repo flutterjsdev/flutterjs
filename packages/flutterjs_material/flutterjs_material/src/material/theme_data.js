@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import { ColorScheme } from './color_scheme.js';
 import { CheckboxThemeData } from '../utils/checkbox_theme.js';
 import { SwitchThemeData } from '../utils/switch_theme.js';

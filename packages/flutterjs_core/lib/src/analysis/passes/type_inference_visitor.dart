@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // File: lib/src/analysis/visitors/type_inference_visitor.dart
 import 'package:flutterjs_core/flutterjs_core.dart';
 

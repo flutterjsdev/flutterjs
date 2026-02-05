@@ -1,7 +1,7 @@
 {
   "name": "counter-app",
   "version": "1.0.0",
-  "description": "A Flutter.js Counter Application - Demonstrating State Management & Material Design",
+  "description": "A FlutterJS Counter Application - Demonstrating State Management & Material Design",
   "type": "module",
   "main": "dist/index.html",
   "module": "src/main.fjs",

@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // debug-server.js - FIXED: Properly display logger data from analysis
 const http = require('http');
 const fs = require('fs');
@@ -177,7 +181,7 @@ function serveDevToolsUI(devServerUrl) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flutter.js DevTools - Analysis Dashboard</title>
+  <title>FlutterJS DevTools - Analysis Dashboard</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
@@ -371,7 +375,7 @@ function serveDevToolsUI(devServerUrl) {
   <div class="container">
     <header>
       <div>
-        <h1>🔧 Flutter.js DevTools</h1>
+        <h1>🔧 FlutterJS DevTools</h1>
         <p style="color: #666; margin-top: 5px;">Analysis & Development Dashboard</p>
       </div>
       <div>

@@ -86,7 +86,7 @@ Enhancement suggestions are tracked as [GitHub issues](https://github.com/flutte
 
 ## 📜 License
 
-By contributing, you agree that your contributions will be licensed under its MIT License.
+By contributing, you agree that your contributions will be licensed under its BSD 3-Clause License.
 
 ## ❤️ Code of Conduct
 

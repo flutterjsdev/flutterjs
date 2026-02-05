@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 export * as core from './core/index.js';
 export * as math from './math/index.js';
 export * as async from './async/index.js';

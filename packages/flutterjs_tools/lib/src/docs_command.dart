@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
@@ -6,10 +10,10 @@ import 'package:args/command_runner.dart';
 /// DocsCommand
 /// ============================================================================
 ///
-/// A CLI command responsible for generating Flutter.js documentation and
+/// A CLI command responsible for generating FlutterJS documentation and
 /// optionally serving it locally.
 ///
-/// This command is part of the Flutter.js toolchain and is typically invoked as:
+/// This command is part of the FlutterJS toolchain and is typically invoked as:
 ///
 /// ```bash
 /// flutterjs docs
@@ -26,7 +30,7 @@ import 'package:args/command_runner.dart';
 ///   • Examples and usage snippets
 ///
 /// It is designed to integrate with the analyzer and builder subsystems in the
-/// future, generating documentation directly from Flutter.js metadata.
+/// future, generating documentation directly from FlutterJS metadata.
 ///
 ///
 /// # Flags
@@ -71,7 +75,7 @@ import 'package:args/command_runner.dart';
 /// This command is designed to support:
 ///
 ///   • Auto-generation of MD / HTML doc files
-///   • Integration with Flutter.js AST analyzers
+///   • Integration with FlutterJS AST analyzers
 ///   • Hot-reload documentation preview server
 ///   • Template-based documentation themes
 ///
@@ -114,7 +118,7 @@ class DocsCommand extends Command<void> {
     final outputDir = argResults!['output'] as String;
     final serve = argResults!['serve'] as bool;
 
-    print('📚 Generating Flutter.js documentation...\n');
+    print('📚 Generating FlutterJS documentation...\n');
 
     print('Generating:');
     print('  ├─ Widget mapping reference');

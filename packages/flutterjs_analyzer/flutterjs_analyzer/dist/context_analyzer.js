@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import{getLogger as d}from"./flutterjs_logger.js";import{InheritedWidgetMetadata as h,ChangeNotifierAnalysis as u,ProviderAnalysis as l,ContextUsagePattern as o}from"./context_analyzer_data.js";class f{constructor(e,i=[],t={}){this.ast=e,this.widgets=i,this.logger=d().createComponentLogger("ContextAnalyzer"),this.options={strict:!1,...t},this.inheritedWidgets=new Map,this.changeNotifiers=new Map,this.providers=new Map,this.contextAccessPoints=[],this.inheritedWidgetGraph={},this.providerGraph={},this.errors=[]}analyze(){this.logger.startSession("ContextAnalysis"),this.logger.trace(`[ContextAnalyzer] Starting analysis...
 `),this.logger.startSession("WidgetAnalyzer"),this.logger.trace(`[ContextAnalyzer] Starting analysis...
 `);try{return this.detectInheritedWidgets(),this.logger.trace(`[ContextAnalyzer] Found ${this.inheritedWidgets.size} InheritedWidgets

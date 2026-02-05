@@ -1,6 +1,6 @@
 {
   "name": "@flutterjs/material",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "FlutterJS Material Design components",
   "main": "./dist/index.js",
   "type": "module",

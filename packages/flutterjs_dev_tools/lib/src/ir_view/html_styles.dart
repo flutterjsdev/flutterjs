@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 class HtmlStyles {
   static String getStyles() => '''
 * { margin: 0; padding: 0; box-sizing: border-box; }

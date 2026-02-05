@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
@@ -192,7 +196,6 @@ class PackageCompiler {
 
     try {
       final content = await file.readAsString();
-
 
       // 1. Parse Dart to AST
       final parseResult = parseString(content: content, path: file.path);

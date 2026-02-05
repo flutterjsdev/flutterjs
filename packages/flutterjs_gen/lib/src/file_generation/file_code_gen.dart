@@ -71,14 +71,18 @@ class FileCodeGen {
     int optimizationLevel = 1,
   }) async {
     try {
-        try {
-          final f = File('DEBUG_GEN.txt');
-          f.writeAsStringSync('FileCodeGen.generate called for ${dartFile.package}/${dartFile.library}\n', mode: FileMode.append);
-        } catch (_) {}
+      try {
+        final f = File('DEBUG_GEN.txt');
+        f.writeAsStringSync(
+          'FileCodeGen.generate called for ${dartFile.package}/${dartFile.library}\n',
+          mode: FileMode.append,
+        );
+      } catch (_) {}
 
-        if (dartFile.package == 'term_glyph' || (dartFile.library ?? '').contains('term_glyph')) {
-             throw 'DEBUG EXCEPTION: PROCESSING TERM_GLYPH';
-        }
+      if (dartFile.package == 'term_glyph' ||
+          (dartFile.library ?? '').contains('term_glyph')) {
+        throw 'DEBUG EXCEPTION: PROCESSING TERM_GLYPH';
+      }
 
       // Step 1: Analyze file (can be async)
       await _analyzeFileAsync(dartFile);
@@ -203,9 +207,17 @@ class FileCodeGen {
   Future<String> _generateCodeAsync(DartFile dartFile) async {
     try {
       final logFile = File(r'C:\Jay\_Plugin\flutterjs\debug_entry_log.txt');
-      logFile.writeAsStringSync('Processing File: ${dartFile.package} / ${dartFile.library}\nClasses: ${dartFile.classDeclarations.length}, Functions: ${dartFile.functionDeclarations.length}\n', mode: FileMode.append);
-      for(var c in dartFile.classDeclarations) logFile.writeAsStringSync('  Class: ${c.name}\n', mode: FileMode.append);
-      for(var f in dartFile.functionDeclarations) logFile.writeAsStringSync('  Func: ${f.name}\n', mode: FileMode.append);
+      logFile.writeAsStringSync(
+        'Processing File: ${dartFile.package} / ${dartFile.library}\nClasses: ${dartFile.classDeclarations.length}, Functions: ${dartFile.functionDeclarations.length}\n',
+        mode: FileMode.append,
+      );
+      for (var c in dartFile.classDeclarations)
+        logFile.writeAsStringSync(
+          '  Class: ${c.name}\n',
+          mode: FileMode.append,
+        );
+      for (var f in dartFile.functionDeclarations)
+        logFile.writeAsStringSync('  Func: ${f.name}\n', mode: FileMode.append);
     } catch (e) {
       // ignore
     }
@@ -239,6 +251,10 @@ class FileCodeGen {
 
   Future<String> _generateHeaderAsync() async {
     return '''
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // ============================================================================
 // Generated from Dart IR - Advanced Code Generation (Phase 10)
 // WARNING: Do not edit manually - changes will be lost

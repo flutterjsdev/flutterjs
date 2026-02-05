@@ -1,12 +1,16 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:io';
 import 'package:args/command_runner.dart';
 
 /// ============================================================================
-/// CLEAN COMMAND — Remove Build Artifacts & Caches (Flutter.js)
+/// CLEAN COMMAND — Remove Build Artifacts & Caches (FlutterJS)
 /// ============================================================================
 ///
 /// The `clean` command deletes all generated artifacts, caches, temporary
-/// directories, and platform build folders used by Flutter.js and related tools.
+/// directories, and platform build folders used by FlutterJS and related tools.
 ///
 /// This behaves similarly to:
 ///
@@ -16,7 +20,7 @@ import 'package:args/command_runner.dart';
 ///
 /// but extends functionality to include:
 ///
-/// - Flutter.js build output
+/// - FlutterJS build output
 /// - Analyzer cache
 /// - Node.js dependencies
 /// - iOS/Android platform build folders
@@ -38,9 +42,9 @@ import 'package:args/command_runner.dart';
 ///
 /// | Directory | Purpose |
 /// |----------|---------|
-/// | `build/` | All Flutter.js output files (HTML/CSS/JS/IR) |
+/// | `build/` | All FlutterJS output files (HTML/CSS/JS/IR) |
 /// | `.dart_tool/` | Analyzer + Dart package metadata |
-/// | `.flutterjs-cache/` | Flutter.js incremental cache |
+/// | `.flutterjs-cache/` | FlutterJS incremental cache |
 /// | `node_modules/` | Node.js dependencies (if present) |
 /// | `ios/Pods/` | CocoaPods dependencies |
 /// | `ios/.symlinks/` | iOS symlink metadata |

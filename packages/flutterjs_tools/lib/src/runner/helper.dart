@@ -1,16 +1,21 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/file_system/physical_file_system.dart';
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import 'package:flutterjs_dev_tools/dev_tools.dart';
 
 /// ============================================================================
 /// DartFileParser
 /// ============================================================================
 ///
 /// A lightweight wrapper around the Dart `analyzer` package for parsing and
-/// resolving Dart files inside a Flutter.js project.
+/// resolving Dart files inside a FlutterJS project.
 ///
 /// This utility abstracts away the complexity of managing
 /// `AnalysisContextCollection`, synchronous parsing, resolved units, and errors.
@@ -131,7 +136,7 @@ import 'package:path/path.dart' as p;
 ///   ✔ Project-wide context management
 ///   ✔ Error-safe handling
 ///
-/// It is the recommended entry point for all parsing inside Flutter.js.
+/// It is the recommended entry point for all parsing inside FlutterJS.
 ///
 
 /// Correct implementation using analyzer package's actual methods
@@ -145,12 +150,12 @@ class DartFileParser {
 
     try {
       final rootPath = projectRoot ?? Directory.current.path;
-      print('DEBUG: DartFileParser.initialize: rootPath=$rootPath');
+      _log('DartFileParser.initialize: rootPath=$rootPath');
       final pkgConfig = File(
         p.join(rootPath, '.dart_tool', 'package_config.json'),
       );
-      print(
-        'DEBUG: DartFileParser.initialize: pkgConfig exists=${pkgConfig.existsSync()} at ${pkgConfig.path}',
+      _log(
+        'DartFileParser.initialize: pkgConfig exists=${pkgConfig.existsSync()} at ${pkgConfig.path}',
       );
 
       _contextCollection = AnalysisContextCollection(
@@ -160,9 +165,9 @@ class DartFileParser {
       );
 
       _initialized = true;
-      print('✓ Analyzer initialized');
+      _log('✓ Analyzer initialized');
     } catch (e) {
-      print('Failed to initialize analyzer: $e');
+      _log('Failed to initialize analyzer: $e');
       rethrow;
     }
   }
@@ -177,7 +182,7 @@ class DartFileParser {
 
     try {
       if (_contextCollection.contexts.isEmpty) {
-        print('No analysis contexts');
+        _log('No analysis contexts');
         return null;
       }
 
@@ -190,11 +195,11 @@ class DartFileParser {
       if (result is ParsedUnitResult) {
         return result.unit;
       } else {
-        print('Could not parse: $filePath');
+        _log('Could not parse: $filePath');
         return null;
       }
     } catch (e) {
-      print('Parse error in $filePath: $e');
+      _log('Parse error in $filePath: $e');
       return null;
     }
   }
@@ -209,7 +214,7 @@ class DartFileParser {
 
     try {
       if (_contextCollection.contexts.isEmpty) {
-        print('No analysis contexts');
+        _log('No analysis contexts');
         return null;
       }
 
@@ -222,11 +227,11 @@ class DartFileParser {
       if (result is ResolvedUnitResult) {
         return result.unit;
       } else {
-        print('Could not resolve: $filePath');
+        _log('Could not resolve: $filePath');
         return null;
       }
     } catch (e) {
-      print('Resolution error in $filePath: $e');
+      _log('Resolution error in $filePath: $e');
       return null;
     }
   }
@@ -238,15 +243,16 @@ class DartFileParser {
         _contextCollection.dispose();
         _initialized = false;
       } catch (e) {
-        print('Error disposing: $e');
+        _log('Error disposing: $e');
       }
     }
   }
 }
 
-// ============================================================================
-// KEY POINTS
-// ============================================================================
+/// Global logging helper that respects the verbose flag via the integrated debugger
+void _log(String message, {String? category}) {
+  debugger.log(DebugLevel.debug, message, category: category ?? 'cli');
+}
 
 /*
 1. getParsedUnit(path) - SYNCHRONOUS

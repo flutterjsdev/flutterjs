@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'package:flutter/material.dart';
 import 'dart:math';
 import 'dart:async';
@@ -5,7 +9,7 @@ import 'dart:developer' as developer;
 import 'dart:collection';
 import 'dart:typed_data';
 
-void main() { 
+void main() {
   runApp(const MyApp());
 }
 
@@ -25,7 +29,6 @@ class MyApp extends StatelessWidget {
     Future.delayed(const Duration(milliseconds: 500), () {
       developer.log('Future completed');
     });
-
 
     // --- Test dart:collection ---
     final queue = Queue<int>();

@@ -1,7 +1,7 @@
 name: routing_app
 description: "A new FlutterJS Routing Example."
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0
 resolution: workspace
 
 environment:

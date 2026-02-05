@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:async';
 import 'dart:io';
 import 'package:intl/intl.dart';
@@ -6,7 +10,7 @@ import 'package:watcher/watcher.dart';
 enum DebugLevel { trace, debug, info, warn, error }
 
 /// ============================================================================
-/// Flutter.js Integrated Debugger System
+/// FlutterJS Integrated Debugger System
 ///
 /// Integrates with: flutterjs.dart (CLI) → run_command.dart (pipeline) → ir_server.dart (UI)
 ///
@@ -73,7 +77,7 @@ class FlutterJSIntegratedDebugger {
 
   static void _printBanner({required bool verbose}) {
     print('\n┌────────────────────────────────────────────────────────────┐');
-    print('│  🛠 Flutter.js Integrated Debugger                         │');
+    print('│  🛠 FlutterJS Integrated Debugger                         │');
     if (verbose) {
       print('│  Mode: VERBOSE (trace level)                              │');
     } else {

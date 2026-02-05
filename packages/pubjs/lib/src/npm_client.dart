@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:io';
 import 'dart:convert';
 
@@ -103,9 +107,11 @@ class NpmClient {
         args.addAll(['--tag', tag]);
       }
 
-      print(dryRun
-          ? 'Running npm publish --dry-run in $directory...'
-          : 'Publishing to npm from $directory...');
+      print(
+        dryRun
+            ? 'Running npm publish --dry-run in $directory...'
+            : 'Publishing to npm from $directory...',
+      );
 
       final result = await Process.run(
         'npm',
@@ -183,11 +189,10 @@ class NpmClient {
   /// Initialize a new npm package (npm init)
   Future<bool> init(String directory, {required String packageName}) async {
     try {
-      final result = await Process.run(
-        'npm',
-        ['init', '-y'],
-        workingDirectory: directory,
-      );
+      final result = await Process.run('npm', [
+        'init',
+        '-y',
+      ], workingDirectory: directory);
 
       if (result.exitCode != 0) {
         return false;

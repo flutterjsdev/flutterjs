@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:args/command_runner.dart';
@@ -7,7 +11,7 @@ import 'package:flutterjs_tools/src/runner/engine_bridge.dart';
 import 'package:flutterjs_tools/command.dart';
 
 /// ============================================================================
-/// BuildCommand – Flutter.js Build System (Production / Development)
+/// BuildCommand – FlutterJS Build System (Production / Development)
 /// ============================================================================
 class BuildCommand extends Command<void> {
   BuildCommand({required this.verbose, required this.verboseHelp}) {
@@ -252,7 +256,7 @@ class BuildCommand extends Command<void> {
   }
 
   void _printHeader() {
-    print('🔨 Building Flutter.js project...\n');
+    print('🔨 Building FlutterJS project...\n');
   }
 
   Future<void> _copyDirectory(Directory source, Directory destination) async {

@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 export 'src/ir/declarations/class_decl.dart';
 export 'src/ir/declarations/dart_file_builder.dart';
 export 'src/ir/declarations/function_decl.dart';

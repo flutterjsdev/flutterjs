@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/ast.dart' as ast;
 import 'package:analyzer/dart/ast/visitor.dart';
@@ -898,8 +902,9 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         }
       }
 
-      final durationMs =
-          DateTime.now().difference(extractionStartTime).inMilliseconds;
+      final durationMs = DateTime.now()
+          .difference(extractionStartTime)
+          .inMilliseconds;
       _log('   ⏱️  Extraction time: ${durationMs}ms');
 
       return methodDecl;
@@ -951,16 +956,25 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       // Add constants as static fields
       for (final constant in node.constants) {
         final fieldDecl = FieldDecl(
-          id: builder.generateId('field', '${enumName}_${constant.name.lexeme}'),
+          id: builder.generateId(
+            'field',
+            '${enumName}_${constant.name.lexeme}',
+          ),
           name: constant.name.lexeme,
           type: SimpleTypeIR(
             id: builder.generateId('type'),
             name: enumName,
-            sourceLocation: _extractSourceLocation(constant, constant.name.offset),
+            sourceLocation: _extractSourceLocation(
+              constant,
+              constant.name.offset,
+            ),
           ),
           isStatic: true,
           isFinal: true,
-          sourceLocation: _extractSourceLocation(constant, constant.name.offset),
+          sourceLocation: _extractSourceLocation(
+            constant,
+            constant.name.offset,
+          ),
         );
         fields.add(fieldDecl);
       }
@@ -972,7 +986,10 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
             final fieldDecl = FieldDecl(
               id: builder.generateId('field', '${enumName}_$fieldName'),
               name: fieldName,
-              type: _extractTypeFromAnnotation(member.fields.type, variable.name.offset),
+              type: _extractTypeFromAnnotation(
+                member.fields.type,
+                variable.name.offset,
+              ),
               isStatic: member.isStatic,
               isFinal: member.fields.isFinal,
               sourceLocation: _extractSourceLocation(
@@ -1062,7 +1079,10 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
           final fieldDecl = FieldDecl(
             id: builder.generateId('field', '${node.name.lexeme}_$fieldName'),
             name: fieldName,
-            type: _extractTypeFromAnnotation(member.fields.type, variable.name.offset),
+            type: _extractTypeFromAnnotation(
+              member.fields.type,
+              variable.name.offset,
+            ),
             isStatic: member.isStatic,
             isFinal: member.fields.isFinal,
             sourceLocation: _extractSourceLocation(

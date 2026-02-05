@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // lib/src/analyzer/type_registry.dart
 import 'package:analyzer/dart/element/element.dart' as aelement;
 import 'package:path/path.dart' as path;
