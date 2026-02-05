@@ -15,10 +15,6 @@ jobs:
         with:
           submodules: 'recursive'
           fetch-depth: 0
-      - name: Ensure submodules are initialized
-        run: |
-          git submodule sync --recursive || true
-          git submodule update --init --recursive || true
       
       - name: Setup Dart SDK
         uses: dart-lang/setup-dart@v1
