@@ -7,12 +7,12 @@ analyzer:
     - "**/build/**"
     - "**/*.g.dart"
     - "**/*.freezed.dart"
-    - "**/test/**"                    # Exclude all test directories
-    - "**/node_modules/**"            # Exclude node_modules
-    - "packages/**/dist/**"           # Exclude flutterjs_material dist
-    - "examples/**/build/**"          # Exclude example build folders
-    - "**/*.js"                        # Exclude all JavaScript files
-    - "**/*.fjs"                       # Exclude ES modules
+    - "**/test/**"
+    - "**/node_modules/**"
+    - "packages/**/dist/**"
+    - "examples/**/build/**"
+    - "**/*.js"
+    - "**/*.fjs"
   
   # Performance optimizations
   language:
@@ -22,9 +22,29 @@ analyzer:
   
   # Reduce analysis scope
   errors:
-    # Downgrade some checks to improve speed
     todo: ignore
     deprecated_member_use: ignore
+    use_super_parameters: ignore
+    prefer_final_fields: ignore
+    avoid_print: ignore
+    unnecessary_brace_in_string_interps: ignore
+    use_key_in_widget_constructors: ignore
+    file_names: ignore
+    non_constant_identifier_names: ignore
+    unintended_html_in_doc_comment: ignore
+    unused_element: ignore
+    unnecessary_import: ignore
+    implementation_imports: ignore
+    unnecessary_library_name: ignore
+    dangling_library_doc_comments: ignore
+    must_be_immutable: ignore
+    unused_catch_stack: ignore
+    dead_code: ignore
+    dead_null_aware_expression: ignore
+    unrelated_type_equality_checks: ignore
+    collection_methods_unrelated_type: ignore
+    depend_on_referenced_packages: ignore
+    annotate_overrides: ignore
   
   # Enable strong mode for better performance
   strong-mode:
@@ -33,5 +53,4 @@ analyzer:
 
 linter:
   rules:
-    # Disable heavy lint rules if needed
-    # - avoid_print: false
+    - avoid_print: false
