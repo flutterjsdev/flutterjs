@@ -13,23 +13,24 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # --- Force install Flutter 3.29 manually ---
-      - name: Install Flutter 3.29
-        run: |
-          git clone https://github.com/flutter/flutter.git --depth 1 --branch 3.29.0 $HOME/flutter
-          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.0'
+          channel: 'stable'
 
-      # Verify correct version (CRITICAL)
+      # Verify correct version
       - name: Verify Flutter & Dart
         run: |
-          which flutter
           flutter --version
           dart --version
 
       # Workspace pub get
       - name: Install dependencies
-        run: flutter pub get
+        run: dart pub get
 
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
