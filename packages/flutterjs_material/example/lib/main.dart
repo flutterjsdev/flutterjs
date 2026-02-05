@@ -15,9 +15,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'FlutterjsMaterial Example',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
+      theme: ThemeData(primarySwatch: Colors.blue),
       home: const ExamplePage(),
     );
   }
@@ -44,9 +42,7 @@ class _ExamplePageState extends State<ExamplePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('FlutterjsMaterial Example'),
-      ),
+      appBar: AppBar(title: const Text('FlutterjsMaterial Example')),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
