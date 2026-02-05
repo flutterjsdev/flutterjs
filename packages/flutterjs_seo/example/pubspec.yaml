@@ -1,9 +1,9 @@
 name: flutterjs_seo_example
 description: Example app for flutterjs_seo
-# resolution: workspace
+resolution: workspace
 publish_to: 'none'
 environment:
-  sdk: ^3.10.0-278.0.dev
+  sdk: ">=3.7.0 <4.0.0"
 
 dependencies:
   flutter:
