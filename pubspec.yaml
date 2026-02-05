@@ -1,7 +1,8 @@
 name: flutterjs
+publish_to: 'none'
 description: A powerful framework for building web applications using Dart, compiled to efficient JavaScript and CSS.
 version: 1.0.0
-publish_to: 'none'
+
 repository: https://github.com/flutterjsdev/flutterjs
 homepage: https://flutterjs.dev
 license: BSD-3-Clause
@@ -14,6 +15,15 @@ workspace:
   - examples/routing_app/
   - examples/material_demo/
   - examples/multi_file_test/
+  - examples/try_test/
+  - examples/material_advanced_demo/
+  - examples/material_structure_demo/
+  - examples/material_navigation_demo/
+  - examples/material_inputs_demo/
+  - examples/material_display_demo/
+  - examples/material_buttons_demo/
+  - examples/pub_test_app/
+  - examples/flutterjs_website/
   - packages/flutterjs_dev_utils/
   - packages/flutterjs_tools/
   - packages/flutterjs_gen/
@@ -22,12 +32,22 @@ workspace:
   - packages/flutterjs_dev_tools/
   - packages/pubjs/
   - packages/flutterjs_seo/
+  - packages/flutterjs_seo/example/
   - packages/flutterjs_builder/
-  - examples/pub_test_app/
-  - examples/flutterjs_website/
+  - packages/flutterjs_widgets/
+  - packages/flutterjs_vdom/
+  - packages/flutterjs_material/
+  - packages/flutterjs_runtime/
+  - packages/flutterjs_cupertino/
+  - packages/flutterjs_services/
+  - packages/flutterjs_gestures/
+  - packages/flutterjs_animation/
+  - packages/flutterjs_foundation/
+  - packages/flutterjs_painting/
+  - packages/flutterjs_analyzer/
 
 environment:
-  sdk: ^3.10.0-227.0.dev
+  sdk: ^3.10.0
 
 # Add regular dependencies here.
 dependencies:
@@ -36,17 +56,33 @@ dependencies:
   args:
   archive: ^4.0.7
   code_builder: ^4.11.1
-  dart_analyzer: any
-  flutterjs_core: any
-  flutterjs_gen: any
-  flutterjs_tools: any
-  flutterjs_dev_utils: any    
-  flutterjs_dev_tools: any    
+  dart_analyzer: ^1.0.0
+  flutterjs_core: ^1.0.0
+  flutterjs_gen: ^1.0.0
+  flutterjs_tools: ^1.0.0
+  flutterjs_dev_utils: ^1.0.0    
+  flutterjs_dev_tools: ^1.0.0    
 
 
 dev_dependencies:
   lints: ^6.0.0
   test: ^1.25.6
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

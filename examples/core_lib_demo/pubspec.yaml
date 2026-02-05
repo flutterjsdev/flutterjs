@@ -1,5 +1,17 @@
 name: core_lib_demo
+publish_to: 'none'
 description: A new FlutterJS project.
 dependencies:
   flutterjs_material:
     path: ../../packages/flutterjs_material
+
+
+
+
+
+
+
+
+
+
+

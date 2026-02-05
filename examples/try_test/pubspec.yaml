@@ -1,6 +1,19 @@
 name: try_test
+publish_to: 'none'
 description: Minimal test for try/catch/finally
 version: 1.0.0
+resolution: workspace
 
 environment:
-  sdk: ^3.0.0
+  sdk: ^3.10.0
+
+
+
+
+
+
+
+
+
+
+

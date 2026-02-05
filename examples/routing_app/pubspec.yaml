@@ -5,7 +5,7 @@ version: 1.0.0
 resolution: workspace
 
 environment:
-  sdk: ^3.10.0-278.0.dev
+  sdk: ^3.10.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -75,3 +75,13 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+
+
+
+
+
+
+
+
+

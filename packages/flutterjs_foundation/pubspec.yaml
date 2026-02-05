@@ -1,13 +1,15 @@
 name: flutterjs_foundation
+publish_to: 'none'
 version: 1.0.0
-description: A FlutterJS package
+resolution: workspace
+description: FlutterJS implementation of foundation functionalities.
 
-homepage: https://github.com/flutterjs/flutterjs_foundation
+homepage: https://flutterjs.dev
 repository: https://github.com/flutterjs/flutterjs_foundation
 issue_tracker: https://github.com/flutterjs/flutterjs_foundation/issues
 
 environment:
-  sdk: '>=2.19.0 <4.0.0'
+  sdk: ^3.10.0
 
 dependencies:
   flutter:
@@ -22,3 +24,14 @@ flutterjs:
   npm_package: "@flutterjs/flutterjs_foundation"
   implementation_language: "javascript"
   js_entry: "js/src/index.js"
+
+
+
+
+
+
+
+
+
+
+

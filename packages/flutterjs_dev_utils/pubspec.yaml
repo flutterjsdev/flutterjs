@@ -1,11 +1,12 @@
 name: flutterjs_dev_utils
-description: A sample command-line application.
+publish_to: 'none'
+description: FlutterJS implementation of dev_utils functionalities.
 version: 1.0.0
 resolution: workspace
 # repository: https://github.com/my_org/my_repo
 
 environment:
-  sdk: ^3.10.0-278.0.dev
+  sdk: ^3.10.0
 
 # Add regular dependencies here.
 dependencies:
@@ -14,3 +15,14 @@ dependencies:
 dev_dependencies:
   lints: ^6.0.0
   test: ^1.25.6
+
+
+
+
+
+
+
+
+
+
+
