@@ -1,0 +1,3 @@
+[submodule "examples/flutterjs_website"]
+	path = examples/flutterjs_website
+	url = https://github.com/flutterjsdev/flutterjs_website.git
