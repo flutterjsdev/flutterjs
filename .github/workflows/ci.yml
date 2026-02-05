@@ -11,44 +11,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
 
-      # Install Flutter (FORCE 3.29, avoid old 3.22 cache)
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.29.0"
-          channel: stable
-          cache: true
-          cache-key: flutter-3.29.0
-
-      # Debug — verify correct Flutter & Dart
-      - name: Verify Flutter & Dart versions
+      # --- Force install Flutter 3.29 manually ---
+      - name: Install Flutter 3.29
         run: |
-          echo "Flutter path:"
+          git clone https://github.com/flutter/flutter.git --depth 1 --branch 3.29.0 $HOME/flutter
+          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+
+      # Verify correct version (CRITICAL)
+      - name: Verify Flutter & Dart
+        run: |
           which flutter
-          echo "Flutter version:"
           flutter --version
-          echo "Dart version:"
           dart --version
 
-      # Install dependencies (workspace aware)
+      # Workspace pub get
       - name: Install dependencies
         run: flutter pub get
 
-      # Check formatting
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
 
-      # Static analysis
       - name: Analyze project
         run: flutter analyze
 
-      # Run tests
       - name: Run tests
         run: flutter test
