@@ -11,32 +11,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
 
-      # Install Flutter (includes correct Dart SDK)
+      # Install Flutter (FORCE 3.29, avoid old 3.22 cache)
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.29.0"   # Dart >= 3.7
+          flutter-version: "3.29.0"
           channel: stable
           cache: true
+          cache-key: flutter-3.29.0
 
-      - name: Check versions
+      # Debug — verify correct Flutter & Dart
+      - name: Verify Flutter & Dart versions
         run: |
+          echo "Flutter path:"
+          which flutter
+          echo "Flutter version:"
           flutter --version
+          echo "Dart version:"
           dart --version
 
-      - name: Install dependencies (workspace aware)
+      # Install dependencies (workspace aware)
+      - name: Install dependencies
         run: flutter pub get
 
+      # Check formatting
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
 
+      # Static analysis
       - name: Analyze project
         run: flutter analyze
 
+      # Run tests
       - name: Run tests
         run: flutter test
