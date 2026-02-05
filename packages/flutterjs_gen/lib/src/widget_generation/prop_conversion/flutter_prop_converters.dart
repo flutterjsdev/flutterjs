@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // ============================================================================
 // PHASE 3.6: FLUTTER PROP CONVERTERS
 // ============================================================================
@@ -23,7 +27,7 @@ class PropConverterConfig {
   /// Whether to validate property types
   final bool validateTypes;
 
-  /// Whether to use Flutter.js framework helpers
+  /// Whether to use FlutterJS framework helpers
   final bool useFrameworkHelpers;
 
   /// Default theme colors if not specified

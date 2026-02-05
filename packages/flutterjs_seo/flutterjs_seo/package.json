@@ -1,6 +1,6 @@
 {
   "name": "@flutterjs/flutterjs_seo",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "SEO metadata management for FlutterJS Applications",
   "main": "./dist/seo.js",
   "type": "module",

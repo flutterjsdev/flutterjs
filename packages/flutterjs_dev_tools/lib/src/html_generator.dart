@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'package:flutterjs_dev_tools/src/ir_view/html_scripts.dart';
 import 'package:flutterjs_dev_tools/src/ir_view/html_scripts_left_panel.dart';
 import 'package:flutterjs_dev_tools/src/ir_view/html_scripts_right_panel.dart';

@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // ============================================================================
 // FIXED: flutterjs_core.dart
 // ============================================================================
@@ -13,7 +17,7 @@
 /// flutterjs_core.dart
 /// ----------------------------------------------------------------------------
 ///
-/// Primary entry point for the Flutter.js Core engine.
+/// Primary entry point for the FlutterJS Core engine.
 /// This file aggregates all IR types, AST transformation passes, diagnostics,
 /// utilities, and builder helpers into a single consumable API.
 ///
@@ -22,7 +26,7 @@
 /// • IR-based type inference and control flow analysis
 /// • Code transformation passes (rewrites, optimizations, validation)
 /// • Diagnostic reporting with structured source locations
-/// • Integration with Flutter.js command-line and runtime tools
+/// • Integration with FlutterJS command-line and runtime tools
 ///
 /// What this file provides:
 /// • Stable exports for IR nodes (statements, expressions, types)

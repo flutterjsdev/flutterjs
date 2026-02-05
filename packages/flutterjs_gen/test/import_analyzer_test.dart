@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'package:flutterjs_gen/src/utils/import_analyzer.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:test/test.dart';
@@ -217,22 +221,33 @@ void main() {
 
     test('prioritizes exact filename match over partial match', () {
       final builder = DartFileBuilder(filePath: '/lib/http.dart');
-      
-      builder.addImport(ImportStmt(
-        uri: 'src/base_client.dart',
-        sourceLocation: mockLoc('/lib/http.dart'),
-      ));
-      builder.addImport(ImportStmt(
-        uri: 'src/client.dart',
-        sourceLocation: mockLoc('/lib/http.dart'),
-      ));
 
-      builder.addVariable(VariableDecl(
-        id: 'v1',
-        name: 'c',
-        type: ClassTypeIR(id: 't1', name: 'Client', className: 'Client', sourceLocation: mockLoc('/lib/http.dart')),
-        sourceLocation: mockLoc('/lib/http.dart'),
-      ));
+      builder.addImport(
+        ImportStmt(
+          uri: 'src/base_client.dart',
+          sourceLocation: mockLoc('/lib/http.dart'),
+        ),
+      );
+      builder.addImport(
+        ImportStmt(
+          uri: 'src/client.dart',
+          sourceLocation: mockLoc('/lib/http.dart'),
+        ),
+      );
+
+      builder.addVariable(
+        VariableDecl(
+          id: 'v1',
+          name: 'c',
+          type: ClassTypeIR(
+            id: 't1',
+            name: 'Client',
+            className: 'Client',
+            sourceLocation: mockLoc('/lib/http.dart'),
+          ),
+          sourceLocation: mockLoc('/lib/http.dart'),
+        ),
+      );
 
       builder.withContentHash('');
       final dartFile = builder.build();
@@ -246,19 +261,28 @@ void main() {
 
     test('handles URI normalization for relative paths', () {
       final builder = DartFileBuilder(filePath: '/lib/http.dart');
-      
-      // Import uses ./ prefix
-      builder.addImport(ImportStmt(
-        uri: './src/client.dart',
-        sourceLocation: mockLoc('/lib/http.dart'),
-      ));
 
-      builder.addVariable(VariableDecl(
-        id: 'v1',
-        name: 'c',
-        type: ClassTypeIR(id: 't1', name: 'Client', className: 'Client', sourceLocation: mockLoc('/lib/http.dart')),
-        sourceLocation: mockLoc('/lib/http.dart'),
-      ));
+      // Import uses ./ prefix
+      builder.addImport(
+        ImportStmt(
+          uri: './src/client.dart',
+          sourceLocation: mockLoc('/lib/http.dart'),
+        ),
+      );
+
+      builder.addVariable(
+        VariableDecl(
+          id: 'v1',
+          name: 'c',
+          type: ClassTypeIR(
+            id: 't1',
+            name: 'Client',
+            className: 'Client',
+            sourceLocation: mockLoc('/lib/http.dart'),
+          ),
+          sourceLocation: mockLoc('/lib/http.dart'),
+        ),
+      );
 
       builder.withContentHash('');
       final dartFile = builder.build();

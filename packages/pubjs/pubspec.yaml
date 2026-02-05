@@ -1,6 +1,6 @@
 name: pubjs
 description: A decentralized package registry and management tool for FlutterJS, enabling resolving standard Dart packages to JavaScript implementations via Git-based registry.
-version: 0.0.1
+version: 1.0.0
 publish_to: 'none'
 resolution: workspace
 environment:

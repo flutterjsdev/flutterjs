@@ -1,6 +1,6 @@
 # counter
 
-A Flutter.js application.
+A FlutterJS application.
 
 ## Getting Started
 
@@ -65,5 +65,5 @@ Edit `flutter.config.js` to customize:
 
 ## Learn More
 
-- [Flutter.js Documentation](https://flutter-js.dev)
+- [FlutterJS Documentation](https://flutter-js.dev)
 - [Flutter Documentation](https://flutter.dev)

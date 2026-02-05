@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 /**
  * Resolve file paths based on config
  * Handles both source (.fjs) and compiled (.js) paths

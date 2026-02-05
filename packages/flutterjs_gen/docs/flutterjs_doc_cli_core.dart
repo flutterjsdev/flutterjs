@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // // bin/flutterjs_doc.dart - Main CLI Entry Point
 
 // import 'package:args/command_runner.dart';

@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 /**
  * FlutterJS Parser - Converts tokens to AST (FIXED VERSION)
  * Phase 1.2 MVP Implementation - Complete Fixes

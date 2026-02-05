@@ -177,7 +177,7 @@ INPUT: .flir (serialized DartFile IR)
 │ 3.1 FLUTTER WIDGET REGISTRY                                 │
 │     • Map known widgets (Container, Text, Row, Column, etc) │
 │     • Define prop types for each widget                     │
-│     • Import/export Flutter.js framework classes            │
+│     • Import/export FlutterJS framework classes            │
 │                                                              │
 │ 3.2 WIDGET INSTANTIATION GENERATOR                          │
 │     • Convert InstanceCreationExpressionIR                  │
@@ -223,7 +223,7 @@ INPUT: .flir (serialized DartFile IR)
 │     • TextStyle (object → CSS-compatible)                   │
 │     • BoxConstraints (object properties)                    │
 │     • TextAlign, BoxFit, MainAxisAlignment, etc             │
-│     Output: Proper Flutter.js framework values              │
+│     Output: Proper FlutterJS framework values              │
 │                                                              │
 │ 3.7 FLUTTER VALIDATION                                      │
 │     • All widgets have JS equivalents                        │
@@ -330,7 +330,7 @@ INPUT: .flir (serialized DartFile IR)
 │                                                              │
 └──────────────────────┬──────────────────────────────────────┘
                        ↓
-OUTPUT: Complete .js file ready to use in Flutter.js framework
+OUTPUT: Complete .js file ready to use in FlutterJS framework
 ```
 
 ---
@@ -2470,7 +2470,7 @@ class JSOptimizer {
    ├─ CoverageMetrics → Stats
    └─ Output files (.js, .map, .report)
    ↓
-10. OUTPUT: Complete .js file ready for Flutter.js framework
+10. OUTPUT: Complete .js file ready for FlutterJS framework
 ```
 
 ---
@@ -2560,7 +2560,7 @@ class JSOptimizer {
 ✅ **Phase 4**: Complete .js files generated with correct structure
 ✅ **Phase 5**: Generated code validates and optimizes correctly
 ✅ **Phase 6**: Clear reports with high confidence scores
-✅ **Output**: Ready-to-run JavaScript files in Flutter.js framework
+✅ **Output**: Ready-to-run JavaScript files in FlutterJS framework
 
 ---
 

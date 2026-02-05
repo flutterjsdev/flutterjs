@@ -32,6 +32,6 @@
     "stdlib"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "BSD-3-Clause",
   "dependencies": {}
 }

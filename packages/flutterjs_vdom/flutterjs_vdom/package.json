@@ -1,6 +1,6 @@
 {
   "name": "@flutterjs/vdom",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "FlutterJS Virtual DOM implementation",
   "main": "dist/runtime_index.js",
   "type": "module",
@@ -61,7 +61,7 @@
     "flutterjs_vdom"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "BSD-3-Clause",
   "repository": {
     "type": "git",
     "url": "https://github.com/flutterjsdev/flutterjs.git"

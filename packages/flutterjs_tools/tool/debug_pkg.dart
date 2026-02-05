@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:io';
 import 'package:pubjs/pubjs.dart';
 import 'package:path/path.dart' as path;
@@ -7,7 +11,6 @@ Future<void> main() async {
   // Assuming running from packages/flutterjs_tools/
   final toolsDir = Directory.current.path;
   final repoRoot = path.dirname(path.dirname(toolsDir)); // packages/../
-
 
   // Simulate routing_app project
   final projectPath = path.join(repoRoot, 'examples', 'routing_app');

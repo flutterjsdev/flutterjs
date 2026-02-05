@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'package:flutter/material.dart';
 
 void main() {
@@ -32,7 +36,8 @@ class _ExamplePageState extends State<ExamplePage> {
   void _testPackage() {
     setState(() {
       // This will call the JavaScript implementation when running with FlutterJS
-      result = 'FlutterjsPainting is ready!\n\nRun: flutterjs run --to-js --serve';
+      result =
+          'FlutterjsPainting is ready!\n\nRun: flutterjs run --to-js --serve';
     });
   }
 

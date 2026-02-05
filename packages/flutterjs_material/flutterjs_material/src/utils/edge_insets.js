@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 export class EdgeInsets {
   constructor(top = 0, right = 0, bottom = 0, left = 0) {
     this.top = top;

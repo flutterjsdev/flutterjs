@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // ============================================================================
 // Import Analyzer - Symbol Usage Tracking
 // ============================================================================
@@ -433,14 +437,17 @@ class ImportAnalyzer {
 
         // Relative path check: package:http/src/base_request.dart should match base_request.dart
         // but package:http/src/base_request.dart should NOT match request.dart
-        final normalizedLib =
-            _normalizeUri(libraryUri).replaceAll('package:', '');
+        final normalizedLib = _normalizeUri(
+          libraryUri,
+        ).replaceAll('package:', '');
         final normalizedImport = _normalizeUri(importUri);
 
         if (normalizedLib.endsWith(normalizedImport)) {
           // Verify it's a full path segment match (e.g., ends with /request.dart or is request.dart)
           if (normalizedLib.length == normalizedImport.length ||
-              normalizedLib[normalizedLib.length - normalizedImport.length - 1] ==
+              normalizedLib[normalizedLib.length -
+                      normalizedImport.length -
+                      1] ==
                   '/') {
             _symbolsByImport[importUri]!.add(symbolName);
             _importBySymbol[symbolName] = importUri;
@@ -532,7 +539,9 @@ class ImportAnalyzer {
     }
 
     if (symbolName == 'BaseRequest') {
-      print('DEBUG: [BaseRequest] SELECTED IMPORT: $bestImport with score: $bestScore');
+      print(
+        'DEBUG: [BaseRequest] SELECTED IMPORT: $bestImport with score: $bestScore',
+      );
     }
 
     if (bestImport != null) {

@@ -1,9 +1,9 @@
 name: flutterjs_core
-description: A sample command-line application.
+description: Core architecture and primitives for the FlutterJS framework.
 version: 1.0.0
-publish_to: none
-resolution: workspace
-# repository: https://github.com/my_org/my_repo
+repository: https://github.com/flutterjsdev/flutterjs/tree/main/packages/flutterjs_core
+homepage: https://flutterjs.dev
+license: BSD-3-Clause
 
 environment:
   sdk: ^3.10.0-278.0.dev

@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'type_ir.dart';
 import 'class_type_ir.dart';
 import 'unresolved_type_ir.dart';

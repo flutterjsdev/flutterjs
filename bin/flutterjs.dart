@@ -1,12 +1,16 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:flutterjs_tools/command.dart';
 
 /// ============================================================================
-/// Flutter.js CLI Entry Point
+/// FlutterJS CLI Entry Point
 /// ============================================================================
 ///
-/// This file defines the main executable for the **Flutter.js** command-line
+/// This file defines the main executable for the **FlutterJS** command-line
 /// tool. It initializes argument parsing, handles global flags (`-v`, `-h`,
 /// `doctor`, etc.), configures logging verbosity, and delegates execution to
 /// `FlutterJSCommandRunner`.
@@ -72,13 +76,13 @@ import 'package:flutterjs_tools/command.dart';
 ///
 /// # Constants
 ///
-/// `version` / `kVersion` → Current Flutter.js CLI version
+/// `version` / `kVersion` → Current FlutterJS CLI version
 /// `appName`  / `kAppName` → Display name used by the CLI and commands
 ///
 ///
 /// # Summary
 ///
-/// This file contains the complete startup logic for the Flutter.js CLI,
+/// This file contains the complete startup logic for the FlutterJS CLI,
 /// including:
 ///   ✔ Flag normalization
 ///   ✔ Help/doctor routing
@@ -91,15 +95,13 @@ import 'package:flutterjs_tools/command.dart';
 /// extend.
 ///
 
-const String version = '2.0.0';
-const String appName = 'Flutter.js';
+const String version = '1.0.0';
+const String appName = 'FlutterJS';
 
-const String kVersion = '2.0.0';
-const String kAppName = 'Flutter.js';
+const String kVersion = '1.0.0';
+const String kAppName = 'FlutterJS';
 
 Future<void> main(List<String> args) async {
-  print('--- [SANITY CHECK] FLUTTERJS CLI STARTING ---');
-  print('--- [SANITY CHECK] ARGS: $args ---');
   // Parse verbose flags early
   final bool veryVerbose = args.contains('-vv');
   final bool verbose =

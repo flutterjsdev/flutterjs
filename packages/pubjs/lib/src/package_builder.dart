@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
@@ -403,7 +407,7 @@ class PackageBuilder {
     // if (packagePath.contains('node_modules')) {
     //   return false;
     // }
-    
+
     print('🔍 DEBUG: needsBuild($packagePath) -> checking hash...');
 
     try {

@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'package:meta/meta.dart';
 import '../diagnostics/analysis_issue.dart';
 import '../core/source_location.dart';
@@ -13,7 +17,7 @@ import 'widget_tree_ir.dart';
 /// build_method_ir.dart
 /// ----------------------------------------------------------------------------
 ///
-/// Defines the IR representation of a widget's `build()` method in Flutter.js.
+/// Defines the IR representation of a widget's `build()` method in FlutterJS.
 /// This structure is responsible for capturing the resulting widget tree
 /// produced during the build phase.
 ///

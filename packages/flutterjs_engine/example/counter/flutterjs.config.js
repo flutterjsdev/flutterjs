@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 
 // ============================================================================
 // 1. PERFECT flutterjs.config.js
@@ -7,7 +11,7 @@ module.exports = {
   // Project Identity
   project: {
     name: 'counter-app',
-    description: 'A Flutter.js Counter Application',
+    description: 'A FlutterJS Counter Application',
     version: '1.0.0',
   },
 

@@ -1,6 +1,6 @@
 {
   "name": "@flutterjs/flutterjs_widgets",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A FlutterJS package",
   "main": "src/index.js",
   "type": "module",
@@ -13,10 +13,12 @@
     "flutterjs_widgets"
   ],
   "author": "",
-  "license": "MIT",
+  "homepage": "https://flutterjs.dev",
+  "license": "BSD-3-Clause",
   "repository": {
     "type": "git",
-    "url": "https://github.com/flutterjsdev/flutterjs.git"
+    "url": "https://github.com/flutterjsdev/flutterjs.git",
+    "directory": "packages/flutterjs_widgets"
   },
   "files": [
     "src/",

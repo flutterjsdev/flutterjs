@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'package:args/command_runner.dart';
 import 'package:pubjs/pubjs.dart';
 import 'analyzer/analyze_command.dart';
@@ -14,7 +18,7 @@ import 'commands/publish_command.dart';
 /// FlutterJSCommandRunner
 /// ============================================================================
 ///
-/// The central command dispatcher for the **Flutter.js CLI**.
+/// The central command dispatcher for the **FlutterJS CLI**.
 ///
 /// This class extends `CommandRunner` from the `args` package and is responsible
 /// for:

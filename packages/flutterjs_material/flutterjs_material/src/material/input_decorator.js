@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import { OutlineInputBorder } from './input_border.js';
 import { EdgeInsets } from '../utils/edge_insets.js';
 import { Color } from '../utils/color.js';

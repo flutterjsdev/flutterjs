@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import { ButtonStyleButton } from './button_style_button.js';
 import { Theme } from './theme.js';
 import { GestureDetector } from './gesture_detector.js';

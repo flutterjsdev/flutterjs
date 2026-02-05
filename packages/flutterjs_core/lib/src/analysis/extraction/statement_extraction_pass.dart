@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:flutterjs_core/flutterjs_core.dart';
@@ -303,7 +307,6 @@ class StatementExtractionPass {
   /// Extract a single statement
   StatementIR? _extractStatement(AstNode? stmt) {
     if (stmt == null) return null;
-    
 
     if (stmt is VariableDeclarationStatement) {
       return _extractVariableDeclarationStatement(stmt);
@@ -328,19 +331,22 @@ class StatementExtractionPass {
         final guardedPattern = caseClause.guardedPattern;
         final pattern = guardedPattern.pattern;
         final whenClause = guardedPattern.whenClause;
-        
+
         // Extract the pattern
         final patternIR = _extractPattern(pattern);
-        
+
         // Extract guard condition if present
         final guardIR = whenClause != null
             ? GuardClause(
                 condition: extractExpression(whenClause.expression),
-                sourceLocation: _extractSourceLocation(whenClause, whenClause.offset),
+                sourceLocation: _extractSourceLocation(
+                  whenClause,
+                  whenClause.offset,
+                ),
                 id: builder.generateId('guard'),
               )
             : null;
-        
+
         return IfCaseStmt(
           id: builder.generateId('stmt_if_case'),
           sourceLocation: _extractSourceLocation(stmt, stmt.offset),
@@ -355,7 +361,7 @@ class StatementExtractionPass {
           metadata: {},
         );
       }
-      
+
       // Regular if statement without pattern matching
       return IfStmt(
         id: builder.generateId('stmt_if'),
@@ -384,7 +390,7 @@ class StatementExtractionPass {
         body: _extractStatementAsBlock(stmt.body),
         sourceLocation: _extractSourceLocation(stmt, stmt.offset),
         metadata: {},
-      ); 
+      );
     }
 
     if (stmt is DoStatement) {
@@ -667,7 +673,9 @@ class StatementExtractionPass {
 
   /// Extract try-catch-finally statement
   TryStmt _extractTryStatement(TryStatement stmt) {
-    print('DEBUG_EXTRACT: TryStmt in $filePath. Catch: ${stmt.catchClauses.length}, Finally: ${stmt.finallyBlock != null}');
+    print(
+      'DEBUG_EXTRACT: TryStmt in $filePath. Catch: ${stmt.catchClauses.length}, Finally: ${stmt.finallyBlock != null}',
+    );
     return TryStmt(
       id: builder.generateId('stmt_try'),
       tryBlock: _extractBlockStatement(stmt.body),
@@ -1742,10 +1750,7 @@ class StatementExtractionPass {
     );
   }
 
-  ExpressionIR _extractPatternCondition(
-    CaseClause caseClause,
-    Expression lhs,
-  ) {
+  ExpressionIR _extractPatternCondition(CaseClause caseClause, Expression lhs) {
     // CaseClause has guardedPattern which contains the pattern
     final guardedPattern = caseClause.guardedPattern;
     final pattern = guardedPattern.pattern;
@@ -2104,7 +2109,8 @@ class StatementExtractionPass {
       return WildcardPatternIR(
         id: builder.generateId('pattern_wildcard'),
         sourceLocation: sourceLocation,
-        matchedType: _extractTypeFromAnnotation(pattern.type, offset) ??
+        matchedType:
+            _extractTypeFromAnnotation(pattern.type, offset) ??
             DynamicTypeIR(
               id: builder.generateId('type_dynamic'),
               sourceLocation: sourceLocation,
@@ -2116,12 +2122,13 @@ class StatementExtractionPass {
       // Variable pattern with type: TypeName varName or var varName
       final varName = pattern.name.lexeme;
       final hasExplicitType = pattern.type != null;
-      
+
       return VariablePatternIR(
         id: builder.generateId('pattern_var'),
         sourceLocation: sourceLocation,
         variableName: varName,
-        matchedType: _extractTypeFromAnnotation(pattern.type, offset) ??
+        matchedType:
+            _extractTypeFromAnnotation(pattern.type, offset) ??
             DynamicTypeIR(
               id: builder.generateId('type_dynamic'),
               sourceLocation: sourceLocation,

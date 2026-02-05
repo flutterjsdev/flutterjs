@@ -1,6 +1,6 @@
 {
   "name": "@flutterjs/flutterjs_animation",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A FlutterJS package",
   "main": "src/index.js",
   "type": "module",

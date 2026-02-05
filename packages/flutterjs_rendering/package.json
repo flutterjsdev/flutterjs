@@ -1,6 +1,6 @@
 {
   "name": "@flutterjs/rendering",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Stub package for flutterjs rendering",
   "main": "./dist/runtime.js",
   "type": "module",

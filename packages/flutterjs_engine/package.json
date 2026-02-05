@@ -2,7 +2,7 @@
   "name": "flutterjs",
   "version": "1.0.0",
   "type": "module",
-  "description": "Lightweight Flutter.js CLI with zero external dependencies - Build tool for Flutter to JavaScript projects",
+  "description": "Lightweight FlutterJS CLI with zero external dependencies - Build tool for Flutter to JavaScript projects",
   "main": "bin/index.js",
   "bin": {
     "flutterjs": "./bin/index.js"
@@ -51,7 +51,7 @@
     "zero-dependency"
   ],
   "author": "jayprakash.pal@flutterjs.dev",
-  "license": "MIT",
+  "license": "BSD-3-Clause",
   "engines": {
     "node": ">=14.0.0"
   },
@@ -94,5 +94,5 @@
   "bugs": {
     "url": "https://github.com/flutterjsdev/flutterjs/issues"
   },
-  "homepage": "https://github.com/flutterjsdev/flutterjs#readme"
+  "homepage": "https://flutterjs.dev"
 }

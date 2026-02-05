@@ -1,3 +1,7 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
@@ -7,10 +11,8 @@ class Publisher {
   final NpmClient _npmClient;
   final String scope;
 
-  Publisher({
-    NpmClient? npmClient,
-    this.scope = '@flutterjs',
-  }) : _npmClient = npmClient ?? NpmClient();
+  Publisher({NpmClient? npmClient, this.scope = '@flutterjs'})
+    : _npmClient = npmClient ?? NpmClient();
 
   /// Publishes the package at [packageRoot] to npm registry.
   ///
@@ -88,7 +90,8 @@ class Publisher {
       if (files.length <= 1) {
         // Only package.json
         throw Exception(
-            'No JavaScript files found to publish. Make sure your package contains .js files.');
+          'No JavaScript files found to publish. Make sure your package contains .js files.',
+        );
       }
 
       // Publish to npm
@@ -144,7 +147,7 @@ class Publisher {
       'pubspec.lock',
       'analysis_options.yaml',
       '.packages',
-      'node_modules'
+      'node_modules',
     ];
 
     await for (final entity in source.list(recursive: true)) {
@@ -152,10 +155,12 @@ class Publisher {
         final relative = p.relative(entity.path, from: source.path);
 
         // Check ignore list
-        if (ignore.any((i) =>
-            relative.startsWith(i) ||
-            relative.contains('/$i/') ||
-            relative == i)) {
+        if (ignore.any(
+          (i) =>
+              relative.startsWith(i) ||
+              relative.contains('/$i/') ||
+              relative == i,
+        )) {
           continue;
         }
 
