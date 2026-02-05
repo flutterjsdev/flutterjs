@@ -16,6 +16,7 @@ dependencies:
     sdk: flutter
 
 dev_dependencies:
+  lints: ^6.0.0
   flutter_test:
     sdk: flutter
 
@@ -24,6 +25,7 @@ flutterjs:
   npm_package: "@flutterjs/analyzer"
   implementation_language: "javascript"
   js_entry: "flutterjs_analyzer/src/index.js"
+
 
 
 
