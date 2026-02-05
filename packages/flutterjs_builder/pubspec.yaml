@@ -1,12 +1,10 @@
 name: flutterjs_builder
-description: "A new Flutter package project."
+description: "A tool for building FlutterJS applications."
 version: 1.0.0
-homepage:
 resolution: workspace
 
 environment:
-  sdk: ^3.11.0-113.0.dev
-  flutter: ">=1.17.0"
+  sdk: ^3.7.0
 
 dependencies:
   flutter:
@@ -24,10 +22,6 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
-
-# The following section is specific to Flutter packages.
 flutter:
 
   # To add assets to your package, add an assets section, like this:
@@ -60,3 +54,4 @@ flutter:
   #
   # For details regarding fonts in packages, see
   # https://flutter.dev/to/font-from-package
+
