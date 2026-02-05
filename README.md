@@ -86,19 +86,40 @@ FlutterJS compiles your Flutter/Dart code to **semantic HTML + CSS + JavaScript*
 
 ## Installation
 
-### Option 1: npm (Recommended)
+### System Requirements
+
+To develop with or use FlutterJS, you need:
+
+-   **Dart SDK**: `^3.10.0` or higher (Stable).
+-   **Node.js**: Required for the JavaScript engine and CLI tools.
+-   **NPM**: Package manager for JS dependencies.
+-   **Git**: For managing the monorepo and submodules.
+-   **Flutter SDK**: (Optional but recommended) For resolving SDK dependencies.
+
+### Option 1: npm (Recommended for users)
 
 ```bash
 npm install -g flutterjs
 ```
 
-### Option 2: From Source (Development)
+### Option 2: From Source (For contributors)
 
 ```bash
-git clone https://github.com/flutterjsdev/flutterjs.git
+git clone --recursive https://github.com/flutterjsdev/flutterjs.git
 cd flutterjs
 dart pub global activate --source path .
+dart pub get
+dart run tool/init.dart
 ```
+
+---
+
+## Current Status & Progress
+
+✅ **CI/CD Stabilized**: Full automation with GitHub Actions, supporting recursive submodules and workspace resolution.
+✅ **Ecosystem Launch**: First official package [`flutterjs_seo`](https://pub.dev/packages/flutterjs_seo) is now live on pub.dev.
+✅ **Modern Dart Support**: Fully compatible with Dart 3.10+ features including dot shorthand and records.
+✅ **Monorepo Readiness**: Standardized workspace structure across all 20+ packages.
 
 ---
 
@@ -107,7 +128,7 @@ dart pub global activate --source path .
 ### 1. Create a New Project
 
 ```bash
-flutterjs init my-app
+flutter create my-app
 cd my-app
 ```
 
