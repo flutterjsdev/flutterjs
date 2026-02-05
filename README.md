@@ -689,7 +689,7 @@ git clone https://github.com/flutterjsdev/flutterjs.git
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+BSD 3-Clause "New" or "Revised" License — see [LICENSE](LICENSE) for details.
 
 ---
 
