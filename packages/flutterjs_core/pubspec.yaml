@@ -12,14 +12,22 @@ environment:
 
 # Add regular dependencies here.
 dependencies:
+  meta: ^1.11.0
+  collection: ^1.18.0
+  crypto: ^3.0.3
   analyzer: ^8.4.1
   path: ^1.9.0
   flutterjs_dev_utils:
     path: ../flutterjs_dev_utils
 
 dev_dependencies:
+  meta: ^1.11.0
+  collection: ^1.18.0
+  crypto: ^3.0.3
   lints: ^6.0.0
   test: ^1.25.6
+
+
 
 
 
