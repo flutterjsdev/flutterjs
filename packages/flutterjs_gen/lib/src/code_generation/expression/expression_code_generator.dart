@@ -2380,16 +2380,13 @@ class ExpressionCodeGen {
   // UTILITY METHODS
   // =========================================================================
 
-  static const _jsReservedWords = {
-    'abstract',
-    'arguments',
-    'await',
-    'boolean',
+   static const _jsReservedWords = {
+    // ============================================================================
+    // ECMAScript Keywords (ALWAYS RESERVED)
+    // ============================================================================
     'break',
-    'byte',
     'case',
     'catch',
-    'char',
     'class',
     'const',
     'continue',
@@ -2397,58 +2394,93 @@ class ExpressionCodeGen {
     'default',
     'delete',
     'do',
-    'double',
     'else',
-    'enum',
-    'eval',
     'export',
     'extends',
-    'false',
-    'final',
     'finally',
-    'float',
     'for',
     'function',
-    'goto',
     'if',
-    'implements',
     'import',
     'in',
     'instanceof',
-    'int',
-    'interface',
-    'let',
-    'long',
-    'native',
     'new',
-    'null',
-    'package',
-    'private',
-    'protected',
-    'public',
     'return',
-    'short',
-    'static',
     'super',
     'switch',
-    'synchronized',
     'this',
     'throw',
-    'throws',
-    'transient',
-    'true',
     'try',
     'typeof',
     'var',
     'void',
-    'volatile',
     'while',
     'with',
     'yield',
-    'async',
-    'get',
-    'set',
-    'of',
+    
+    // ============================================================================
+    // ECMAScript Future Reserved Words (Strict Mode)
+    // ============================================================================
+    'let',
+    'static',
+    'enum',
+    'await',
+    'implements',
+    'interface',
+    'package',
+    'private',
+    'protected',
+    'public',
+    
+    // ============================================================================
+    // Literals (Cannot be reassigned)
+    // ============================================================================
+    'true',
+    'false',
+    'null',
+    'undefined',
+    
+    // ============================================================================
+    // Contextual Keywords (CAN be used as property names, but avoid for clarity)
+    // ============================================================================
+    'async',      // Can be property: obj.async ✅
+    'get',        // Can be property: obj.get ✅
+    'set',        // Can be property: obj.set ✅
+    
+    // ============================================================================
+    // REMOVED KEYWORDS (Previously incorrectly listed as reserved)
+    // ============================================================================
+    // 'of' - Only reserved in 'for...of' syntax, VALID as property name (Theme.of) ✅
+    // 'from' - Only reserved in import syntax, VALID as property name (Array.from) ✅
+    // 'target' - Never reserved, VALID as property name (event.target) ✅
+    // 'as' - Only reserved in TypeScript, VALID in JavaScript ✅
+    
+    // ============================================================================
+    // Java/C-style Keywords (NOT reserved in JavaScript, but listed historically)
+    // These are included for compatibility with legacy transpilers
+    // ============================================================================
+    'abstract',
+    'boolean',
+    'byte',
+    'char',
+    'double',
+    'final',
+    'float',
+    'goto',
+    'int',
+    'long',
+    'native',
+    'short',
+    'synchronized',
+    'throws',
+    'transient',
+    'volatile',
+    
+    // ============================================================================
+    // Special Identifiers (Avoid overriding)
+    // ============================================================================
+    'arguments',  // Special object in functions
+    'eval',       // Global function that should not be overridden
   };
 
   bool _isValidIdentifier(String name) {
