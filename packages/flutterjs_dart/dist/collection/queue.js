@@ -1,0 +1,2 @@
+class i{constructor(){this._list=[]}add(t){this._list.push(t)}addFirst(t){this._list.unshift(t)}addLast(t){this._list.push(t)}removeFirst(){return this._list.shift()}removeLast(){return this._list.pop()}get first(){return this._list[0]}get last(){return this._list[this._list.length-1]}get length(){return this._list.length}get isEmpty(){return this._list.length===0}get isNotEmpty(){return this._list.length>0}toList(){return[...this._list]}}export{i as Queue};
+//# sourceMappingURL=queue.js.map

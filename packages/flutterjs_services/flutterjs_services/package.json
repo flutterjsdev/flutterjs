@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "test": "echo \"No tests yet\"",
-    "prepublishOnly": "echo \"Ready to publish\""
+    "prepublishOnly": "echo \"Ready to publish\"",
+    "build": "node build.js"
   },
   "keywords": [
     "flutterjs",
@@ -17,6 +18,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/flutterjsdev/flutterjs.git"
+  },
+  "devDependencies": {
+    "esbuild": "^0.18.0"
   },
   "files": [
     "src/",

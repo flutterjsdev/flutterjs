@@ -2,11 +2,12 @@
   "name": "@flutterjs/flutterjs_widgets",
   "version": "1.0.0",
   "description": "A FlutterJS package",
-  "main": "src/index.js",
+  "main": "./dist/seo.js",
   "type": "module",
   "scripts": {
     "test": "echo \"No tests yet\"",
-    "prepublishOnly": "echo \"Ready to publish\""
+    "prepublishOnly": "echo \"Ready to publish\"",
+    "build": "node build.js"
   },
   "keywords": [
     "flutterjs",
@@ -20,9 +21,15 @@
     "url": "https://github.com/flutterjsdev/flutterjs.git",
     "directory": "packages/flutterjs_widgets"
   },
+  "devDependencies": {
+    "esbuild": "^0.18.0"
+  },
   "files": [
     "src/",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "exports": {
+    ".": "./dist/index.js"
+  }
 }

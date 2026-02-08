@@ -752,17 +752,32 @@ class SetupManager {
 
       // ✅ NEW: Verify Packages are Ready
       // The user must run `flutterjs get` manually before running.
-      final packageConfigPath = path.join(
-        absoluteProjectPath,
-        '.dart_tool',
-        'package_config.json',
-      );
-      if (!File(packageConfigPath).existsSync()) {
+      // Search for package_config.json up the tree (Workspace support)
+      File? packageConfigFile;
+      Directory currentDir = Directory(absoluteProjectPath);
+
+      while (true) {
+        final check = File(
+          path.join(currentDir.path, '.dart_tool', 'package_config.json'),
+        );
+        if (check.existsSync()) {
+          packageConfigFile = check;
+          break;
+        }
+        final parent = currentDir.parent;
+        if (parent.path == currentDir.path) break; // Root reached
+        currentDir = parent;
+      }
+
+      if (packageConfigFile == null) {
         print(
           '❌ Project not initialized or missing dependencies.\n👉 Please run `flutterjs get` first.',
         );
         return null;
       }
+
+      final packageConfigPath = packageConfigFile.path;
+
       // Also check if node_modules/@flutterjs exists as a sanity check?
       // Probably sufficient to check package_config for now.
       if (!config.jsonOutput) print('✓ Dependencies verified.');

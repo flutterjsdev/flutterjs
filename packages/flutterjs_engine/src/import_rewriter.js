@@ -758,6 +758,7 @@ class ImportRewriter {
 
     console.log(`[ImportRewriter] generateDynamicImportMap: Processing ${this.result.packageExports.size} package exports`);
     for (const [packageName, exportConfig] of this.result.packageExports) {
+      console.log(`[ImportRewriter] Processing package: ${packageName}`);
       if (packageName === 'http_parser') {
         console.log(`[ImportRewriter]   Generating mappings for http_parser`);
       }
@@ -798,6 +799,28 @@ class ImportRewriter {
           this.result.importMap.addScopeImport(scopeName, '@flutterjs/dart', '/node_modules/@flutterjs/dart/dist/index.js');
         }
 
+        // ✅ SPECIAL CASE: Alias @flutterjs/path to path (Node.js conflict resolution)
+        if (packageName === 'path') {
+          const aliasName = '@flutterjs/path';
+          // Add main entry alias
+          if (exportConfig.mainEntry) {
+            const physical = `${baseDir}/${packageName}/${exportConfig.mainEntry}`.replace(/^\.\//, '').replace(/\/+/g, '/');
+            this.result.importMap.addImport(aliasName, physical);
+          }
+          // Add scope alias for subpaths
+          const scopeName = `${aliasName}/`;
+          const scopePath = `${baseDir}/${packageName}/`.replace(/\/+/g, '/');
+          this.result.importMap.addImport(scopeName, scopePath);
+
+          // Duplicate all exports under alias
+          for (const [exportName, filePath] of exportConfig.exports) {
+            if (exportName === 'default') continue;
+            const logical = `${aliasName}/${exportName.replace(/^\.\//, '')}`;
+            const physical = `${baseDir}/${packageName}/${filePath}`.replace(/^\.\//, '').replace(/\/+/g, '/');
+            this.result.importMap.addImport(logical, physical);
+          }
+        }
+
         if (packageName === '@flutterjs/dart') {
           this.result.importMap.addImport('dart:core', '/node_modules/@flutterjs/dart/dist/core/index.js');
           this.result.importMap.addImport('dart:async', '/node_modules/@flutterjs/dart/dist/async/index.js');
@@ -810,11 +833,11 @@ class ImportRewriter {
 
           // ✅ FIX: Redirect missing collection files to manual implementation
           this.result.importMap.addImport(
-            '/node_modules/collection/dist/src/priority_queue.js', 
+            '/node_modules/collection/dist/src/priority_queue.js',
             '/node_modules/@flutterjs/dart/dist/collection/priority_queue.js'
           );
           this.result.importMap.addImport(
-            '/node_modules/collection/dist/src/queue_list.js', 
+            '/node_modules/collection/dist/src/queue_list.js',
             '/node_modules/@flutterjs/dart/dist/collection/queue_list.js'
           );
         }

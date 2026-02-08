@@ -142,6 +142,9 @@ class FlutterJSEngineBridge {
   /// Get the path to the engine binary for the current platform
   /// Prefers Node.js source (bin/index.js) over bundled executable
   String? _getEnginePath() {
+    // 0. FORCE DEBUG PATH
+    return r'c:\Jay\_Plugin\flutterjs\packages\flutterjs_engine\bin\index.js';
+
     // 1. Check FLUTTERJS_ENGINE_ROOT environment variable
     final envEngineRoot = Platform.environment['FLUTTERJS_ENGINE_ROOT'];
     if (envEngineRoot != null) {

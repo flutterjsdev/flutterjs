@@ -1,0 +1,11 @@
+{
+  "package": "@flutterjs/flutterjs_services",
+  "version": "0.1.0",
+  "exports": [
+    "FlutterjsServices",
+    "MethodChannel",
+    "SystemChrome",
+    "SystemUiOverlayStyle",
+    "createInstance"
+  ]
+}

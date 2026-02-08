@@ -452,6 +452,11 @@ class ExpressionCodeGen {
     }
 
     _log('   ✅ Generated: $result');
+    if (result.contains('}) })')) {
+      print('🚩 DETECTED DOUBLE CLOSING BRACE IN LAMBDA: $result');
+      print('   Params: $params');
+      print('   BodyCode: $bodyCode');
+    }
     return result;
   }
   // =========================================================================
@@ -723,11 +728,10 @@ class ExpressionCodeGen {
   }
 
   String _generateUnknownExpression(UnknownExpressionIR expr) {
-    // ✅ FIX: Strip generic type arguments
-    if (expr.source != null && expr.source.contains('<')) {
-      final stripped = expr.source.substring(0, expr.source.indexOf('<'));
-      return stripped;
-    }
+    // ✅ FIX: Strip generic type arguments ONLY if it looks like a type (start with UpperCase)
+    // AND doesn't look like code (contains spaces/semicolons)
+    // This was breaking 'for (i < n)' loops.
+    // if (expr.source != null && expr.source.contains('<')) { ... } REMOVED
 
     if (expr.source != null) {
       String source = expr.source;
@@ -748,6 +752,20 @@ class ExpressionCodeGen {
           RegExp(r'\s+as\s+[a-zA-Z0-9_<>?]+(\s*Function\s*\([^)]*\))?'),
           '',
         );
+      }
+
+      // ✅ FIX: Strip leaked Generic identifiers: identity<E> -> identity
+      // ONLY if it is a single word with generics (no spaces/operators before <)
+      // This is crucial for generic function references passed as arguments.
+      if (source.contains('<') && source.contains('>')) {
+        // Pattern: word<digits+word+commas>
+        // Check if it's a simple generic reference like identity<E> or Map<String, int>
+        final genericRefMatch = RegExp(
+          r'^([a-zA-Z_]\w*)<[a-zA-Z0-9_,\s<>?]+>$',
+        ).firstMatch(source.trim());
+        if (genericRefMatch != null) {
+          source = genericRefMatch.group(1)!;
+        }
       }
 
       // ✅ FIX: Handle standalone #symbol (if regex didn't catch start)
@@ -1285,12 +1303,8 @@ class ExpressionCodeGen {
     if (expr.isSuperReference) return 'super';
     if (expr.isThisReference) return 'this';
 
-    // Strip generic type arguments from the name
-    String name = expr.name;
-
-    if (name.contains('<')) {
-      name = name.substring(0, name.indexOf('<'));
-    }
+    // Apply JS safety transformation (includes stripping generics)
+    String name = safeIdentifier(expr.name);
 
     // ✅ FORCE FIX: Handle compound identifier "widget.field"
     if (name.startsWith('widget.')) {
@@ -1593,11 +1607,21 @@ class ExpressionCodeGen {
   // =========================================================================
 
   String _generateConditional(ConditionalExpressionIR expr) {
-    final cond = generate(expr.condition, parenthesize: true);
-    final then = generate(expr.thenExpression, parenthesize: true);
-    final else_ = generate(expr.elseExpression, parenthesize: true);
+    final constantValue = evaluateConstant(expr.condition);
+    if (constantValue != null) {
+      print('✨ FOLDED ternary condition: $constantValue');
+      if (constantValue == true) {
+        return generate(expr.thenExpression, parenthesize: false);
+      } else {
+        return generate(expr.elseExpression, parenthesize: false);
+      }
+    }
 
-    return '($cond) ? ($then) : ($else_)';
+    final condition = generate(expr.condition, parenthesize: false);
+    final thenExpr = generate(expr.thenExpression, parenthesize: true);
+    final elseExpr = generate(expr.elseExpression, parenthesize: true);
+
+    return '($condition) ? ($thenExpr) : ($elseExpr)';
   }
 
   String _generateNullCoalescing(NullCoalescingExpressionIR expr) {
@@ -1628,9 +1652,16 @@ class ExpressionCodeGen {
 
   String _generateListLiteral(ListExpressionIR expr) {
     final parts = <String>[];
+    if (expr.elements.any((e) => e.metadata['isSpread'] == true)) {
+      print('🔍 Generating ListLiteral with spread elements');
+    }
 
     for (final element in expr.elements) {
       final code = generate(element, parenthesize: false);
+      if (code.contains('links.map')) {
+        print('   🔹 List element (links.map): $code');
+        print('   🔹 Metadata: ${element.metadata}');
+      }
 
       // Check if this element is a conditional from collection-if that needs spreading
       if (element is ConditionalExpressionIR &&
@@ -1647,6 +1678,9 @@ class ExpressionCodeGen {
             ' != null ? ',
           ),
         );
+      } else if (element.metadata['isSpread'] == true) {
+        // ✅ FIX: Handle generic spread operator
+        parts.add('...$code');
       } else {
         parts.add(code);
       }
@@ -1767,6 +1801,15 @@ class ExpressionCodeGen {
       }
     }
 
+    // ✅ FIX: Handle implicit cascade target (target is null, but isCascade is true)
+    if (expr.isCascade && _cascadeReceiver != null) {
+      final target = _cascadeReceiver!;
+      final args = _generateArgumentList(expr.arguments, expr.namedArguments);
+      final safeMethodName = safeIdentifier(expr.methodName);
+      // In JS, cascades are just method calls on the temp variable
+      return '$target.$safeMethodName$typeArgStr($args)';
+    }
+
     // ✅ FIXED: When target is null
     final args = _generateArgumentList(expr.arguments, expr.namedArguments);
 
@@ -1787,7 +1830,8 @@ class ExpressionCodeGen {
 
     if (isWidgetCall) {
       // Add 'new' keyword for widget/class constructors
-      return 'new ${expr.methodName}$typeArgStr($args)';
+      final name = safeIdentifier(expr.methodName);
+      return 'new $name$typeArgStr($args)';
     }
 
     // ✅ SMART CONTEXT: Method resolution
@@ -1823,13 +1867,15 @@ class ExpressionCodeGen {
       }
 
       if (shouldAddThis) {
-        return 'this.${expr.methodName}$typeArgStr($args)';
+        final name = safeIdentifier(expr.methodName);
+        return 'this.$name$typeArgStr($args)';
       }
     }
 
     // Fallback: Top-level function / Global / Imported
 
-    return '${expr.methodName}$typeArgStr($args)';
+    final name = safeIdentifier(expr.methodName);
+    return '$name$typeArgStr($args)';
   }
 
   /// ✅ NEW HELPER: Generate type arguments like <CounterModel>, <List<String>>
@@ -1878,6 +1924,7 @@ class ExpressionCodeGen {
     if (expr.functionName.contains('=>')) {
       print('DEBUG: _generateFunctionCall with arrow: ${expr.functionName}');
     }
+    final safeFunctionName = safeIdentifier(expr.functionName);
     final args = _generateArgumentList(expr.arguments, expr.namedArguments);
 
     // ✅ SMART CONTEXT for FunctionCallExpr
@@ -1886,7 +1933,7 @@ class ExpressionCodeGen {
         _currentFunctionContext != null &&
         !_currentFunctionContext!.isTopLevel) {
       bool shouldAddThis = false;
-      final name = expr.functionName;
+      final name = safeFunctionName;
 
       // 1. Is it a defined instance method?
       if (_currentClassContext!.instanceMethods.any((m) => m.name == name)) {
@@ -1911,12 +1958,12 @@ class ExpressionCodeGen {
       }
 
       if (shouldAddThis) {
-        return 'this.${expr.functionName}($args)';
+        return 'this.$safeFunctionName($args)';
       }
     }
 
     // ✅ FIX: Parenthesize function name if it looks like an arrow function
-    var func = expr.functionName;
+    var func = safeFunctionName;
     if (func.contains('=>')) {
       print('🔧 Fixing arrow function call: $func');
       func = '($func)';
@@ -1927,13 +1974,8 @@ class ExpressionCodeGen {
 
   /// Handles InstanceCreationExpressionIR (has TypeIR type)
   String _generateInstanceCreation(InstanceCreationExpressionIR expr) {
-    var typeName = expr.type.displayName();
+    final typeName = safeIdentifier(expr.type.displayName());
 
-    // ✅ FIX: Strip generics from type name for JS
-    // GlobalKey<FormState> -> GlobalKey
-    if (typeName.contains('<')) {
-      typeName = typeName.substring(0, typeName.indexOf('<'));
-    }
     if (typeName == 'all' || typeName == 'EdgeInsets') {
       print(
         '🏗️ InstanceCreation: type=$typeName, constructor=${expr.constructorName}',
@@ -2380,7 +2422,7 @@ class ExpressionCodeGen {
   // UTILITY METHODS
   // =========================================================================
 
-   static const _jsReservedWords = {
+  static const _jsReservedWords = {
     // ============================================================================
     // ECMAScript Keywords (ALWAYS RESERVED)
     // ============================================================================
@@ -2417,7 +2459,7 @@ class ExpressionCodeGen {
     'while',
     'with',
     'yield',
-    
+
     // ============================================================================
     // ECMAScript Future Reserved Words (Strict Mode)
     // ============================================================================
@@ -2431,7 +2473,7 @@ class ExpressionCodeGen {
     'private',
     'protected',
     'public',
-    
+
     // ============================================================================
     // Literals (Cannot be reassigned)
     // ============================================================================
@@ -2439,14 +2481,13 @@ class ExpressionCodeGen {
     'false',
     'null',
     'undefined',
-    
+
     // ============================================================================
     // Contextual Keywords (CAN be used as property names, but avoid for clarity)
     // ============================================================================
-    'async',      // Can be property: obj.async ✅
-    'get',        // Can be property: obj.get ✅
-    'set',        // Can be property: obj.set ✅
-    
+    'async', // Can be property: obj.async ✅
+    'get', // Can be property: obj.get ✅
+    'set', // Can be property: obj.set ✅
     // ============================================================================
     // REMOVED KEYWORDS (Previously incorrectly listed as reserved)
     // ============================================================================
@@ -2454,7 +2495,7 @@ class ExpressionCodeGen {
     // 'from' - Only reserved in import syntax, VALID as property name (Array.from) ✅
     // 'target' - Never reserved, VALID as property name (event.target) ✅
     // 'as' - Only reserved in TypeScript, VALID in JavaScript ✅
-    
+
     // ============================================================================
     // Java/C-style Keywords (NOT reserved in JavaScript, but listed historically)
     // These are included for compatibility with legacy transpilers
@@ -2475,12 +2516,12 @@ class ExpressionCodeGen {
     'throws',
     'transient',
     'volatile',
-    
+
     // ============================================================================
     // Special Identifiers (Avoid overriding)
     // ============================================================================
-    'arguments',  // Special object in functions
-    'eval',       // Global function that should not be overridden
+    'arguments', // Special object in functions
+    'eval', // Global function that should not be overridden
   };
 
   bool _isValidIdentifier(String name) {
@@ -2500,6 +2541,12 @@ class ExpressionCodeGen {
   }
 
   String safeIdentifier(String name) {
+    // ✅ FIX: Strip generic type arguments first
+    // identity<E> -> identity
+    if (name.contains('<')) {
+      name = name.substring(0, name.indexOf('<'));
+    }
+
     // These are reserved in JS and cannot be used as identifiers or member names
     // in various contexts (like variable names or static class fields)
     const reservedMembers = {'constructor', 'prototype', '__proto__'};
@@ -2584,5 +2631,147 @@ class ExpressionCodeGen {
     );
 
     return result;
+  }
+
+  /// Evaluates an expression at compile-time to determine if it's a platform constant
+  /// Returns true/false if constant, null otherwise.
+  bool? evaluateConstant(ExpressionIR expr) {
+
+    if (expr is ParenthesizedExpressionIR) {
+      return evaluateConstant(expr.innerExpression);
+    }
+
+    if (expr is IdentifierExpressionIR) {
+      final name = expr.name;
+      if (name == 'kIsWeb') return true;
+      if (name == 'kDebugMode') return true;
+      if (name == 'kProfileMode') return false;
+      if (name == 'kReleaseMode') return false;
+      if (name == 'defaultTargetPlatform') return null; // Can't resolve to true/false directly but is a platform constant
+      return null;
+    }
+
+    if (expr is PropertyAccessExpressionIR) {
+      final target = expr.target;
+
+      if (target is IdentifierExpressionIR && target.name == 'TargetPlatform') {
+        // TargetPlatform.android, TargetPlatform.iOS, etc.
+        // On web, none of these native platforms match
+        return false;
+      }
+      return null;
+    }
+
+    if (expr is BinaryExpressionIR) {
+      final left = evaluateConstant(expr.left);
+      final right = evaluateConstant(expr.right);
+
+      if (expr.operator == BinaryOperatorIR.logicalAnd) {
+        if (left == false || right == false) return false;
+        if (left == true && right == true) return true;
+        return null; // Partial evaluation not supported yet for stripping
+      }
+
+      if (expr.operator == BinaryOperatorIR.logicalOr) {
+        if (left == true || right == true) return true;
+        if (left == false && right == false) return false;
+        return null;
+      }
+
+      if (expr.operator == BinaryOperatorIR.equals ||
+          expr.operator == BinaryOperatorIR.notEquals) {
+        // Handle defaultTargetPlatform == TargetPlatform.android
+        final isLeftPlatform = _isPlatformConstant(expr.left);
+        final isRightPlatform = _isPlatformConstant(expr.right);
+
+        // Special case: defaultTargetPlatform == TargetPlatform.xxx on web is ALWAYS false
+        final leftDesc = _getPlatformDescription(expr.left);
+        final rightDesc = _getPlatformDescription(expr.right);
+        
+        // If one side is defaultTargetPlatform (web-target) and other is a native platform
+        if ((leftDesc == 'web-target' && rightDesc != null && rightDesc != 'web-target' && rightDesc != 'web') ||
+            (rightDesc == 'web-target' && leftDesc != null && leftDesc != 'web-target' && leftDesc != 'web')) {
+          // Folding platform check to false on web
+          if (expr.operator == BinaryOperatorIR.equals) return false;
+          if (expr.operator == BinaryOperatorIR.notEquals) return true;
+        }
+
+        if (isLeftPlatform && isRightPlatform) {
+          // Compare descriptions if available
+          if (leftDesc != null && rightDesc != null) {
+            final isEqual = leftDesc == rightDesc;
+            return expr.operator == BinaryOperatorIR.equals ? isEqual : !isEqual;
+          }
+
+          // Heuristic: On web, any equality check against a specific native platform is false
+          if (expr.operator == BinaryOperatorIR.equals) return false;
+          if (expr.operator == BinaryOperatorIR.notEquals) return true;
+        }
+      }
+      return null;
+    }
+
+    if (expr is UnaryExpressionIR) {
+      if (expr.operator == UnaryOperator.logicalNot) {
+        final val = evaluateConstant(expr.operand);
+        if (val != null) return !val;
+      }
+      return null;
+    }
+
+    return null;
+  }
+
+  bool _isPlatformConstant(ExpressionIR expr) {
+    if (expr is ParenthesizedExpressionIR) {
+      return _isPlatformConstant(expr.innerExpression);
+    }
+
+    if (expr is IdentifierExpressionIR) {
+      return expr.name == 'defaultTargetPlatform' ||
+          expr.name == 'kIsWeb' ||
+          expr.name == 'kDebugMode';
+    }
+    if (expr is EnumMemberAccessExpressionIR) {
+      return expr.typeName == 'TargetPlatform' ||
+          expr.inferredTypeName == 'TargetPlatform';
+    }
+
+    if (expr is PropertyAccessExpressionIR) {
+      final target = expr.target;
+      return target is IdentifierExpressionIR &&
+          target.name == 'TargetPlatform';
+    }
+
+    if (expr is BinaryExpressionIR) {
+      return _isPlatformConstant(expr.left) || _isPlatformConstant(expr.right);
+    }
+
+    return false;
+  }
+
+  String? _getPlatformDescription(ExpressionIR expr) {
+    if (expr is ParenthesizedExpressionIR) {
+      return _getPlatformDescription(expr.innerExpression);
+    }
+
+    if (expr is IdentifierExpressionIR) {
+      final name = expr.name;
+      if (name == 'kIsWeb') return 'web';
+      if (name == 'defaultTargetPlatform') return 'web-target';
+      
+      // Handle TargetPlatform.xxx as a single identifier (e.g., "TargetPlatform.iOS")
+      if (name.startsWith('TargetPlatform.')) {
+        final platformName = name.substring('TargetPlatform.'.length);
+        return platformName; // "iOS", "android", etc.
+      }
+    }
+    if (expr is EnumMemberAccessExpressionIR) {
+      return expr.memberName; // "android", "iOS", etc.
+    }
+    if (expr is PropertyAccessExpressionIR) {
+      return expr.propertyName; // "android", "iOS", etc.
+    }
+    return null;
   }
 }

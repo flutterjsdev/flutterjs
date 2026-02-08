@@ -97,6 +97,14 @@ export class Color {
     }
 }
 
+/**
+ * Brightness - Describes the contrast of a theme or color palette.
+ */
+export const Brightness = Object.freeze({
+    dark: 'dark',
+    light: 'light',
+});
+
 export class Radius {
     constructor(x) {
         this.x = x;
@@ -126,6 +134,7 @@ export default {
     Size,
     Rect,
     Color,
+    Brightness,
     Radius,
     RRect
 };

@@ -184,6 +184,15 @@ class ClassCodeGen {
     indenter.dedent();
     buffer.write(indenter.line('}'));
 
+    // ✅ FORCE REGISTER CLASS IN GLOBAL REGISTRY (Fixes circular dependencies)
+    // This allows lazy lookup of classes before they are fully imported/initialized
+    buffer.writeln();
+    buffer.writeln('// Registration for circular dependency resolution');
+    buffer.writeln(
+      'globalThis._flutterjs_types = globalThis._flutterjs_types || {};',
+    );
+    buffer.writeln('globalThis._flutterjs_types.${cls.name} = ${cls.name};');
+
     return buffer.toString().trim();
   }
   // =========================================================================
@@ -225,13 +234,23 @@ class ClassCodeGen {
 
   void _generateFieldDeclarations(StringBuffer buffer, ClassDecl cls) {
     for (final field in cls.instanceFields) {
-      _generateFieldDeclaration(buffer, field, isStatic: false);
+      _generateFieldDeclaration(
+        buffer,
+        field,
+        isStatic: false,
+        className: cls.name,
+      );
     }
   }
 
   void _generateStaticFieldDeclarations(StringBuffer buffer, ClassDecl cls) {
     for (final field in cls.staticFields) {
-      _generateFieldDeclaration(buffer, field, isStatic: true);
+      _generateFieldDeclaration(
+        buffer,
+        field,
+        isStatic: true,
+        className: cls.name,
+      );
     }
   }
 
@@ -239,7 +258,53 @@ class ClassCodeGen {
     StringBuffer buffer,
     FieldDecl field, {
     bool isStatic = false,
+    String? className,
   }) {
+    // ✅ SPECIAL HANDLING: Style class circular dependency fix
+    if (className == 'Style' && isStatic) {
+      if (field.name == 'posix') {
+        buffer.writeln(indenter.line('static get posix() {'));
+        indenter.indent();
+        buffer.writeln(
+          indenter.line('return new globalThis._flutterjs_types.PosixStyle();'),
+        );
+        indenter.dedent();
+        buffer.writeln(indenter.line('}'));
+        return;
+      }
+      if (field.name == 'windows') {
+        buffer.writeln(indenter.line('static get windows() {'));
+        indenter.indent();
+        buffer.writeln(
+          indenter.line(
+            'return new globalThis._flutterjs_types.WindowsStyle();',
+          ),
+        );
+        indenter.dedent();
+        buffer.writeln(indenter.line('}'));
+        return;
+      }
+      if (field.name == 'url') {
+        buffer.writeln(indenter.line('static get url() {'));
+        indenter.indent();
+        buffer.writeln(
+          indenter.line('return new globalThis._flutterjs_types.UrlStyle();'),
+        );
+        indenter.dedent();
+        buffer.writeln(indenter.line('}'));
+        return;
+      }
+      if (field.name == 'platform') {
+        // Defer platform resolution until access to ensure registry is populated
+        buffer.writeln(indenter.line('static get platform() {'));
+        indenter.indent();
+        buffer.writeln(indenter.line('return this._getPlatformStyle();'));
+        indenter.dedent();
+        buffer.writeln(indenter.line('}'));
+        return;
+      }
+    }
+
     final staticKeyword = isStatic ? 'static ' : '';
     final typeComment = config.useTypeComments
         ? ' // ${field.type.displayName()}'

@@ -1,0 +1,2 @@
+import{Stream as e}from"./stream.js";class o extends e{constructor(t){super(),this._stream=t}get isBroadcast(){return this._stream.isBroadcast}asBroadcastStream({onListen:t,onCancel:r}={}){return this._stream.asBroadcastStream({onListen:t,onCancel:r})}listen(t,{onError:r,onDone:s,cancelOnError:a}={}){return this._stream.listen(t,{onError:r,onDone:s,cancelOnError:a})}}export{o as StreamView};
+//# sourceMappingURL=stream_view.js.map

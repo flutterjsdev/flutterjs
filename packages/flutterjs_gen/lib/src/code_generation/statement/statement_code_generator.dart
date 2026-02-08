@@ -340,6 +340,21 @@ class StatementCodeGen {
   }
 
   String _generateIfStatement(IfStmt stmt) {
+    final constantValue = exprGen.evaluateConstant(stmt.condition);
+
+    if (constantValue != null) {
+      if (constantValue == true) {
+        // Only generate then branch
+        return _generateInlineBlock(stmt.thenBranch);
+      } else {
+        // Only generate else branch (if exists)
+        if (stmt.elseBranch != null) {
+          return _generateInlineBlock(stmt.elseBranch!);
+        }
+        return ''; // Stripped entirely
+      }
+    }
+
     final buffer = StringBuffer();
     var condition = exprGen.generate(stmt.condition, parenthesize: false);
     String? patternInjection;
@@ -452,14 +467,7 @@ class StatementCodeGen {
     }
 
     // Generate the then branch inline (without extra braces if it's a BlockStmt)
-    if (stmt.thenBranch is BlockStmt) {
-      final block = stmt.thenBranch as BlockStmt;
-      for (final s in block.statements) {
-        buffer.writeln(generate(s));
-      }
-    } else {
-      buffer.writeln(generate(stmt.thenBranch));
-    }
+    buffer.writeln(_generateInlineBlock(stmt.thenBranch));
 
     indenter.dedent();
 
@@ -468,15 +476,8 @@ class StatementCodeGen {
       buffer.writeln(indenter.line('} else {'));
       indenter.indent();
 
-      // Generate the else branch inline (without extra braces if it's a BlockStmt)
-      if (stmt.elseBranch is BlockStmt) {
-        final block = stmt.elseBranch as BlockStmt;
-        for (final s in block.statements) {
-          buffer.writeln(generate(s));
-        }
-      } else {
-        buffer.writeln(generate(stmt.elseBranch!));
-      }
+      // Generate the else branch inline
+      buffer.writeln(_generateInlineBlock(stmt.elseBranch!));
 
       indenter.dedent();
       buffer.write(indenter.line('}'));
@@ -485,6 +486,21 @@ class StatementCodeGen {
     }
 
     return buffer.toString().trim();
+  }
+
+  /// Helper to generate statements inside a block without re-wrapping in braces
+  String _generateInlineBlock(StatementIR stmt) {
+    if (stmt is BlockStmt) {
+      final buffer = StringBuffer();
+      for (final s in stmt.statements) {
+        final code = generate(s);
+        if (code.isNotEmpty) {
+          buffer.writeln(code);
+        }
+      }
+      return buffer.toString().trim();
+    }
+    return generate(stmt);
   }
 
   String _generateForStatement(ForStmt stmt) {

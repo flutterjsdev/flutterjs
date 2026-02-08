@@ -36,7 +36,7 @@ class JSOptimizer {
     }
 
     if (level >= 2) {
-      optimized = _commonSubexpressionElimination(optimized);
+      // optimized = _commonSubexpressionElimination(optimized); // Disabled to prevent bugs/hangs
       optimized = _variableInlining(optimized);
     }
 
@@ -241,8 +241,9 @@ class JSOptimizer {
 
   String _commonSubexpressionElimination(String input) {
     // More restrictive: only match complete function calls with clear boundaries
+    // Fix: Add negative lookahead (?!\s*\{) to avoid matching method definitions
     final pattern = RegExp(
-      r'\b(\w+(?:\.\w+)*)\s*\(\s*(?:[^()]*|(?:\([^)]*\)))*\s*\)',
+      r'\b(\w+(?:\.\w+)*)\s*\(\s*(?:[^()]*|(?:\([^)]*\)))*\s*\)(?!\s*\{)',
     );
 
     final matches = pattern.allMatches(input);
@@ -287,6 +288,8 @@ class JSOptimizer {
       'parseFloat',
       'JSON.parse',
       'JSON.stringify',
+      'super', // Fix: super cannot be referenced independently
+      'constructor', // Fix: constructor is a definition, not a call (mostly)
     };
     return builtIns.any((builtin) => expr.startsWith(builtin));
   }

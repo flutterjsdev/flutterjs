@@ -476,6 +476,9 @@ class RuntimePackageManager {
       }.toList();
       final processed = <String>{};
 
+      final Map<String, Set<String>> dependencyGraph = {};
+      final Set<String> allDetectedPackages = {};
+
       var currentBatch = List<String>.from(queue);
 
       while (currentBatch.isNotEmpty) {
@@ -485,8 +488,14 @@ class RuntimePackageManager {
         for (final pkg in currentBatch) {
           if (processed.contains(pkg)) continue;
           processed.add(pkg);
+          allDetectedPackages.add(pkg);
 
           if (pkg == 'flutter' || pkg == 'flutter_web_plugins') continue;
+
+          // Initialize graph node
+          if (!dependencyGraph.containsKey(pkg)) {
+            dependencyGraph[pkg] = {};
+          }
 
           futures.add(
             _resolveAndInstallPackage(
@@ -503,7 +512,18 @@ class RuntimePackageManager {
               overridePackages: overridePackages,
               builder: builder,
               resolvedMap: finalResolvedPackages,
-            ),
+            ).then((deps) {
+              // Populate graph edges
+              if (deps != null) {
+                // If this package has dependencies, record them
+                // This means 'pkg' depends on 'dep'
+                // So in build order: 'dep' must be built BEFORE 'pkg'
+                for (final dep in deps) {
+                  dependencyGraph[pkg]!.add(dep);
+                }
+              }
+              return deps;
+            }),
           );
         }
 
@@ -529,69 +549,66 @@ class RuntimePackageManager {
       if (builder != null) {
         if (verbose) print('\nProcessing downloaded packages for build...');
 
-        // We need to build packages that are in node_modules now.
-        // We can get them from processed list?
-        // processed contains ALL dependencies found.
-
-        final buildFutures = <Future>[];
-        final packagesToBuild = <String>[];
-
-        for (final pkgName in processed) {
-          // Skip SDK packages as they are already built
+        // Filter packages that need building
+        final packagesToBuildSet = <String>{};
+        for (final pkgName in allDetectedPackages) {
           if (sdkPackages.containsKey(pkgName) ||
               pkgName.startsWith('@flutterjs/'))
             continue;
           if (pkgName == 'flutter' || pkgName == 'flutter_web_plugins')
             continue;
-
-          packagesToBuild.add(pkgName);
+          packagesToBuildSet.add(pkgName);
         }
 
-        // Show total package count
-        final totalPackages = packagesToBuild.length;
+        // PERFORM TOPOLOGICAL SORT
+        // Sorts so dependencies appear BEFORE their consumers
+        final sortedPackages = _topologicalSort(
+          packagesToBuildSet,
+          dependencyGraph,
+        );
+
+        if (verbose) {
+          print(
+            'DEBUG: Topological Build Order: ${sortedPackages.join(' -> ')}',
+          );
+        }
+
+        final totalPackages = sortedPackages.length;
         if (totalPackages > 0) {
           print(
-            '\n📦 Building $totalPackages package${totalPackages == 1 ? '' : 's'}...\n',
+            '\n📦 Building $totalPackages package${totalPackages == 1 ? '' : 's'} (Ordered)...\n',
           );
         }
 
         var completedPackages = 0;
-        final concurrency = 4; // Build 4 packages in parallel
 
-        // Split packages into batches for parallel processing
-        for (var i = 0; i < packagesToBuild.length; i += concurrency) {
-          final batchEnd = (i + concurrency < packagesToBuild.length)
-              ? i + concurrency
-              : packagesToBuild.length;
-          final batch = packagesToBuild.sublist(i, batchEnd);
+        // Build SEQUENTIALLY to ensure dependencies are ready
+        for (final pkgName in sortedPackages) {
+          final sw = Stopwatch()..start();
 
-          // Show which packages are being built
-          if (batch.length > 1) {
-            print('🔨 Building: ${batch.join(', ')}');
-          }
-
-          // Build packages in parallel
-          final futures = batch.map((pkgName) async {
-            final sw = Stopwatch()..start();
+          try {
+            // Pass the current state of resolved/built packages if needed?
+            // The builder itself doesn't take dependency paths yet, we will update that next.
+            // For now, simple ordered build ensures exports.json exists on disk.
             await builder.buildPackage(
               packageName: pkgName,
               projectRoot: projectPath,
               buildPath: buildPath,
               verbose: verbose,
+              dependencyMap: finalResolvedPackages,
             );
-            sw.stop();
+          } catch (e) {
+            print('❌ Build failed for $pkgName: $e');
+            return false;
+          }
 
-            // Thread-safe increment and display
-            completedPackages++;
-            final percentage = (completedPackages / totalPackages * 100)
-                .round();
-            final duration = (sw.elapsedMilliseconds / 1000).toStringAsFixed(1);
-            print(
-              '[$completedPackages/$totalPackages] ($percentage%) ✓ $pkgName (${duration}s)',
-            );
-          }).toList();
-
-          await Future.wait(futures);
+          sw.stop();
+          completedPackages++;
+          final percentage = (completedPackages / totalPackages * 100).round();
+          final duration = (sw.elapsedMilliseconds / 1000).toStringAsFixed(1);
+          print(
+            '[$completedPackages/$totalPackages] ($percentage%) ✓ $pkgName (${duration}s)',
+          );
         }
 
         if (totalPackages > 0) {
@@ -1350,7 +1367,7 @@ class RuntimePackageManager {
     }
 
     if (targetFlutterJsPackage != null) {
-      final isOverridden = force || overridePackages.contains(packageName);
+      final isOverridden = force || overridePackages.contains(packageName) || packageName == 'collection' || packageName == 'url_launcher' || packageName == 'url_launcher_platform_interface';
       print(
         '🔍 DEBUG (_resolveAndInstallPackage): isOverridden for $packageName: $isOverridden',
       );
@@ -1442,5 +1459,45 @@ class RuntimePackageManager {
     } catch (e) {
       print('   ⚠️  Warning: Failed to write package_map.json: $e');
     }
+  }
+
+  /// Sorts packages topologically so dependencies come before consumers
+  List<String> _topologicalSort(
+    Set<String> nodes,
+    Map<String, Set<String>> graph,
+  ) {
+    final visited = <String>{};
+    final tempMarked = <String>{};
+    final sorted = <String>[];
+
+    void visit(String node) {
+      if (tempMarked.contains(node)) {
+        // Cycle detected
+        return;
+      }
+      if (visited.contains(node)) return;
+
+      tempMarked.add(node);
+
+      // Visit dependencies first
+      final deps = graph[node] ?? {};
+      for (final dep in deps) {
+        if (nodes.contains(dep)) {
+          visit(dep);
+        }
+      }
+
+      tempMarked.remove(node);
+      visited.add(node);
+      sorted.add(node);
+    }
+
+    for (final node in nodes) {
+      if (!visited.contains(node)) {
+        visit(node);
+      }
+    }
+
+    return sorted;
   }
 }

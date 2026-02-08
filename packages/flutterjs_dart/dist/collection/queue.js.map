@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/collection/queue.js"],
+  "sourcesContent": ["// Copyright 2025 The FlutterJS Authors. All rights reserved.\r\n// Use of this source code is governed by a BSD-style license that can be\r\n// found in the LICENSE file.\r\n\r\nexport class Queue {\r\n    constructor() {\r\n        this._list = [];\r\n    }\r\n\r\n    add(value) { this._list.push(value); }\r\n    addFirst(value) { this._list.unshift(value); }\r\n    addLast(value) { this._list.push(value); }\r\n\r\n    removeFirst() { return this._list.shift(); }\r\n    removeLast() { return this._list.pop(); }\r\n\r\n    get first() { return this._list[0]; }\r\n    get last() { return this._list[this._list.length - 1]; }\r\n    get length() { return this._list.length; }\r\n    get isEmpty() { return this._list.length === 0; }\r\n    get isNotEmpty() { return this._list.length > 0; }\r\n\r\n    toList() { return [...this._list]; }\r\n}\r\n"],
+  "mappings": "AAIO,MAAMA,CAAM,CACf,aAAc,CACV,KAAK,MAAQ,CAAC,CAClB,CAEA,IAAIC,EAAO,CAAE,KAAK,MAAM,KAAKA,CAAK,CAAG,CACrC,SAASA,EAAO,CAAE,KAAK,MAAM,QAAQA,CAAK,CAAG,CAC7C,QAAQA,EAAO,CAAE,KAAK,MAAM,KAAKA,CAAK,CAAG,CAEzC,aAAc,CAAE,OAAO,KAAK,MAAM,MAAM,CAAG,CAC3C,YAAa,CAAE,OAAO,KAAK,MAAM,IAAI,CAAG,CAExC,IAAI,OAAQ,CAAE,OAAO,KAAK,MAAM,CAAC,CAAG,CACpC,IAAI,MAAO,CAAE,OAAO,KAAK,MAAM,KAAK,MAAM,OAAS,CAAC,CAAG,CACvD,IAAI,QAAS,CAAE,OAAO,KAAK,MAAM,MAAQ,CACzC,IAAI,SAAU,CAAE,OAAO,KAAK,MAAM,SAAW,CAAG,CAChD,IAAI,YAAa,CAAE,OAAO,KAAK,MAAM,OAAS,CAAG,CAEjD,QAAS,CAAE,MAAO,CAAC,GAAG,KAAK,KAAK,CAAG,CACvC",
+  "names": ["Queue", "value"]
+}

@@ -54,21 +54,34 @@ class PackageCompiler {
   String _sourceDirName = 'lib';
 
   /// Compile the entire package
-  Future<void> compile() async {
+  Future<void> compile({Map<String, String>? dependencyPaths}) async {
     final possibleDirs = ['lib', 'src'];
     Directory? sourceDir;
     String? sourceDirName;
+
+    // Extract package name early
+    var packageName = p.basename(packagePath);
+    final pubspecFile = File(p.join(packagePath, 'pubspec.yaml'));
+    if (await pubspecFile.exists()) {
+      final pubspecContent = await pubspecFile.readAsString();
+      final nameMatch = RegExp(
+        r'^name:\s+(.+)$',
+        multiLine: true,
+      ).firstMatch(pubspecContent);
+      if (nameMatch != null) packageName = nameMatch.group(1)!.trim();
+    }
 
     for (final dir in possibleDirs) {
       final d = Directory(p.join(packagePath, dir));
       if (await d.exists()) {
         sourceDir = d;
+        sourceDirName = dir;
         _sourceDirName = dir;
         break;
       }
     }
 
-    if (sourceDir == null) {
+    if (sourceDir == null || sourceDirName == null) {
       if (verbose) {
         print(
           '⚠️ Skipping package at $packagePath: No lib or src directory found.',
@@ -84,16 +97,56 @@ class PackageCompiler {
 
     final stopwatch = Stopwatch()..start();
 
-    // Extract package name for better progress messages
-    var packageName = p.basename(packagePath);
-    final pubspecFile = File(p.join(packagePath, 'pubspec.yaml'));
-    if (await pubspecFile.exists()) {
-      final pubspecContent = await pubspecFile.readAsString();
-      final nameMatch = RegExp(
-        r'^name:\s+(.+)$',
-        multiLine: true,
-      ).firstMatch(pubspecContent);
-      if (nameMatch != null) packageName = nameMatch.group(1)!.trim();
+    // ✅ Build Global Symbol Table from Dependencies
+    final globalSymbolTable = <String, String>{};
+    if (dependencyPaths != null) {
+      if (verbose)
+        print(
+          '   🔍 Loading exports from ${dependencyPaths.length} dependencies...',
+        );
+
+      for (final depName in dependencyPaths.keys) {
+        final depPath = dependencyPaths[depName]!;
+        final exportsFile = File(p.join(depPath, 'exports.json'));
+
+        if (await exportsFile.exists()) {
+          try {
+            final content = await exportsFile.readAsString();
+            final json = jsonDecode(content);
+            final exports = (json['exports'] as List?) ?? [];
+
+            for (final export in exports) {
+              final name = export['name'] as String?;
+              final jsPath = export['path'] as String?;
+              final uri = export['uri'] as String?; // ✅ explicit URI
+
+              if (name != null) {
+                if (uri != null) {
+                  // Use explicit URI if available
+                  globalSymbolTable[name] = uri;
+                } else if (jsPath != null) {
+                  // Fallback to inference (Legacy support)
+                  var uriPath = jsPath;
+                  if (uriPath.startsWith('./')) uriPath = uriPath.substring(2);
+                  if (uriPath.startsWith('dist/'))
+                    uriPath = uriPath.substring(5);
+
+                  if (uriPath.endsWith('.js')) {
+                    uriPath =
+                        uriPath.substring(0, uriPath.length - 3) + '.dart';
+                  }
+
+                  final inferredUri = 'package:$depName/$uriPath';
+                  globalSymbolTable[name] = inferredUri;
+                }
+              }
+            }
+          } catch (e) {
+            if (verbose)
+              print('   ⚠️ Failed to read exports.json for $depName: $e');
+          }
+        }
+      }
     }
 
     final heartbeat = _ProgressHeartbeat(
@@ -108,56 +161,98 @@ class PackageCompiler {
 
     try {
       final exportsList = <Map<String, String>>[];
+      final parsedFiles = <File, DartFile>{};
+      final localExports = <String, String>{};
 
+      // PHASE 1: Parse all files and collect local exports
+      print('DEBUG: Scanned sourceDir: ${sourceDir.path}');
       await for (final entity in sourceDir.list(recursive: true)) {
         if (entity is File && entity.path.endsWith('.dart')) {
-          final dartFile = await _compileFile(entity);
+          print('DEBUG: Found Dart file: ${entity.path}');
+          final dartFile = await _parseFile(entity);
           if (dartFile != null) {
+            parsedFiles[entity] = dartFile;
+
             final relativePath = p.relative(
               entity.path,
               from: p.join(packagePath, sourceDirName),
             );
-            final jsPath =
-                './dist/${p.setExtension(relativePath, '.js')}'; // path seems to need ./dist prefix
 
+            final jsPath =
+                './dist/${p.setExtension(relativePath, '.js').replaceAll(r'\', '/')}';
+
+            // Collect exports for THIS package
             for (final cls in dartFile.classDeclarations) {
+              final dartUri =
+                  'package:$packageName/${relativePath.replaceAll(r'\', '/')}';
+
               exportsList.add({
                 'name': cls.name,
                 'path': jsPath,
+                'uri': dartUri,
                 'type': 'class',
               });
+              localExports[cls.name] = dartUri;
             }
             for (final func in dartFile.functionDeclarations) {
+              final dartUri =
+                  'package:$packageName/${relativePath.replaceAll(r'\', '/')}';
               exportsList.add({
                 'name': func.name,
                 'path': jsPath,
-                'type':
-                    'class', // Using class as generic export type based on existing files
+                'uri': dartUri,
+                'type': 'function',
               });
+              localExports[func.name] = dartUri;
             }
-            // Add others if needed
           }
         }
       }
 
-      // Generate exports.json
-      final pubspecFile = File(p.join(packagePath, 'pubspec.yaml'));
-      String version = '0.0.1';
-      String packageName = 'unknown';
+      // ✅ Update globalSymbolTable with local exports
+      // This ensures that files in this package can resolve symbols
+      // defined in other files of the SAME package using absolute package: URIs.
+      globalSymbolTable.addAll(localExports);
 
-      if (await pubspecFile.exists()) {
-        final pubspecContent = await pubspecFile.readAsString();
+      // DEBUG: Verify Style for path package
+      if (packageName == 'path') {
+        print(
+          'DEBUG: [PackageCompiler] Global Symbol Table for $packageName has ${globalSymbolTable.length} entries',
+        );
+        if (globalSymbolTable.containsKey('Style')) {
+          print(
+            'DEBUG: [PackageCompiler] Style -> ${globalSymbolTable['Style']}',
+          );
+        } else {
+          print(
+            'DEBUG: [PackageCompiler] Style NOT FOUND in globalSymbolTable for $packageName',
+          );
+          print(
+            'DEBUG: [PackageCompiler] Local Exports has Style? ${localExports.containsKey('Style')}',
+          );
+        }
+      }
+
+      // PHASE 2: Generate JS using the populated symbol table
+      for (final entry in parsedFiles.entries) {
+        await _generateJS(
+          entry.key,
+          entry.value,
+          globalSymbolTable: globalSymbolTable,
+        );
+      }
+
+      // Generate exports.json
+      // (Version extraction logic remains same)
+      var version = '0.0.1';
+      final pubspecFile2 = File(p.join(packagePath, 'pubspec.yaml'));
+      if (await pubspecFile2.exists()) {
+        final pubspecContent = await pubspecFile2.readAsString();
         final versionMatch = RegExp(
           r'^version:\s+(.+)$',
           multiLine: true,
         ).firstMatch(pubspecContent);
         if (versionMatch != null) version = versionMatch.group(1)!.trim();
-
-        final nameMatch = RegExp(
-          r'^name:\s+(.+)$',
-          multiLine: true,
-        ).firstMatch(pubspecContent);
-        if (nameMatch != null) packageName = nameMatch.group(1)!.trim();
       }
 
       final manifest = {
@@ -173,25 +268,20 @@ class PackageCompiler {
       stopwatch.stop();
       if (verbose || stopwatch.elapsedMilliseconds > 1000) {
         print('✅ Compiled $packageName in ${stopwatch.elapsedMilliseconds}ms');
-      } else if (!verbose) {
-        // Minimal output for fast builds if needed, or keep silent
       }
     } finally {
       heartbeat.stop();
     }
   }
 
-  Future<DartFile?> _compileFile(File file) async {
+  Future<DartFile?> _parseFile(File file) async {
     final relativePath = p.relative(
       file.path,
       from: p.join(packagePath, _sourceDirName),
     );
-    final outputPath = p.join(outputDir, p.setExtension(relativePath, '.js'));
 
     if (verbose) {
-      print(
-        '  Compiling $relativePath -> ${p.relative(outputPath, from: outputDir)}',
-      );
+      print('  Parsing $relativePath');
     }
 
     try {
@@ -229,18 +319,44 @@ class PackageCompiler {
           print(
             '   ⚠️ Warning: $relativePath uses platform specific dependencies (runtime failure possible)',
           );
-        // Continue compilation anyway
       }
 
+      return dartFile;
+    } catch (e, st) {
+      print('❌ Error parsing $relativePath: $e');
+      if (verbose) {
+        print(st);
+      }
+      return null;
+    }
+  }
+
+  Future<bool> _generateJS(
+    File file,
+    DartFile dartFile, {
+    Map<String, String> globalSymbolTable = const {},
+  }) async {
+    final relativePath = p.relative(
+      file.path,
+      from: p.join(packagePath, _sourceDirName),
+    );
+    final outputPath = p.join(outputDir, p.setExtension(relativePath, '.js'));
+
+    if (verbose) {
+      print(
+        '  Generatng JS $relativePath -> ${p.relative(outputPath, from: outputDir)}',
+      );
+    }
+
+    try {
       // 3. Generate JS from IR
       final pipeline = ModelToJSPipeline(
+        globalSymbolTable: globalSymbolTable,
         importRewriter: (String uri) {
-          // REMOVED package: rewriter logic.
-          // We want ModelToJSPipeline to handle package: URIs by converting them
-          // to bare specifiers (e.g. 'package:foo/foo.dart' -> 'foo/dist/foo.js')
-          // which allows the browser's Import Map to verify resolution.
-          // Relative paths (../../node_modules/foo) break when served or moved.
           if (uri.startsWith('package:')) {
+            if (uri.endsWith('.dart')) {
+              return p.setExtension(uri, '.js');
+            }
             return uri; // Pass through to pipeline default handler
           }
 
@@ -263,20 +379,28 @@ class PackageCompiler {
 
         await File(outputPath).writeAsString(result.code!);
 
-        return dartFile; // Return the full IR for manifest generation
+        return true;
       } else {
         print('❌ Failed to compile $relativePath:');
+        if (result.message != null) {
+          print('    Error: ${result.message}');
+        }
+        if (result.code != null) {
+          print('--- GENERATED CODE BEGIN ---');
+          print(result.code);
+          print('--- GENERATED CODE END ---');
+        }
         for (final issue in result.issues) {
           print('    - ${issue.message}');
         }
-        return null; // Compilation failed
+        return false;
       }
     } catch (e, st) {
-      print('❌ Error compiling $relativePath: $e');
+      print('❌ Error generating JS for $relativePath: $e');
       if (verbose) {
         print(st);
       }
-      return null;
+      return false;
     }
   }
 }

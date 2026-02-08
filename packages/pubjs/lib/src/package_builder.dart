@@ -276,6 +276,7 @@ class PackageBuilder {
     Map<String, String>? sdkPaths,
     String? explicitSourcePath,
     PackageResolver? resolver,
+    Map<String, String>? dependencyMap,
   }) async {
     // 1. Find package source directory
     String? sourcePath;
@@ -354,7 +355,7 @@ class PackageBuilder {
           resolver: resolver,
         );
 
-        await compiler.compile();
+        await compiler.compile(dependencyPaths: dependencyMap);
       } catch (e) {
         print('❌ Compilation failed for $packageName: $e');
         return BuildResult.failed;
@@ -397,8 +398,14 @@ class PackageBuilder {
   /// - Content hash changed (compared to .build_info.json)
   Future<bool> needsBuild(String packagePath) async {
     final exportsFile = File(p.join(packagePath, 'exports.json'));
-    // If exports.json doesn't exist, definitely need to build
     if (!await exportsFile.exists()) {
+      return true;
+    }
+
+    // TEMPORARY: Force rebuild of url_launcher_platform_interface and collection to pick up compiler fix
+    if (packagePath.contains('url_launcher_platform_interface') ||
+        packagePath.contains('collection') ||
+        packagePath.contains('url_launcher')) {
       return true;
     }
 

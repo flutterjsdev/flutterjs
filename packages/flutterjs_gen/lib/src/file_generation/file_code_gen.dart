@@ -309,6 +309,47 @@ class FileCodeGen {
       }
 
       // -----------------------------------------------------------------------
+      // CORE IMPORTS (dart:core -> @flutterjs/dart/core)
+      // -----------------------------------------------------------------------
+      final coreImports = <String>{};
+      final candidatesForCore = <String>{...usedTypes, ...usedWidgets, 'Uri'};
+      
+      // Helper to check core symbols
+      final resolver = ImportResolver(registry: packageRegistry);
+
+      for (final symbol in candidatesForCore) {
+        // Clean symbol string (remove generics, nullability)
+        var s = symbol;
+        if (s.endsWith('?')) s = s.substring(0, s.length - 1);
+        if (s.contains('<')) s = s.substring(0, s.indexOf('<'));
+        
+        // Skip ignored types
+        if (const {'String', 'int', 'double', 'num', 'bool', 'void', 'dynamic', 'Object', 'List', 'Map', 'Set', 'Function', 'null'}.contains(s)) {
+          continue;
+        }
+
+        // ✅ FIX: Force Uri to always be a core import
+        if (s == 'Uri') {
+          coreImports.add(s);
+          continue;
+        }
+
+        // Resolves using the shared ImportResolver logic
+        if (resolver.resolve(s) == '@flutterjs/dart/core') {
+          coreImports.add(s);
+        }
+      }
+
+      if (coreImports.isNotEmpty) {
+        code.writeln('import {');
+        for (final symbol in coreImports.toList()..sort()) {
+          code.writeln('  $symbol,');
+        }
+        code.writeln('} from \'@flutterjs/dart/core\';');
+        code.writeln();
+      }
+
+      // -----------------------------------------------------------------------
       // UNIFIED MATERIAL IMPORTS
       // -----------------------------------------------------------------------
 
@@ -327,16 +368,21 @@ class FileCodeGen {
           usedWidgets.where((w) => !definedNames.contains(w)).toSet().toList()
             ..sort();
 
-      // Helper to check core symbols
-      final resolver = ImportResolver(registry: packageRegistry);
+      // Resolver already declared above
 
       for (final widget in sortedWidgets) {
         // Skip runtime types if they accidentally got into usedWidgets
         if (widget.startsWith('_') || materialImports.contains(widget))
           continue;
 
-        // Only import if it's a known core widget
-        if (resolver.isKnownCore(widget) ||
+        // ✅ FIX: Use strict resolution (ImportResolver)
+        final resolvedPkg = resolver.resolve(widget);
+        
+        // Only add if it resolves to Material or is a known UI widget
+        // If it resolves to 'dart:core', it will be SKIPPED here (and handled by coreImports above)
+        if (resolvedPkg == '@flutterjs/material') {
+           materialImports.add(widget);
+        } else if (resolver.isKnownCore(widget) ||
             widget == 'ThemeData' ||
             widget == 'ColorScheme' ||
             widget == 'Colors' ||
@@ -350,7 +396,8 @@ class FileCodeGen {
             widget == 'MediaQueryData' ||
             widget == 'Spacer' ||
             widget == 'TextButtonThemeData') {
-          materialImports.add(widget);
+           // Fallback for symbols not yet in registry but known to be Material
+           materialImports.add(widget);
         }
       }
 

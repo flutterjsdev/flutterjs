@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/async/stream_view.js"],
+  "sourcesContent": ["// Copyright 2025 The FlutterJS Authors. All rights reserved.\r\n// Use of this source code is governed by a BSD-style license that can be\r\n// found in the LICENSE file.\r\n\r\nimport { Stream } from \"./stream.js\";\r\n\r\nexport class StreamView extends Stream {\r\n    constructor(stream) {\r\n        super();\r\n        this._stream = stream;\r\n    }\r\n\r\n    get isBroadcast() {\r\n        return this._stream.isBroadcast;\r\n    }\r\n\r\n    asBroadcastStream({ onListen, onCancel } = {}) {\r\n        return this._stream.asBroadcastStream({ onListen, onCancel });\r\n    }\r\n\r\n    listen(onData, { onError, onDone, cancelOnError } = {}) {\r\n        return this._stream.listen(onData, { onError, onDone, cancelOnError });\r\n    }\r\n}\r\n"],
+  "mappings": "AAIA,OAAS,UAAAA,MAAc,cAEhB,MAAMC,UAAmBD,CAAO,CACnC,YAAYE,EAAQ,CAChB,MAAM,EACN,KAAK,QAAUA,CACnB,CAEA,IAAI,aAAc,CACd,OAAO,KAAK,QAAQ,WACxB,CAEA,kBAAkB,CAAE,SAAAC,EAAU,SAAAC,CAAS,EAAI,CAAC,EAAG,CAC3C,OAAO,KAAK,QAAQ,kBAAkB,CAAE,SAAAD,EAAU,SAAAC,CAAS,CAAC,CAChE,CAEA,OAAOC,EAAQ,CAAE,QAAAC,EAAS,OAAAC,EAAQ,cAAAC,CAAc,EAAI,CAAC,EAAG,CACpD,OAAO,KAAK,QAAQ,OAAOH,EAAQ,CAAE,QAAAC,EAAS,OAAAC,EAAQ,cAAAC,CAAc,CAAC,CACzE,CACJ",
+  "names": ["Stream", "StreamView", "stream", "onListen", "onCancel", "onData", "onError", "onDone", "cancelOnError"]
+}

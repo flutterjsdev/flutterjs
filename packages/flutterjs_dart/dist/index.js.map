@@ -1,7 +1,7 @@
 {
   "version": 3,
   "sources": ["../src/index.js"],
-  "sourcesContent": ["export * as core from './core/index.js';\r\nexport * as math from './math/index.js';\r\nexport * as async from './async/index.js';\r\nexport * as convert from './convert/index.js';\r\nexport * as collection from './collection/index.js';\r\nexport * as developer from './developer/index.js';\r\nexport * as typed_data from './typed_data/index.js';\r\nexport * as ui from './ui/index.js';\r\n"],
-  "mappings": "AAAA,UAAYA,MAAU,kBACtB,UAAYC,MAAU,kBACtB,UAAYC,MAAW,mBACvB,UAAYC,MAAa,qBACzB,UAAYC,MAAgB,wBAC5B,UAAYC,MAAe,uBAC3B,UAAYC,MAAgB,wBAC5B,UAAYC,MAAQ",
+  "sourcesContent": ["// Copyright 2025 The FlutterJS Authors. All rights reserved.\r\n// Use of this source code is governed by a BSD-style license that can be\r\n// found in the LICENSE file.\r\n\r\nexport * as core from './core/index.js';\r\nexport * as math from './math/index.js';\r\nexport * as async from './async/index.js';\r\nexport * as convert from './convert/index.js';\r\nexport * as collection from './collection/index.js';\r\nexport * as developer from './developer/index.js';\r\nexport * as typed_data from './typed_data/index.js';\r\nexport * as ui from './ui/index.js';\r\n"],
+  "mappings": "AAIA,UAAYA,MAAU,kBACtB,UAAYC,MAAU,kBACtB,UAAYC,MAAW,mBACvB,UAAYC,MAAa,qBACzB,UAAYC,MAAgB,wBAC5B,UAAYC,MAAe,uBAC3B,UAAYC,MAAgB,wBAC5B,UAAYC,MAAQ",
   "names": ["core", "math", "async", "convert", "collection", "developer", "typed_data", "ui"]
 }

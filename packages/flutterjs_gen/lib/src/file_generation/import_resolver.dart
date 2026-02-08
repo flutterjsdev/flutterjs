@@ -19,9 +19,16 @@ class ImportResolver {
 
     // Core Widgets & Material
     'package:flutter/material.dart': '@flutterjs/material',
-    'package:flutter/widgets.dart':
-        '@flutterjs/material', // Most widgets are in material package for now
-    'package:flutter/cupertino.dart': '@flutterjs/material',
+    'package:flutter/widgets.dart': '@flutterjs/widgets',
+    'package:flutter/cupertino.dart': '@flutterjs/cupertino',
+    
+    // Flutter SDK sub-packages
+    'package:flutter/foundation.dart': '@flutterjs/foundation',
+    'package:flutter/services.dart': '@flutterjs/services',
+    'package:flutter/rendering.dart': '@flutterjs/rendering',
+    'package:flutter/painting.dart': '@flutterjs/painting',
+    'package:flutter/animation.dart': '@flutterjs/animation',
+    'package:flutter/gestures.dart': '@flutterjs/gestures',
 
     // Official Plugins
     'package:flutterjs_seo': '@flutterjs/seo',
@@ -29,7 +36,11 @@ class ImportResolver {
     // Core Dart Packages
     'package:path/path.dart': 'path',
     'package:term_glyph/term_glyph.dart': 'term_glyph',
+    
+    // ✅ FIX: Explicit mapping for dart:core
+    'dart:core': '@flutterjs/dart/core',
   };
+
 
   final Map<String, String> _libraryToPackageMap;
 
@@ -52,6 +63,11 @@ class ImportResolver {
     final packageFromRegistry = registry.findPackageForSymbol(symbol);
     if (packageFromRegistry != null) {
       return packageFromRegistry;
+    }
+
+    // ✅ FIX: Force Uri to dart:core
+    if (symbol == 'Uri') {
+      return '@flutterjs/dart/core';
     }
 
     // 2. Fallback to library-based resolution

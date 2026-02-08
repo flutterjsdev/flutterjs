@@ -1,0 +1,21 @@
+{
+  "package": "@flutterjs/widgets",
+  "version": "1.0.0",
+  "exports": [
+    {
+      "name": "FlutterjsWidgets",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "createInstance",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "WidgetsBinding",
+      "path": "./dist/index.js",
+      "type": "class"
+    }
+  ]
+}
