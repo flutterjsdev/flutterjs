@@ -22,10 +22,10 @@ class ImportResolver {
   constructor(config = {}) {
     this.projectRoot = config.projectRoot || process.cwd();
     this.debugMode = config.debugMode || false;
-    
+
     // Load import mappings from config
     this.mappings = config.mappings || this.loadImportConfig();
-    
+
     // Fallback mappings if config not found
     if (!this.mappings || Object.keys(this.mappings).length === 0) {
       this.mappings = this.getDefaultMappings();
@@ -87,7 +87,7 @@ class ImportResolver {
 
       for (const module of modules) {
         const modulePath = path.join(baseDir, module);
-        
+
         // Try different file patterns
         const candidates = [
           path.join(modulePath, 'index.js'),
@@ -101,18 +101,18 @@ class ImportResolver {
           if (fs.existsSync(candidate)) {
             const key = `${prefix}${module}`;
             const relativePath = path.relative(this.projectRoot, candidate);
-            
+
             if (!mappings[key]) {
               mappings[key] = {
                 path: relativePath,
                 source: candidate,
               };
-              
+
               if (this.debugMode) {
                 console.log(`[ImportResolver] Auto-found: ${key} @ ${relativePath}`);
               }
             }
-            
+
             break; // Use first match
           }
         }
@@ -127,7 +127,7 @@ class ImportResolver {
    */
   registerMapping(moduleName, filePath) {
     const absolutePath = path.resolve(this.projectRoot, filePath);
-    
+
     if (!fs.existsSync(absolutePath)) {
       throw new Error(`Mapping file not found: ${absolutePath}`);
     }
@@ -176,9 +176,21 @@ class ImportResolver {
     if (this.mappings[moduleName]) {
       const mapping = this.mappings[moduleName];
       const source = mapping.source || path.join(this.projectRoot, mapping.path);
-      
+
       if (fs.existsSync(source)) {
         return source;
+      }
+    }
+
+    // NEW: Auto-Scan node_modules if not found in mappings
+    if (!this._scanned) {
+      this._scanNodeModules();
+      this._scanned = true;
+
+      // Retry mapping check after scan
+      if (this.mappings[moduleName]) {
+        const mapping = this.mappings[moduleName];
+        return mapping.source || path.join(this.projectRoot, mapping.path);
       }
     }
 
@@ -327,7 +339,7 @@ class ImportResolver {
           ];
 
           const found = patterns.some(pattern => fileContent.includes(pattern));
-          
+
           if (!found) {
             warnings.push({
               type: 'unverified_export',
@@ -352,7 +364,7 @@ class ImportResolver {
    */
   generateReport(imports) {
     const validation = this.validateImports(imports);
-    
+
     let report = '\n';
     report += '='.repeat(80) + '\n';
     report += 'Import Resolution Report\n';
@@ -400,14 +412,14 @@ class ImportResolver {
    */
   generateConfigFile(outputPath = null) {
     const configPath = outputPath || path.join(this.projectRoot, 'flutterjs.imports.json');
-    
+
     const config = {
       imports: this.mappings,
       description: 'FlutterJS Import Mappings - Maps @flutterjs/* to local files'
     };
 
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-    
+
     return configPath;
   }
 

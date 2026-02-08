@@ -1,0 +1,46 @@
+{
+  "package": "@flutterjs/seo",
+  "version": "1.0.0",
+  "exports": [
+    {
+      "name": "FlutterjsFoundation",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "createInstance",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "TargetPlatform",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "defaultTargetPlatform",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "kIsWeb",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "kDebugMode",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "kProfileMode",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "kReleaseMode",
+      "path": "./dist/index.js",
+      "type": "class"
+    }
+  ]
+}

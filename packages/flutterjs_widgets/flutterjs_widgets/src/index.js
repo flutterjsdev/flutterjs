@@ -44,5 +44,36 @@ export function createInstance(config) {
   return new FlutterjsWidgets(config);
 }
 
+/**
+ * WidgetsBinding stub for web compatibility
+ * In Flutter, WidgetsBinding provides the glue between the widgets layer and the Flutter engine.
+ * On the web platform, we provide a minimal stub.
+ */
+class _WidgetsBinding {
+  constructor() {
+    this._renderViews = [];
+    this._platformDispatcher = {
+      implicitView: null,
+    };
+  }
+
+  get renderViews() {
+    return this._renderViews;
+  }
+
+  get platformDispatcher() {
+    return this._platformDispatcher;
+  }
+}
+
+// Singleton instance
+const _widgetsBindingInstance = new _WidgetsBinding();
+
+export const WidgetsBinding = {
+  get instance() {
+    return _widgetsBindingInstance;
+  }
+};
+
 export default FlutterjsWidgets;
 

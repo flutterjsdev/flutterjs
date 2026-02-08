@@ -114,7 +114,7 @@ class ParameterCodeGen {
     final parts = <String>[];
 
     for (final param in parameters) {
-      String part = param.name;
+      String part = exprGen.safeIdentifier(param.name);  // ✅ FIX: Escape reserved words
 
       // Add default value if present
       if (param.defaultValue != null) {
@@ -171,10 +171,11 @@ class ParameterCodeGen {
       final fullType = nullable ? '$typeStr|null' : typeStr;
 
       // Optional parameters shown with square brackets
+      final safeName = exprGen.safeIdentifier(param.name);  // ✅ FIX: Escape reserved words
       if (!param.isRequired) {
-        buffer.writeln(' * @param {$fullType} [${param.name}]');
+        buffer.writeln(' * @param {$fullType} [$safeName]');
       } else {
-        buffer.writeln(' * @param {$fullType} ${param.name}');
+        buffer.writeln(' * @param {$fullType} $safeName');
       }
     }
 
@@ -188,8 +189,9 @@ class ParameterCodeGen {
 
     for (final param in parameters) {
       if (param.isRequired && !(param.type.isNullable)) {
+        final safeName = exprGen.safeIdentifier(param.name);  // ✅ FIX: Escape reserved words
         buffer.writeln(
-          'if (${param.name} == null) throw new Error("${param.name} is required");',
+          'if ($safeName == null) throw new Error("$safeName is required");',
         );
       }
     }
@@ -206,12 +208,13 @@ class ParameterCodeGen {
     final parts = <String>[];
 
     // ✅ Required positional parameters (just names)
-    parts.addAll(categorized.requiredPositional.map((p) => p.name));
+    parts.addAll(categorized.requiredPositional.map((p) => exprGen.safeIdentifier(p.name)));  // ✅ FIX: Escape reserved words
 
     // ✅ Optional positional parameters with defaults
     for (final param in categorized.optionalPositional) {
       final def = _getDefaultValue(param);
-      parts.add('${param.name} = $def');
+      final safeName = exprGen.safeIdentifier(param.name);  // ✅ FIX: Escape reserved words
+      parts.add('$safeName = $def');
     }
 
     // ✅ Named parameters → object destructuring
@@ -221,11 +224,12 @@ class ParameterCodeGen {
       for (final param in categorized.named) {
         // Only optional named params get defaults
         // Required named params don't have defaults
+        final safeName = exprGen.safeIdentifier(param.name);  // ✅ FIX: Escape reserved words
         if (param.isRequired) {
-          namedParts.add(param.name);
+          namedParts.add(safeName);
         } else {
           final def = _getDefaultValue(param);
-          namedParts.add('${param.name} = $def');
+          namedParts.add('$safeName = $def');
         }
       }
 

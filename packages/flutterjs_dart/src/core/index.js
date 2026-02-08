@@ -45,8 +45,12 @@ export class Comparable {
 }
 
 // Export all core types
+import { Uri } from './uri.js';
+export { Uri };
+
 export default {
     Iterator,
     Iterable,
     Comparable,
+    Uri,
 };

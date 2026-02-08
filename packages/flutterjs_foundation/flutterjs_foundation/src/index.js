@@ -44,4 +44,41 @@ export function createInstance(config) {
   return new FlutterjsFoundation(config);
 }
 
+/**
+ * TargetPlatform - Enum for platform types
+ */
+export const TargetPlatform = Object.freeze({
+  android: 'android',
+  fuchsia: 'fuchsia',
+  iOS: 'iOS',
+  linux: 'linux',
+  macOS: 'macOS',
+  windows: 'windows',
+});
+
+/**
+ * The current platform (always returns null for web since web is not a TargetPlatform value)
+ */
+export const defaultTargetPlatform = null;
+
+/**
+ * kIsWeb - true if running on web
+ */
+export const kIsWeb = true;
+
+/**
+ * kDebugMode - true if in debug mode (always true for development)
+ */
+export const kDebugMode = true;
+
+/**
+ * kProfileMode - true if in profile mode
+ */
+export const kProfileMode = false;
+
+/**
+ * kReleaseMode - true if in release mode
+ */
+export const kReleaseMode = false;
+
 export default FlutterjsFoundation;

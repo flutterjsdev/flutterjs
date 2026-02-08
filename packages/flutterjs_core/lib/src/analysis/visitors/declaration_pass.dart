@@ -179,6 +179,16 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
     unit.accept(this);
 
+    // DEBUG: Check what's in the unit
+    // for (final decl in unit.declarations) {
+    //   String name = 'unknown';
+    //   if (decl is FunctionDeclaration) name = decl.name.lexeme;
+    //   else if (decl is ClassDeclaration) name = decl.name.lexeme;
+    //   else if (decl is TopLevelVariableDeclaration) name = decl.variables.variables.first.name.lexeme;
+    //   
+    //   print('DEBUG: Unit Decl: ${decl.runtimeType} - $name');
+    // }
+
     builder
       ..withLibrary(_currentLibraryName)
       ..withContentHash(fileContent);
@@ -210,7 +220,22 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
     for (final classDecl in _classes) {
       builder.addClass(classDecl);
+
+      // 🔍 DEBUG: Track extension types
+      if (classDecl.metadata['isExtensionType'] == true) {
+        _log(
+          '   🐞 [DEBUG] Adding extension type to builder: ${classDecl.name}',
+        );
+      }
     }
+
+    // 🔍 DEBUG: Summary
+    final extensionTypeCount = _classes
+        .where((c) => c.metadata['isExtensionType'] == true)
+        .length;
+    _log(
+      '   🐞 [DEBUG] Total classes: ${_classes.length}, Extension types: $extensionTypeCount',
+    );
 
     _log('✅ [DeclarationPass] Extraction complete for: $filePath');
   }
@@ -344,6 +369,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     }
 
     final funcName = node.name.lexeme;
+
     final funcId = builder.generateId('func', funcName);
 
     _log('🔧 [Function] $funcName()');
@@ -673,11 +699,17 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         documentation: _extractDocumentation(node),
         annotations: _extractAnnotations(node.metadata),
         sourceLocation: _extractSourceLocation(node, node.name.offset),
+        metadata: {
+          'isExtensionType': true,
+        }, // ✅ FIX: Pass metadata during construction
       );
 
-      classDecl.metadata['isExtensionType'] = true;
+      // 🔍 DEBUG: Confirm we're about to add it
+      print('🔍 [BEFORE ADD] About to add extension type: $typeName');
 
       _classes.add(classDecl);
+
+      print('🔍 [AFTER ADD] Successfully added extension type: $typeName');
       super.visitExtensionTypeDeclaration(node);
     } catch (e, st) {
       _log('   ❌ Error processing extension type: $e');
@@ -686,6 +718,18 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       _popScope();
     }
   }
+
+  @override
+  void visitGenericTypeAlias(GenericTypeAlias node) {
+    final typedefName = node.name.lexeme;
+    _log('📋 [Typedef] $typedefName');
+    
+    // Add to typedefDeclarations list in the builder
+    builder.typedefDeclarations.add(typedefName);
+    
+    super.visitGenericTypeAlias(node);
+  }
+
 
   /// Export all extracted components
   Map<String, dynamic> exportComponents() {

@@ -4,26 +4,7 @@
 
 // dart:collection implementation
 
-export class Queue {
-    constructor() {
-        this._list = [];
-    }
-
-    add(value) { this._list.push(value); }
-    addFirst(value) { this._list.unshift(value); }
-    addLast(value) { this._list.push(value); }
-
-    removeFirst() { return this._list.shift(); }
-    removeLast() { return this._list.pop(); }
-
-    get first() { return this._list[0]; }
-    get last() { return this._list[this._list.length - 1]; }
-    get length() { return this._list.length; }
-    get isEmpty() { return this._list.length === 0; }
-    get isNotEmpty() { return this._list.length > 0; }
-
-    toList() { return [...this._list]; }
-}
+export * from './queue.js';
 
 export class LinkedList {
     constructor() {
@@ -62,6 +43,7 @@ export class LinkedListEntry {
 
 // Maps and Sets are just native JS Map/Set usually, but we can export helpers
 export const HashMap = Map;
+export const LinkedHashMap = Map;
 export const HashSet = Set;
 
 export class UnmodifiableListView {
@@ -73,6 +55,12 @@ export class UnmodifiableListView {
 }
 
 export class UnmodifiableMapView {
+    constructor(source) {
+        this._map = source;
+    }
+}
+
+export class MapView {
     constructor(source) {
         this._map = source;
     }
@@ -97,10 +85,12 @@ export class SetMixin {
     get isNotEmpty() { return this.length > 0; }
 }
 
-export class IterableBase {}
-export class ListBase extends ListMixin {}
-export class MapBase extends MapMixin {}
-export class SetBase extends SetMixin {}
+export class IterableBase { }
+export class ListBase extends ListMixin { }
+export class MapBase extends MapMixin { }
+export class SetBase extends SetMixin { }
+export class UnmodifiableMapBase extends MapMixin { }
+export class CanonicalizedMap extends Map { }
 
 export * from './priority_queue.js';
 export * from './queue_list.js';
