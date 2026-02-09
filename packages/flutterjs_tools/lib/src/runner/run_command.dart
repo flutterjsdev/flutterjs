@@ -17,8 +17,10 @@ import 'package:flutterjs_gen/flutterjs_gen.dart';
 import 'package:flutterjs_tools/src/runner/code_pipleiline.dart';
 import 'package:flutterjs_tools/src/runner/engine_bridge.dart';
 import 'package:flutterjs_tools/src/runner/helper.dart';
+import 'package:flutterjs_tools/src/build/build_executor.dart';
+import 'package:flutterjs_tools/src/build/dependency_graph.dart';
 import 'package:path/path.dart' as path;
-import 'package:dart_analyzer/dart_analyzer.dart';
+import 'package:dart_analyzer/dart_analyzer.dart' hide DependencyGraph;
 import 'package:flutterjs_core/flutterjs_core.dart';
 
 /// ============================================================================
@@ -405,39 +407,39 @@ class RunCommand extends Command<void> {
     config,
   }) async {
     final pipeline = UnifiedConversionPipeline(config: config);
+    // Initialize dependency graph and executor
+    final graph = DependencyGraph(projectRoot: config.projectPath);
+    final executor = BuildExecutor(
+      graph: graph,
+      pipeline: pipeline,
+      projectRoot: config.projectPath,
+      outputDir: outputPath,
+      verbose: verbose,
+    );
 
-    int successCount = 0;
-    int failureCount = 0;
+    // Use DFS build if we have a clear entry point (e.g. main.dart)
+    // If multiple files are passed, we might need to build each as an entry point?
+    // Usually 'dartFiles' from AnalysisPhase contains all files.
+    // DFS is best when we start from the 'entry point'.
+    // BUT 'dartFiles' might be a list of changed files (incremental).
+
+    // STRATEGY:
+    // If doing a full build (or even incremental), we should respect dependencies.
+    // If we just iterate linearly, we miss the order.
+    // If we use BuildExecutor on each file in the list, it will ensure deps are built first.
+    // `BuildExecutor` handles `_built` set so it won't rebuild if already done.
 
     for (final dartFilePath in dartFiles) {
       try {
-        final dartFile = _loadDartFile(dartFilePath);
-        final jsOutputPath = _getJsOutputPath(dartFilePath, outputPath);
-
-        final result = await pipeline.executeFullPipeline(
-          dartFile: dartFile,
-          outputPath: jsOutputPath,
-          validate: validate,
-          optimize: optimizationLevel > 0,
-          optimizationLevel: optimizationLevel,
-        );
-
-        if (result.success) {
-          successCount++;
-          result.printReport();
-        } else {
-          failureCount++;
-          result.printReport();
-        }
+        await executor.buildProject(dartFilePath);
       } catch (e) {
-        failureCount++;
         print('❌ Error processing $dartFilePath: $e');
       }
     }
 
     pipeline.printSummary();
-    print('\n✅ Processed: $successCount successful');
-    print('❌ Failed: $failureCount');
+    print('\n✅ Processed: $dartFiles files (DFS traversal)');
+    // print('❌ Failed: $failureCount');
   }
 
   DartFile _loadDartFile(String path) {

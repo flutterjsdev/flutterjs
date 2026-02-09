@@ -1,8 +1,8 @@
 {
-  "name": "@flutterjs/flutterjs_services",
+  "name": "@flutterjs/services",
   "version": "1.0.0",
   "description": "A FlutterJS package",
-  "main": "src/index.js",
+  "main": "./dist/seo.js",
   "type": "module",
   "scripts": {
     "test": "echo \"No tests yet\"",
@@ -26,5 +26,8 @@
     "src/",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "exports": {
+    ".": "./dist/index.js"
+  }
 }

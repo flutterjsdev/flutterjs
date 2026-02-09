@@ -297,6 +297,14 @@ class PackageBuilder {
       return BuildResult.skipped;
     }
 
+    // 🌐 SPECIAL HANDLING: web package (Dart JS interop)
+    // The 'web' package uses Dart's JS interop which doesn't transpile well.
+    // Instead, we create a browser-compatible shim that exports browser globals.
+    if (packageName == 'web' || sourcePath.endsWith('/web')) {
+      if (verbose) print('   🌐 Creating browser shim for web package...');
+      return await _createWebPackageShim(sourcePath, verbose);
+    }
+
     // 2. Check if build needed
     if (!force) {
       final needed = await needsBuild(sourcePath);
@@ -389,6 +397,163 @@ class PackageBuilder {
     }
 
     return BuildResult.built;
+  }
+
+  /// Create a browser-compatible shim for the web package
+  Future<BuildResult> _createWebPackageShim(
+    String sourcePath,
+    bool verbose,
+  ) async {
+    try {
+      final distDir = Directory(p.join(sourcePath, 'dist'));
+      if (!await distDir.exists()) {
+        await distDir.create(recursive: true);
+      }
+
+      final webJsFile = File(p.join(sourcePath, 'dist', 'web.js'));
+
+      // Create browser shim that exports browser globals
+      const shimContent =
+          '''// ============================================================================
+// Browser Web API Shim for FlutterJS
+// Provides browser DOM APIs that the Dart 'web' package expects
+// ============================================================================
+
+// Re-export all browser globals
+export const window = globalThis.window;
+export const document = globalThis.document;
+export const console = globalThis.console;
+export const navigator = globalThis.navigator;
+export const location = globalThis.location;
+
+// DOM Element Types - these are constructor functions from the browser
+export const HTMLElement = globalThis.HTMLElement;
+export const HTMLDivElement = globalThis.HTMLDivElement;
+export const HTMLSpanElement = globalThis.HTMLSpanElement;
+export const HTMLAnchorElement = globalThis.HTMLAnchorElement;
+export const HTMLButtonElement = globalThis.HTMLButtonElement;
+export const HTMLInputElement = globalThis.HTMLInputElement;
+export const HTMLTextAreaElement = globalThis.HTMLTextAreaElement;
+export const HTMLSelectElement = globalThis.HTMLSelectElement;
+export const HTMLOptionElement = globalThis.HTMLOptionElement;
+export const HTMLImageElement = globalThis.HTMLImageElement;
+export const HTMLCanvasElement = globalThis.HTMLCanvasElement;
+export const HTMLVideoElement = globalThis.HTMLVideoElement;
+export const HTMLAudioElement = globalThis.HTMLAudioElement;
+export const HTMLIFrameElement = globalThis.HTMLIFrameElement;
+export const HTMLFormElement = globalThis.HTMLFormElement;
+export const HTMLTableElement = globalThis.HTMLTableElement;
+export const HTMLTableRowElement = globalThis.HTMLTableRowElement;
+export const HTMLTableCellElement = globalThis.HTMLTableCellElement;
+
+// Event Types
+export const Event = globalThis.Event;
+export const MouseEvent = globalThis.MouseEvent;
+export const KeyboardEvent = globalThis.KeyboardEvent;
+export const FocusEvent = globalThis.FocusEvent;
+export const InputEvent = globalThis.InputEvent;
+export const TouchEvent = globalThis.TouchEvent;
+export const CustomEvent = globalThis.CustomEvent;
+
+// Other Web APIs
+export const XMLHttpRequest = globalThis.XMLHttpRequest;
+export const fetch = globalThis.fetch;
+export const Response = globalThis.Response;
+export const Request = globalThis.Request;
+export const Headers = globalThis.Headers;
+export const URL = globalThis.URL;
+export const URLSearchParams = globalThis.URLSearchParams;
+
+// Storage APIs
+export const localStorage = globalThis.localStorage;
+export const sessionStorage = globalThis.sessionStorage;
+
+// Timer functions
+export const setTimeout = globalThis.setTimeout;
+export const setInterval = globalThis.setInterval;
+export const clearTimeout = globalThis.clearTimeout;
+export const clearInterval = globalThis.clearInterval;
+export const requestAnimationFrame = globalThis.requestAnimationFrame;
+export const cancelAnimationFrame = globalThis.cancelAnimationFrame;
+
+// Default export with all APIs
+export default {
+  window,
+  document,
+  console,
+  navigator,
+  location,
+  HTMLElement,
+  HTMLDivElement,
+  HTMLSpanElement,
+  HTMLAnchorElement,
+  HTMLButtonElement,
+  HTMLInputElement,
+  HTMLTextAreaElement,
+  HTMLSelectElement,
+  HTMLOptionElement,
+  HTMLImageElement,
+  HTMLCanvasElement,
+  HTMLVideoElement,
+  HTMLAudioElement,
+  HTMLIFrameElement,
+  HTMLFormElement,
+  HTMLTableElement,
+  HTMLTableRowElement,
+  HTMLTableCellElement,
+  Event,
+  MouseEvent,
+  KeyboardEvent,
+  FocusEvent,
+  InputEvent,
+  TouchEvent,
+  CustomEvent,
+  XMLHttpRequest,
+  fetch,
+  Response,
+  Request,
+  Headers,
+  URL,
+  URLSearchParams,
+  localStorage,
+  sessionStorage,
+  setTimeout,
+  setInterval,
+  clearTimeout,
+  clearInterval,
+  requestAnimationFrame,
+  cancelAnimationFrame
+};
+''';
+
+      await webJsFile.writeAsString(shimContent);
+
+      // Create exports.json manifest
+      final exportsFile = File(p.join(sourcePath, 'exports.json'));
+      final manifest = {
+        'package': 'web',
+        'version': '1.0.0-shim',
+        'exports': [
+          {'name': 'default', 'path': 'dist/web.js', 'type': 'browser-shim'},
+        ],
+      };
+      await exportsFile.writeAsString(jsonEncode(manifest));
+
+      // Save build info
+      final buildInfoFile = File(p.join(sourcePath, '.build_info.json'));
+      await buildInfoFile.writeAsString(
+        jsonEncode({
+          'hash': 'browser-shim',
+          'timestamp': DateTime.now().toIso8601String(),
+        }),
+      );
+
+      if (verbose) print('   ✓ web (browser shim created)');
+      return BuildResult.built;
+    } catch (e) {
+      print('❌ Failed to create web package shim: $e');
+      return BuildResult.failed;
+    }
   }
 
   /// Check if a package needs to be built using Content Hashing

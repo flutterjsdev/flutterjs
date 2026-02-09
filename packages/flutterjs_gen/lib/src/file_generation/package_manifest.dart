@@ -22,7 +22,11 @@ class PackageManifest {
     return PackageManifest(
       packageName: json['package'] as String,
       version: json['version'] as String,
-      exports: Set<String>.from(json['exports'] as List),
+      exports: (json['exports'] as List).map((e) {
+        if (e is String) return e;
+        if (e is Map) return e['name'] as String;
+        return e.toString();
+      }).toSet(),
     );
   }
 
@@ -54,22 +58,26 @@ class PackageRegistry {
   void loadManifest(String manifestPath) {
     try {
       final manifest = PackageManifest.fromFile(manifestPath);
-      _packagesByName[manifest.packageName] = manifest;
-
-      // Build reverse index: symbol → package
-      for (final symbol in manifest.exports) {
-        // If symbol already exists, keep first package (SDK packages loaded first)
-        if (!_symbolToPackage.containsKey(symbol)) {
-          _symbolToPackage[symbol] = manifest.packageName;
-        }
-      }
-
-      print(
-        '📋 Loaded ${manifest.packageName}: ${manifest.exports.length} exports',
-      );
+      _registerManifest(manifest);
     } catch (e) {
       print('⚠️  Failed to load manifest $manifestPath: $e');
     }
+  }
+
+  void _registerManifest(PackageManifest manifest) {
+    _packagesByName[manifest.packageName] = manifest;
+
+    // Build reverse index: symbol → package
+    for (final symbol in manifest.exports) {
+      // If symbol already exists, keep first package (SDK packages loaded first)
+      if (!_symbolToPackage.containsKey(symbol)) {
+        _symbolToPackage[symbol] = manifest.packageName;
+      }
+    }
+
+    print(
+      '📋 Registered ${manifest.packageName}: ${manifest.exports.length} exports',
+    );
   }
 
   /// Auto-discover and load all exports.json in packages directory
@@ -114,4 +122,12 @@ class PackageRegistry {
 
   /// Check if a symbol is known
   bool hasSymbol(String symbol) => _symbolToPackage.containsKey(symbol);
+
+  /// Register a local symbol pointing to a specific file path
+  void registerLocalSymbol(String symbol, String absolutePath) {
+    // For local files, we map the symbol to the absolute path
+    // ImportResolver/ImportAnalyzer will need to handle this path
+    _symbolToPackage[symbol] = absolutePath;
+    print('📝 Registered local symbol: $symbol -> $absolutePath');
+  }
 }
