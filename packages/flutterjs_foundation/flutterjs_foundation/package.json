@@ -1,5 +1,5 @@
 {
-  "name": "@flutterjs/flutterjs_foundation",
+  "name": "@flutterjs/foundation",
   "version": "1.0.0",
   "description": "A FlutterJS package",
   "main": "./dist/seo.js",
@@ -24,6 +24,7 @@
   },
   "files": [
     "src/",
+    "dist/",
     "README.md",
     "LICENSE"
   ],

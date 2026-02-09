@@ -21,7 +21,7 @@ class ImportResolver {
     'package:flutter/material.dart': '@flutterjs/material',
     'package:flutter/widgets.dart': '@flutterjs/widgets',
     'package:flutter/cupertino.dart': '@flutterjs/cupertino',
-    
+
     // Flutter SDK sub-packages
     'package:flutter/foundation.dart': '@flutterjs/foundation',
     'package:flutter/services.dart': '@flutterjs/services',
@@ -36,11 +36,10 @@ class ImportResolver {
     // Core Dart Packages
     'package:path/path.dart': 'path',
     'package:term_glyph/term_glyph.dart': 'term_glyph',
-    
+
     // ✅ FIX: Explicit mapping for dart:core
     'dart:core': '@flutterjs/dart/core',
   };
-
 
   final Map<String, String> _libraryToPackageMap;
 
@@ -68,6 +67,11 @@ class ImportResolver {
     // ✅ FIX: Force Uri to dart:core
     if (symbol == 'Uri') {
       return '@flutterjs/dart/core';
+    }
+
+    // ✅ FIX: Force Seo to @flutterjs/seo
+    if (symbol == 'Seo') {
+      return '@flutterjs/seo';
     }
 
     // 2. Fallback to library-based resolution

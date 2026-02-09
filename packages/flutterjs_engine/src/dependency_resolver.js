@@ -6,7 +6,7 @@
  * ============================================================================
  * FlutterJS Dependency Resolver - FINAL FIXED VERSION
  * ============================================================================
- * 
+ *
  * Purpose:
  * - Resolves all imports from analyzer result
  * - Finds packages in packages/flutterjs_engine/src/ folders
@@ -14,9 +14,9 @@
  * - Validates all dependencies are available
  */
 
-import fs from 'fs';
-import path from 'path';
-import chalk from 'chalk';
+import fs from "fs";
+import path from "path";
+import chalk from "chalk";
 
 // ============================================================================
 // RESOLUTION DATA TYPES
@@ -75,8 +75,10 @@ class ResolutionResult {
   }
 
   hasErrors() {
-    return this.errors.length > 0 ||
-      Array.from(this.packages.values()).some(pkg => !pkg.isValid());
+    return (
+      this.errors.length > 0 ||
+      Array.from(this.packages.values()).some((pkg) => !pkg.isValid())
+    );
   }
 
   toString() {
@@ -99,7 +101,7 @@ class DependencyResolver {
       projectRoot: options.projectRoot || process.cwd(),
       debugMode: options.debugMode || false,
       config: options.config || {}, // ✅ Store config
-      ...options
+      ...options,
     };
 
     this.projectRoot = this.options.projectRoot;
@@ -110,22 +112,34 @@ class DependencyResolver {
     this._loadPackageMap();
 
     if (this.options.debugMode) {
-      console.log(chalk.cyan('\n[DependencyResolver] Initialized'));
+      console.log(chalk.cyan("\n[DependencyResolver] Initialized"));
       console.log(chalk.gray(`  Project Root: ${this.projectRoot}`));
       if (this.preResolvedPackages.size > 0) {
-        console.log(chalk.green(`  Loaded authoritative map with ${this.preResolvedPackages.size} packages`));
+        console.log(
+          chalk.green(
+            `  Loaded authoritative map with ${this.preResolvedPackages.size} packages`
+          )
+        );
       } else {
-        console.log(chalk.yellow(`  No authoritative map found (will use dynamic discovery)`));
+        console.log(
+          chalk.yellow(
+            `  No authoritative map found (will use dynamic discovery)`
+          )
+        );
       }
     }
   }
 
-
   _loadPackageMap() {
     try {
-      const mapPath = path.join(this.projectRoot, '.dart_tool', 'flutterjs', 'package_map.json');
+      const mapPath = path.join(
+        this.projectRoot,
+        ".dart_tool",
+        "flutterjs",
+        "package_map.json"
+      );
       if (fs.existsSync(mapPath)) {
-        const data = JSON.parse(fs.readFileSync(mapPath, 'utf8'));
+        const data = JSON.parse(fs.readFileSync(mapPath, "utf8"));
         if (data.packages) {
           for (const [name, pkgPath] of Object.entries(data.packages)) {
             this.preResolvedPackages.set(name, pkgPath);
@@ -134,7 +148,11 @@ class DependencyResolver {
       }
     } catch (e) {
       if (this.options.debugMode) {
-        console.log(chalk.yellow(`  ⚠ Warning: Failed to load package_map.json: ${e.message}`));
+        console.log(
+          chalk.yellow(
+            `  ⚠ Warning: Failed to load package_map.json: ${e.message}`
+          )
+        );
       }
     }
   }
@@ -148,7 +166,12 @@ class DependencyResolver {
     let level = 0;
 
     while (level < maxLevels && currentPath !== path.dirname(currentPath)) {
-      const enginePath = path.join(currentPath, 'packages', 'flutterjs_engine', 'src');
+      const enginePath = path.join(
+        currentPath,
+        "packages",
+        "flutterjs_engine",
+        "src"
+      );
 
       if (this.options.debugMode && level < 5) {
         console.log(chalk.gray(`    [Level ${level}] Checking: ${enginePath}`));
@@ -156,7 +179,9 @@ class DependencyResolver {
 
       if (fs.existsSync(enginePath)) {
         if (this.options.debugMode) {
-          console.log(chalk.green(`  ✔ Found flutterjs root at: ${currentPath}`));
+          console.log(
+            chalk.green(`  ✔ Found flutterjs root at: ${currentPath}`)
+          );
         }
         return currentPath;
       }
@@ -166,7 +191,9 @@ class DependencyResolver {
     }
 
     if (this.options.debugMode) {
-      console.log(chalk.yellow(`  ⚠ Could not find flutterjs root, using projectRoot`));
+      console.log(
+        chalk.yellow(`  ⚠ Could not find flutterjs root, using projectRoot`)
+      );
     }
     return this.projectRoot;
   }
@@ -175,8 +202,8 @@ class DependencyResolver {
    * Resolve all dependencies from analysis
    */
   async resolveAll(analysis) {
-    console.log(chalk.blue('\n📦 Phase 2: Resolving dependencies...'));
-    console.log(chalk.blue('='.repeat(70)));
+    console.log(chalk.blue("\n📦 Phase 2: Resolving dependencies..."));
+    console.log(chalk.blue("=".repeat(70)));
 
     try {
       // Extract all packages
@@ -191,19 +218,19 @@ class DependencyResolver {
       }
 
       if (allPackages.size === 0) {
-        console.log(chalk.yellow('⚠️  No @flutterjs/* packages found'));
+        console.log(chalk.yellow("⚠️  No @flutterjs/* packages found"));
         return {
           packages: new Map(),
           allFiles: [],
           graph: new Map(),
           errors: [],
-          warnings: []
+          warnings: [],
         };
       }
 
       // Find SDK root once
       const sdkRoot = this.findFlutterjsRoot(this.projectRoot);
-      const srcDir = path.join(sdkRoot, 'packages', 'flutterjs_engine', 'src');
+      const srcDir = path.join(sdkRoot, "packages", "flutterjs_engine", "src");
 
       if (this.options.debugMode) {
         console.log(chalk.cyan(`SDK Root: ${sdkRoot}`));
@@ -215,17 +242,18 @@ class DependencyResolver {
         this.resolvePackage(packageName, srcDir);
       }
 
-      console.log(chalk.blue('='.repeat(70)));
-      console.log(chalk.green(`✔ Resolved ${this.resolvedPackages.size} packages\n`));
+      console.log(chalk.blue("=".repeat(70)));
+      console.log(
+        chalk.green(`✔ Resolved ${this.resolvedPackages.size} packages\n`)
+      );
 
       return {
         packages: this.resolvedPackages,
         allFiles: [],
         graph: new Map(),
         errors: [],
-        warnings: []
+        warnings: [],
       };
-
     } catch (error) {
       console.error(chalk.red(`\n✖ Resolution error: ${error.message}\n`));
       throw error;
@@ -242,42 +270,108 @@ class DependencyResolver {
   extractAllPackages(analysis) {
     const packages = new Set();
 
-    // ✅ 1. Read dependencies from package.json (Project Root)
-    // This ensures ALL installed packages are available in the import map, not just used ones
+    // ✅ 1. WORKSPACE SCAN: Auto-discover all @flutterjs packages in workspace
+    // This ensures ALL workspace packages are available, including foundation
     try {
-      const pkgJsonPath = path.join(this.projectRoot, 'package.json');
-      if (fs.existsSync(pkgJsonPath)) {
-        const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
-        if (pkgJson.dependencies) {
-          for (const dep of Object.keys(pkgJson.dependencies)) {
-            packages.add(dep);
-            if (this.options.debugMode) {
-              console.log(chalk.gray(`  Found dependency (package.json): ${dep}`));
+      const sdkRoot = this.findFlutterjsRoot(this.projectRoot);
+      const packagesDir = path.join(sdkRoot, "packages");
+
+      if (fs.existsSync(packagesDir)) {
+        if (this.options.debugMode) {
+          console.log(
+            chalk.gray(`  Scanning workspace packages: ${packagesDir}`)
+          );
+        }
+
+        const entries = fs.readdirSync(packagesDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+          if (!entry.name.startsWith("flutterjs_")) continue;
+
+          // Convert flutterjs_foundation -> @flutterjs/foundation
+          const packageName = entry.name.replace("flutterjs_", "");
+          const scopedName = `@flutterjs/${packageName}`;
+
+          // Check if the package has a nested structure (packages/flutterjs_foundation/flutterjs_foundation)
+          const nestedPath = path.join(packagesDir, entry.name, entry.name);
+          const flatPath = path.join(packagesDir, entry.name);
+
+          let packagePath = null;
+          if (fs.existsSync(nestedPath)) {
+            packagePath = nestedPath;
+          } else if (fs.existsSync(path.join(flatPath, "package.json"))) {
+            packagePath = flatPath;
+          }
+
+          if (packagePath) {
+            packages.add(scopedName);
+            if (
+              this.options.debugMode ||
+              scopedName === "@flutterjs/foundation"
+            ) {
+              console.log(
+                chalk.green(`  Found workspace package: ${scopedName}`)
+              );
             }
           }
         }
       }
     } catch (e) {
-      console.warn(chalk.yellow(`⚠️  Could not read package.json dependencies: ${e.message}`));
+      if (this.options.debugMode) {
+        console.warn(chalk.yellow(`  ⚠️  Workspace scan failed: ${e.message}`));
+      }
     }
 
-    // ✅ 2. Read dependencies from configuration (flutterjs.config.js)
+    // ✅ 2. Read dependencies from package.json (Project Root)
+    // This ensures ALL installed packages are available in the import map, not just used ones
+    try {
+      const pkgJsonPath = path.join(this.projectRoot, "package.json");
+      if (fs.existsSync(pkgJsonPath)) {
+        const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, "utf-8"));
+        if (pkgJson.dependencies) {
+          for (const dep of Object.keys(pkgJson.dependencies)) {
+            packages.add(dep);
+            if (this.options.debugMode) {
+              console.log(
+                chalk.gray(`  Found dependency (package.json): ${dep}`)
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(
+        chalk.yellow(
+          `⚠️  Could not read package.json dependencies: ${e.message}`
+        )
+      );
+    }
+
+    // ✅ 3. Read dependencies from configuration (flutterjs.config.js)
     if (this.options.config && this.options.config.packages) {
       for (const packageName of Object.keys(this.options.config.packages)) {
         packages.add(packageName);
         if (this.options.debugMode) {
-          console.log(chalk.gray(`  Found dependency (config): ${packageName}`));
+          console.log(
+            chalk.gray(`  Found dependency (config): ${packageName}`)
+          );
         }
       }
     }
 
-    // ✅ 3. Read dependencies from authoritative map (package_map.json) generated by 'flutterjs get'
+    // ✅ 4. Read dependencies from authoritative map (package_map.json) generated by 'flutterjs get'
     if (this.preResolvedPackages && this.preResolvedPackages.size > 0) {
-      console.log(chalk.yellow(`[DEBUG] extractAllPackages: Authoritative map has ${this.preResolvedPackages.size} packages`));
+      console.log(
+        chalk.yellow(
+          `[DEBUG] extractAllPackages: Authoritative map has ${this.preResolvedPackages.size} packages`
+        )
+      );
       for (const packageName of this.preResolvedPackages.keys()) {
         packages.add(packageName);
-        if (this.options.debugMode || packageName === 'http_parser') {
-          console.log(chalk.gray(`  Found dependency (authoritative map): ${packageName}`));
+        if (this.options.debugMode || packageName === "http_parser") {
+          console.log(
+            chalk.gray(`  Found dependency (authoritative map): ${packageName}`)
+          );
         }
       }
     }
@@ -286,15 +380,19 @@ class DependencyResolver {
       return packages;
     }
 
-    // ✅ 2. Add imports found in analysis
+    // ✅ 5. Add imports found in analysis
     // Handle object format
-    if (analysis.imports && typeof analysis.imports === 'object' && !Array.isArray(analysis.imports)) {
+    if (
+      analysis.imports &&
+      typeof analysis.imports === "object" &&
+      !Array.isArray(analysis.imports)
+    ) {
       for (const packageName of Object.keys(analysis.imports)) {
-        if (packageName.startsWith('.')) continue; // Skip local
+        if (packageName.startsWith(".")) continue; // Skip local
 
         // Handle package: scheme
-        if (packageName.startsWith('package:')) {
-          const name = packageName.split('/')[0].replace('package:', '');
+        if (packageName.startsWith("package:")) {
+          const name = packageName.split("/")[0].replace("package:", "");
           packages.add(name);
         } else {
           // Add everything else (scoped or regular)
@@ -307,16 +405,16 @@ class DependencyResolver {
     if (Array.isArray(analysis.imports)) {
       for (const item of analysis.imports) {
         let pkgName = null;
-        if (typeof item === 'string') {
-          if (item.startsWith('.')) continue; // Skip local
+        if (typeof item === "string") {
+          if (item.startsWith(".")) continue; // Skip local
 
-          if (item.startsWith('package:')) {
-            pkgName = item.split('/')[0].replace('package:', '');
+          if (item.startsWith("package:")) {
+            pkgName = item.split("/")[0].replace("package:", "");
           } else {
             // Extract package name (handles @scope/pkg and plain-pkg)
             pkgName = this.extractPackageName(item);
           }
-        } else if (typeof item === 'object' && item && item.source) {
+        } else if (typeof item === "object" && item && item.source) {
           pkgName = this.extractPackageName(item.source);
         }
 
@@ -326,34 +424,39 @@ class DependencyResolver {
       }
     }
 
-    // ✅ 4. SCANNED: Scan node_modules for any missing packages
+    // ✅ 6. SCANNED: Scan node_modules for any missing packages
     // We check both the build output location and the local project location
     const scanPaths = [
-      path.join(this.projectRoot, 'build', 'flutterjs', 'node_modules'),
-      path.join(this.projectRoot, 'node_modules')
+      path.join(this.projectRoot, "build", "flutterjs", "node_modules"),
+      path.join(this.projectRoot, "node_modules"),
     ];
 
     for (const scanPath of scanPaths) {
       try {
         if (fs.existsSync(scanPath)) {
-          if (this.options.debugMode) console.log(chalk.gray(`  Scanning: ${scanPath}`));
+          if (this.options.debugMode)
+            console.log(chalk.gray(`  Scanning: ${scanPath}`));
 
           const entries = fs.readdirSync(scanPath, { withFileTypes: true });
           for (const entry of entries) {
             if (!entry.isDirectory()) continue;
-            if (entry.name.startsWith('.')) continue;
+            if (entry.name.startsWith(".")) continue;
 
             // Handle Scoped Packages
-            if (entry.name.startsWith('@')) {
+            if (entry.name.startsWith("@")) {
               const scopedPath = path.join(scanPath, entry.name);
-              const scopedEntries = fs.readdirSync(scopedPath, { withFileTypes: true });
+              const scopedEntries = fs.readdirSync(scopedPath, {
+                withFileTypes: true,
+              });
               for (const scopedEntry of scopedEntries) {
                 if (!scopedEntry.isDirectory()) continue;
                 const pkgName = `${entry.name}/${scopedEntry.name}`;
                 if (!packages.has(pkgName)) {
                   packages.add(pkgName);
                   if (this.options.debugMode) {
-                    console.log(chalk.green(`  Found scanned dependency: ${pkgName}`));
+                    console.log(
+                      chalk.green(`  Found scanned dependency: ${pkgName}`)
+                    );
                   }
                 }
               }
@@ -361,8 +464,10 @@ class DependencyResolver {
               // Handle Regular Packages (e.g. http_parser)
               if (!packages.has(entry.name)) {
                 packages.add(entry.name);
-                if (this.options.debugMode || entry.name === 'http_parser') {
-                  console.log(chalk.green(`  Found scanned dependency: ${entry.name}`));
+                if (this.options.debugMode || entry.name === "http_parser") {
+                  console.log(
+                    chalk.green(`  Found scanned dependency: ${entry.name}`)
+                  );
                 }
               }
             }
@@ -370,7 +475,9 @@ class DependencyResolver {
         }
       } catch (e) {
         if (this.options.debugMode) {
-          console.log(chalk.yellow(`  ⚠ Scanning ${scanPath} failed: ${e.message}`));
+          console.log(
+            chalk.yellow(`  ⚠ Scanning ${scanPath} failed: ${e.message}`)
+          );
         }
       }
     }
@@ -383,16 +490,16 @@ class DependencyResolver {
    * @flutterjs/material/core -> @flutterjs/material
    */
   extractPackageName(source) {
-    if (!source || typeof source !== 'string') return null;
+    if (!source || typeof source !== "string") return null;
 
     // Handle scoped packages
-    if (source.startsWith('@')) {
-      const parts = source.split('/');
+    if (source.startsWith("@")) {
+      const parts = source.split("/");
       return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : null;
     }
 
     // Handle regular packages
-    const parts = source.split('/');
+    const parts = source.split("/");
     return parts[0];
   }
 
@@ -405,8 +512,8 @@ class DependencyResolver {
   resolvePackage(fullPackageName, srcDir) {
     // Extract: @flutterjs/vdom -> vdom
     let packageName = fullPackageName;
-    if (fullPackageName.startsWith('@flutterjs/')) {
-      packageName = fullPackageName.split('/')[1];
+    if (fullPackageName.startsWith("@flutterjs/")) {
+      packageName = fullPackageName.split("/")[1];
     }
 
     if (this.options.debugMode) {
@@ -426,7 +533,9 @@ class DependencyResolver {
       const recordPath = this.preResolvedPackages.get(fullPackageName);
       if (fs.existsSync(recordPath)) {
         if (this.options.debugMode) {
-          console.log(chalk.green(`      Using authoritative record: ${recordPath}`));
+          console.log(
+            chalk.green(`      Using authoritative record: ${recordPath}`)
+          );
         }
         searchPaths.push(recordPath);
       }
@@ -436,7 +545,8 @@ class DependencyResolver {
     if (this.options.config?.packages?.[fullPackageName]) {
       const configEntry = this.options.config.packages[fullPackageName];
       // Supports string path or object { path: '...' }
-      const overridePath = typeof configEntry === 'string' ? configEntry : configEntry?.path;
+      const overridePath =
+        typeof configEntry === "string" ? configEntry : configEntry?.path;
 
       if (overridePath) {
         // Resolve relative paths against project root
@@ -447,7 +557,9 @@ class DependencyResolver {
         searchPaths.push(resolvedOverride);
 
         if (this.options.debugMode) {
-          console.log(chalk.cyan(`      Overriding path for ${fullPackageName}`));
+          console.log(
+            chalk.cyan(`      Overriding path for ${fullPackageName}`)
+          );
         }
       }
     }
@@ -455,12 +567,14 @@ class DependencyResolver {
     // 2. Default Mappings for Core SDK Packages
     // These are standard locations in the repo
     const CORE_DEFAULTS = {
-      '@flutterjs/runtime': 'packages/flutterjs_runtime/flutterjs_runtime',
-      '@flutterjs/material': 'packages/flutterjs_material/flutterjs_material',
-      '@flutterjs/vdom': 'packages/flutterjs_vdom/flutterjs_vdom',
-      '@flutterjs/analyzer': 'packages/flutterjs_analyzer/flutterjs_analyzer',
-      '@flutterjs/seo': 'packages/flutterjs_seo/flutterjs_seo',
-      '@flutterjs/dart': 'packages/flutterjs_dart',
+      "@flutterjs/runtime": "packages/flutterjs_runtime/flutterjs_runtime",
+      "@flutterjs/material": "packages/flutterjs_material/flutterjs_material",
+      "@flutterjs/vdom": "packages/flutterjs_vdom/flutterjs_vdom",
+      "@flutterjs/analyzer": "packages/flutterjs_analyzer/flutterjs_analyzer",
+      "@flutterjs/seo": "packages/flutterjs_seo/flutterjs_seo",
+      "@flutterjs/dart": "packages/flutterjs_dart",
+      "@flutterjs/foundation":
+        "packages/flutterjs_foundation/flutterjs_foundation",
     };
 
     if (CORE_DEFAULTS[fullPackageName]) {
@@ -471,15 +585,15 @@ class DependencyResolver {
 
     // 2. Default Engine Locations
     searchPaths.push(
-      path.join(engineRoot, 'src', packageName),
-      path.join(engineRoot, 'package', packageName)
+      path.join(engineRoot, "src", packageName),
+      path.join(engineRoot, "package", packageName)
     );
 
     // 3. Node Modules (Project Root & Build Dirs)
     const possibleNodeModules = [
-      path.join(this.projectRoot, 'node_modules'),
-      path.join(this.projectRoot, 'build', 'flutterjs', 'node_modules'), // pubjs default
-      path.join(this.projectRoot, 'dist', 'node_modules'), // alternative output
+      path.join(this.projectRoot, "node_modules"),
+      path.join(this.projectRoot, "build", "flutterjs", "node_modules"), // pubjs default
+      path.join(this.projectRoot, "dist", "node_modules"), // alternative output
     ];
 
     for (const nodeModules of possibleNodeModules) {
@@ -487,8 +601,8 @@ class DependencyResolver {
       searchPaths.push(path.join(nodeModules, fullPackageName));
 
       // b) If not scoped, try adding @flutterjs scope: .../node_modules/@flutterjs/http
-      if (!fullPackageName.startsWith('@flutterjs/')) {
-        searchPaths.push(path.join(nodeModules, '@flutterjs', fullPackageName));
+      if (!fullPackageName.startsWith("@flutterjs/")) {
+        searchPaths.push(path.join(nodeModules, "@flutterjs", fullPackageName));
       }
     }
 
@@ -498,7 +612,11 @@ class DependencyResolver {
       const searchPath = searchPaths[i];
 
       if (this.options.debugMode) {
-        console.log(chalk.gray(`  [${i + 1}/${searchPaths.length}] Checking: ${searchPath}`));
+        console.log(
+          chalk.gray(
+            `  [${i + 1}/${searchPaths.length}] Checking: ${searchPath}`
+          )
+        );
       }
 
       if (!fs.existsSync(searchPath)) {
@@ -535,7 +653,7 @@ class DependencyResolver {
         source: null,
         path: null,
         resolved: false,
-        error: `Package not found at any location`
+        error: `Package not found at any location`,
       });
       return;
     }
@@ -547,8 +665,8 @@ class DependencyResolver {
       location: foundPath,
       source: foundPath,
       path: foundPath,
-      type: 'sdk',
-      resolved: true
+      type: "sdk",
+      resolved: true,
     });
 
     console.log(chalk.green(`  ✔ ${fullPackageName}`));
@@ -560,8 +678,4 @@ class DependencyResolver {
 // EXPORTS
 // ============================================================================
 
-export {
-  DependencyResolver,
-  ResolvedPackage,
-  ResolutionResult
-};
+export { DependencyResolver, ResolvedPackage, ResolutionResult };

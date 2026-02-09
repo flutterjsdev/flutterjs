@@ -501,7 +501,9 @@ class ModelToJSPipeline {
   }
 
   String _generateImports(DartFile dartFile) {
-    print('DEBUG: _generateImports RUNNING for ${dartFile.filePath}'); // LOUD DEBUG
+    print(
+      'DEBUG: _generateImports RUNNING for ${dartFile.filePath}',
+    ); // LOUD DEBUG
     final buffer = StringBuffer();
 
     // ✅ Analyze symbol usage
@@ -958,7 +960,7 @@ class ModelToJSPipeline {
     // Handle 'flutter' SDK package mapping
     if (packageName == 'flutter') {
       final libName = filePath.split('/')[0].replaceAll('.dart', '');
-      return '@flutterjs/$libName/src/index.js';
+      return '@flutterjs/$libName/dist/index.js';
     }
 
     // For third-party packages, convert .dart to .js and add dist/

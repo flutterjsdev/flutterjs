@@ -313,7 +313,7 @@ class FileCodeGen {
       // -----------------------------------------------------------------------
       final coreImports = <String>{};
       final candidatesForCore = <String>{...usedTypes, ...usedWidgets, 'Uri'};
-      
+
       // Helper to check core symbols
       final resolver = ImportResolver(registry: packageRegistry);
 
@@ -322,9 +322,23 @@ class FileCodeGen {
         var s = symbol;
         if (s.endsWith('?')) s = s.substring(0, s.length - 1);
         if (s.contains('<')) s = s.substring(0, s.indexOf('<'));
-        
+
         // Skip ignored types
-        if (const {'String', 'int', 'double', 'num', 'bool', 'void', 'dynamic', 'Object', 'List', 'Map', 'Set', 'Function', 'null'}.contains(s)) {
+        if (const {
+          'String',
+          'int',
+          'double',
+          'num',
+          'bool',
+          'void',
+          'dynamic',
+          'Object',
+          'List',
+          'Map',
+          'Set',
+          'Function',
+          'null',
+        }.contains(s)) {
           continue;
         }
 
@@ -375,15 +389,28 @@ class FileCodeGen {
         if (widget.startsWith('_') || materialImports.contains(widget))
           continue;
 
+        if (widget == 'Uri') continue;
+        if (widget == 'Seo') continue;
+
+        // ✅ FIX: Heuristic for local widgets to prevent Material capture
+        // Most local pages end in "Page" or "Screen". We must ensure they resolve locally.
+        // We explicitly allow 'MaterialPage' as it is a real Material widget.
+        if ((widget.endsWith('Page') ||
+                widget.endsWith('Screen') ||
+                widget == 'MyApp') &&
+            widget != 'MaterialPage' &&
+            widget != 'CupertinoPage') {
+          continue;
+        }
+
         // ✅ FIX: Use strict resolution (ImportResolver)
         final resolvedPkg = resolver.resolve(widget);
-        
+
         // Only add if it resolves to Material or is a known UI widget
         // If it resolves to 'dart:core', it will be SKIPPED here (and handled by coreImports above)
         if (resolvedPkg == '@flutterjs/material') {
-           materialImports.add(widget);
-        } else if (resolver.isKnownCore(widget) ||
-            widget == 'ThemeData' ||
+          materialImports.add(widget);
+        } else if (widget == 'ThemeData' ||
             widget == 'ColorScheme' ||
             widget == 'Colors' ||
             widget == 'Theme' ||
@@ -396,8 +423,8 @@ class FileCodeGen {
             widget == 'MediaQueryData' ||
             widget == 'Spacer' ||
             widget == 'TextButtonThemeData') {
-           // Fallback for symbols not yet in registry but known to be Material
-           materialImports.add(widget);
+          // Fallback for symbols not yet in registry but known to be Material
+          materialImports.add(widget);
         }
       }
 
@@ -603,6 +630,7 @@ function _filterNamespace(ns, show, hide) {
 
         requiredSymbols.removeAll(definedNames);
         requiredSymbols.removeAll(materialImports);
+        requiredSymbols.removeAll(coreImports);
         requiredSymbols.removeAll(ignoredTypes);
 
         if (requiredSymbols.isNotEmpty) {

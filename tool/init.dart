@@ -18,8 +18,8 @@ void main() async {
   var exitCode = await pubGetProcess.exitCode;
   if (exitCode != 0) exit(exitCode);
 
-  // 2. NPM Install (Helper)
-  Future<void> npmInstall(String path) async {
+  // 2. NPM Install and Build (Helper)
+  Future<void> npmInstallAndBuild(String path, {bool skipBuild = false}) async {
     print('\n📦 Installing JS dependencies in $path...');
     var npmCmd = Platform.isWindows ? 'npm.cmd' : 'npm';
 
@@ -29,6 +29,13 @@ void main() async {
       return;
     }
 
+    // Check if package.json exists
+    if (!File('$path/package.json').existsSync()) {
+      print('⚠️ No package.json in $path, skipping...');
+      return;
+    }
+
+    // Install dependencies
     var process = await Process.start(
       npmCmd,
       ['install'],
@@ -42,11 +49,54 @@ void main() async {
       exit(code);
     }
     print('✅ Dependencies installed in $path');
+
+    // Skip build if requested
+    if (skipBuild) {
+      print('⏭️  Skipping build for $path');
+      return;
+    }
+
+    // Build the package
+    print('🔨 Building package in $path...');
+    var buildProcess = await Process.start(
+      npmCmd,
+      ['run', 'build'],
+      workingDirectory: path,
+      mode: ProcessStartMode.inheritStdio,
+      runInShell: true,
+    );
+    var buildCode = await buildProcess.exitCode;
+    if (buildCode != 0) {
+      print('⚠️  Build failed for $path (this may be expected)');
+      // Don't exit - continue with other packages
+      return;
+    }
+    print('✅ Package built in $path');
   }
 
-  await npmInstall('packages/flutterjs_engine');
-  await npmInstall('packages/flutterjs_vscode_extension');
-  await npmInstall('examples/counter');
+  // Install engine but skip build (it's a CLI tool)
+  await npmInstallAndBuild('packages/flutterjs_engine', skipBuild: true);
+
+  // Build all library packages that have package.json
+  final packagesToBuild = [
+    'packages/flutterjs_foundation/flutterjs_foundation',
+    'packages/flutterjs_runtime/flutterjs_runtime',
+    'packages/flutterjs_material/flutterjs_material',
+    'packages/flutterjs_vdom/flutterjs_vdom',
+    'packages/flutterjs_seo/flutterjs_seo',
+    'packages/flutterjs_analyzer/flutterjs_analyzer',
+    'packages/flutterjs_widgets/flutterjs_widgets',
+    'packages/flutterjs_rendering/flutterjs_rendering',
+    'packages/flutterjs_animation/flutterjs_animation',
+    'packages/flutterjs_cupertino/flutterjs_cupertino',
+    'packages/flutterjs_gestures/flutterjs_gestures',
+    'packages/flutterjs_painting/flutterjs_painting',
+    'packages/flutterjs_services/flutterjs_services',
+  ];
+
+  for (final pkg in packagesToBuild) {
+    await npmInstallAndBuild(pkg);
+  }
 
   print('\n✅ Initialization complete!');
 }
