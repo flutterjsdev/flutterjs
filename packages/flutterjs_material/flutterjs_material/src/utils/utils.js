@@ -17,7 +17,7 @@ export * from './property/box_fit.js';
 export * from './box_shadow.js';
 export * from './box_constraints.js';
 export * from './property/clip.js';
-export * from './color.js';
+export { Color } from './color.js';
 export * from './property/cross_axis_alignment.js';
 export * from './duration.js';
 export * from './edge_insets.js';

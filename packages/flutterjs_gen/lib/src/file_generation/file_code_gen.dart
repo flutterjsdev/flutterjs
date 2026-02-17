@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:flutterjs_gen/src/file_generation/runtime_requirements.dart';
 import '../widget_generation/stateless_widget/stateless_widget_js_code_gen.dart';
 import '../utils/indenter.dart';
+import '../code_generation/enum/enum_code_generator.dart';
 import 'import_resolver.dart';
 import 'package_manifest.dart';
 
@@ -21,11 +22,17 @@ class FileCodeGen {
   final OutputValidator? outputValidator;
   final JSOptimizer? jsOptimizer;
   final PackageRegistry packageRegistry;
+
+  /// Compilation target: 'web' (Flutter/browser) or 'node' (Node.js).
+  /// When 'node', Flutter/material/services imports are skipped entirely.
+  final String target;
+
   late Indenter indenter;
 
   late Set<String> usedWidgets;
   late Set<String> usedHelpers;
   late Set<String> usedTypes;
+  late Set<String> usedFunctions; // ✅ NEW: Track top-level function calls
   late Set<String> definedNames; // ✅ NEW: Track locally defined names
   late Map<String, List<String>> classDependencies;
 
@@ -46,6 +53,7 @@ class FileCodeGen {
     PackageRegistry? packageRegistry,
     this.outputValidator,
     this.jsOptimizer,
+    this.target = 'web',
   }) : exprCodeGen = exprCodeGen ?? ExpressionCodeGen(),
        stmtCodeGen = stmtCodeGen ?? StatementCodeGen(),
        classCodeGen = classCodeGen ?? ClassCodeGen(),
@@ -57,6 +65,7 @@ class FileCodeGen {
     usedWidgets = {};
     usedHelpers = {};
     usedTypes = {};
+    usedFunctions = {};
     definedNames = {};
     classDependencies = {};
   }
@@ -119,9 +128,17 @@ class FileCodeGen {
       usedWidgets.clear();
       usedHelpers.clear();
       usedTypes.clear();
+      usedFunctions.clear();
       definedNames.clear();
       classDependencies.clear();
     });
+
+    // Analyze enums
+    for (final enumDecl in dartFile.enumDeclarations) {
+      await _lock.protect(() async {
+        definedNames.add(enumDecl.name);
+      });
+    }
 
     // Analyze classes
     for (final cls in dartFile.classDeclarations) {
@@ -190,6 +207,10 @@ class FileCodeGen {
       usedTypes.add(func.returnType.displayName());
       for (final param in func.parameters) {
         usedTypes.add(param.type.displayName());
+        // Detect widgets/classes used in default parameter values
+        if (param.defaultValue != null) {
+          _detectWidgetsInExpression(param.defaultValue!);
+        }
       }
     });
 
@@ -232,15 +253,26 @@ class FileCodeGen {
 
     code.writeln(await _generateRequiredHelpersAsync());
     code.writeln();
-    code.writeln(await _generateTopLevelVariablesAsync(dartFile));
-    code.writeln();
+    // Enums and classes MUST come before top-level variables and functions
+    // so that initializers like `let _users = { "1": new User(...) }` can
+    // reference the class without a ReferenceError (JS `class` is not hoisted).
     code.writeln(await _generateEnumsAndConstantsAsync(dartFile));
     code.writeln();
     code.writeln(await _generateClassesAsync(dartFile));
     code.writeln();
+    code.writeln(await _generateTopLevelVariablesAsync(dartFile));
+    code.writeln();
     code.writeln(await _generateFunctionsAsync(dartFile));
     code.writeln();
     code.writeln(await _generateExportsAsync(dartFile));
+
+    // Auto-invoke main() for entry-point files (target=node, file named main.dart/main.js)
+    // Dart's `main()` is the program entry point; in a JS module it must be called explicitly.
+    final hasMain = dartFile.functionDeclarations.any((f) => f.name == 'main');
+    if (hasMain) {
+      code.writeln('\n// Entry point — invoke main() automatically');
+      code.writeln('main();');
+    }
 
     return code.toString();
   }
@@ -312,7 +344,11 @@ class FileCodeGen {
       // CORE IMPORTS (dart:core -> @flutterjs/dart/core)
       // -----------------------------------------------------------------------
       final coreImports = <String>{};
-      final candidatesForCore = <String>{...usedTypes, ...usedWidgets, 'Uri'};
+      final candidatesForCore = <String>{
+        ...usedTypes,
+        ...usedWidgets,
+        ...usedFunctions,
+      };
 
       // Helper to check core symbols
       final resolver = ImportResolver(registry: packageRegistry);
@@ -342,14 +378,11 @@ class FileCodeGen {
           continue;
         }
 
-        // ✅ FIX: Force Uri to always be a core import
-        if (s == 'Uri') {
-          coreImports.add(s);
-          continue;
-        }
-
         // Resolves using the shared ImportResolver logic
         if (resolver.resolve(s) == '@flutterjs/dart/core') {
+          coreImports.add(s);
+        } else if (s == 'Uri') {
+          // Uri is a dart:core type — only import if actually used
           coreImports.add(s);
         }
       }
@@ -364,18 +397,16 @@ class FileCodeGen {
       }
 
       // -----------------------------------------------------------------------
-      // UNIFIED MATERIAL IMPORTS
+      // UNIFIED MATERIAL IMPORTS  (web target only — skipped for node)
       // -----------------------------------------------------------------------
 
-      final materialImports = <String>{
-        'runApp',
-        'Widget',
-        'State',
-        'StatefulWidget',
-        'StatelessWidget',
-        'BuildContext',
-        'Key',
-      };
+      // Start empty — only populated if actual material symbols are detected
+      final materialImports = <String>{};
+      // Always declare servicesImports so later code can reference it safely
+      final servicesImports = <String>{};
+      if (target == 'node') {
+        // Node.js target: skip all Flutter/material/services imports entirely
+      } else {
 
       // Sort widgets to ensure deterministic output
       final sortedWidgets =
@@ -413,6 +444,9 @@ class FileCodeGen {
         } else if (widget == 'ThemeData' ||
             widget == 'ColorScheme' ||
             widget == 'Colors' ||
+            widget == 'Color' ||
+            widget == 'MaterialColor' ||
+            widget == 'ColorSwatch' ||
             widget == 'Theme' ||
             widget == 'Icon' ||
             widget == 'Icons' ||
@@ -422,17 +456,21 @@ class FileCodeGen {
             widget == 'MediaQuery' ||
             widget == 'MediaQueryData' ||
             widget == 'Spacer' ||
-            widget == 'TextButtonThemeData') {
+            widget == 'TextButtonThemeData' ||
+            widget == 'debugPrint') {
           // Fallback for symbols not yet in registry but known to be Material
           materialImports.add(widget);
         }
       }
 
       if (materialImports.isNotEmpty) {
-        // ✅ Restored & Expanded inference logic
-        materialImports.addAll({
+        // Only add companion symbols that are actually used — avoid spurious imports
+        const materialCompanions = {
           'Theme',
           'Colors',
+          'Color',
+          'MaterialColor',
+          'ColorSwatch',
           'Icons',
           'ThemeData',
           'EdgeInsets',
@@ -450,7 +488,21 @@ class FileCodeGen {
           'MediaQueryData',
           'Spacer',
           'TextButtonThemeData',
-        });
+          'debugPrint',
+          'runApp',
+          'Widget',
+          'State',
+          'StatefulWidget',
+          'StatelessWidget',
+          'BuildContext',
+          'Key',
+        };
+        // Add companions only if used in this file
+        for (final c in materialCompanions) {
+          if (usedWidgets.contains(c) || usedTypes.contains(c) || usedFunctions.contains(c)) {
+            materialImports.add(c);
+          }
+        }
 
         code.writeln('import {');
         final sortedImports = materialImports.toList()..sort();
@@ -458,6 +510,192 @@ class FileCodeGen {
           code.writeln('  $symbol,');
         }
         code.writeln('} from \'@flutterjs/material\';');
+      }
+
+      // -----------------------------------------------------------------------
+      // SERVICES IMPORTS (@flutterjs/services)
+      // -----------------------------------------------------------------------
+
+      // Ensure explicit service classes are imported
+      if (usedWidgets.contains('MethodCall') ||
+          usedWidgets.contains('MethodCodec') ||
+          usedWidgets.contains('JSONMethodCodec') ||
+          usedWidgets.contains('PlatformException') ||
+          usedTypes.contains('MethodCall') ||
+          usedTypes.contains('MethodCodec') ||
+          usedTypes.contains('JSONMethodCodec') ||
+          usedTypes.contains('PlatformException')) {
+        // Add them if detected
+      }
+      // Actually we iterate all widgets/types and check resolution
+
+      for (final widget in sortedWidgets) {
+        if (widget.startsWith('_') ||
+            materialImports.contains(widget) ||
+            coreImports.contains(widget))
+          continue;
+
+        final resolvedPkg = resolver.resolve(widget);
+        if (resolvedPkg == '@flutterjs/services') {
+          servicesImports.add(widget);
+        }
+      }
+
+      // Explicitly check for MethodCodec/JSONMethodCodec which might be variable types/initializers
+      // and not in sortedWidgets if they were only in usedTypes or definedNames (wait, definedNames excludes them)
+      // We just need to check usedTypes + usedWidgets
+      final serviceCandidates = {...usedWidgets, ...usedTypes};
+      for (final symbol in serviceCandidates) {
+        if (const {
+          'MethodCall',
+          'MethodCodec',
+          'JSONMethodCodec',
+          'PlatformException',
+        }.contains(symbol)) {
+          servicesImports.add(symbol);
+        }
+      }
+
+      if (servicesImports.isNotEmpty) {
+        code.writeln('import {');
+        for (final symbol in servicesImports.toList()..sort()) {
+          code.writeln('  $symbol,');
+        }
+        code.writeln(
+          '} from \'@flutterjs/services/dist/index.js\';',
+        ); // Use specific path or index? index.js is safe.
+        code.writeln();
+      }
+      } // end of web-only material/services block
+
+      // -----------------------------------------------------------------------
+      // EXTERNAL PACKAGE IMPORTS (url_launcher, shared_preferences, etc.)
+      // -----------------------------------------------------------------------
+      final externalImports = <String, Set<String>>{}; // packageName -> {symbols}
+
+      // Dart built-in functions that should not be imported as JS symbols
+      const dartBuiltinFunctions = {
+        'print',
+        'identical',
+        'identityHashCode',
+      };
+
+      for (final func in usedFunctions) {
+        if (definedNames.contains(func)) continue;
+        if (coreImports.contains(func)) continue;
+        if (materialImports.contains(func)) continue;
+        if (servicesImports.contains(func)) continue;
+        if (dartBuiltinFunctions.contains(func)) continue;
+
+        // Check if this function belongs to an imported external package
+        for (final importStmt in dartFile.imports) {
+          if (!importStmt.uri.startsWith('package:')) continue;
+          if (importStmt.uri.startsWith('package:flutter/')) continue;
+
+          final packageName = importStmt.uri
+              .substring('package:'.length)
+              .split('/')
+              .first;
+
+          // Check if the package registry knows this symbol
+          final registryPkg = packageRegistry.findPackageForSymbol(func);
+          if (registryPkg == packageName) {
+            externalImports
+                .putIfAbsent(packageName, () => <String>{})
+                .add(func);
+            break;
+          }
+        }
+      }
+
+      // Also check usedWidgets/usedTypes for external package classes
+      final allExternalCandidates = <String>{...usedWidgets, ...usedTypes};
+      for (final symbol in allExternalCandidates) {
+        if (definedNames.contains(symbol)) continue;
+        if (coreImports.contains(symbol)) continue;
+        if (materialImports.contains(symbol)) continue;
+        if (servicesImports.contains(symbol)) continue;
+
+        for (final importStmt in dartFile.imports) {
+          if (!importStmt.uri.startsWith('package:')) continue;
+          if (importStmt.uri.startsWith('package:flutter/')) continue;
+
+          final packageName = importStmt.uri
+              .substring('package:'.length)
+              .split('/')
+              .first;
+
+          final registryPkg = packageRegistry.findPackageForSymbol(symbol);
+          if (registryPkg == packageName) {
+            externalImports
+                .putIfAbsent(packageName, () => <String>{})
+                .add(symbol);
+            break;
+          }
+        }
+      }
+
+      if (externalImports.isNotEmpty) {
+        for (final entry in externalImports.entries) {
+          code.writeln('import {');
+          for (final symbol in entry.value.toList()..sort()) {
+            code.writeln('  $symbol,');
+          }
+          code.writeln("} from '${entry.key}';");
+          code.writeln();
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // SAME-PACKAGE SIBLING FILE IMPORTS
+      // -----------------------------------------------------------------------
+      // Detect symbols used from other files in the same package
+      final samePackageImports = <String, Set<String>>{}; // relativePath -> {symbols}
+
+      final allUsedSymbols = {...usedWidgets, ...usedTypes, ...usedFunctions};
+
+      for (final symbol in allUsedSymbols) {
+        // Skip if already handled
+        if (definedNames.contains(symbol)) continue;
+        if (coreImports.contains(symbol)) continue;
+        if (materialImports.contains(symbol)) continue;
+        if (servicesImports.contains(symbol)) continue;
+        if (dartBuiltinFunctions.contains(symbol)) continue;
+        if (externalImports.values.any((set) => set.contains(symbol))) continue;
+
+        // Check if this symbol is defined in another file in the same package
+        final symbolDetails = packageRegistry.findSymbolDetails(symbol);
+        if (symbolDetails != null) {
+          final symbolUri = symbolDetails['uri'] as String?;
+          final symbolPath = symbolDetails['path'] as String?;
+
+          if (symbolUri != null && symbolPath != null) {
+            // Extract package name from current file
+            final currentPackage = dartFile.package;
+
+            // Check if the symbol is from the same package but different file
+            if (symbolUri.startsWith('package:$currentPackage/')) {
+              // Don't import from the same file
+              if (symbolUri != 'package:$currentPackage/${dartFile.library}') {
+                // Use the path from exports.json (relative to package root)
+                samePackageImports
+                    .putIfAbsent(symbolPath, () => <String>{})
+                    .add(symbol);
+              }
+            }
+          }
+        }
+      }
+
+      if (samePackageImports.isNotEmpty) {
+        for (final entry in samePackageImports.entries) {
+          code.writeln('import {');
+          for (final symbol in entry.value.toList()..sort()) {
+            code.writeln('  $symbol,');
+          }
+          code.writeln("} from '${entry.key}';");
+          code.writeln();
+        }
       }
 
       // -----------------------------------------------------------------------
@@ -471,11 +709,29 @@ class FileCodeGen {
       for (final importStmt in dartFile.imports) {
         final uri = importStmt.uri;
 
+        // DEBUG: Trace import processing
+        if (dartFile.filePath.contains('url_launcher_web')) {
+          print(
+            'DEBUG: [CodeGen] Processing import: $uri for ${dartFile.filePath}',
+          );
+        }
+
         // Skip Core libs (handled by SmartImport logic above)
         if (uri.startsWith('dart:') ||
             uri.startsWith('package:flutter/') ||
             uri == 'package:flutterjs/material.dart') {
+          if (dartFile.filePath.contains('url_launcher_web')) {
+            print('DEBUG: [CodeGen] Skipped CORE import: $uri');
+          }
           continue;
+        }
+
+        // Skip packages already handled by external named imports
+        if (uri.startsWith('package:')) {
+          final pkgName = uri.substring('package:'.length).split('/').first;
+          if (externalImports.containsKey(pkgName)) {
+            continue;
+          }
         }
 
         // Determine JS Path
@@ -484,35 +740,22 @@ class FileCodeGen {
         // Optimize: Try to resolve to a known package first
         // This handles @flutterjs/seo, @flutterjs/material, etc.
         final resolvedPackage = resolver.resolveLibrary(uri);
+        bool isBarePackage = false;
 
         if (resolvedPackage != null) {
           jsPath = resolvedPackage;
+          isBarePackage = true;
         } else if (uri.startsWith('package:')) {
-          // Heuristic: If it's a package import, check if it's THIS package or external
-          // For now, assuming external packages are peer directories or node_modules
-          // But user said: "import is local ... full path and reference path"
-          // Simple strategy: Convert package:foo/bar.dart -> package/foo/bar.dart.js (or ./ if local)
-
-          // For local project (multi_file_test), imports are like package:multi_file_test/file.dart
-          // We need to resolve this relative to current file.
-          // However, simple relative imports are safer if possible.
-          // If the import IS relative (starts with .), use it directly.
-          if (!uri.startsWith('.')) {
-            // It is a package import. Let's just blindly import it from the packages directory structure
-            // assuming the build system lays it out.
-            // BUT user said "respective file already available at same location but .js"
-            // This implies if we import `utils.dart` (relative), `utils.js` is there.
-            // If we import `package:my_app/utils.dart`, and we are in `lib/main.dart`, that IS `utils.dart`.
-
-            // TRICKY: We don't easily know "current package name" here without more context.
-            // Fallback: Just treat it as a path that exists.
-            // APPEND .js extension (or replace .dart with .js)
-            if (jsPath.endsWith('.dart')) {
-              jsPath = jsPath.substring(0, jsPath.length - 5) + '.js';
-            } else {
-              jsPath += '.js';
-            }
-          }
+          // Convert package:foo/bar.dart -> 'foo' (bare module specifier)
+          // The 'package:' prefix is NOT valid in JavaScript imports.
+          final withoutPrefix = uri.substring(
+            'package:'.length,
+          ); // e.g. 'url_launcher/url_launcher.dart'
+          final packageName = withoutPrefix
+              .split('/')
+              .first; // e.g. 'url_launcher'
+          jsPath = packageName;
+          isBarePackage = true;
         } else {
           // Relative import
           if (jsPath.endsWith('.dart')) {
@@ -524,16 +767,39 @@ class FileCodeGen {
 
         // Ensure explicit relative path (e.g. 'models/file.js' -> './models/file.js')
         // Valid for any path that doesn't start with '.', '/', or '@' (scoped packages)
-        if (!jsPath.startsWith('.') &&
+        if (!isBarePackage &&
+            !jsPath.startsWith('.') &&
             !jsPath.startsWith('/') &&
             !jsPath.startsWith('@') &&
             !jsPath.startsWith('package:')) {
           jsPath = './$jsPath';
         }
 
+        // ✅ SPECIAL: Prevent UrlLauncherPlatform from importing MethodChannelUrlLauncher OR its own barrel file
+        // This breaks the circular dependency at the Import level
+        if (definedNames.contains('UrlLauncherPlatform') &&
+            (jsPath.contains('method_channel_url_launcher') ||
+                jsPath.contains('url_launcher_platform_interface'))) {
+          if (dartFile.filePath.contains('url_launcher_web')) {
+            print(
+              'DEBUG: [CodeGen] Skipped CIRCULAR import: $uri (mapped to $jsPath)',
+            );
+          }
+          continue;
+        }
+
         // Generate Namespace Import
         final namespaceVar = '_import_${importCounter++}';
         localNamespaces.add(namespaceVar);
+
+        if (dartFile.filePath.contains('url_launcher_web')) {
+          print('DEBUG: [CodeGen] Generatng import: $uri -> $jsPath');
+        }
+
+        if (dartFile.library != null &&
+            dartFile.library!.contains('url_launcher_web')) {
+          print('DEBUG: [CodeGen] Generatng import: $uri -> $jsPath');
+        }
 
         if (importStmt.prefix != null) {
           code.writeln('import * as ${importStmt.prefix} from \'$jsPath\';');
@@ -611,11 +877,20 @@ function _filterNamespace(ns, show, hide) {
           'null',
         };
 
+        // ✅ NEW ARCHITECTURE: Use ImportExportModel for filtering
+        // Fallback to manually-tracked definedNames if model not available
+        final model = dartFile.importExportModel;
+        final locallyDefined = model?.locallyDefined ?? definedNames;
+
         // Symbols that need resolution (Used but not defined, not resolved by core)
         final requiredSymbols = <String>{};
 
         // Collect all potential symbols and strip generics (e.g., List<User> -> List)
-        final candidates = <String>{...usedWidgets, ...usedTypes};
+        final candidates = <String>{
+          ...usedWidgets,
+          ...usedTypes,
+          ...usedFunctions,
+        };
         for (var symbol in candidates) {
           // ✅ FIX: Strip nullability suffix (?)
           if (symbol.endsWith('?')) {
@@ -628,10 +903,16 @@ function _filterNamespace(ns, show, hide) {
           requiredSymbols.add(symbol);
         }
 
-        requiredSymbols.removeAll(definedNames);
+        // ✅ NEW: Use model data if available, fallback to definedNames
+        requiredSymbols.removeAll(locallyDefined);
         requiredSymbols.removeAll(materialImports);
         requiredSymbols.removeAll(coreImports);
+        requiredSymbols.removeAll(servicesImports);
         requiredSymbols.removeAll(ignoredTypes);
+        requiredSymbols.removeAll(dartBuiltinFunctions);
+        requiredSymbols.removeAll(
+          externalImports.values.expand((s) => s).toSet(),
+        );
 
         if (requiredSymbols.isNotEmpty) {
           code.writeln('const {');
@@ -649,6 +930,37 @@ function _filterNamespace(ns, show, hide) {
         }
       }
     });
+
+    // -----------------------------------------------------------------------
+    // PLUGIN AUTO-REGISTRATION (Hack for url_launcher)
+    // -----------------------------------------------------------------------
+    bool usesUrlLauncher = false;
+    for (final importStmt in dartFile.imports) {
+      if (importStmt.uri.contains('url_launcher')) {
+        usesUrlLauncher = true;
+        break;
+      }
+    }
+
+    if (usesUrlLauncher) {
+      code.writeln();
+      code.writeln('// Auto-registration for url_launcher_web');
+      code.writeln("import { UrlLauncherPlugin } from 'url_launcher_web';");
+      code.writeln(
+        "console.log('DEBUG: Attempting to register UrlLauncherPlugin');",
+      );
+      code.writeln("try {");
+      code.writeln("  UrlLauncherPlugin.registerWith();");
+      code.writeln(
+        "  console.log('DEBUG: UrlLauncherPlugin registered successfully');",
+      );
+      code.writeln("} catch (e) {");
+      code.writeln(
+        "  console.warn('Failed to register UrlLauncherPlugin', e);",
+      );
+      code.writeln("}");
+      code.writeln();
+    }
 
     return code.toString();
   }
@@ -779,51 +1091,24 @@ function _filterNamespace(ns, show, hide) {
   Future<String> _generateEnumsAndConstantsAsync(DartFile dartFile) async {
     var code = StringBuffer();
 
-    final enums = dartFile.classDeclarations
-        .where((cls) => _isEnum(cls))
-        .toList();
-
-    if (enums.isEmpty) {
+    // Generate enums using the new EnumDecl IR
+    if (dartFile.enumDeclarations.isEmpty) {
       return '';
     }
 
-    code.writeln('// ===== ENUMS & CONSTANTS =====\n');
+    code.writeln('// ===== ENUMS =====\n');
 
-    for (int i = 0; i < enums.length; i++) {
-      code.writeln(await _generateEnumAsync(enums[i]));
-      if (i < enums.length - 1) {
+    final enumCodeGen = EnumCodeGen();
+    for (int i = 0; i < dartFile.enumDeclarations.length; i++) {
+      final enumDecl = dartFile.enumDeclarations[i];
+      code.write(enumCodeGen.generateEnum(enumDecl));
+
+      if (i < dartFile.enumDeclarations.length - 1) {
         code.writeln();
       }
     }
 
     code.writeln();
-    return code.toString();
-  }
-
-  Future<String> _generateEnumAsync(ClassDecl enumClass) async {
-    var code = StringBuffer();
-
-    code.writeln('const ${enumClass.name} = {');
-    indenter.indent();
-
-    final enumValues = enumClass.staticFields;
-    for (int i = 0; i < enumValues.length; i++) {
-      final field = enumValues[i];
-      final value = field.initializer != null
-          ? exprCodeGen.generate(field.initializer!, parenthesize: false)
-          : '$i';
-      code.write(indenter.line('${field.name}: $value'));
-
-      if (i < enumValues.length - 1) {
-        code.write(',\n');
-      } else {
-        code.write('\n');
-      }
-    }
-
-    indenter.dedent();
-    code.write(indenter.line('};'));
-
     return code.toString();
   }
 
@@ -1163,6 +1448,14 @@ function _filterNamespace(ns, show, hide) {
       if (stmt.defaultCase != null) {
         for (final s in stmt.defaultCase!.statements) _analyzeStatement(s);
       }
+    } else if (stmt is TryStmt) {
+      _analyzeStatement(stmt.tryBlock);
+      for (final clause in stmt.catchClauses) {
+        _analyzeStatement(clause.body);
+      }
+      if (stmt.finallyBlock != null) {
+        _analyzeStatement(stmt.finallyBlock!);
+      }
     }
   }
 
@@ -1214,6 +1507,14 @@ function _filterNamespace(ns, show, hide) {
       // Detect widget constructors by capitalized method name
       if (expr.methodName.isNotEmpty) {
         addWidget(expr.methodName);
+
+        // ✅ FIX: Detect top-level function calls (lowercase)
+        // Only if target is null (implicit this or top-level)
+        if (expr.target == null &&
+            expr.methodName.isNotEmpty &&
+            expr.methodName[0].toLowerCase() == expr.methodName[0]) {
+          usedFunctions.add(expr.methodName);
+        }
       }
 
       // For static method calls like Navigator.of(), detect the class name
@@ -1254,6 +1555,55 @@ function _filterNamespace(ns, show, hide) {
     } else if (expr is ConditionalExpressionIR) {
       _detectWidgetsInExpression(expr.thenExpression);
       _detectWidgetsInExpression(expr.elseExpression);
+    } else if (expr is FunctionCallExpr) {
+      // Handle free function calls like launchUrl(), debugPrint()
+      if (expr.functionName.isNotEmpty) {
+        addWidget(expr.functionName);
+        // Detect top-level function calls (camelCase)
+        if (expr.functionName[0].toLowerCase() == expr.functionName[0]) {
+          usedFunctions.add(expr.functionName);
+        }
+      }
+      for (final arg in expr.arguments) {
+        _detectWidgetsInExpression(arg);
+      }
+      for (final arg in expr.namedArguments.values) {
+        _detectWidgetsInExpression(arg);
+      }
+    } else if (expr is MethodCallExpr) {
+      if (expr.methodName.isNotEmpty) {
+        addWidget(expr.methodName);
+        if (expr.receiver == null &&
+            expr.methodName[0].toLowerCase() == expr.methodName[0]) {
+          usedFunctions.add(expr.methodName);
+        }
+      }
+      if (expr.receiver != null) {
+        _detectWidgetsInExpression(expr.receiver!);
+      }
+      for (final arg in expr.arguments) {
+        _detectWidgetsInExpression(arg);
+      }
+      for (final arg in expr.namedArguments.values) {
+        _detectWidgetsInExpression(arg);
+      }
+    } else if (expr is ConstructorCallExpr) {
+      addWidget(expr.className);
+      for (final arg in expr.arguments) {
+        _detectWidgetsInExpression(arg);
+      }
+      for (final arg in expr.namedArguments.values) {
+        _detectWidgetsInExpression(arg);
+      }
+    } else if (expr is AwaitExpr) {
+      _detectWidgetsInExpression(expr.futureExpression);
+    } else if (expr is BinaryExpressionIR) {
+      _detectWidgetsInExpression(expr.left);
+      _detectWidgetsInExpression(expr.right);
+    } else if (expr is UnaryExpressionIR) {
+      _detectWidgetsInExpression(expr.operand);
+    } else if (expr is ParenthesizedExpressionIR) {
+      _detectWidgetsInExpression(expr.innerExpression);
     } else if (expr is PropertyAccessExpressionIR) {
       if (expr.target is IdentifierExpressionIR) {
         final targetName = (expr.target as IdentifierExpressionIR).name;
@@ -1261,6 +1611,12 @@ function _filterNamespace(ns, show, hide) {
       }
     } else if (expr is IdentifierExpressionIR) {
       addWidget(expr.name);
+    } else if (expr is CascadeExpressionIR) {
+      // Scan the cascade target and all cascade sections for symbol usage
+      _detectWidgetsInExpression(expr.target);
+      for (final section in expr.cascadeSections) {
+        _detectWidgetsInExpression(section);
+      }
     } else if (expr is FunctionExpressionIR) {
       // Analyze lambda/function bodies for widget usage
       if (expr.body != null) {
@@ -1378,6 +1734,7 @@ function _filterNamespace(ns, show, hide) {
       buffer.writeln('    - ${usedWidgets.toList().join(", ")}');
     }
     buffer.writeln('  Helpers Required: ${usedHelpers.length}');
+    buffer.writeln('  Functions Used: ${usedFunctions.length}');
     buffer.writeln('  Types Used: ${usedTypes.length}\n');
 
     if (validationReport != null) {

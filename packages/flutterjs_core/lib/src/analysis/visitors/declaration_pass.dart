@@ -656,6 +656,113 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
   }
 
   @override
+  void visitEnumDeclaration(EnumDeclaration node) {
+    _pushScope('enum', node.name.lexeme);
+
+    try {
+      final enumName = node.name.lexeme;
+      _log('🔢 [Enum] $enumName');
+
+      // Extract enum constants/values
+      final values = <EnumValueDecl>[];
+      for (var i = 0; i < node.constants.length; i++) {
+        final constant = node.constants[i];
+        final valueName = constant.name.lexeme;
+
+        // Extract constructor arguments for enhanced enums
+        final constructorArgs = <String>[];
+        if (constant.arguments != null) {
+          for (final arg in constant.arguments!.argumentList.arguments) {
+            constructorArgs.add(arg.toSource());
+          }
+        }
+
+        values.add(EnumValueDecl(
+          id: builder.generateId('enum_value', '$enumName.$valueName'),
+          sourceLocation: _extractSourceLocation(constant, constant.name.offset),
+          name: valueName,
+          index: i,
+          constructorArguments: constructorArgs,
+        ));
+
+        _log('   - $valueName (index: $i)');
+      }
+
+      // Check if this is an enhanced enum (Dart 2.17+)
+      final isEnhanced = node.members.isNotEmpty;
+
+      // Extract enhanced enum features (if present)
+      final fields = <String, TypeIR>{};
+      final methods = <String>[];
+
+      if (isEnhanced) {
+        _log('   ✨ Enhanced enum detected');
+
+        for (final member in node.members) {
+          if (member is FieldDeclaration) {
+            for (final variable in member.fields.variables) {
+              final fieldName = variable.name.lexeme;
+              final fieldType = _extractTypeFromAnnotation(
+                member.fields.type,
+                variable.name.offset,
+              );
+              fields[fieldName] = fieldType;
+              _log('   - Field: $fieldName : ${fieldType.displayName()}');
+            }
+          } else if (member is MethodDeclaration) {
+            final methodName = member.name.lexeme;
+            methods.add(methodName);
+            _log('   - Method: $methodName');
+          }
+        }
+      }
+
+      // Create EnumDecl IR
+      final enumDecl = EnumDecl(
+        id: builder.generateId('enum', enumName),
+        sourceLocation: _extractSourceLocation(node, node.name.offset),
+        name: enumName,
+        values: values,
+        isEnhanced: isEnhanced,
+        fields: fields,
+        methods: methods,
+      );
+
+      // Add to builder
+      builder.addEnum(enumDecl);
+      _log('   ✅ Enum $enumName extracted (${values.length} values)');
+
+      super.visitEnumDeclaration(node);
+    } catch (e, st) {
+      _log('   ❌ Error processing enum: $e');
+      _log('   Stack: $st');
+
+      // Error recovery - create minimal enum
+      final values = <EnumValueDecl>[];
+      for (var i = 0; i < node.constants.length; i++) {
+        final constant = node.constants[i];
+        values.add(EnumValueDecl(
+          id: builder.generateId('enum_value', '${node.name.lexeme}.${constant.name.lexeme}'),
+          sourceLocation: _extractSourceLocation(constant, constant.name.offset),
+          name: constant.name.lexeme,
+          index: i,
+        ));
+      }
+
+      final fallbackEnumDecl = EnumDecl(
+        id: builder.generateId('enum', node.name.lexeme),
+        sourceLocation: _extractSourceLocation(node, node.name.offset),
+        name: node.name.lexeme,
+        values: values,
+      );
+
+      builder.addEnum(fallbackEnumDecl);
+    } finally {
+      _popScope();
+    }
+  }
+
+  @override
   void visitExtensionTypeDeclaration(ExtensionTypeDeclaration node) {
     _pushScope('extension_type', node.name.lexeme);
 
@@ -984,101 +1091,6 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
 
       fallbackDecl.metadata['extractionError'] = e.toString();
       return fallbackDecl;
-    }
-  }
-
-  @override
-  void visitEnumDeclaration(EnumDeclaration node) {
-    _pushScope('enum', node.name.lexeme);
-
-    try {
-      final enumName = node.name.lexeme;
-      _log('🏛️  [Enum] $enumName');
-
-      final fields = <FieldDecl>[];
-
-      // Add constants as static fields
-      for (final constant in node.constants) {
-        final fieldDecl = FieldDecl(
-          id: builder.generateId(
-            'field',
-            '${enumName}_${constant.name.lexeme}',
-          ),
-          name: constant.name.lexeme,
-          type: SimpleTypeIR(
-            id: builder.generateId('type'),
-            name: enumName,
-            sourceLocation: _extractSourceLocation(
-              constant,
-              constant.name.offset,
-            ),
-          ),
-          isStatic: true,
-          isFinal: true,
-          sourceLocation: _extractSourceLocation(
-            constant,
-            constant.name.offset,
-          ),
-        );
-        fields.add(fieldDecl);
-      }
-
-      for (final member in node.members) {
-        if (member is FieldDeclaration) {
-          for (final variable in member.fields.variables) {
-            final fieldName = variable.name.lexeme;
-            final fieldDecl = FieldDecl(
-              id: builder.generateId('field', '${enumName}_$fieldName'),
-              name: fieldName,
-              type: _extractTypeFromAnnotation(
-                member.fields.type,
-                variable.name.offset,
-              ),
-              isStatic: member.isStatic,
-              isFinal: member.fields.isFinal,
-              sourceLocation: _extractSourceLocation(
-                member,
-                variable.name.offset,
-              ),
-            );
-            fields.add(fieldDecl);
-          }
-        }
-      }
-
-      final methods = <MethodDecl>[];
-      final constructors = <ConstructorDecl>[];
-
-      for (final member in node.members) {
-        if (member is MethodDeclaration) {
-          final method = _extractSingleMethod(member, enumName);
-          methods.add(method);
-        } else if (member is ConstructorDeclaration) {
-          final constructor = _extractSingleConstructor(member, enumName);
-          constructors.add(constructor);
-        }
-      }
-
-      final classDecl = ClassDecl(
-        id: builder.generateId('class', enumName),
-        name: enumName,
-        fields: fields,
-        methods: methods,
-        constructors: constructors,
-        documentation: _extractDocumentation(node),
-        annotations: _extractAnnotations(node.metadata),
-        sourceLocation: _extractSourceLocation(node, node.name.offset),
-      );
-
-      classDecl.metadata['isEnum'] = true;
-
-      _classes.add(classDecl);
-      super.visitEnumDeclaration(node);
-    } catch (e, st) {
-      _log('   ❌ Error processing enum: $e');
-      _log('   Stack: $st');
-    } finally {
-      _popScope();
     }
   }
 

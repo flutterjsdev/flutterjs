@@ -1,0 +1,11 @@
+name: exa
+publish_to: 'none'
+version: 1.0.0
+resolution: workspace
+description: A demo REST API written in Dart and compiled to Node.js using FlutterJS Server.
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  flutterjs_server: ^1.0.0

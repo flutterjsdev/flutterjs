@@ -92,6 +92,7 @@
     "Zone",
     "acos",
     "asin",
+    "assetManager",
     "atan",
     "atan2",
     "base64",
@@ -112,7 +113,11 @@
     "log",
     "max",
     "min",
+    "platformViewRegistry",
     "pow",
+    "platformViewRegistry",
+    "assetManager",
+    "urlStrategy",
     "runZoned",
     "runZonedGuarded",
     "setProperty",
@@ -122,6 +127,7 @@
     "tan",
     "toDart",
     "toJS",
+    "urlStrategy",
     "utf8"
   ]
 }

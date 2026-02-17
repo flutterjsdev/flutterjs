@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/ui_web/index.js"],
+  "sourcesContent": ["\r\nexport const platformViewRegistry = {\r\n    registerViewFactory: (viewType, viewFactory, { isVisible } = {}) => {\r\n        console.debug(`[flutterjs] platformViewRegistry.registerViewFactory called for ${viewType}`);\r\n    }\r\n};\r\n\r\nexport const assetManager = {\r\n    getAssetUrl: (asset) => asset\r\n};\r\n\r\nexport const urlStrategy = {\r\n    getPath: () => window.location.pathname,\r\n    pushState: (state, title, url) => window.history.pushState(state, title, url),\r\n    replaceState: (state, title, url) => window.history.replaceState(state, title, url),\r\n    addPopStateListener: (listener) => window.addEventListener('popstate', listener),\r\n    removePopStateListener: (listener) => window.removeEventListener('popstate', listener),\r\n};\r\n"],
+  "mappings": "AACO,MAAMA,EAAuB,CAChC,oBAAqB,CAACC,EAAUC,EAAa,CAAE,UAAAC,CAAU,EAAI,CAAC,IAAM,CAChE,QAAQ,MAAM,mEAAmEF,CAAQ,EAAE,CAC/F,CACJ,EAEaG,EAAe,CACxB,YAAcC,GAAUA,CAC5B,EAEaC,EAAc,CACvB,QAAS,IAAM,OAAO,SAAS,SAC/B,UAAW,CAACC,EAAOC,EAAOC,IAAQ,OAAO,QAAQ,UAAUF,EAAOC,EAAOC,CAAG,EAC5E,aAAc,CAACF,EAAOC,EAAOC,IAAQ,OAAO,QAAQ,aAAaF,EAAOC,EAAOC,CAAG,EAClF,oBAAsBC,GAAa,OAAO,iBAAiB,WAAYA,CAAQ,EAC/E,uBAAyBA,GAAa,OAAO,oBAAoB,WAAYA,CAAQ,CACzF",
+  "names": ["platformViewRegistry", "viewType", "viewFactory", "isVisible", "assetManager", "asset", "urlStrategy", "state", "title", "url", "listener"]
+}

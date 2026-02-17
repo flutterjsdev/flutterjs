@@ -14,6 +14,9 @@ export { BorderRadius } from "./utils/geometry.js";
 
 // 1. Re-Export Core Runtime Primitives
 export { BuildContext, runApp } from '@flutterjs/runtime';
+export {
+  debugPrint,
+} from '@flutterjs/foundation';
 
 // 2. Export Material Components
 export * from "./core/core.js";

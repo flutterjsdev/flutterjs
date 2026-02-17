@@ -99,7 +99,15 @@ import 'package:args/command_runner.dart';
 /// ============================================================================
 
 class CleanCommand extends Command<void> {
-  CleanCommand({this.verbose = false});
+  CleanCommand({this.verbose = false}) {
+    argParser.addFlag(
+      'force',
+      abbr: 'f',
+      negatable: false,
+      help:
+          'Forcefully terminate locking processes (node, dart) before cleaning.',
+    );
+  }
 
   final bool verbose;
 
@@ -107,12 +115,18 @@ class CleanCommand extends Command<void> {
   String get name => 'clean';
 
   @override
-  String get description =>
+  final String description =
       'Delete build artifacts and caches (like `flutter clean`).';
 
   @override
   Future<void> run() async {
     print('🧹 Cleaning build artifacts and caches...\n');
+
+    final bool force = argResults?['force'] as bool? ?? false;
+
+    if (force && Platform.isWindows) {
+      await _killLockingProcesses();
+    }
 
     // Directories to clean (common in Flutter/JS/Dart projects)
     final List<String> directories = [
@@ -127,6 +141,7 @@ class CleanCommand extends Command<void> {
     ];
 
     int deletedCount = 0;
+    final List<String> failedDirectories = [];
 
     for (final dirPath in directories) {
       final dir = Directory(dirPath);
@@ -138,6 +153,7 @@ class CleanCommand extends Command<void> {
           await dir.delete(recursive: true);
           deletedCount++;
         } on FileSystemException catch (e) {
+          failedDirectories.add(dirPath);
           if (verbose) {
             print('   ⚠️  Failed to delete $dirPath: ${e.message}');
           }
@@ -154,9 +170,45 @@ class CleanCommand extends Command<void> {
       await _cleanPubCache();
     }
 
+    if (failedDirectories.isNotEmpty) {
+      print('\n❌ Failed to remove some directories:');
+      for (final dir in failedDirectories) {
+        print('   - $dir');
+      }
+      print(
+        '\n💡 Tip: This usually happens because a process is still using those files.',
+      );
+      if (!force) {
+        print('   👉 Try running: `flutterjs clean --force`');
+      }
+      print('   👉 Or use the reset script: `tool/reset.ps1` (Windows Only)');
+    }
+
     print(
       '\n✅ Clean complete! Removed $deletedCount artifact director${deletedCount == 1 ? 'y' : 'ies'}.\n',
     );
+  }
+
+  Future<void> _killLockingProcesses() async {
+    if (verbose) print('   🔍 Searching for locking processes...');
+
+    // Kill Node.js processes related to FlutterJS
+    try {
+      if (verbose) print('   🔨 Killing locking node processes...');
+      // We use taskkill to be forceful on Windows
+      await Process.run('taskkill', [
+        '/F',
+        '/IM',
+        'node.exe',
+        '/T', // Kill child processes too
+      ]);
+    } catch (_) {
+      // Ignore if no processes found or other errors
+    }
+
+    // Note: We avoid killing 'dart' processes here as it would kill the CLI itself.
+    // However, if there are OTHER dart processes (like 'dart run'), they might be the culprit.
+    // For now, node is the primary locker for build/flutterjs.
   }
 
   // Clean macOS/iOS derived data (optional enhancement)

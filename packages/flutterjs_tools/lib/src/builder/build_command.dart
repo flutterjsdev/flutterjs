@@ -42,8 +42,9 @@ class BuildCommand extends Command<void> {
       ..addOption(
         'project',
         abbr: 'p',
-        help: 'Path to Flutter project root.',
+        help: 'Path to project root (defaults to current directory).',
         defaultsTo: '.',
+        hide: true, // Advanced: run from inside the project like `flutter build`
       )
       ..addOption(
         'source',
@@ -82,6 +83,18 @@ class BuildCommand extends Command<void> {
         'serve',
         help: 'Serve the build output (Use "flutterjs preview" instead).',
         defaultsTo: false,
+      )
+      ..addFlag(
+        'package-mode',
+        help: 'Output compiled JS to <package>/src/ instead of dist/ (for SDK package development).',
+        negatable: false,
+      )
+      ..addOption(
+        'target',
+        abbr: 't',
+        help: 'Compilation target: web (Flutter/browser) or node (Node.js server-side).',
+        allowed: ['web', 'node'],
+        defaultsTo: 'web',
       );
   }
 
@@ -139,6 +152,7 @@ class BuildCommand extends Command<void> {
       serverPort: 3000,
       openBrowser: false,
       verbose: verbose,
+      target: argResults!['target'] as String,
     );
 
     // 2. Setup Context

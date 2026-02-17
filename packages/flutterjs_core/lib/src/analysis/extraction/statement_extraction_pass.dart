@@ -1179,8 +1179,42 @@ class StatementExtractionPass {
       );
     }
 
-    // Map literals
+    // Map or Set literals
     if (expr is SetOrMapLiteral) {
+      bool isSet = expr.isSet;
+
+      // 🔧 WORKAROUND: Fix for ambiguous Set literals (like const sets) where isSet is false
+      if (!isSet && !expr.isMap) {
+        // If any element is a plain Expression (not key:value), it's a Set.
+        // MapLiteralEntry is NOT an Expression in AST, so checking for Expression is safe.
+        if (expr.elements.any((e) => e is Expression)) {
+          isSet = true;
+        }
+      }
+
+      // ✅ Handle SET literals
+      if (isSet) {
+        final elements = <ExpressionIR>[];
+        for (final element in expr.elements) {
+          elements.addAll(_extractCollectionElement(element));
+        }
+
+        return SetExpressionIR(
+          id: builder.generateId('expr_set'),
+          elements: elements,
+          resultType: SimpleTypeIR(
+            id: builder.generateId('type'),
+            name: 'Set',
+            isNullable: false,
+            sourceLocation: sourceLoc,
+          ),
+          sourceLocation: sourceLoc,
+          isConst: expr.isConst,
+          metadata: metadata,
+        );
+      }
+
+      // ✅ Handle MAP literals (or empty {})
       final elements = <ExpressionIR>[];
 
       for (final element in expr.elements) {

@@ -1,0 +1,42 @@
+{
+  "name": "@flutterjs/server",
+  "version": "1.0.0",
+  "description": "A fast, Dart-compiled HTTP server framework for Node.js. Write Dart, run Node.js, beat Express.",
+  "main": "./dist/index.js",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "node build.js",
+    "build:watch": "node build.js --watch",
+    "test": "node --experimental-vm-modules test/index.test.js"
+  },
+  "keywords": [
+    "flutterjs",
+    "server",
+    "http",
+    "api",
+    "dart",
+    "nodejs",
+    "framework"
+  ],
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "src/",
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "devDependencies": {
+    "esbuild": "^0.18.0"
+  },
+  "author": "FlutterJS",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flutterjsdev/flutterjs.git"
+  }
+}

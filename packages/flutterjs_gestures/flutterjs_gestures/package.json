@@ -1,5 +1,5 @@
 {
-  "name": "@flutterjs/flutterjs_gestures",
+  "name": "@flutterjs/gestures",
   "version": "1.0.0",
   "description": "A FlutterJS package",
   "main": "src/index.js",
