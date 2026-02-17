@@ -178,14 +178,17 @@ class RunCommand extends Command<void> {
   final bool verboseHelp;
   BinaryIRServer? _devToolsServer;
   EngineBridgeManager? _engineBridgeManager;
+  Process? _nodeProcess;
+  StreamSubscription<FileSystemEvent>? _watchSub;
 
   void _registerArguments() {
     argParser
       ..addOption(
         'project',
         abbr: 'p',
-        help: 'Path to Flutter project root.',
+        help: 'Path to project root (defaults to current directory).',
         defaultsTo: '.',
+        hide: true, // Advanced: run from inside the project like `flutter run`
       )
       ..addOption(
         'source',
@@ -300,6 +303,13 @@ class RunCommand extends Command<void> {
         'open-browser',
         help: 'Open browser automatically when server starts',
         defaultsTo: true,
+      )
+      ..addOption(
+        'target',
+        abbr: 't',
+        help: 'Compilation target: web (Flutter/browser) or node (Node.js server-side).',
+        allowed: ['web', 'node'],
+        defaultsTo: 'web',
       );
   }
 
@@ -344,7 +354,11 @@ class RunCommand extends Command<void> {
       if (config.serve &&
           config.toJs &&
           results.jsConversion.filesGenerated > 0) {
-        await _startDevServer(config, context);
+        if (config.isNodeTarget) {
+          await _startNodeServer(config, context);
+        } else {
+          await _startDevServer(config, context);
+        }
       }
 
       // Cleanup (DON'T call printSummary here either!)
@@ -390,7 +404,9 @@ class RunCommand extends Command<void> {
       serve: argResults!['serve'] as bool,
       serverPort: int.tryParse(argResults!['server-port'] as String) ?? 3000,
       openBrowser: argResults!['open-browser'] as bool,
+      hotReload: argResults!['hot-reload'] as bool,
       verbose: verbose,
+      target: argResults!['target'] as String,
     );
   }
 
@@ -598,6 +614,236 @@ class RunCommand extends Command<void> {
   }
 
   // =========================================================================
+  // NODE SERVER
+  // =========================================================================
+
+  Future<void> _startNodeServer(
+    PipelineConfig config,
+    PipelineContext context,
+  ) async {
+    final mainJs = path.join(context.jsOutputPath, 'main.js');
+    if (!File(mainJs).existsSync()) {
+      print('\n❌ Cannot find $mainJs — make sure main.dart was compiled.');
+      return;
+    }
+
+    // Ensure node_modules are set up before starting the server.
+    // `flutterjs run` skips the full package manager (that's `flutterjs get`),
+    // so we do a lightweight link here for node-target packages.
+    await _ensureNodeModulesForNodeTarget(config, context);
+
+    if (!config.jsonOutput) {
+      print('\n🚀 Starting Node.js server...');
+    }
+
+    try {
+      _nodeProcess = await Process.start(
+        'node',
+        [path.relative(mainJs, from: context.buildPath)],
+        workingDirectory: context.buildPath,
+        mode: ProcessStartMode.normal,
+      );
+
+      // Pipe stdout / stderr to console
+      _nodeProcess!.stdout
+          .transform(const SystemEncoding().decoder)
+          .listen((line) => stdout.write(line));
+      _nodeProcess!.stderr
+          .transform(const SystemEncoding().decoder)
+          .listen((line) => stderr.write(line));
+
+      final url = 'http://localhost:${config.serverPort}';
+      if (!config.jsonOutput) {
+        print('   Server URL: $url');
+        print('   Press "q" or Ctrl+C to stop.\n');
+      }
+
+      if (config.openBrowser) {
+        await DevToolsManager._openBrowserAsync(url);
+      }
+
+      // P2-3: hot reload — watch src/ for .js changes and restart
+      if (config.hotReload) {
+        _startHotReload(config, context);
+      }
+    } catch (e) {
+      print('\n❌ Failed to start Node.js server: $e');
+      print('   Make sure Node.js is installed and on your PATH.');
+    }
+  }
+
+  /// Lightweight node_modules setup for `flutterjs run --target node`.
+  ///
+  /// `flutterjs get` does the full package resolution. But `flutterjs run`
+  /// skips it. For node builds we at minimum need the `flutterjs_X` packages
+  /// that the project depends on to be linked in `build/flutterjs/node_modules/`.
+  ///
+  /// Strategy: read pubspec.yaml, for each `flutterjs_X` dep walk up the
+  /// workspace tree to find `packages/flutterjs_X/flutterjs_X/` (the npm
+  /// package dir with `dist/index.js`), then copy/link it into node_modules.
+  Future<void> _ensureNodeModulesForNodeTarget(
+    PipelineConfig config,
+    PipelineContext context,
+  ) async {
+    try {
+      final pubspecFile = File(path.join(context.projectPath, 'pubspec.yaml'));
+      if (!pubspecFile.existsSync()) return;
+
+      final pubspecContent = await pubspecFile.readAsString();
+      // Simple regex parse to avoid a full yaml dependency just for this.
+      // Matches lines like "  flutterjs_server: ^1.0.0"
+      final depRegex = RegExp(r'^\s{2}(flutterjs_\w+)\s*:', multiLine: true);
+      final deps = depRegex
+          .allMatches(pubspecContent)
+          .map((m) => m.group(1)!)
+          .toList();
+
+      if (deps.isEmpty) return;
+
+      // Find workspace root by walking up to find a packages/ directory.
+      Directory? workspaceRoot;
+      Directory search = Directory(context.projectPath).parent;
+      for (int i = 0; i < 5; i++) {
+        if (Directory(path.join(search.path, 'packages')).existsSync()) {
+          workspaceRoot = search;
+          break;
+        }
+        final parent = search.parent;
+        if (parent.path == search.path) break;
+        search = parent;
+      }
+      if (workspaceRoot == null) return;
+
+      final nodeModulesRoot = path.join(context.buildPath, 'node_modules');
+      final nodeModulesFlutterjs = path.join(nodeModulesRoot, '@flutterjs');
+      await Directory(nodeModulesRoot).create(recursive: true);
+      await Directory(nodeModulesFlutterjs).create(recursive: true);
+
+      for (final dartPkgName in deps) {
+        // Dart: flutterjs_server -> npm short name: server
+        final shortName = dartPkgName.replaceFirst('flutterjs_', '');
+
+        // Find the npm package dir: packages/flutterjs_server/flutterjs_server/
+        final npmPkgDir = Directory(
+          path.join(workspaceRoot.path, 'packages', dartPkgName, dartPkgName),
+        );
+        if (!npmPkgDir.existsSync()) continue;
+
+        // Verify it has dist/index.js
+        final distIndex = File(path.join(npmPkgDir.path, 'dist', 'index.js'));
+        if (!distIndex.existsSync()) {
+          if (!config.jsonOutput) {
+            print(
+              '   ⚠️  $dartPkgName: dist/index.js not found — run `flutterjs get` first.',
+            );
+          }
+          continue;
+        }
+
+        // Link as node_modules/flutterjs_server (bare Dart name)
+        await _linkOrCopyPackage(
+          npmPkgDir.path,
+          path.join(nodeModulesRoot, dartPkgName),
+        );
+        // Link as node_modules/@flutterjs/server (scoped npm name)
+        await _linkOrCopyPackage(
+          npmPkgDir.path,
+          path.join(nodeModulesFlutterjs, shortName),
+        );
+
+        if (!config.jsonOutput) {
+          print('   📦 Linked $dartPkgName');
+        }
+      }
+    } catch (e) {
+      if (!config.jsonOutput) {
+        print('   ⚠️  node_modules setup warning: $e');
+      }
+    }
+  }
+
+  /// Creates a directory junction (Windows) or symlink (Unix) from [target]
+  /// pointing to [source]. Falls back to copy if linking fails.
+  Future<void> _linkOrCopyPackage(String source, String target) async {
+    final targetDir = Directory(target);
+    if (targetDir.existsSync()) return; // Already linked/copied
+
+    try {
+      if (Platform.isWindows) {
+        // Use mklink /J for directory junctions (no admin required on Windows)
+        final result = await Process.run('cmd', [
+          '/c',
+          'mklink',
+          '/J',
+          path.windows.normalize(target),
+          path.windows.normalize(source),
+        ]);
+        if (result.exitCode != 0) {
+          // Junction failed — fall back to copy
+          await _copyDir(Directory(source), targetDir);
+        }
+      } else {
+        await Link(target).create(source);
+      }
+    } catch (_) {
+      // Last resort: copy
+      try {
+        await _copyDir(Directory(source), targetDir);
+      } catch (_) {}
+    }
+  }
+
+  /// Recursively copies [src] into [dst], skipping node_modules and .git.
+  Future<void> _copyDir(Directory src, Directory dst) async {
+    await dst.create(recursive: true);
+    await for (final entity in src.list()) {
+      final name = path.basename(entity.path);
+      if (name == 'node_modules' || name == '.git' || name == '.dart_tool') {
+        continue;
+      }
+      if (entity is Directory) {
+        await _copyDir(entity, Directory(path.join(dst.path, name)));
+      } else if (entity is File) {
+        await entity.copy(path.join(dst.path, name));
+      }
+    }
+  }
+
+  void _startHotReload(PipelineConfig config, PipelineContext context) {
+    final watchDir = Directory(context.jsOutputPath);
+    if (!watchDir.existsSync()) return;
+
+    print('   👀 Watching ${context.jsOutputPath} for changes…\n');
+
+    Timer? debounce;
+
+    _watchSub = watchDir.watch(events: FileSystemEvent.modify, recursive: true).listen(
+      (event) {
+        if (!event.path.endsWith('.js')) return;
+
+        // Debounce rapid successive saves
+        debounce?.cancel();
+        debounce = Timer(const Duration(milliseconds: 500), () async {
+          if (_nodeProcess == null) return;
+          print('\n🔄 Change detected — restarting server…');
+
+          // Kill old process (runtime handles SIGTERM gracefully)
+          _nodeProcess!.kill(ProcessSignal.sigterm);
+          await _nodeProcess!.exitCode;
+          _nodeProcess = null;
+
+          // Small delay to ensure port is released
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+
+          // Start fresh
+          await _startNodeServer(config, context);
+        });
+      },
+      onError: (e) => print('   ⚠️  File watcher error: $e'),
+    );
+  }
+
+  // =========================================================================
   // CLEANUP & SHUTDOWN
   // =========================================================================
 
@@ -605,8 +851,9 @@ class RunCommand extends Command<void> {
     // Check if either DevTools or Dev Server are running
     final devToolsRunning = config.enableDevTools && _devToolsServer != null;
     final devServerRunning = _engineBridgeManager?.isRunning ?? false;
+    final nodeRunning = _nodeProcess != null;
 
-    if (devToolsRunning || devServerRunning) {
+    if (devToolsRunning || devServerRunning || nodeRunning) {
       if (!config.jsonOutput) {
         print('\n⏳ Server(s) running. Press "q" or Ctrl+C to stop.');
         if (devToolsRunning) {
@@ -623,6 +870,14 @@ class RunCommand extends Command<void> {
     }
 
     // Cleanup resources
+    await _watchSub?.cancel();
+    _watchSub = null;
+
+    if (_nodeProcess != null) {
+      _nodeProcess!.kill(ProcessSignal.sigterm);
+      _nodeProcess = null;
+    }
+
     if (_engineBridgeManager != null) {
       await _engineBridgeManager!.stop();
     }
@@ -1314,8 +1569,13 @@ class PipelineConfig {
   final bool serve;
   final int serverPort;
   final bool openBrowser;
+  final bool hotReload;
 
   final bool verbose;
+
+  /// Compilation target: 'web' (Flutter/browser) or 'node' (Node.js server-side).
+  /// When 'node', Flutter/material imports are skipped entirely.
+  final String target;
 
   PipelineConfig({
     required this.projectPath,
@@ -1338,7 +1598,11 @@ class PipelineConfig {
     required this.serverPort,
     required this.openBrowser,
     required this.verbose,
+    this.target = 'web',
+    this.hotReload = false,
   });
+
+  bool get isNodeTarget => target == 'node';
 }
 
 class PipelineContext {
@@ -1672,6 +1936,14 @@ class IRGenerator {
         );
         pass.extractDeclarations(unit);
 
+        // Build import/export model
+        final tracker = ImportExportTracker();
+        final tempDartFile = builder.build();
+        tracker.analyzeDartFile(tempDartFile);
+        final importExportModel = tracker.buildModel();
+
+        // Add model and rebuild
+        builder.withImportExportModel(importExportModel);
         final dartFile = builder.build();
         results.dartFiles[filePath] = dartFile;
         filesProcessed++;
