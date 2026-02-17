@@ -228,6 +228,7 @@
     "dev": "node build.js --watch"
   },
   "dependencies": {
+    "@flutterjs/foundation": "file:../../flutterjs_foundation/flutterjs_foundation",
     "@flutterjs/runtime": "file:../../flutterjs_runtime/flutterjs_runtime",
     "@flutterjs/vdom": "file:../../flutterjs_vdom/flutterjs_vdom"
   },

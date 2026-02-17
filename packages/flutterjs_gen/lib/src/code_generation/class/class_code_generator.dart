@@ -305,6 +305,39 @@ class ClassCodeGen {
       }
     }
 
+    // ✅ SPECIAL HANDLING: UrlLauncherPlatform circular dependency fix
+    if (className == 'UrlLauncherPlatform' &&
+        field.name == '_instance' &&
+        isStatic &&
+        field.initializer != null) {
+      // Convert static field to lazy getter/setter to avoid immediate instantiation cycle
+      buffer.writeln(indenter.line('static __lazy_instance = null;'));
+
+      buffer.writeln(indenter.line('static get _instance() {'));
+      buffer.writeln(indenter.line('if (this.__lazy_instance === null) {'));
+      indenter.indent();
+
+      // Use global registry to avoid direct import dependency
+      buffer.writeln(
+        indenter.line(
+          'this.__lazy_instance = new globalThis._flutterjs_types.MethodChannelUrlLauncher();',
+        ),
+      );
+
+      indenter.dedent();
+      buffer.writeln(indenter.line('}'));
+      buffer.writeln(indenter.line('return this.__lazy_instance;'));
+      indenter.dedent();
+      buffer.writeln(indenter.line('}'));
+
+      buffer.writeln(indenter.line('static set _instance(val) {'));
+      indenter.indent();
+      buffer.writeln(indenter.line('this.__lazy_instance = val;'));
+      indenter.dedent();
+      buffer.writeln(indenter.line('}'));
+      return;
+    }
+
     final staticKeyword = isStatic ? 'static ' : '';
     final typeComment = config.useTypeComments
         ? ' // ${field.type.displayName()}'

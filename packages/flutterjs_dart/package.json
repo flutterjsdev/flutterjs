@@ -21,7 +21,8 @@
     "./js_interop_unsafe": "./dist/js_interop_unsafe/index.js",
     "./math": "./dist/math/index.js",
     "./typed_data": "./dist/typed_data/index.js",
-    "./ui": "./dist/ui/index.js"
+    "./ui": "./dist/ui/index.js",
+    "./ui_web": "./dist/ui_web/index.js"
   },
   "scripts": {
     "build": "node build.js",

@@ -14,6 +14,7 @@ import 'package:flutterjs_gen/src/validation_optimization/js_optimizer.dart';
 import 'package:flutterjs_gen/src/model_to_js_diagnostic.dart';
 import 'package:flutterjs_gen/src/utils/import_analyzer.dart';
 import 'package:flutterjs_gen/src/utils/indenter.dart';
+import 'package:flutterjs_gen/src/code_generation/enum/enum_code_generator.dart';
 import 'package:path/path.dart' as p;
 import 'dart:io';
 
@@ -31,6 +32,7 @@ class ModelToJSPipeline {
   late final StatementCodeGen stmtGen;
   late final ClassCodeGen classGen;
   late final FunctionCodeGen funcGen;
+  late final EnumCodeGen enumGen;
   late final BuildMethodCodeGen buildMethodGen;
   late final Indenter indenter;
 
@@ -42,7 +44,7 @@ class ModelToJSPipeline {
   final bool verbose;
 
   // NEW: Global symbol table (Symbol -> URI) from exports.json
-  final Map<String, String> globalSymbolTable;
+  Map<String, String> globalSymbolTable;
 
   ModelToJSPipeline({
     this.importRewriter,
@@ -52,6 +54,12 @@ class ModelToJSPipeline {
     indenter = Indenter('  ');
     _initializeDiagnostics();
     _initializeGenerators();
+  }
+
+  /// Update the global symbol table after package manifests are loaded.
+  /// Must be called before generateFile() to have effect.
+  void updateGlobalSymbolTable(Map<String, String> table) {
+    globalSymbolTable = table;
   }
 
   void _initializeDiagnostics() {
@@ -68,6 +76,7 @@ class ModelToJSPipeline {
     stmtGen.indenter = indenter;
 
     funcGen = FunctionCodeGen(exprGen: exprGen, stmtGen: stmtGen);
+    enumGen = EnumCodeGen();
     classGen = ClassCodeGen(
       exprGen: exprGen,
       stmtGen: stmtGen,
@@ -173,26 +182,59 @@ class ModelToJSPipeline {
     buffer.writeln(_generateImports(dartFile));
     buffer.writeln();
 
-    // DEBUG: List all functions
-    print(
-      'DEBUG: Functions in ${dartFile.filePath}: ${dartFile.functionDeclarations.map((f) => f.name).join(', ')}',
-    );
+    // 🔧 POLYFILL: Expando (Dart core class backed by WeakMap in JS)
+    // Dart's Expando<T> attaches values to objects without modifying them — same as WeakMap.
+    final codeStr = dartFile.classDeclarations
+        .expand((c) => c.fields)
+        .any((f) => f.initializer?.toString().contains('Expando') ?? false);
+    final bodyStr = dartFile.classDeclarations
+        .expand((c) => c.methods)
+        .any((m) => m.body?.toString().contains('Expando') ?? false);
+    if (codeStr ||
+        bodyStr ||
+        dartFile.filePath.contains('plugin_platform_interface')) {
+      buffer.writeln('// Polyfill: Dart Expando backed by WeakMap');
+      buffer.writeln('function Expando(name) {');
+      buffer.writeln('  const map = new WeakMap();');
+      buffer.writeln('  return {');
+      buffer.writeln('    get: (key) => map.get(key),');
+      buffer.writeln(
+        '    set: (key, value) => { map.set(key, value); return true; },',
+      );
+      buffer.writeln(
+        '    // Dart Expando only supports Object keys, which JS WeakMap enforces.',
+      );
+      buffer.writeln('  };');
+      buffer.writeln('}');
+      buffer.writeln();
+    }
 
-    // Generate classes
-
-    for (final cls in dartFile.classDeclarations) {
+    // Generate SIMPLE variables (Constants/Literals) first
+    // This ensures that static fields in classes can reference top-level constants
+    for (final variable in dartFile.variableDeclarations) {
+      if (variable.initializer != null && !variable.initializer!.isConstant) {
+        continue;
+      }
       try {
-        _log('  Generating class: ${cls.name}');
-        buffer.writeln(classGen.generate(cls));
+        _log('  Generating simple variable: ${variable.name}');
+        final safeName = exprGen.safeIdentifier(variable.name);
+        final keyword = variable.isFinal || variable.isConst ? 'const' : 'let';
+
+        if (variable.initializer != null) {
+          final init = exprGen.generate(variable.initializer!);
+          buffer.writeln('$keyword $safeName = $init;');
+        } else {
+          buffer.writeln('$keyword $safeName = null;');
+        }
         buffer.writeln();
       } catch (e, st) {
-        _log('  ❌ Error generating class ${cls.name}: $e');
+        _log('  ❌ Error generating variable ${variable.name}: $e');
         issues.add(
           DiagnosticIssue(
             severity: DiagnosticSeverity.error,
-            code: 'GEN001',
-            message: 'Failed to generate class ${cls.name}: $e',
-            affectedNode: cls.name,
+            code: 'GEN004',
+            message: 'Failed to generate variable ${variable.name}: $e',
+            affectedNode: variable.name,
             stackTrace: st,
           ),
         );
@@ -211,10 +253,6 @@ class ModelToJSPipeline {
     }
 
     for (var name in funcsByName.keys) {
-      // DEBUG:
-      if (name == 'createInternal') {
-        print('DEBUG: Found createInternal in ${dartFile.filePath}');
-      }
       final group = funcsByName[name]!;
 
       // Check for getter/setter pair
@@ -267,19 +305,63 @@ class ModelToJSPipeline {
       }
     }
 
-    // Generate variables
-    for (final variable in dartFile.variableDeclarations) {
+    // Generate enums
+    for (final enumDecl in dartFile.enumDeclarations) {
       try {
-        _log('  Generating variable: ${variable.name}');
+        _log('  Generating enum: ${enumDecl.name}');
+        buffer.writeln(enumGen.generateEnum(enumDecl));
+        buffer.writeln();
+      } catch (e, st) {
+        _log('  ❌ Error generating enum ${enumDecl.name}: $e');
+        issues.add(
+          DiagnosticIssue(
+            severity: DiagnosticSeverity.error,
+            code: 'GEN005',
+            message: 'Failed to generate enum ${enumDecl.name}: $e',
+            affectedNode: enumDecl.name,
+            stackTrace: st,
+          ),
+        );
+      }
+    }
+
+    // Generate classes
+    for (final cls in dartFile.classDeclarations) {
+      try {
+        _log('  Generating class: ${cls.name}');
+        buffer.writeln(classGen.generate(cls));
+        buffer.writeln();
+      } catch (e, st) {
+        _log('  ❌ Error generating class ${cls.name}: $e');
+        issues.add(
+          DiagnosticIssue(
+            severity: DiagnosticSeverity.error,
+            code: 'GEN001',
+            message: 'Failed to generate class ${cls.name}: $e',
+            affectedNode: cls.name,
+            stackTrace: st,
+          ),
+        );
+      }
+    }
+
+    // Generate COMPLEX variables (Non-constants / Class instantiations) last
+    // This ensures that variables creating class instances can see the class definitions
+    for (final variable in dartFile.variableDeclarations) {
+      if (variable.initializer == null || variable.initializer!.isConstant) {
+        continue;
+      }
+      try {
+        _log('  Generating complex variable: ${variable.name}');
         final safeName = exprGen.safeIdentifier(variable.name);
+        
+        // Complex variables are often top-level finals that map to `const` in JS if they don't change
+        // But since we split declaration, we might need to handle circular deps?
+        // For now, just generate them here.
         final keyword = variable.isFinal || variable.isConst ? 'const' : 'let';
 
-        if (variable.initializer != null) {
-          final init = exprGen.generate(variable.initializer!);
-          buffer.writeln('$keyword $safeName = $init;');
-        } else {
-          buffer.writeln('$keyword $safeName = null;');
-        }
+        final init = exprGen.generate(variable.initializer!);
+        buffer.writeln('$keyword $safeName = $init;');
         buffer.writeln();
       } catch (e, st) {
         _log('  ❌ Error generating variable ${variable.name}: $e');
@@ -501,9 +583,6 @@ class ModelToJSPipeline {
   }
 
   String _generateImports(DartFile dartFile) {
-    print(
-      'DEBUG: _generateImports RUNNING for ${dartFile.filePath}',
-    ); // LOUD DEBUG
     final buffer = StringBuffer();
 
     // ✅ Analyze symbol usage
@@ -548,6 +627,18 @@ class ModelToJSPipeline {
         .map((i) => i.prefix!)
         .toSet();
 
+    // Track which symbols are already assigned to a path to prevent duplicates
+    final symbolToPath = <String, String>{};
+
+    // ✅ Register hardcoded material imports to prevent duplicates
+    if (hasMaterial) {
+      const materialPath = '@flutterjs/material';
+      const materialSymbols = ['runApp', 'Widget', 'State', 'StatefulWidget', 'StatelessWidget', 'BuildContext', 'Key'];
+      for (final symbol in materialSymbols) {
+        symbolToPath[symbol] = materialPath;
+      }
+    }
+
     // ✅ STEP 1: Process direct imports from Dart file
     bool contextPathMockInjected = false;
     for (final import in dartFile.imports) {
@@ -588,6 +679,17 @@ class ModelToJSPipeline {
         continue;
       }
 
+      // 🔄 CIRCULAR DEPENDENCY FIX:
+      // url_launcher_platform.dart imports method_channel_url_launcher.dart (for default instance)
+      // and url_launcher_platform_interface.dart (barrel file that re-exports url_launcher_platform).
+      // method_channel_url_launcher.dart extends UrlLauncherPlatform, creating a cycle.
+      // We break this by skipping both imports; the default instance uses globalThis._flutterjs_types instead.
+      if (dartFile.filePath.endsWith('url_launcher_platform.dart') &&
+          (import.uri.contains('method_channel_url_launcher') ||
+              import.uri.contains('url_launcher_platform_interface'))) {
+        continue;
+      }
+
       final jsPath = _calculateJsPath(import.uri, dartFile.filePath);
 
       // Handle prefix imports immediately
@@ -601,7 +703,18 @@ class ModelToJSPipeline {
       final isReexported = dartFile.exports.any(
         (e) => _normalizeUri(e.uri) == importUriNorm,
       );
-      final directUsedSymbols = usedSymbolsByUri[import.uri] ?? <String>{};
+      // Collect symbols used directly from this import's URI,
+      // plus symbols from sub-package URIs that resolve to the same JS path.
+      // This handles cases like `cors` being recorded under
+      // `package:flutterjs_server/src/middleware.dart` when the user imports
+      // `package:flutterjs_server/flutterjs_server.dart` (the barrel).
+      final directUsedSymbols = <String>{
+        ...?usedSymbolsByUri[import.uri],
+        for (final entry in usedSymbolsByUri.entries)
+          if (entry.key != import.uri &&
+              _calculateJsPath(entry.key, dartFile.filePath) == jsPath)
+            ...entry.value,
+      };
 
       if (isReexported && directUsedSymbols.isEmpty) {
         continue;
@@ -611,17 +724,38 @@ class ModelToJSPipeline {
       if (import.showList.isNotEmpty) {
         final validSymbols = import.showList
             .where((s) => !_isErasedSymbol(import.uri, s))
+            .where((s) => !symbolToPath.containsKey(s)) // Skip already-assigned symbols
             .toSet();
+
         if (validSymbols.isNotEmpty) {
+          // Track these symbols as assigned to this path
+          for (final s in validSymbols) {
+            symbolToPath[s] = jsPath;
+          }
           symbolsByPath.putIfAbsent(jsPath, () => {}).addAll(validSymbols);
         }
       } else if (directUsedSymbols.isNotEmpty || import.uri == 'dart:async') {
-        symbolsByPath.putIfAbsent(jsPath, () => {}).addAll(directUsedSymbols);
+        // Filter out already-assigned symbols
+        final newSymbols = directUsedSymbols.where((s) => !symbolToPath.containsKey(s)).toSet();
+
+        if (newSymbols.isNotEmpty) {
+          // Track these symbols as assigned to this path
+          for (final s in newSymbols) {
+            symbolToPath[s] = jsPath;
+          }
+          symbolsByPath.putIfAbsent(jsPath, () => {}).addAll(newSymbols);
+        }
 
         // Special case for dart:async
         if (import.uri == 'dart:async') {
-          symbolsByPath[jsPath]!.add('Zone');
-          symbolsByPath[jsPath]!.add('runZoned');
+          if (!symbolToPath.containsKey('Zone')) {
+            symbolsByPath.putIfAbsent(jsPath, () => {}).add('Zone');
+            symbolToPath['Zone'] = jsPath;
+          }
+          if (!symbolToPath.containsKey('runZoned')) {
+            symbolsByPath.putIfAbsent(jsPath, () => {}).add('runZoned');
+            symbolToPath['runZoned'] = jsPath;
+          }
         }
       } else {
         // No symbols - side effect or circular suppression
@@ -637,6 +771,8 @@ class ModelToJSPipeline {
     }
 
     // ✅ STEP 2: Process globally-resolved transitive symbols
+    // symbolToPath already declared above to track duplicates across both steps
+
     for (final entry in usedSymbolsByUri.entries) {
       final uri = entry.key;
       final symbols = entry.value;
@@ -645,8 +781,20 @@ class ModelToJSPipeline {
       final jsPath = _calculateJsPath(uri, dartFile.filePath);
 
       if (symbols.isNotEmpty) {
-        symbolsByPath.putIfAbsent(jsPath, () => {}).addAll(symbols);
-        sideEffectImportsByPath.remove(jsPath);
+        // Only add symbols that haven't been assigned to another path yet
+        final newSymbols = <String>{};
+        for (final symbol in symbols) {
+          if (!symbolToPath.containsKey(symbol)) {
+            symbolToPath[symbol] = jsPath;
+            newSymbols.add(symbol);
+          }
+          // else: symbol already assigned to another path, skip it
+        }
+
+        if (newSymbols.isNotEmpty) {
+          symbolsByPath.putIfAbsent(jsPath, () => {}).addAll(newSymbols);
+          sideEffectImportsByPath.remove(jsPath);
+        }
       }
     }
 
@@ -663,22 +811,22 @@ class ModelToJSPipeline {
 
     final sortedPaths = symbolsByPath.keys.toList()..sort();
 
-    // Shared sets for filtering
-    final declaredClasses = dartFile.classDeclarations
-        .map((c) => c.name)
-        .toSet();
-    final declaredLocals = <String>{};
-    for (final cls in dartFile.classDeclarations) {
-      for (final field in cls.fields) declaredLocals.add(field.name);
-      for (final method in cls.methods) {
-        declaredLocals.add(method.name);
-        for (final p in method.parameters) declaredLocals.add(p.name);
-      }
-      for (final ctor in cls.constructors) {
-        for (final p in ctor.parameters) declaredLocals.add(p.name);
-      }
+    // ✅ NEW ARCHITECTURE: Use ImportExportModel for filtering
+    // This provides a single source of truth and eliminates duplicate logic
+    final model = dartFile.importExportModel;
+
+    if (model == null) {
+      throw StateError(
+        'ImportExportModel not available for ${dartFile.filePath}. '
+        'This should not happen - ensure ImportExportTracker runs during analysis.',
+      );
     }
+
+    final locallyDefined = model.locallyDefined;
     final typedefs = dartFile.typedefDeclarations.toSet();
+
+    // ✅ NEW: Track already-imported symbols to prevent duplicates across different paths
+    final alreadyImported = <String>{};
 
     for (final path in sortedPaths) {
       final symbols = symbolsByPath[path]!;
@@ -689,19 +837,48 @@ class ModelToJSPipeline {
         symbols.remove('Uri');
       }
 
+      // 🔄 CIRCULAR DEPENDENCY FIX:
+      // Skip method_channel_url_launcher import when generating url_launcher_platform.dart
+      // The symbol gets pulled in via transitive resolution (STEP 2) but creates a cycle.
+      if (dartFile.filePath.endsWith('url_launcher_platform.dart') &&
+          path.contains('method_channel_url_launcher')) {
+        continue;
+      }
+
+      // ✅ NEW: Use model.isDefinedLocally() for cleaner filtering
       final validSymbols = symbols
           .map(_cleanSymbol)
           .where((s) => s.isNotEmpty && !_isInvalidSymbol(s))
-          .where((s) => !declaredClasses.contains(s))
-          .where((s) => !declaredLocals.contains(s))
+          .where((s) => !locallyDefined.contains(s)) // Use model data
           .where((s) => !importPrefixes.contains(s))
           .where((s) => !typedefs.contains(s))
+          .where((s) => !alreadyImported.contains(s)) // ✅ NEW: Prevent duplicate imports
+          .where((s) => !_isLikelyInstanceMethod(s, path)) // ✅ FIX: Skip private instance methods
+          .where((s) => !_isLikelyLocalVariable(s)) // ✅ FIX: Skip common local variable names
           .toSet();
 
       if (validSymbols.isNotEmpty) {
+        // Mark these symbols as imported
+        alreadyImported.addAll(validSymbols);
+
         final symbolsStr = (validSymbols.toList()..sort()).join(', ');
         buffer.writeln("import { $symbolsStr } from '$path';");
       }
+    }
+
+    // 🔄 CIRCULAR DEPENDENCY FIX (Part 4):
+    // url_launcher_platform_interface.js must import method_channel_url_launcher.js
+    // to ensure the default implementation is registered in globalThis._flutterjs_types.
+    if (dartFile.filePath.endsWith('url_launcher_platform_interface.dart')) {
+      buffer.writeln(
+        "import { MethodChannelUrlLauncher } from './method_channel_url_launcher.js';",
+      );
+      // Prevent tree-shaking by forcing usage
+      buffer.writeln("if (typeof globalThis !== 'undefined') {");
+      buffer.writeln(
+        "  globalThis.__flutterjs_keep_alive = [MethodChannelUrlLauncher];",
+      );
+      buffer.writeln("}");
     }
 
     return buffer.toString();
@@ -960,6 +1137,12 @@ class ModelToJSPipeline {
     // Handle 'flutter' SDK package mapping
     if (packageName == 'flutter') {
       final libName = filePath.split('/')[0].replaceAll('.dart', '');
+
+      // ✅ FIX: Map gestures to material since gestures is integrated into material
+      if (libName == 'gestures') {
+        return '@flutterjs/material/dist/index.js';
+      }
+
       return '@flutterjs/$libName/dist/index.js';
     }
 
@@ -1063,13 +1246,13 @@ class ModelToJSPipeline {
     // They have no runtime representation in JavaScript
 
     // ✅ Enums
-    for (final enumName in dartFile.enumDeclarations) {
-      if (exportedNames.add(enumName)) {
-        final safeName = exprGen.safeIdentifier(enumName);
-        if (safeName != enumName) {
-          buffer.writeln('  $safeName as $enumName,');
+    for (final enumDecl in dartFile.enumDeclarations) {
+      if (exportedNames.add(enumDecl.name)) {
+        final safeName = exprGen.safeIdentifier(enumDecl.name);
+        if (safeName != enumDecl.name) {
+          buffer.writeln('  $safeName as ${enumDecl.name},');
         } else {
-          buffer.writeln('  $enumName,');
+          buffer.writeln('  ${enumDecl.name},');
         }
       }
     }
@@ -1202,40 +1385,51 @@ class ModelToJSPipeline {
     // ✅ FIX: Reject single-character symbols in general (they're almost never exports)
     if (symbol.length == 1) return true;
 
-    // ✅ FIX: Reject lowercase-starting symbols - class names are PascalCase
-    // Symbols like 'context', 'path', 'style' are typically local variables or getters
-    // not external class imports
-    if (symbol.isNotEmpty && symbol[0].toLowerCase() == symbol[0]) {
-      // Exception: some known lowercase exports (like 'runApp', 'kIsWeb')
-      const knownLowercaseExports = {
-        'runApp',
-        'runZoned',
-        'jsonDecode',
-        'jsonEncode',
-        'utf8',
-        'base64',
-        'max',
-        'min',
-        'sqrt',
-        'sin',
-        'cos',
-        'tan',
-        'pi',
-        'e',
-        'log',
-        'pow',
-        'kIsWeb',
-        'kDebugMode',
-        'kProfileMode',
-        'kReleaseMode',
-      };
-      if (!knownLowercaseExports.contains(symbol)) {
-        return true;
-      }
-    }
+    // ✅ REMOVED: The lowercase rejection filter was too aggressive and blocked
+    // legitimate function imports like convertLaunchMode, convertWebViewConfiguration, etc.
+    // Now that we use ImportAnalyzer for proper symbol usage detection, we don't need
+    // this heuristic anymore. ImportAnalyzer already filters out local variables and
+    // only includes symbols that are actually used from imports.
 
     // Check if it's a valid JS identifier
     return !RegExp(r'^[a-zA-Z_$][a-zA-Z0-9_$]*$').hasMatch(symbol);
+  }
+
+  /// ✅ FIX: Detects private symbols that are likely instance methods, not imports.
+  ///
+  /// Symbols starting with '_' that appear in the same package are likely private
+  /// instance methods that shouldn't be imported. This prevents cases where:
+  /// - `_followLink` (instance method) gets incorrectly imported
+  /// - Code generation passes method references without `this.` prefix
+  ///
+  /// Example: In url_launcher_web, `_followLink` is a method of WebLinkDelegateState,
+  /// not an export from url_launcher_platform_interface.
+  bool _isLikelyInstanceMethod(String symbol, String importPath) {
+    // Only check private symbols (starting with _)
+    if (!symbol.startsWith('_')) return false;
+
+    // Private symbols should generally not be imported from other packages
+    // They're either:
+    // 1. Instance methods (our case)
+    // 2. Private top-level functions (which also shouldn't be exported)
+    return true;
+  }
+
+  /// ✅ FIX: Detects symbols that are likely local variables, not imports.
+  ///
+  /// Filters out common local variable names that the analyzer incorrectly
+  /// identifies as imports. Examples:
+  /// - `semanticsLink` - local const variable in url_launcher_web
+  /// - `triggerLink` - property name in LinkTriggerSignals class
+  ///
+  /// These symbols are detected by ImportAnalyzer but should not be imported.
+  bool _isLikelyLocalVariable(String symbol) {
+    // Blacklist of known local variable names that get misidentified
+    const localVariableNames = {
+      'semanticsLink',
+      'triggerLink',
+    };
+    return localVariableNames.contains(symbol);
   }
 }
 

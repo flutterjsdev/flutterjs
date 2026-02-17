@@ -414,8 +414,7 @@ class ImportRewriter {
         );
         console.log(
           chalk.gray(
-            `    Packages: ${
-              Object.keys(this.packageMapData.packages || {}).length
+            `    Packages: ${Object.keys(this.packageMapData.packages || {}).length
             }\n`
           )
         );
@@ -505,8 +504,7 @@ class ImportRewriter {
 
     const packages = this.packageMapData.packages;
     console.log(
-      `[ImportRewriter] loadPackageExportsFromPackageMap: Found ${
-        Object.keys(packages).length
+      `[ImportRewriter] loadPackageExportsFromPackageMap: Found ${Object.keys(packages).length
       } packages`
     );
 
@@ -554,6 +552,7 @@ class ImportRewriter {
             config.exports.set("./math", "./dist/math/index.js");
             config.exports.set("./typed_data", "./dist/typed_data/index.js");
             config.exports.set("./developer", "./dist/developer/index.js");
+            config.exports.set("./ui_web", "./dist/ui_web/index.js");
           }
 
           this.result.packageExports.set(packageName, config);
@@ -584,6 +583,7 @@ class ImportRewriter {
             config.exports.set("./math", "./dist/math/index.js");
             config.exports.set("./typed_data", "./dist/typed_data/index.js");
             config.exports.set("./developer", "./dist/developer/index.js");
+            config.exports.set("./ui_web", "./dist/ui_web/index.js");
           }
 
           if (this.config.debugMode) {
@@ -645,8 +645,7 @@ class ImportRewriter {
       }
       if (packageName === "http_parser") {
         console.log(
-          `[ImportRewriter]   Found http_parser in resolution! Path: ${
-            packageInfo.path || packageInfo
+          `[ImportRewriter]   Found http_parser in resolution! Path: ${packageInfo.path || packageInfo
           }`
         );
       }
@@ -856,8 +855,8 @@ class ImportRewriter {
         const icon = importStmt.isFramework
           ? "📦"
           : importStmt.isLocal
-          ? "📄"
-          : "📨";
+            ? "📄"
+            : "📨";
         console.log(
           chalk.gray(`${icon} Line ${lineNumber}: ${importStmt.source}`)
         );

@@ -16,6 +16,36 @@
       "name": "WidgetsBinding",
       "path": "./dist/index.js",
       "type": "class"
+    },
+    {
+      "name": "PlatformViewLink",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "PlatformViewCreationParams",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "ExcludeFocus",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "ExcludeSemantics",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "Semantics",
+      "path": "./dist/index.js",
+      "type": "class"
+    },
+    {
+      "name": "MergeSemantics",
+      "path": "./dist/index.js",
+      "type": "class"
     }
   ]
 }

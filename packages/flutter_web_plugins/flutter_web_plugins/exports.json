@@ -1,0 +1,7 @@
+{
+    "package": "flutter_web_plugins",
+    "version": "1.0.0",
+    "exports": [
+        "Registrar"
+    ]
+}

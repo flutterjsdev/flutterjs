@@ -10,23 +10,30 @@ class PackageManifest {
   final String packageName;
   final String version;
   final Set<String> exports;
+  final List<Map<String, dynamic>> exportDetails; // Full export info with path, uri, type
 
   PackageManifest({
     required this.packageName,
     required this.version,
     required this.exports,
+    required this.exportDetails,
   });
 
   /// Load manifest from JSON file
   factory PackageManifest.fromJson(Map<String, dynamic> json) {
+    final exportsList = json['exports'] as List;
     return PackageManifest(
       packageName: json['package'] as String,
       version: json['version'] as String,
-      exports: (json['exports'] as List).map((e) {
+      exports: exportsList.map((e) {
         if (e is String) return e;
         if (e is Map) return e['name'] as String;
         return e.toString();
       }).toSet(),
+      exportDetails: exportsList.map((e) {
+        if (e is Map<String, dynamic>) return e;
+        return {'name': e.toString()};
+      }).cast<Map<String, dynamic>>().toList(),
     );
   }
 
@@ -129,5 +136,44 @@ class PackageRegistry {
     // ImportResolver/ImportAnalyzer will need to handle this path
     _symbolToPackage[symbol] = absolutePath;
     print('📝 Registered local symbol: $symbol -> $absolutePath');
+  }
+
+  /// Build a global symbol table mapping symbol name → full package: URI.
+  /// Falls back to bare package name if the export has no explicit uri field.
+  /// This is consumed by ImportAnalyzer to resolve symbols to their packages.
+  Map<String, String> buildGlobalSymbolTable() {
+    final table = <String, String>{};
+    for (final manifest in _packagesByName.values) {
+      for (final detail in manifest.exportDetails) {
+        final name = detail['name'] as String?;
+        if (name == null || name.isEmpty) continue;
+        // Prefer the explicit 'uri' field (full package: URI) over bare package name
+        final uri = detail['uri'] as String?;
+        if (uri != null && uri.isNotEmpty) {
+          table.putIfAbsent(name, () => uri);
+        } else {
+          table.putIfAbsent(name, () => manifest.packageName);
+        }
+      }
+    }
+    return Map.unmodifiable(table);
+  }
+
+  /// Find the full export details (path, uri, type) for a symbol
+  Map<String, dynamic>? findSymbolDetails(String symbol) {
+    final packageName = _symbolToPackage[symbol];
+    if (packageName == null) return null;
+
+    final manifest = _packagesByName[packageName];
+    if (manifest == null) return null;
+
+    // Find the export entry for this symbol
+    for (final export in manifest.exportDetails) {
+      if (export['name'] == symbol) {
+        return export;
+      }
+    }
+
+    return null;
   }
 }

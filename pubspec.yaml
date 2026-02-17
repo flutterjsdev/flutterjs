@@ -24,6 +24,8 @@ workspace:
   - examples/material_buttons_demo/
   - examples/pub_test_app/
   - examples/flutterjs_website/
+  - packages/flutterjs_server/
+  - examples/dart_api/
   - packages/flutterjs_dev_utils/
   - packages/flutterjs_tools/
   - packages/flutterjs_gen/

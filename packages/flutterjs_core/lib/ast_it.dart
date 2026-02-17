@@ -4,11 +4,14 @@
 
 export 'src/ir/declarations/class_decl.dart';
 export 'src/ir/declarations/dart_file_builder.dart';
+export 'src/ir/declarations/enum_decl.dart';
 export 'src/ir/declarations/function_decl.dart';
 export 'src/ir/declarations/import_export_stmt.dart';
+export 'src/ir/declarations/import_export_model.dart';
 export 'src/ir/core/ir_id_generator.dart';
 export 'src/ir/declarations/parameter_decl.dart';
 export 'src/ir/declarations/variable_decl.dart';
+export 'src/analysis/import_export_tracker.dart';
 
 // build_method_ir
 export 'src/ir/widgets/build_method_ir.dart';

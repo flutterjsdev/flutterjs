@@ -41,8 +41,10 @@ import 'dart:convert';
 import 'class_decl.dart';
 import '../diagnostics/analysis_issue.dart';
 import '../diagnostics/issue_category.dart';
+import 'enum_decl.dart';
 import 'function_decl.dart';
 import 'import_export_stmt.dart';
+import 'import_export_model.dart';
 import '../core/ir_id_generator.dart';
 import 'variable_decl.dart';
 
@@ -159,7 +161,7 @@ class DartFile {
   final List<VariableDecl> variableDeclarations;
 
   /// Top-level enum declarations
-  final List<String> enumDeclarations;
+  final List<EnumDecl> enumDeclarations;
 
   /// Top-level mixin declarations
   final List<String> mixinDeclarations;
@@ -169,6 +171,10 @@ class DartFile {
 
   /// Extension declarations
   final List<String> extensionDeclarations;
+
+  /// Import/Export model - Single source of truth for imports/exports
+  /// Built during analysis phase by ImportExportTracker
+  final ImportExportModel? importExportModel;
 
   /// When this file was created
   final DateTime createdAt;
@@ -194,6 +200,7 @@ class DartFile {
     this.mixinDeclarations = const [],
     this.typedefDeclarations = const [],
     this.extensionDeclarations = const [],
+    this.importExportModel,
     required this.createdAt,
     this.lastAnalyzedAt,
   });
@@ -339,10 +346,11 @@ class DartFileBuilder {
   final List<ClassDecl> classDeclarations = [];
   final List<FunctionDecl> functionDeclarations = [];
   final List<VariableDecl> variableDeclarations = [];
-  final List<String> enumDeclarations = [];
+  final List<EnumDecl> enumDeclarations = [];
   final List<String> mixinDeclarations = [];
   final List<String> typedefDeclarations = [];
   final List<String> extensionDeclarations = [];
+  ImportExportModel? importExportModel;
   late DateTime createdAt;
   DateTime? lastAnalyzedAt;
 
@@ -428,6 +436,12 @@ class DartFileBuilder {
     return this;
   }
 
+  /// Add an enum declaration
+  DartFileBuilder addEnum(EnumDecl enumDecl) {
+    enumDeclarations.add(enumDecl);
+    return this;
+  }
+
   /// Add an analysis issue
   DartFileBuilder addIssue(AnalysisIssue issue) {
     analysisIssues.add(issue);
@@ -452,6 +466,13 @@ class DartFileBuilder {
     return this;
   }
 
+  /// Set the import/export model
+  /// This should be called after all declarations are added
+  DartFileBuilder withImportExportModel(ImportExportModel model) {
+    importExportModel = model;
+    return this;
+  }
+
   /// Build the DartFile
   DartFile build() {
     return DartFile(
@@ -472,6 +493,7 @@ class DartFileBuilder {
       mixinDeclarations: mixinDeclarations,
       typedefDeclarations: typedefDeclarations,
       extensionDeclarations: extensionDeclarations,
+      importExportModel: importExportModel,
       createdAt: createdAt,
       lastAnalyzedAt: lastAnalyzedAt,
     );

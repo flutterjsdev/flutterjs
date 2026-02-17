@@ -129,20 +129,6 @@ class ExpressionCodeGen {
     try {
       String code = _generateExpression(expr);
 
-      // 🛡️ ROBUST FIX: Handle 'users', 'users.length', 'users[index]'
-      // This catches cases where 'users' is an UnknownExpression or part of one.
-      if (code == 'users' ||
-          code.startsWith('users.') ||
-          code.startsWith('users[')) {
-        if (_currentClassContext != null &&
-            _currentFunctionContext?.isTopLevel == false) {
-          // Double check it's not already prefixed (unlikely here but safe)
-          if (!code.startsWith('this.')) {
-            return 'this.$code';
-          }
-        }
-      }
-
       // ✅ FIX: Parenthesize Arrow IIFEs in UnknownExpressionIR (e.g. asserts)
       // Dart assert(() => ...()) becomes () => ...() in JS, which is invalid without parens
       if (expr is UnknownExpressionIR) {
@@ -302,6 +288,10 @@ class ExpressionCodeGen {
 
     if (expr is SetExpressionIR) {
       return _generateSetLiteral(expr);
+    }
+
+    if (expr is SetLiteralExpr) {
+      return _generateSetLiteralEx(expr);
     }
 
     if (expr is MethodCallExpressionIR) {
@@ -1311,6 +1301,27 @@ class ExpressionCodeGen {
       return 'this.$name';
     }
 
+    // ✅ FIX: Handle compound identifiers like "_users.values", "_users.length", "_users.keys"
+    // These happen when the IR extracts property access chains as single identifier strings.
+    {
+      final dotIdx = name.lastIndexOf('.');
+      if (dotIdx > 0) {
+        final baseName = name.substring(0, dotIdx);
+        final property = name.substring(dotIdx + 1);
+        switch (property) {
+          case 'values':
+            return 'Object.values($baseName)';
+          case 'keys':
+            return 'Object.keys($baseName)';
+          case 'length':
+            // Only convert if base looks like a Map variable (heuristic: single identifier)
+            if (!baseName.contains('.')) {
+              return 'Object.keys($baseName).length';
+            }
+        }
+      }
+    }
+
     // Apply JS safety transformation
     name = safeIdentifier(name);
 
@@ -1356,6 +1367,15 @@ class ExpressionCodeGen {
       // For known special identifiers
       if (_currentClassContext != null) {
         if (name == 'widget' || name == 'context' || name == 'mounted') {
+          return 'this.$name';
+        }
+
+        // ✅ FIX: Prefix public instance fields with 'this.' when inside a class method.
+        // This handles fields like 'id', 'name', 'email' in toJson() etc.
+        final isPublicInstanceField = _currentClassContext!.instanceFields.any(
+          (f) => f.name == name,
+        );
+        if (isPublicInstanceField) {
           return 'this.$name';
         }
       }
@@ -1419,6 +1439,38 @@ class ExpressionCodeGen {
       return 'Object.entries($target).map(([k, v]) => ({key: k, value: v}))';
     }
 
+    // ─── Dart Map/List/String property idioms ────────────────────────────────
+    // These Dart properties have no direct JS equivalent on plain objects/arrays.
+    final typeStr = expr.target.resultType.displayName().toLowerCase();
+    final isMap = typeStr.contains('map<') || typeStr == 'map' || typeStr == 'dynamic';
+    final isList = typeStr.contains('list<') || typeStr == 'list' || typeStr.contains('iterable');
+    final isString = typeStr.contains('string') || typeStr == 'string';
+
+    switch (expr.propertyName) {
+      case 'isEmpty':
+        if (isString) return '($target.length === 0)';
+        if (isList)   return '($target.length === 0)';
+        // Map (plain object)
+        return '(Object.keys($target).length === 0)';
+      case 'isNotEmpty':
+        if (isString) return '($target.length > 0)';
+        if (isList)   return '($target.length > 0)';
+        return '(Object.keys($target).length > 0)';
+      case 'length':
+        if (isMap) return 'Object.keys($target).length';
+        // strings and arrays already have .length
+        break;
+      // .values and .keys are unambiguously Dart Map operations on plain JS objects.
+      // JS arrays/strings don't have a `.values` property, so always convert.
+      case 'values':
+        if (!isList && !isString) return 'Object.values($target)';
+        break;
+      case 'keys':
+        if (!isList && !isString) return 'Object.keys($target)';
+        break;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     if (_isValidIdentifier(expr.propertyName)) {
       final safeName = safeIdentifier(expr.propertyName);
       final op = expr.isNullAware ? '?.' : '.';
@@ -1432,6 +1484,14 @@ class ExpressionCodeGen {
   }
 
   String _generateIndexAccess(IndexAccessExpressionIR expr) {
+    // ✅ FIX: Special handling for Expando (WeakMap wrapper)
+    // Dart's Expando must be accessed via .get() in JS because Proxy [] access coerces keys to strings
+    if (expr.target.resultType.name == 'Expando') {
+      final target = generate(expr.target, parenthesize: true);
+      final index = generate(expr.index, parenthesize: false);
+      return '$target.get($index)';
+    }
+
     // ✅ FIX: Use parenthesize: true for target
     final target = generate(expr.target, parenthesize: true);
     final index = generate(expr.index, parenthesize: false);
@@ -1482,6 +1542,20 @@ class ExpressionCodeGen {
     final left = generate(expr.left, parenthesize: true);
     final right = generate(expr.right, parenthesize: true);
     final op = _mapBinaryOperator(expr.operator);
+
+    // ✅ FIX: Dart's `x == null` means "null OR undefined" in JS.
+    // Using === null would miss undefined (e.g. from Map lookups returning undefined).
+    // Use loose equality (== null) which catches both.
+    if (expr.operator == BinaryOperatorIR.equals &&
+        (right == 'null' || left == 'null')) {
+      final nonNull = right == 'null' ? left : right;
+      return '$nonNull == null';
+    }
+    if (expr.operator == BinaryOperatorIR.notEquals &&
+        (right == 'null' || left == 'null')) {
+      final nonNull = right == 'null' ? left : right;
+      return '$nonNull != null';
+    }
 
     return '$left $op $right';
   }
@@ -1579,6 +1653,18 @@ class ExpressionCodeGen {
   }
 
   String _generateAssignment(AssignmentExpressionIR expr) {
+    // ✅ FIX: Special handling for Expando assignment
+    // Expando[key] = value -> Expando.set(key, value)
+    if (expr.target is IndexAccessExpressionIR) {
+      final indexExpr = expr.target as IndexAccessExpressionIR;
+      if (indexExpr.target.resultType.name == 'Expando') {
+        final target = generate(indexExpr.target, parenthesize: true);
+        final index = generate(indexExpr.index, parenthesize: false);
+        final value = generate(expr.value, parenthesize: false);
+        return '$target.set($index, $value)';
+      }
+    }
+
     final target = generate(expr.target, parenthesize: false);
     final value = generate(expr.value, parenthesize: true);
 
@@ -1690,6 +1776,34 @@ class ExpressionCodeGen {
   }
 
   String _generateMapLiteral(MapExpressionIR expr) {
+    // ✅ NEW: Detect if this is actually a Set literal mis-classified as Map
+    // This happens for {'a', 'b'} without <Set> prefix in some IR extractions
+    final typeStr = expr.resultType.displayName();
+    final isSetType =
+        typeStr.contains('Set') ||
+        typeStr.contains('IdentitySet') ||
+        typeStr.contains('LinkedHashSet');
+
+    // Heuristic: If it has elements and none are MapEntryIR, it's likely a Set
+    final looksLikeSet =
+        expr.elements.isNotEmpty &&
+        expr.elements.every((e) => e is! MapEntryIR);
+
+    if (isSetType || looksLikeSet) {
+      if (expr.elements.isEmpty) {
+        if (isSetType) {
+          print(
+            'DEBUG: [Codegen] Set literal is EMPTY but resultType is $typeStr',
+          );
+        }
+        return 'new Set()';
+      }
+      final elements = expr.elements
+          .map((e) => generate(e, parenthesize: false))
+          .join(', ');
+      return 'new Set([$elements])';
+    }
+
     if (expr.elements.isEmpty) {
       return '{}';
     }
@@ -1754,6 +1868,20 @@ class ExpressionCodeGen {
   }
 
   String _generateSetLiteral(SetExpressionIR expr) {
+    if (expr.elements.isEmpty) {
+      return 'new Set()';
+    }
+    final elements = expr.elements
+        .map((e) => generate(e, parenthesize: false))
+        .join(', ');
+
+    return 'new Set([$elements])';
+  }
+
+  String _generateSetLiteralEx(SetLiteralExpr expr) {
+    if (expr.elements.isEmpty) {
+      return 'new Set()';
+    }
     final elements = expr.elements
         .map((e) => generate(e, parenthesize: false))
         .join(', ');
@@ -1789,6 +1917,85 @@ class ExpressionCodeGen {
             return 'Math.trunc($target)';
         }
       }
+
+      // ✅ NEW: Map Dart Set methods to JS Set equivalents
+      if (expr.methodName == 'union' && expr.arguments.length == 1) {
+        var targetCode = generate(expr.target!, parenthesize: true);
+        // If target is an empty object literal from a mis-classified/empty Set,
+        // treat it as an empty Set.
+        if (targetCode == '({})' || targetCode == '{}')
+          targetCode = 'new Set()';
+
+        final other = generate(expr.arguments.first, parenthesize: false);
+        return 'new Set([...$targetCode, ...$other])';
+      }
+
+      if (expr.methodName == 'contains' && expr.arguments.length == 1) {
+        final targetCode = generate(expr.target!, parenthesize: true);
+        final item = generate(expr.arguments.first, parenthesize: false);
+
+        // Simple type-aware check: if target is definitely a Set (new Set or variable containing Set)
+        // or if explicitly marked in resultType.
+        final typeStr = expr.target!.resultType.displayName().toLowerCase();
+        final isSet =
+            typeStr.contains('set') || targetCode.startsWith('new Set(');
+        final isString = typeStr.contains('string');
+
+        if (isSet) {
+          return '$targetCode.has($item)';
+        } else if (isString) {
+          return '$targetCode.includes($item)';
+        } else {
+          // Default to includes if it might be an array, or has() if it looks like a Set.
+          // Fallback to has() for the specific cases we care about in url_launcher_web
+          if (targetCode.contains('Schemes')) {
+            return '$targetCode.has($item)';
+          }
+          return '$targetCode.includes($item)';
+        }
+      }
+
+      // ─── Dart Map / List / String method idioms ────────────────────────────
+      final targetTypeStr = expr.target?.resultType.displayName().toLowerCase() ?? '';
+      // Include 'dynamic' — type inference may not always resolve Map<K,V> for top-level vars.
+      final targetIsMap = targetTypeStr.contains('map<') || targetTypeStr == 'map' || targetTypeStr == 'dynamic';
+
+      // Map.containsKey(k) → k in map
+      if (expr.methodName == 'containsKey' && expr.arguments.length == 1) {
+        final key = generate(expr.arguments.first, parenthesize: false);
+        return '($key in $target)';
+      }
+
+      // Map.containsValue(v) → Object.values(map).includes(v)
+      if (expr.methodName == 'containsValue' && expr.arguments.length == 1) {
+        final val = generate(expr.arguments.first, parenthesize: false);
+        return 'Object.values($target).includes($val)';
+      }
+
+      // Map.remove(k) → (delete map[k], undefined)  — returns void-ish
+      if (expr.methodName == 'remove' && expr.arguments.length == 1 && targetIsMap) {
+        final key = generate(expr.arguments.first, parenthesize: false);
+        return '(delete $target[$key])';
+      }
+
+      // List/Iterable.toList() → no-op for JS arrays (already an array)
+      if (expr.methodName == 'toList' && expr.arguments.isEmpty) {
+        return target; // Array.toList() is the identity in JS
+      }
+
+      // String.isEmpty / List.isEmpty already handled in property access,
+      // but handle them as method calls too in case IR wraps them differently.
+
+      // Map.putIfAbsent(key, () => val) — JS equivalent
+      if (expr.methodName == 'putIfAbsent' && expr.arguments.length == 2) {
+        final key = generate(expr.arguments.first, parenthesize: false);
+        final ifAbsent = generate(expr.arguments[1], parenthesize: false);
+        return '($key in $target ? $target[$key] : ($target[$key] = ($ifAbsent)()))';
+      }
+
+      // Map.update(key, (v) => newV, ifAbsent: () => val)
+      // Too complex for a one-liner — leave as method call, user can patch.
+      // ───────────────────────────────────────────────────────────────────────
 
       final safeMethodName = safeIdentifier(expr.methodName);
 
@@ -2188,6 +2395,17 @@ class ExpressionCodeGen {
         // JavaScript doesn't have runtime generic types, so 'instanceof E' will fail.
         if (targetType.length == 1 && targetType == targetType.toUpperCase()) {
           return value;
+        }
+
+        // ✅ FIX: Dart Map cast — JS has no Map class in this sense.
+        // Plain objects are used instead. Use typeof check.
+        if (targetType == 'Map') {
+          return '(typeof $value === \'object\' && $value !== null && !Array.isArray($value)) ? $value : (() => { throw new Error("Cast failed to $rawTargetType"); })()';
+        }
+
+        // ✅ FIX: Dart List/Iterable cast — use Array.isArray.
+        if (targetType == 'List' || targetType == 'Iterable') {
+          return '(Array.isArray($value)) ? $value : (() => { throw new Error("Cast failed to $rawTargetType"); })()';
         }
 
         // ✅ FIX: Skip cast validation for package:web / JS interop types
@@ -2636,7 +2854,6 @@ class ExpressionCodeGen {
   /// Evaluates an expression at compile-time to determine if it's a platform constant
   /// Returns true/false if constant, null otherwise.
   bool? evaluateConstant(ExpressionIR expr) {
-
     if (expr is ParenthesizedExpressionIR) {
       return evaluateConstant(expr.innerExpression);
     }
@@ -2647,7 +2864,8 @@ class ExpressionCodeGen {
       if (name == 'kDebugMode') return true;
       if (name == 'kProfileMode') return false;
       if (name == 'kReleaseMode') return false;
-      if (name == 'defaultTargetPlatform') return null; // Can't resolve to true/false directly but is a platform constant
+      if (name == 'defaultTargetPlatform')
+        return null; // Can't resolve to true/false directly but is a platform constant
       return null;
     }
 
@@ -2687,10 +2905,16 @@ class ExpressionCodeGen {
         // Special case: defaultTargetPlatform == TargetPlatform.xxx on web is ALWAYS false
         final leftDesc = _getPlatformDescription(expr.left);
         final rightDesc = _getPlatformDescription(expr.right);
-        
+
         // If one side is defaultTargetPlatform (web-target) and other is a native platform
-        if ((leftDesc == 'web-target' && rightDesc != null && rightDesc != 'web-target' && rightDesc != 'web') ||
-            (rightDesc == 'web-target' && leftDesc != null && leftDesc != 'web-target' && leftDesc != 'web')) {
+        if ((leftDesc == 'web-target' &&
+                rightDesc != null &&
+                rightDesc != 'web-target' &&
+                rightDesc != 'web') ||
+            (rightDesc == 'web-target' &&
+                leftDesc != null &&
+                leftDesc != 'web-target' &&
+                leftDesc != 'web')) {
           // Folding platform check to false on web
           if (expr.operator == BinaryOperatorIR.equals) return false;
           if (expr.operator == BinaryOperatorIR.notEquals) return true;
@@ -2700,7 +2924,9 @@ class ExpressionCodeGen {
           // Compare descriptions if available
           if (leftDesc != null && rightDesc != null) {
             final isEqual = leftDesc == rightDesc;
-            return expr.operator == BinaryOperatorIR.equals ? isEqual : !isEqual;
+            return expr.operator == BinaryOperatorIR.equals
+                ? isEqual
+                : !isEqual;
           }
 
           // Heuristic: On web, any equality check against a specific native platform is false
@@ -2759,7 +2985,7 @@ class ExpressionCodeGen {
       final name = expr.name;
       if (name == 'kIsWeb') return 'web';
       if (name == 'defaultTargetPlatform') return 'web-target';
-      
+
       // Handle TargetPlatform.xxx as a single identifier (e.g., "TargetPlatform.iOS")
       if (name.startsWith('TargetPlatform.')) {
         final platformName = name.substring('TargetPlatform.'.length);

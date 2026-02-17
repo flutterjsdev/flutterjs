@@ -44,19 +44,11 @@ class ImportAnalyzer {
       _scanVariable(variable);
     }
 
-    // Debug logging for Uri
-    _symbolsByImport.forEach((uri, symbols) {
-      if (symbols.contains('Uri')) {
-        print('DEBUG: Uri found in bucket: $uri');
-      }
-    });
-
+    // Scan all code for symbol usage
     return _symbolsByImport;
   }
 
   void _buildSymbolMap(DartFile dartFile) {
-    print('DEBUG: ImportAnalyzer._buildSymbolMap for ${dartFile.filePath}');
-
     final fileName = p.basename(dartFile.filePath);
 
     // ✅ FORCE IMPORT styles in path.dart (Main Entry)
@@ -68,9 +60,6 @@ class ImportAnalyzer {
     final parentDir = p.basename(p.dirname(dartFile.filePath));
 
     if (fileName == 'path.dart' && parentDir != 'src') {
-      print(
-        'DEBUG: [ImportAnalyzer] Forcing style imports in path.dart (via injection)',
-      );
       // We add them to _symbolsByImport so the generator produces import statements
       _symbolsByImport['package:path/src/style/posix.dart'] = {'PosixStyle'};
 
@@ -110,10 +99,7 @@ class ImportAnalyzer {
         if (importUri.contains('posix') ||
             importUri.contains('windows') ||
             importUri.contains('url')) {
-          print(
-            'DEBUG: [ImportAnalyzer] Suppressing circular import: $importUri in style.dart',
-          );
-          continue; // Skip adding to _symbolsByImport
+          continue; // Skip adding to _symbolsByImport (circular dependency)
         }
 
         // ✅ FIX: Force Uri import for style.dart (from dart:core -> @flutterjs/dart)
@@ -122,9 +108,6 @@ class ImportAnalyzer {
 
       // ✅ FIX: REMOVED IMPORT CHECK - Handled by unconditional injection above
 
-      if (import.uri.contains('style')) {
-        print('DEBUG: ImportAnalyzer registered import: ${import.uri}');
-      }
       if (!_symbolsByImport.containsKey(importUri)) {
         _symbolsByImport[importUri] = {};
       }
@@ -194,6 +177,11 @@ class ImportAnalyzer {
     // Scan parameters
     for (final param in func.parameters) {
       // _recordTypeUsage(param.type); // Fix: Type is erased in JS params
+
+      // Scan default parameter values (e.g., webViewConfiguration = const WebViewConfiguration())
+      if (param.defaultValue != null) {
+        _scanExpression(param.defaultValue!);
+      }
     }
 
     // Scan body
@@ -392,6 +380,11 @@ class ImportAnalyzer {
       _scanExpression(expr.right);
     } else if (expr is NullAwareAccessExpressionIR) {
       _scanExpression(expr.target);
+    } else if (expr is CascadeExpressionIR) {
+      _scanExpression(expr.target);
+      for (final section in expr.cascadeSections) {
+        _scanExpression(section);
+      }
     } else if (expr is StringInterpolationExpressionIR) {
       for (final part in expr.parts) {
         if (part.isExpression && part.expression != null) {
@@ -448,20 +441,32 @@ class ImportAnalyzer {
     // }
 
     // 3. Detect static access or constructors: "Type." or "Type("
-    // Simple heuristic: Uppercase words
-    final wordRegex = RegExp(r'\b([A-Z]\w*)\b');
-    // final wordMatches = wordRegex.allMatches(source);
-    // for (final match in wordMatches) {
-    //   final word = match.group(1)!;
-    //   // Filter out likely keywords or non-types (Basic filter)
-    //   if (word != 'Future' &&
-    //       word != 'Stream' &&
-    //       word != 'List' &&
-    //       word != 'Map') {
-    //     _recordSymbolUsage(word);
-    //   }
-    // }
-  } // End _scanUnknownExpression
+    // Simple heuristic: Uppercase words or known symbols
+    final wordRegex = RegExp(r'\b([a-zA-Z_$]\w*)\b');
+    final wordMatches = wordRegex.allMatches(source);
+    for (final match in wordMatches) {
+      final word = match.group(1)!;
+
+      // Skip local variables (this is a heuristic, might catch params too)
+      if (word == 'this' || word == 'super' || word == 'null') continue;
+
+      // Only record if it matches a known symbol or is likely a class (Uppercase)
+      if (word.isNotEmpty &&
+          (word[0] == word[0].toUpperCase() ||
+              _importBySymbol.containsKey(word) ||
+              globalSymbolTable.containsKey(word) ||
+              _isKnownSymbol(word))) {
+        _recordSymbolUsage(word);
+      }
+    }
+  }
+
+  bool _isKnownSymbol(String name) {
+    for (final symptoms in _knownSymbolsMap.values) {
+      if (symptoms.contains(name)) return true;
+    }
+    return false;
+  }
 
   void _recordTypeUsage(TypeIR type) {
     if (type is ClassTypeIR) {
@@ -684,11 +689,6 @@ class ImportAnalyzer {
     }
 
     if (bestImport != null) {
-      if (symbolName == 'Brightness') {
-        print(
-          'DEBUG: [ImportAnalyzer] Brightness mapped to $bestImport via heuristics',
-        );
-      }
       _symbolsByImport[bestImport]!.add(symbolName);
       _importBySymbol[symbolName] = bestImport;
       return;
@@ -779,6 +779,10 @@ class ImportAnalyzer {
       'TargetPlatform',
       'defaultTargetPlatform',
       'kIsWeb',
+      'kDebugMode',
+      'kReleaseMode',
+      'kProfileMode',
+      'debugPrint',
       'ChangeNotifier',
       'ValueNotifier',
       'Key',
@@ -792,6 +796,30 @@ class ImportAnalyzer {
       'StatelessWidget',
       'Widget',
       'GlobalKey',
+    },
+    'package:flutter/material.dart': {
+      'MaterialApp',
+      'Scaffold',
+      'AppBar',
+      'Text',
+      'Column',
+      'Row',
+      'Center',
+      'Container',
+      'Icon',
+      'IconButton',
+      'ElevatedButton',
+      'TextButton',
+      'OutlinedButton',
+      'InkWell',
+      'Padding',
+      'SizedBox',
+      'Colors',
+      'ThemeData',
+      'Navigator',
+      'debugPrint',
+      'kDebugMode',
+      'kIsWeb',
     },
     'package:collection/collection.dart': {
       'CanonicalizedMap',
@@ -823,11 +851,6 @@ class ImportAnalyzer {
         // Find matching import
         for (final importUri in _symbolsByImport.keys) {
           if (importUri == libUrl || importUri.endsWith(libUrl)) {
-            if (symbol == 'Brightness') {
-              print(
-                'DEBUG: [ImportAnalyzer] Brightness mapped to $importUri via knownSymbols',
-              );
-            }
             _symbolsByImport[importUri]!.add(symbol);
             _importBySymbol[symbol] = importUri;
             return;

@@ -1,0 +1,12 @@
+{
+    "name": "flutter_web_plugins",
+    "version": "1.0.0",
+    "description": "Mock implementation of flutter_web_plugins for flutterjs",
+    "main": "dist/flutter_web_plugins.js",
+    "module": "dist/flutter_web_plugins.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "author": "FlutterJS Team",
+    "license": "BSD-3-Clause"
+}

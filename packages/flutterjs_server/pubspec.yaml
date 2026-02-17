@@ -1,0 +1,26 @@
+name: flutterjs_server
+publish_to: 'none'
+version: 1.0.0
+resolution: workspace
+description: A fast, Dart-compiled HTTP server framework for Node.js. Write Dart, run Node.js, beat Express.
+
+homepage: https://flutterjs.dev
+repository: https://github.com/flutterjs/flutterjs_server
+issue_tracker: https://github.com/flutterjs/flutterjs_server/issues
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  meta: ^1.16.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6
+
+# FlutterJS metadata
+flutterjs:
+  npm_package: "@flutterjs/server"
+  implementation_language: "javascript"
+  target: "node"
+  js_entry: "flutterjs_server/src/index.js"

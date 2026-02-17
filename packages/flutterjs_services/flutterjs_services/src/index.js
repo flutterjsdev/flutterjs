@@ -1,28 +1,13 @@
-// Copyright 2025 The FlutterJS Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
-/**
- * FlutterJS FlutterjsServices
- * 
- * Simple, lightweight implementation built with JavaScript
- */
-
-/**
- * Main class for FlutterjsServices
- */
-export class FlutterjsServices {
+class FlutterjsServices {
   constructor(config = {}) {
     this.config = config;
   }
-
   /**
    * Example method - replace with your implementation
    */
   hello() {
-    return 'Hello from FlutterjsServices!';
+    return "Hello from FlutterjsServices!";
   }
-
   /**
    * Example async method
    */
@@ -31,17 +16,12 @@ export class FlutterjsServices {
       const response = await fetch(url);
       return await response.json();
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error("Error fetching data:", error);
       throw error;
     }
   }
 }
-
-
-/**
- * Command object representing a method call on a [MethodChannel].
- */
-export class MethodCall {
+class MethodCall {
   /**
    * Creates a [MethodCall] representing the invocation of [method] with the
    * specified [arguments].
@@ -53,16 +33,11 @@ export class MethodCall {
     this.method = method;
     this.arguments = args;
   }
-
   toString() {
     return `MethodCall(${this.method}, ${this.arguments})`;
   }
 }
-
-/**
- * An interface for closing message channels.
- */
-export class MethodCodec {
+class MethodCodec {
   /**
    * Encodes the specified [methodCall] into binary.
    *
@@ -70,9 +45,8 @@ export class MethodCodec {
    * @returns {Uint8Array}
    */
   encodeMethodCall(methodCall) {
-    throw new Error('encodeMethodCall not implemented');
+    throw new Error("encodeMethodCall not implemented");
   }
-
   /**
    * Decodes the specified [methodCall] from binary.
    *
@@ -80,9 +54,8 @@ export class MethodCodec {
    * @returns {MethodCall}
    */
   decodeMethodCall(methodCall) {
-    throw new Error('decodeMethodCall not implemented');
+    throw new Error("decodeMethodCall not implemented");
   }
-
   /**
    * Decodes the specified [envelope] from binary.
    *
@@ -90,9 +63,8 @@ export class MethodCodec {
    * @returns {any}
    */
   decodeEnvelope(envelope) {
-    throw new Error('decodeEnvelope not implemented');
+    throw new Error("decodeEnvelope not implemented");
   }
-
   /**
    * Encodes a successful [result] into a binary envelope.
    *
@@ -100,9 +72,8 @@ export class MethodCodec {
    * @returns {Uint8Array}
    */
   encodeSuccessEnvelope(result) {
-    throw new Error('encodeSuccessEnvelope not implemented');
+    throw new Error("encodeSuccessEnvelope not implemented");
   }
-
   /**
    * Encodes an error result into a binary envelope.
    *
@@ -112,89 +83,65 @@ export class MethodCodec {
    * @returns {Uint8Array}
    */
   encodeErrorEnvelope({ code, message = null, details = null }) {
-    throw new Error('encodeErrorEnvelope not implemented');
+    throw new Error("encodeErrorEnvelope not implemented");
   }
 }
-
-/**
- * [MethodCodec] with UTF-8 encoded JSON method calls and result envelopes.
- */
-export class JSONMethodCodec extends MethodCodec {
+class JSONMethodCodec extends MethodCodec {
   constructor() {
     super();
   }
-
   /**
    * @override
    */
   encodeMethodCall(methodCall) {
     const jsonString = JSON.stringify({
       method: methodCall.method,
-      args: methodCall.arguments,
+      args: methodCall.arguments
     });
     return new TextEncoder().encode(jsonString);
   }
-
   /**
    * @override
    */
   decodeMethodCall(methodCall) {
     const jsonString = new TextDecoder().decode(methodCall);
     const decoded = JSON.parse(jsonString);
-    if (typeof decoded !== 'object' || decoded === null) {
+    if (typeof decoded !== "object" || decoded === null) {
       throw new Error(`Expected method call Map, got ${decoded}`);
     }
     const { method, args } = decoded;
-    if (typeof method === 'string') {
+    if (typeof method === "string") {
       return new MethodCall(method, args);
     }
     throw new Error(`Invalid method call: ${decoded}`);
   }
-
   /**
    * @override
    */
   decodeEnvelope(envelope) {
     const jsonString = new TextDecoder().decode(envelope);
     const decoded = JSON.parse(jsonString);
-
     if (!Array.isArray(decoded)) {
       throw new Error(`Expected envelope List, got ${decoded}`);
     }
-
     if (decoded.length === 1) {
       return decoded[0];
     }
-
-    if (
-      decoded.length === 3 &&
-      typeof decoded[0] === 'string' &&
-      (decoded[1] === null || typeof decoded[1] === 'string')
-    ) {
-      // We don't have a PlatformException class in JS yet, so throwing a regular error with details
-      const error = new Error(`${decoded[0]}: ${decoded[1] || ''}`);
+    if (decoded.length === 3 && typeof decoded[0] === "string" && (decoded[1] === null || typeof decoded[1] === "string")) {
+      const error = new Error(`${decoded[0]}: ${decoded[1] || ""}`);
       error.code = decoded[0];
       error.details = decoded[2];
       throw error;
     }
-
-    // Handle stack trace case (length 4)
-    if (
-      decoded.length === 4 &&
-      typeof decoded[0] === 'string' &&
-      (decoded[1] === null || typeof decoded[1] === 'string') &&
-      (decoded[3] === null || typeof decoded[3] === 'string')
-    ) {
-      const error = new Error(`${decoded[0]}: ${decoded[1] || ''}`);
+    if (decoded.length === 4 && typeof decoded[0] === "string" && (decoded[1] === null || typeof decoded[1] === "string") && (decoded[3] === null || typeof decoded[3] === "string")) {
+      const error = new Error(`${decoded[0]}: ${decoded[1] || ""}`);
       error.code = decoded[0];
       error.details = decoded[2];
       error.stack = decoded[3];
       throw error;
     }
-
     throw new Error(`Invalid envelope: ${decoded}`);
   }
-
   /**
    * @override
    */
@@ -202,7 +149,6 @@ export class JSONMethodCodec extends MethodCodec {
     const jsonString = JSON.stringify([result]);
     return new TextEncoder().encode(jsonString);
   }
-
   /**
    * @override
    */
@@ -211,17 +157,12 @@ export class JSONMethodCodec extends MethodCodec {
     return new TextEncoder().encode(jsonString);
   }
 }
-
-/**
- * MethodChannel stub for native platform compatibility on web
- */
-export class MethodChannel {
+class MethodChannel {
   constructor(name, codec = new JSONMethodCodec(), binaryMessenger = null) {
     this.name = name;
     this.codec = codec;
     this.binaryMessenger = binaryMessenger;
   }
-
   /**
    * Stub for invokeMethod
    * @returns {Promise<any>}
@@ -230,14 +171,12 @@ export class MethodChannel {
     console.warn(`MethodChannel(${this.name}).invokeMethod("${method}") called on web. This is a stub.`);
     return null;
   }
-
   /**
    * Stub for invokeListMethod
    */
   async invokeListMethod(method, args) {
     return [];
   }
-
   /**
    * Stub for invokeMapMethod
    */
@@ -245,56 +184,98 @@ export class MethodChannel {
     return {};
   }
 }
-
-/**
- * Helper function
- */
-export function createInstance(config) {
+function createInstance(config) {
   return new FlutterjsServices(config);
 }
-
-/**
- * SystemUiOverlayStyle - Stub for web (iOS-specific styling)
- */
-export const SystemUiOverlayStyle = Object.freeze({
-  light: { brightness: 'light' },
-  dark: { brightness: 'dark' },
+const SystemUiOverlayStyle = Object.freeze({
+  light: { brightness: "light" },
+  dark: { brightness: "dark" }
 });
-
-/**
- * SystemChrome - Stub for platform UI controls on web
- */
-export class SystemChrome {
+class SystemChrome {
   /**
    * Sets the system overlay style (no-op on web)
    */
   static setSystemUIOverlayStyle(style) {
-    // No-op on web - iOS/Android specific
-    console.debug('SystemChrome.setSystemUIOverlayStyle called on web (no-op)');
+    console.debug("SystemChrome.setSystemUIOverlayStyle called on web (no-op)");
   }
-
   /**
    * Sets which overlays are visible (no-op on web)
    */
   static setEnabledSystemUIOverlays(overlays) {
-    console.debug('SystemChrome.setEnabledSystemUIOverlays called on web (no-op)');
+    console.debug("SystemChrome.setEnabledSystemUIOverlays called on web (no-op)");
   }
-
   /**
    * Sets preferred orientations (no-op on web)
    */
   static setPreferredOrientations(orientations) {
-    console.debug('SystemChrome.setPreferredOrientations called on web (no-op)');
+    console.debug("SystemChrome.setPreferredOrientations called on web (no-op)");
     return Promise.resolve();
   }
-
   /**
    * Sets the system UI mode (no-op on web)
    */
   static setEnabledSystemUIMode(mode) {
-    console.debug('SystemChrome.setEnabledSystemUIMode called on web (no-op)');
+    console.debug("SystemChrome.setEnabledSystemUIMode called on web (no-op)");
     return Promise.resolve();
   }
 }
-
-export default FlutterjsServices;
+class PlatformException extends Error {
+  /**
+   * Creates a [PlatformException] with the specified error [code] and optional
+   * [message] and [details].
+   *
+   * @param {string} code
+   * @param {string} [message]
+   * @param {any} [details]
+   * @param {string} [stacktrace]
+   */
+  constructor(code, message = null, details = null, stacktrace = null) {
+    super(message || code);
+    this.name = "PlatformException";
+    this.code = code;
+    this.details = details;
+    if (stacktrace) {
+      this.stack = stacktrace;
+    }
+  }
+  toString() {
+    return `PlatformException(${this.code}, ${this.message}, ${this.details})`;
+  }
+}
+class SystemNavigator {
+  /**
+   * Informs the system of a new route.
+   *
+   * @param {Object} options
+   * @param {any} options.uri - The URI of the route
+   */
+  static routeInformationUpdated({ uri }) {
+    console.debug("SystemNavigator.routeInformationUpdated called on web (no-op)", uri);
+  }
+  /**
+   * Removes the topmost Flutter instance.
+   */
+  static pop() {
+    console.debug("SystemNavigator.pop called on web");
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      console.warn("Cannot pop: no history available");
+    }
+  }
+}
+var src_default = FlutterjsServices;
+export {
+  FlutterjsServices,
+  JSONMethodCodec,
+  MethodCall,
+  MethodChannel,
+  MethodCodec,
+  PlatformException,
+  SystemChrome,
+  SystemNavigator,
+  SystemUiOverlayStyle,
+  createInstance,
+  src_default as default
+};
+//# sourceMappingURL=index.js.map

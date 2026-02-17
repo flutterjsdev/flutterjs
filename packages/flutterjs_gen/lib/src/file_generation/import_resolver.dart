@@ -28,7 +28,7 @@ class ImportResolver {
     'package:flutter/rendering.dart': '@flutterjs/rendering',
     'package:flutter/painting.dart': '@flutterjs/painting',
     'package:flutter/animation.dart': '@flutterjs/animation',
-    'package:flutter/gestures.dart': '@flutterjs/gestures',
+    'package:flutter/gestures.dart': '@flutterjs/material',  // ✅ Gestures integrated into material
 
     // Official Plugins
     'package:flutterjs_seo': '@flutterjs/seo',
@@ -39,6 +39,7 @@ class ImportResolver {
 
     // ✅ FIX: Explicit mapping for dart:core
     'dart:core': '@flutterjs/dart/core',
+    'dart:ui_web': '@flutterjs/dart/ui_web',
   };
 
   final Map<String, String> _libraryToPackageMap;
@@ -74,6 +75,16 @@ class ImportResolver {
       return '@flutterjs/seo';
     }
 
+    // ✅ FIX: Force MethodChannel/Codec to @flutterjs/services
+    if (const {
+      'MethodCall',
+      'MethodCodec',
+      'JSONMethodCodec',
+      'PlatformException',
+    }.contains(symbol)) {
+      return '@flutterjs/services';
+    }
+
     // 2. Fallback to library-based resolution
     // Check if this is a dart: import or package: import
     for (final importUri in activeImports) {
@@ -100,9 +111,10 @@ class ImportResolver {
       }
     }
 
-    // 4. Fallback: Default UI Library
-    // If strictly unknown and no helpful imports found, assume Material/Widget layer.
-    return '@flutterjs/material';
+    // 4. No match — return empty string so callers can skip unknown symbols
+    // Previously fell back to '@flutterjs/material' which caused spurious imports
+    // in non-Flutter files (e.g. server-side Dart code).
+    return '';
   }
 
   /// Resolves a Dart library URI (e.g. package:foo/bar.dart) to a JS package name (e.g. @org/foo)
@@ -116,6 +128,12 @@ class ImportResolver {
     // Check explicitly mapped packages
     if (_libraryToPackageMap.containsKey('package:$packageName')) {
       return _libraryToPackageMap['package:$packageName'];
+    }
+
+    // For third-party packages not in the map, return bare package name
+    // This allows url_launcher, shared_preferences, etc. to resolve automatically
+    if (packageName != 'flutter') {
+      return packageName;
     }
 
     return null;

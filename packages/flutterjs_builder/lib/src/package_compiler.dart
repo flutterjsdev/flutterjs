@@ -43,15 +43,18 @@ class PackageCompiler {
   final String outputDir;
   final bool verbose;
   final PackageResolver? resolver;
+  final bool outputToSrc;
 
   PackageCompiler({
     required this.packagePath,
     required this.outputDir,
     this.verbose = false,
     this.resolver,
+    this.outputToSrc = false,
   });
 
   String _sourceDirName = 'lib';
+  late String _actualOutputDir; // Computed output directory based on mode
 
   /// Compile the entire package
   Future<void> compile({Map<String, String>? dependencyPaths}) async {
@@ -90,7 +93,16 @@ class PackageCompiler {
       return;
     }
 
-    final distDir = Directory(outputDir);
+    // ✅ Determine actual output directory based on mode
+    _actualOutputDir = outputToSrc
+        ? p.join(packagePath, packageName, 'src') // Package-mode: output to src/
+        : outputDir; // Normal mode: output to dist/
+
+    if (verbose && outputToSrc) {
+      print('   📦 Package mode: outputting to $_actualOutputDir');
+    }
+
+    final distDir = Directory(_actualOutputDir);
     if (!await distDir.exists()) {
       await distDir.create(recursive: true);
     }
@@ -178,8 +190,10 @@ class PackageCompiler {
               from: p.join(packagePath, sourceDirName),
             );
 
+            // ✅ Use src/ or dist/ based on mode
+            final outputSubdir = outputToSrc ? 'src' : 'dist';
             final jsPath =
-                './dist/${p.setExtension(relativePath, '.js').replaceAll(r'\', '/')}';
+                './$outputSubdir/${p.setExtension(relativePath, '.js').replaceAll(r'\', '/')}';
 
             // Collect exports for THIS package
             for (final cls in dartFile.classDeclarations) {
@@ -204,6 +218,32 @@ class PackageCompiler {
                 'type': 'function',
               });
               localExports[func.name] = dartUri;
+            }
+
+            // Add enum exports
+            for (final enumDecl in dartFile.enumDeclarations) {
+              final dartUri =
+                  'package:$packageName/${relativePath.replaceAll(r'\', '/')}';
+
+              // Export the enum type itself
+              exportsList.add({
+                'name': enumDecl.name,
+                'path': jsPath,
+                'uri': dartUri,
+                'type': 'enum',
+              });
+              localExports[enumDecl.name] = dartUri;
+
+              // Export each enum member (for auto-complete and symbol resolution)
+              for (final value in enumDecl.values) {
+                exportsList.add({
+                  'name': '${enumDecl.name}.${value.name}',
+                  'path': jsPath,
+                  'uri': dartUri,
+                  'type': 'enum_member',
+                  'parent': enumDecl.name,
+                });
+              }
             }
           }
         }
@@ -261,9 +301,17 @@ class PackageCompiler {
         'exports': exportsList,
       };
 
-      await File(
-        p.join(packagePath, 'exports.json'),
-      ).writeAsString(jsonEncode(manifest));
+      // ✅ Write exports.json to package dir when in package mode
+      final exportsPath = outputToSrc
+          ? p.join(packagePath, packageName, 'exports.json')
+          : p.join(packagePath, 'exports.json');
+
+      await File(exportsPath).writeAsString(jsonEncode(manifest));
+
+      // ✅ Generate barrel export (src/index.js) when in package mode
+      if (outputToSrc) {
+        await _generateBarrelExport(exportsList, packageName);
+      }
 
       stopwatch.stop();
       if (verbose || stopwatch.elapsedMilliseconds > 1000) {
@@ -271,6 +319,52 @@ class PackageCompiler {
       }
     } finally {
       heartbeat.stop();
+    }
+  }
+
+  /// Generate barrel export file (src/index.js) that re-exports all symbols
+  Future<void> _generateBarrelExport(
+    List<Map<String, String>> exportsList,
+    String packageName,
+  ) async {
+    final srcDir = Directory(_actualOutputDir);
+    if (!await srcDir.exists()) {
+      return;
+    }
+
+    // Group exports by file path
+    final exportsByPath = <String, Set<String>>{};
+    for (final export in exportsList) {
+      final path = export['path'];
+      final name = export['name'];
+      if (path != null && name != null && !name.contains('.')) {
+        // Skip enum members like "LaunchMode.platformDefault"
+        final relativePath = path.replaceFirst(RegExp(r'^\./(?:src|dist)/'), './');
+        exportsByPath.putIfAbsent(relativePath, () => {}).add(name);
+      }
+    }
+
+    // Generate import/export statements
+    final statements = <String>[];
+    for (final entry in exportsByPath.entries.toList()..sort((a, b) => a.key.compareTo(b.key))) {
+      final path = entry.key;
+      final symbols = entry.value.toList()..sort();
+      statements.add('export { ${symbols.join(', ')} } from \'$path\';');
+    }
+
+    final barrelContent = '''
+// Auto-generated barrel export for @flutterjs/$packageName
+// Do not edit manually - regenerated on each build
+// Generated at: ${DateTime.now()}
+
+${statements.join('\n')}
+''';
+
+    final indexFile = File(p.join(_actualOutputDir, 'index.js'));
+    await indexFile.writeAsString(barrelContent);
+
+    if (verbose) {
+      print('   📦 Generated barrel export: ${p.relative(indexFile.path, from: packagePath)}');
     }
   }
 
@@ -305,6 +399,15 @@ class PackageCompiler {
       );
 
       pass.extractDeclarations(unit);
+
+      // Build import/export model before finalizing DartFile
+      final tracker = ImportExportTracker();
+      final tempDartFile = builder.build();
+      tracker.analyzeDartFile(tempDartFile);
+      final importExportModel = tracker.buildModel();
+
+      // Add model to builder and rebuild
+      builder.withImportExportModel(importExportModel);
       final dartFile = builder.build();
 
       // Check for platform-specific imports
@@ -340,11 +443,11 @@ class PackageCompiler {
       file.path,
       from: p.join(packagePath, _sourceDirName),
     );
-    final outputPath = p.join(outputDir, p.setExtension(relativePath, '.js'));
+    final outputPath = p.join(_actualOutputDir, p.setExtension(relativePath, '.js'));
 
     if (verbose) {
       print(
-        '  Generatng JS $relativePath -> ${p.relative(outputPath, from: outputDir)}',
+        '  Generatng JS $relativePath -> ${p.relative(outputPath, from: _actualOutputDir)}',
       );
     }
 

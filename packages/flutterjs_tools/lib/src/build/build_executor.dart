@@ -164,6 +164,15 @@ class BuildExecutor {
     );
 
     result.unit.accept(pass);
+
+    // Build import/export model
+    final tracker = ImportExportTracker();
+    final tempDartFile = builder.build();
+    tracker.analyzeDartFile(tempDartFile);
+    final importExportModel = tracker.buildModel();
+
+    // Add model and rebuild
+    builder.withImportExportModel(importExportModel);
     return builder.build();
   }
 
