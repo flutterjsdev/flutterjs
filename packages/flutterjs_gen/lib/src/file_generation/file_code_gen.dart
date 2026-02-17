@@ -226,23 +226,6 @@ class FileCodeGen {
   // =========================================================================
 
   Future<String> _generateCodeAsync(DartFile dartFile) async {
-    try {
-      final logFile = File(r'C:\Jay\_Plugin\flutterjs\debug_entry_log.txt');
-      logFile.writeAsStringSync(
-        'Processing File: ${dartFile.package} / ${dartFile.library}\nClasses: ${dartFile.classDeclarations.length}, Functions: ${dartFile.functionDeclarations.length}\n',
-        mode: FileMode.append,
-      );
-      for (var c in dartFile.classDeclarations)
-        logFile.writeAsStringSync(
-          '  Class: ${c.name}\n',
-          mode: FileMode.append,
-        );
-      for (var f in dartFile.functionDeclarations)
-        logFile.writeAsStringSync('  Func: ${f.name}\n', mode: FileMode.append);
-    } catch (e) {
-      // ignore
-    }
-
     var code = StringBuffer();
 
     // Generate each section sequentially to avoid buffer corruption
@@ -407,178 +390,176 @@ class FileCodeGen {
       if (target == 'node') {
         // Node.js target: skip all Flutter/material/services imports entirely
       } else {
+        // Sort widgets to ensure deterministic output
+        final sortedWidgets =
+            usedWidgets.where((w) => !definedNames.contains(w)).toSet().toList()
+              ..sort();
 
-      // Sort widgets to ensure deterministic output
-      final sortedWidgets =
-          usedWidgets.where((w) => !definedNames.contains(w)).toSet().toList()
-            ..sort();
+        // Resolver already declared above
 
-      // Resolver already declared above
+        for (final widget in sortedWidgets) {
+          // Skip runtime types if they accidentally got into usedWidgets
+          if (widget.startsWith('_') || materialImports.contains(widget))
+            continue;
 
-      for (final widget in sortedWidgets) {
-        // Skip runtime types if they accidentally got into usedWidgets
-        if (widget.startsWith('_') || materialImports.contains(widget))
-          continue;
+          if (widget == 'Uri') continue;
+          if (widget == 'Seo') continue;
 
-        if (widget == 'Uri') continue;
-        if (widget == 'Seo') continue;
+          // ✅ FIX: Heuristic for local widgets to prevent Material capture
+          // Most local pages end in "Page" or "Screen". We must ensure they resolve locally.
+          // We explicitly allow 'MaterialPage' as it is a real Material widget.
+          if ((widget.endsWith('Page') ||
+                  widget.endsWith('Screen') ||
+                  widget == 'MyApp') &&
+              widget != 'MaterialPage' &&
+              widget != 'CupertinoPage') {
+            continue;
+          }
 
-        // ✅ FIX: Heuristic for local widgets to prevent Material capture
-        // Most local pages end in "Page" or "Screen". We must ensure they resolve locally.
-        // We explicitly allow 'MaterialPage' as it is a real Material widget.
-        if ((widget.endsWith('Page') ||
-                widget.endsWith('Screen') ||
-                widget == 'MyApp') &&
-            widget != 'MaterialPage' &&
-            widget != 'CupertinoPage') {
-          continue;
-        }
+          // ✅ FIX: Use strict resolution (ImportResolver)
+          final resolvedPkg = resolver.resolve(widget);
 
-        // ✅ FIX: Use strict resolution (ImportResolver)
-        final resolvedPkg = resolver.resolve(widget);
-
-        // Only add if it resolves to Material or is a known UI widget
-        // If it resolves to 'dart:core', it will be SKIPPED here (and handled by coreImports above)
-        if (resolvedPkg == '@flutterjs/material') {
-          materialImports.add(widget);
-        } else if (widget == 'ThemeData' ||
-            widget == 'ColorScheme' ||
-            widget == 'Colors' ||
-            widget == 'Color' ||
-            widget == 'MaterialColor' ||
-            widget == 'ColorSwatch' ||
-            widget == 'Theme' ||
-            widget == 'Icon' ||
-            widget == 'Icons' ||
-            widget == 'IconData' ||
-            widget == 'FloatingActionButton' ||
-            widget == 'TextStyle' ||
-            widget == 'MediaQuery' ||
-            widget == 'MediaQueryData' ||
-            widget == 'Spacer' ||
-            widget == 'TextButtonThemeData' ||
-            widget == 'debugPrint') {
-          // Fallback for symbols not yet in registry but known to be Material
-          materialImports.add(widget);
-        }
-      }
-
-      if (materialImports.isNotEmpty) {
-        // Only add companion symbols that are actually used — avoid spurious imports
-        const materialCompanions = {
-          'Theme',
-          'Colors',
-          'Color',
-          'MaterialColor',
-          'ColorSwatch',
-          'Icons',
-          'ThemeData',
-          'EdgeInsets',
-          'BorderRadius',
-          'BoxDecoration',
-          'TextStyle',
-          'BoxShadow',
-          'Offset',
-          'FontWeight',
-          'BoxShape',
-          'Alignment',
-          'CrossAxisAlignment',
-          'MainAxisAlignment',
-          'MediaQuery',
-          'MediaQueryData',
-          'Spacer',
-          'TextButtonThemeData',
-          'debugPrint',
-          'runApp',
-          'Widget',
-          'State',
-          'StatefulWidget',
-          'StatelessWidget',
-          'BuildContext',
-          'Key',
-        };
-        // Add companions only if used in this file
-        for (final c in materialCompanions) {
-          if (usedWidgets.contains(c) || usedTypes.contains(c) || usedFunctions.contains(c)) {
-            materialImports.add(c);
+          // Only add if it resolves to Material or is a known UI widget
+          // If it resolves to 'dart:core', it will be SKIPPED here (and handled by coreImports above)
+          if (resolvedPkg == '@flutterjs/material') {
+            materialImports.add(widget);
+          } else if (widget == 'ThemeData' ||
+              widget == 'ColorScheme' ||
+              widget == 'Colors' ||
+              widget == 'Color' ||
+              widget == 'MaterialColor' ||
+              widget == 'ColorSwatch' ||
+              widget == 'Theme' ||
+              widget == 'Icon' ||
+              widget == 'Icons' ||
+              widget == 'IconData' ||
+              widget == 'FloatingActionButton' ||
+              widget == 'TextStyle' ||
+              widget == 'MediaQuery' ||
+              widget == 'MediaQueryData' ||
+              widget == 'Spacer' ||
+              widget == 'TextButtonThemeData' ||
+              widget == 'debugPrint') {
+            // Fallback for symbols not yet in registry but known to be Material
+            materialImports.add(widget);
           }
         }
 
-        code.writeln('import {');
-        final sortedImports = materialImports.toList()..sort();
-        for (final symbol in sortedImports) {
-          code.writeln('  $symbol,');
+        if (materialImports.isNotEmpty) {
+          // Only add companion symbols that are actually used — avoid spurious imports
+          const materialCompanions = {
+            'Theme',
+            'Colors',
+            'Color',
+            'MaterialColor',
+            'ColorSwatch',
+            'Icons',
+            'ThemeData',
+            'EdgeInsets',
+            'BorderRadius',
+            'BoxDecoration',
+            'TextStyle',
+            'BoxShadow',
+            'Offset',
+            'FontWeight',
+            'BoxShape',
+            'Alignment',
+            'CrossAxisAlignment',
+            'MainAxisAlignment',
+            'MediaQuery',
+            'MediaQueryData',
+            'Spacer',
+            'TextButtonThemeData',
+            'debugPrint',
+            'runApp',
+            'Widget',
+            'State',
+            'StatefulWidget',
+            'StatelessWidget',
+            'BuildContext',
+            'Key',
+          };
+          // Add companions only if used in this file
+          for (final c in materialCompanions) {
+            if (usedWidgets.contains(c) ||
+                usedTypes.contains(c) ||
+                usedFunctions.contains(c)) {
+              materialImports.add(c);
+            }
+          }
+
+          code.writeln('import {');
+          final sortedImports = materialImports.toList()..sort();
+          for (final symbol in sortedImports) {
+            code.writeln('  $symbol,');
+          }
+          code.writeln('} from \'@flutterjs/material\';');
         }
-        code.writeln('} from \'@flutterjs/material\';');
-      }
 
-      // -----------------------------------------------------------------------
-      // SERVICES IMPORTS (@flutterjs/services)
-      // -----------------------------------------------------------------------
+        // -----------------------------------------------------------------------
+        // SERVICES IMPORTS (@flutterjs/services)
+        // -----------------------------------------------------------------------
 
-      // Ensure explicit service classes are imported
-      if (usedWidgets.contains('MethodCall') ||
-          usedWidgets.contains('MethodCodec') ||
-          usedWidgets.contains('JSONMethodCodec') ||
-          usedWidgets.contains('PlatformException') ||
-          usedTypes.contains('MethodCall') ||
-          usedTypes.contains('MethodCodec') ||
-          usedTypes.contains('JSONMethodCodec') ||
-          usedTypes.contains('PlatformException')) {
-        // Add them if detected
-      }
-      // Actually we iterate all widgets/types and check resolution
-
-      for (final widget in sortedWidgets) {
-        if (widget.startsWith('_') ||
-            materialImports.contains(widget) ||
-            coreImports.contains(widget))
-          continue;
-
-        final resolvedPkg = resolver.resolve(widget);
-        if (resolvedPkg == '@flutterjs/services') {
-          servicesImports.add(widget);
+        // Ensure explicit service classes are imported
+        if (usedWidgets.contains('MethodCall') ||
+            usedWidgets.contains('MethodCodec') ||
+            usedWidgets.contains('JSONMethodCodec') ||
+            usedWidgets.contains('PlatformException') ||
+            usedTypes.contains('MethodCall') ||
+            usedTypes.contains('MethodCodec') ||
+            usedTypes.contains('JSONMethodCodec') ||
+            usedTypes.contains('PlatformException')) {
+          // Add them if detected
         }
-      }
+        // Actually we iterate all widgets/types and check resolution
 
-      // Explicitly check for MethodCodec/JSONMethodCodec which might be variable types/initializers
-      // and not in sortedWidgets if they were only in usedTypes or definedNames (wait, definedNames excludes them)
-      // We just need to check usedTypes + usedWidgets
-      final serviceCandidates = {...usedWidgets, ...usedTypes};
-      for (final symbol in serviceCandidates) {
-        if (const {
-          'MethodCall',
-          'MethodCodec',
-          'JSONMethodCodec',
-          'PlatformException',
-        }.contains(symbol)) {
-          servicesImports.add(symbol);
-        }
-      }
+        for (final widget in sortedWidgets) {
+          if (widget.startsWith('_') ||
+              materialImports.contains(widget) ||
+              coreImports.contains(widget))
+            continue;
 
-      if (servicesImports.isNotEmpty) {
-        code.writeln('import {');
-        for (final symbol in servicesImports.toList()..sort()) {
-          code.writeln('  $symbol,');
+          final resolvedPkg = resolver.resolve(widget);
+          if (resolvedPkg == '@flutterjs/services') {
+            servicesImports.add(widget);
+          }
         }
-        code.writeln(
-          '} from \'@flutterjs/services/dist/index.js\';',
-        ); // Use specific path or index? index.js is safe.
-        code.writeln();
-      }
+
+        // Explicitly check for MethodCodec/JSONMethodCodec which might be variable types/initializers
+        // and not in sortedWidgets if they were only in usedTypes or definedNames (wait, definedNames excludes them)
+        // We just need to check usedTypes + usedWidgets
+        final serviceCandidates = {...usedWidgets, ...usedTypes};
+        for (final symbol in serviceCandidates) {
+          if (const {
+            'MethodCall',
+            'MethodCodec',
+            'JSONMethodCodec',
+            'PlatformException',
+          }.contains(symbol)) {
+            servicesImports.add(symbol);
+          }
+        }
+
+        if (servicesImports.isNotEmpty) {
+          code.writeln('import {');
+          for (final symbol in servicesImports.toList()..sort()) {
+            code.writeln('  $symbol,');
+          }
+          code.writeln(
+            '} from \'@flutterjs/services/dist/index.js\';',
+          ); // Use specific path or index? index.js is safe.
+          code.writeln();
+        }
       } // end of web-only material/services block
 
       // -----------------------------------------------------------------------
       // EXTERNAL PACKAGE IMPORTS (url_launcher, shared_preferences, etc.)
       // -----------------------------------------------------------------------
-      final externalImports = <String, Set<String>>{}; // packageName -> {symbols}
+      final externalImports =
+          <String, Set<String>>{}; // packageName -> {symbols}
 
       // Dart built-in functions that should not be imported as JS symbols
-      const dartBuiltinFunctions = {
-        'print',
-        'identical',
-        'identityHashCode',
-      };
+      const dartBuiltinFunctions = {'print', 'identical', 'identityHashCode'};
 
       for (final func in usedFunctions) {
         if (definedNames.contains(func)) continue;
@@ -650,7 +631,8 @@ class FileCodeGen {
       // SAME-PACKAGE SIBLING FILE IMPORTS
       // -----------------------------------------------------------------------
       // Detect symbols used from other files in the same package
-      final samePackageImports = <String, Set<String>>{}; // relativePath -> {symbols}
+      final samePackageImports =
+          <String, Set<String>>{}; // relativePath -> {symbols}
 
       final allUsedSymbols = {...usedWidgets, ...usedTypes, ...usedFunctions};
 
