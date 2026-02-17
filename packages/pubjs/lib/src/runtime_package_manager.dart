@@ -268,8 +268,9 @@ class RuntimePackageManager {
           if (entity is Directory) {
             final dirName = p.basename(entity.path);
 
-            // Check if it's a flutterjs_* package (but not engine or tools)
-            if (dirName.startsWith('flutterjs_') &&
+            // Check if it's a flutterjs_* package or flutter_web_plugins
+            if ((dirName.startsWith('flutterjs_') ||
+                    dirName == 'flutter_web_plugins') &&
                 dirName != 'flutterjs_engine' &&
                 dirName != 'flutterjs_tools') {
               // 1. Try nested package (legacy): packages/flutterjs_material/flutterjs_material/
@@ -298,12 +299,20 @@ class RuntimePackageManager {
                   );
                   if (await File(packageJsonPath).exists()) {
                     found = true;
-                    final pkgName = dirName.substring('flutterjs_'.length);
+                    // FIX: Safe name extraction
+                    String key;
+                    if (dirName.startsWith('flutterjs_')) {
+                      final simpleName = dirName.substring('flutterjs_'.length);
+                      key = '@flutterjs/$simpleName';
+                    } else {
+                      key = dirName;
+                    }
+
                     final relativePath = p.relative(
                       innerPackageDir.path,
                       from: projectPath,
                     );
-                    sdkPackages['@flutterjs/$pkgName'] = relativePath;
+                    sdkPackages[key] = relativePath;
                   }
                 }
               }
@@ -313,22 +322,22 @@ class RuntimePackageManager {
                 final pubspecPath = p.join(entity.path, 'pubspec.yaml');
                 final packageJsonPath = p.join(entity.path, 'package.json');
 
-                if (await File(pubspecPath).exists()) {
-                  // Extract package name: flutterjs_dart -> dart
-                  final pkgName = dirName.substring('flutterjs_'.length);
+                if (await File(pubspecPath).exists() ||
+                    await File(packageJsonPath).exists()) {
+                  // FIX: Safe name extraction
+                  String key;
+                  if (dirName.startsWith('flutterjs_')) {
+                    final simpleName = dirName.substring('flutterjs_'.length);
+                    key = '@flutterjs/$simpleName';
+                  } else {
+                    key = dirName;
+                  }
+
                   final relativePath = p.relative(
                     entity.path,
                     from: projectPath,
                   );
-                  sdkPackages['@flutterjs/$pkgName'] = relativePath;
-                } else if (await File(packageJsonPath).exists()) {
-                  // Support JS-only packages (like flutterjs_dart)
-                  final pkgName = dirName.substring('flutterjs_'.length);
-                  final relativePath = p.relative(
-                    entity.path,
-                    from: projectPath,
-                  );
-                  sdkPackages['@flutterjs/$pkgName'] = relativePath;
+                  sdkPackages[key] = relativePath;
                 }
               }
             }
@@ -442,15 +451,29 @@ class RuntimePackageManager {
         final relPath = sdkPkg.value;
         final absPath = p.join(projectPath, relPath);
 
-        // If package is scoped (e.g. @flutterjs/runtime), strip scope because destDir already includes @flutterjs
-        var linkName = pkgName;
-        if (linkName.startsWith('@flutterjs/')) {
-          linkName = linkName.substring('@flutterjs/'.length);
-        }
+        if (pkgName.startsWith('@flutterjs/')) {
+          // If package is scoped (e.g. @flutterjs/runtime), strip scope because destDir already includes @flutterjs
+          final linkName = pkgName.substring('@flutterjs/'.length);
 
-        if (verbose)
-          print('   🔗 Pre-linking SDK package: $pkgName -> $linkName');
-        await _linkLocalPackage(linkName, absPath, nodeModulesFlutterJS);
+          if (verbose)
+            print('   🔗 Pre-linking SDK package: $pkgName -> $linkName');
+          await _linkLocalPackage(linkName, absPath, nodeModulesFlutterJS);
+
+          // Also link under the Dart package name (e.g. 'flutterjs_server') in root
+          // node_modules so generated JS `import '...' from 'flutterjs_server'` resolves.
+          final dartPkgName = 'flutterjs_$linkName';
+          if (dependencies.containsKey(dartPkgName)) {
+            if (verbose) {
+              print('   🔗 Also linking as Dart name: $dartPkgName');
+            }
+            await _linkLocalPackage(dartPkgName, absPath, nodeModulesRoot);
+          }
+        } else {
+          // Non-scoped package (e.g. flutter_web_plugins) goes to root node_modules
+          if (verbose)
+            print('   🔗 Pre-linking SDK package: $pkgName ->Root');
+          await _linkLocalPackage(pkgName, absPath, nodeModulesRoot);
+        }
 
         // ✅ RECORD: SDK package
         finalResolvedPackages[pkgName] = absPath;

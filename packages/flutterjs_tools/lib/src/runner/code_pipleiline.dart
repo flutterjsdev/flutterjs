@@ -65,8 +65,14 @@ class UnifiedConversionPipeline {
       packageRegistry = PackageRegistry();
       _loadPackageManifests();
 
+      // ✅ FIX: Wire global symbol table to integration pipeline AFTER manifests load.
+      // ModelToJSPipeline is created first (above) with an empty table, so we must
+      // update it now that packageRegistry has loaded all exports.json files.
+      integrationPipeline.updateGlobalSymbolTable(
+        packageRegistry.buildGlobalSymbolTable(),
+      );
+
       fileCodeGen = FileCodeGen(
-        // Pass default generators - adjust based on your actual constructors
         exprCodeGen: ExpressionCodeGen(),
         stmtCodeGen: StatementCodeGen(),
         classCodeGen: ClassCodeGen(),
@@ -75,7 +81,8 @@ class UnifiedConversionPipeline {
         runtimeRequirements: RuntimeRequirements(),
         outputValidator: OutputValidator(''),
         jsOptimizer: JSOptimizer(''),
-        packageRegistry: packageRegistry, // ✅ Pass loaded registry
+        packageRegistry: packageRegistry,
+        target: config.target,
       );
 
       _log('✅ Pipeline engines initialized');
@@ -85,11 +92,25 @@ class UnifiedConversionPipeline {
     }
   }
 
+  /// Web-only @flutterjs packages that should NOT be loaded for node/server builds.
+  /// These are browser UI packages that have no relevance in a Node.js context and
+  /// would pollute the global symbol table with widget names.
+  static const _webOnlyFlutterjsPackages = {
+    'material',
+    'cupertino',
+    'widgets',
+    'rendering',
+    'animation',
+    'painting',
+    'vdom',
+    'seo',
+    'runtime',
+  };
+
   void _loadPackageManifests() {
     try {
-      // Manifests are in build/flutterjs/node_modules/@flutterjs/
-      // This is where preparePackages() puts them
-      final buildManifestPath = path.join(
+      // Load @flutterjs SDK package manifests
+      final sdkManifestPath = path.join(
         config.projectPath,
         'build',
         'flutterjs',
@@ -97,17 +118,97 @@ class UnifiedConversionPipeline {
         '@flutterjs',
       );
 
-      final dir = Directory(buildManifestPath);
-      if (dir.existsSync()) {
-        final absolutePath = path.absolute(buildManifestPath);
-        _log('📦 Loading package manifests from: $absolutePath');
-        packageRegistry.loadPackagesDirectory(buildManifestPath);
+      final sdkDir = Directory(sdkManifestPath);
+      if (sdkDir.existsSync()) {
+        final absolutePath = path.absolute(sdkManifestPath);
+        _log('📦 Loading SDK package manifests from: $absolutePath');
+        if (config.isNodeTarget) {
+          // For node builds, skip web-only packages to avoid polluting the symbol table
+          _log('🎯 Node target: skipping web-only @flutterjs packages: ${_webOnlyFlutterjsPackages.join(', ')}');
+          _loadPackagesDirectoryFiltered(sdkManifestPath, _webOnlyFlutterjsPackages);
+        } else {
+          packageRegistry.loadPackagesDirectory(sdkManifestPath);
+        }
       } else {
-        _log('⚠️  No manifests found at: $buildManifestPath');
+        _log('⚠️  No SDK manifests found at: $sdkManifestPath');
         _log('   Make sure to run package preparation first');
+      }
+
+      // Also load external package manifests (url_launcher, etc.)
+      final nodeModulesPath = path.join(
+        config.projectPath,
+        'build',
+        'flutterjs',
+        'node_modules',
+      );
+
+      final nodeModulesDir = Directory(nodeModulesPath);
+      if (nodeModulesDir.existsSync()) {
+        // Scan top-level directories in node_modules (excluding @flutterjs which is already loaded)
+        for (final entity in nodeModulesDir.listSync()) {
+          if (entity is Directory) {
+            final dirName = path.basename(entity.path);
+            if (dirName.startsWith('@')) continue; // Skip scoped packages (already loaded)
+            if (dirName.startsWith('.')) continue; // Skip hidden directories
+
+            final exportsFile = File(path.join(entity.path, 'exports.json'));
+            if (exportsFile.existsSync()) {
+              packageRegistry.loadManifest(exportsFile.path);
+            }
+          }
+        }
+      }
+
+      // Load workspace sibling package exports (e.g. flutterjs_server, url_launcher, etc.)
+      // Walk up from project to find workspace root (has pubspec.yaml with workspace: entries)
+      // Heuristic: check parent directories for a packages/ sibling
+      var searchDir = Directory(config.projectPath).parent;
+      for (var i = 0; i < 4; i++) {
+        final packagesDir = Directory(path.join(searchDir.path, 'packages'));
+        if (packagesDir.existsSync()) {
+          // Scan packages/*/*/exports.json
+          for (final pkgDir in packagesDir.listSync()) {
+            if (pkgDir is! Directory) continue;
+            for (final npmDir in pkgDir.listSync()) {
+              if (npmDir is! Directory) continue;
+              final exportsFile = File(path.join(npmDir.path, 'exports.json'));
+              if (exportsFile.existsSync()) {
+                packageRegistry.loadManifest(exportsFile.path);
+              }
+            }
+          }
+          break;
+        }
+        searchDir = searchDir.parent;
       }
     } catch (e) {
       _log('⚠️  Failed to load package manifests: $e');
+    }
+  }
+
+  /// Like [PackageRegistry.loadPackagesDirectory] but skips subdirectories
+  /// whose basename is in [skipPackages].
+  void _loadPackagesDirectoryFiltered(
+    String packagesDir,
+    Set<String> skipPackages,
+  ) {
+    final dir = Directory(packagesDir);
+    if (!dir.existsSync()) {
+      _log('⚠️  Packages directory not found: $packagesDir');
+      return;
+    }
+
+    for (final entity in dir.listSync()) {
+      if (entity is! Directory) continue;
+      final name = path.basename(entity.path);
+      if (skipPackages.contains(name)) {
+        _log('   ⏭️  Skipping web-only package: @flutterjs/$name');
+        continue;
+      }
+      final exportsFile = File(path.join(entity.path, 'exports.json'));
+      if (exportsFile.existsSync()) {
+        packageRegistry.loadManifest(exportsFile.path);
+      }
     }
   }
 
