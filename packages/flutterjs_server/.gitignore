@@ -1,0 +1,36 @@
+# Files and directories created by pub
+.dart_tool/
+.packages
+build/
+pubspec.lock
+
+# Conventional directory for build outputs
+dist/
+out/
+
+# Directory created by dartdoc
+doc/api/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node modules (for the npm runtime package)
+node_modules/
+flutterjs_server/node_modules/
+flutterjs_server/dist/
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.log
+*.tmp
+*.temp
