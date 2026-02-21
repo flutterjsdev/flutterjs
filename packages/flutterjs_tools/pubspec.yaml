@@ -17,7 +17,7 @@ dependencies:
   flutterjs_gen: any
   pubjs: any
   args: ^2.7.0
-  analyzer: ^8.4.1
+  analyzer: ^10.0.1
 
 dev_dependencies:
   lints: ^6.0.0

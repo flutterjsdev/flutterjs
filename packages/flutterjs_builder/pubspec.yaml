@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  analyzer: ^8.4.1
+  analyzer: ^10.0.1
   path: ^1.9.1
   flutterjs_gen:
     path: ../flutterjs_gen
