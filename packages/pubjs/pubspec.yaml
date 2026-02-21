@@ -16,7 +16,7 @@ dependencies:
   crypto: ^3.0.3
   meta: ^1.10.0
   archive: ^4.0.7
-  analyzer: ^8.4.1
+  analyzer: ^10.0.1
   code_builder: ^4.11.1
   flutterjs_builder:
     path: ../flutterjs_builder

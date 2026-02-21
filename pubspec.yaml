@@ -54,7 +54,7 @@ environment:
 # Add regular dependencies here.
 dependencies:
   path: ^1.9.0
-  analyzer: ^8.4.1
+  analyzer: ^10.0.1
   args:
   archive: ^4.0.7
   code_builder: ^4.11.1
