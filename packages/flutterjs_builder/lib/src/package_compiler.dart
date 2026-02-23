@@ -332,28 +332,61 @@ class PackageCompiler {
       return;
     }
 
-    // Group exports by file path
-    final exportsByPath = <String, Set<String>>{};
-    for (final export in exportsList) {
-      final path = export['path'];
-      final name = export['name'];
-      if (path != null && name != null && !name.contains('.')) {
-        // Skip enum members like "LaunchMode.platformDefault"
-        final relativePath = path.replaceFirst(RegExp(r'^\./(?:src|dist)/'), './');
-        exportsByPath.putIfAbsent(relativePath, () => {}).add(name);
+    // Collect JS files to re-export from.
+    // If exportsList has entries (compiled from Dart), use those paths.
+    // Otherwise (handwritten JS packages), scan src/*.js directly.
+    final Set<String> jsFilePaths = {};
+
+    if (exportsList.isNotEmpty) {
+      // Compiled packages: derive paths from exportsList, skip enum members
+      for (final export in exportsList) {
+        final path = export['path'];
+        final name = export['name'];
+        if (path != null && name != null && !name.contains('.')) {
+          final relativePath = path.replaceFirst(RegExp(r'^\./(?:src|dist)/'), './');
+          jsFilePaths.add(relativePath);
+        }
+      }
+    } else {
+      // Handwritten JS packages: scan all *.js files in src/ except:
+      // - index.js (the barrel itself)
+      // - <packageName>.js (empty compiler stub from lib wrapper)
+      // - _*_web.js files whose canonical counterpart also exists in src/
+      //   (e.g. _platform_web.js duplicates platform.js on web-only builds)
+      final allFiles = <String>{};
+      await for (final entity in srcDir.list()) {
+        if (entity is File && entity.path.endsWith('.js')) {
+          allFiles.add(p.basename(entity.path));
+        }
+      }
+
+      // Build set of canonical base names that have a _web duplicate
+      // e.g. 'bitfield.js' ↔ '_bitfield_web.js'
+      final webDuplicates = <String>{};
+      for (final f in allFiles) {
+        if (f.startsWith('_') && f.endsWith('_web.js')) {
+          // Extract canonical name: '_bitfield_web.js' → 'bitfield.js'
+          final canonical = f.replaceFirst('_', '').replaceAll('_web.js', '.js');
+          if (allFiles.contains(canonical)) {
+            webDuplicates.add(f); // skip the _web duplicate
+          }
+        }
+      }
+
+      for (final fileName in allFiles.toList()..sort()) {
+        if (fileName == 'index.js') continue;
+        if (fileName == '$packageName.js') continue; // empty compiler stub
+        if (webDuplicates.contains(fileName)) continue; // identical to canonical
+        jsFilePaths.add('./$fileName');
       }
     }
 
-    // Generate import/export statements
-    final statements = <String>[];
-    for (final entry in exportsByPath.entries.toList()..sort((a, b) => a.key.compareTo(b.key))) {
-      final path = entry.key;
-      final symbols = entry.value.toList()..sort();
-      statements.add('export { ${symbols.join(', ')} } from \'$path\';');
-    }
+    // Generate export * from statements (one per file, sorted)
+    final statements = (jsFilePaths.toList()..sort())
+        .map((path) => "export * from '$path';")
+        .toList();
 
-    final barrelContent = '''
-// Auto-generated barrel export for @flutterjs/$packageName
+    final barrelContent = '''// Auto-generated barrel export for @flutterjs/$packageName
 // Do not edit manually - regenerated on each build
 // Generated at: ${DateTime.now()}
 

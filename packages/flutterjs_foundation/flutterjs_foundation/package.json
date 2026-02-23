@@ -29,6 +29,36 @@
     "LICENSE"
   ],
   "exports": {
-    ".": "./dist/index.js"
+    ".": "./dist/index.js",
+    "./annotations": "./dist/annotations.js",
+    "./assertions": "./dist/assertions.js",
+    "./basic_types": "./dist/basic_types.js",
+    "./bitfield": "./dist/bitfield.js",
+    "./capabilities": "./dist/capabilities.js",
+    "./change_notifier": "./dist/change_notifier.js",
+    "./collections": "./dist/collections.js",
+    "./debug": "./dist/debug.js",
+    "./diagnostics": "./dist/diagnostics.js",
+    "./flutterjs_foundation": "./dist/flutterjs_foundation.js",
+    "./isolates": "./dist/isolates.js",
+    "./key": "./dist/key.js",
+    "./licenses": "./dist/licenses.js",
+    "./memory_allocations": "./dist/memory_allocations.js",
+    "./node": "./dist/node.js",
+    "./object": "./dist/object.js",
+    "./observer_list": "./dist/observer_list.js",
+    "./platform": "./dist/platform.js",
+    "./print": "./dist/print.js",
+    "./serialization": "./dist/serialization.js",
+    "./service_extensions": "./dist/service_extensions.js",
+    "./stack_frame": "./dist/stack_frame.js",
+    "./synchronous_future": "./dist/synchronous_future.js",
+    "./timeline": "./dist/timeline.js",
+    "./unicode": "./dist/unicode.js",
+    "./_bitfield_web": "./dist/_bitfield_web.js",
+    "./_capabilities_web": "./dist/_capabilities_web.js",
+    "./_isolates_web": "./dist/_isolates_web.js",
+    "./_platform_web": "./dist/_platform_web.js",
+    "./_timeline_web": "./dist/_timeline_web.js"
   }
 }
