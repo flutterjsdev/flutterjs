@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 /// Support for building FlutterJS packages from Dart source.
-library flutterjs_builder;
+library;
 
 export 'src/package_compiler.dart';
 export 'src/package_resolver.dart';

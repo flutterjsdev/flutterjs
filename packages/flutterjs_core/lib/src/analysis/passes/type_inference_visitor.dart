@@ -5,7 +5,6 @@
 // File: lib/src/analysis/visitors/type_inference_visitor.dart
 import 'package:flutterjs_core/flutterjs_core.dart';
 
-import 'expression_visitor.dart';
 
 /// Enhanced type inferencer using ExpressionVisitor pattern
 class ExpressionBasedTypeInferencer implements ExpressionVisitor<TypeIR?> {

@@ -28,6 +28,8 @@
 /// • Code metrics (depth, usage counts)
 /// • Flutter-specific optimizations
 /// <---------------------------------------------------------------------------->
+library;
+
 
 import 'package:meta/meta.dart';
 import '../core/source_location.dart';

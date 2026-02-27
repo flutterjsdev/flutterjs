@@ -971,54 +971,31 @@ class Parser {
   }
 
   parsePostfix() {
-    console.log(`        [parsePostfix] Starting, calling parseCall`);
-    let expr = this.parseCall();
-    console.log(`        [parsePostfix] parseCall returned: ${expr.type || expr.name}`);
-    console.log(`        [parsePostfix] Next token: ${this.peek().value}`);
+    let expr = this.parsePrimary();
 
     while (true) {
-      if (this.isOperator('++') || this.isOperator('--')) {
-        const operator = this.advance().value;
-        expr = { type: 'UpdateExpression', operator, argument: expr, prefix: false };
+      if (this.isPunctuation('(')) {
+        this.advance();
+        const args = this.parseArguments();
+        this.consume(TokenType.PUNCTUATION, 'Expected )');
+        expr = new CallExpression(expr, args);
       } else if (this.isPunctuation('.')) {
-        console.log(`        [parsePostfix] Found . member access`);
         this.advance();
         const property = new Identifier(this.consume(TokenType.IDENTIFIER, 'Expected property').value);
         expr = new MemberExpression(expr, property, false);
-        console.log(`        [parsePostfix] Created MemberExpression: ${expr.object.name}.${expr.property.name}`);
       } else if (this.isPunctuation('[')) {
-        console.log(`        [parsePostfix] Found [ computed access`);
         this.advance();
         const property = this.parseExpression();
         this.consume(TokenType.PUNCTUATION, 'Expected ]');
         expr = new MemberExpression(expr, property, true);
+      } else if (this.isOperator('++') || this.isOperator('--')) {
+        const operator = this.advance().value;
+        expr = { type: 'UpdateExpression', operator, argument: expr, prefix: false };
       } else {
-        console.log(`        [parsePostfix] No more postfix ops, returning ${expr.type}`);
         break;
       }
     }
 
-    return expr;
-  }
-
-
-  parseCall() {
-    console.log(`        [parseCall] Starting, calling parsePrimary`);
-    let expr = this.parsePrimary();
-    console.log(`        [parseCall] parsePrimary returned: ${expr.type || expr.name}`);
-    console.log(`        [parseCall] Next token: ${this.peek().value} (${this.peek().type})`);
-
-    while (this.isPunctuation('(')) {
-      console.log(`        [parseCall] Found (, parsing function call`);
-      this.advance();
-      const args = this.parseArguments();
-      console.log(`        [parseCall] Parsed ${args.length} arguments`);
-      this.consume(TokenType.PUNCTUATION, 'Expected )');
-      expr = new CallExpression(expr, args);
-      console.log(`        [parseCall] Created CallExpression`);
-    }
-
-    console.log(`        [parseCall] Returning: ${expr.type}`);
     return expr;
   }
 

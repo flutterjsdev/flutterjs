@@ -45,6 +45,7 @@
     "./licenses": "./dist/licenses.js",
     "./memory_allocations": "./dist/memory_allocations.js",
     "./node": "./dist/node.js",
+    "./null_assert": "./dist/null_assert.js",
     "./object": "./dist/object.js",
     "./observer_list": "./dist/observer_list.js",
     "./platform": "./dist/platform.js",

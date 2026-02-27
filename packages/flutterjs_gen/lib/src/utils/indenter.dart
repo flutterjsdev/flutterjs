@@ -27,7 +27,7 @@ class Indenter {
   String apply(String code) {
     return code
         .split('\n')
-        .map((line) => line.isEmpty ? '' : '${current}$line')
+        .map((line) => line.isEmpty ? '' : '$current$line')
         .join('\n');
   }
 

@@ -34,6 +34,8 @@
 /// Maintainers: Add new codes to the appropriate `_xxxCodes` sets or extend
 /// the switch expressions for maximum accuracy.
 /// <---------------------------------------------------------------------------->
+library;
+
 
 import 'analysis_issue.dart';
 import 'issue_category.dart';

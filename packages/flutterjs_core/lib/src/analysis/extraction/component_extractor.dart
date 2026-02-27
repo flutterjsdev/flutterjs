@@ -338,7 +338,7 @@ class EnhancedComponentExtractor extends ComponentExtractor {
       );
 
       print(
-        '✅ [Widget] $className${constructorName != null ? ".${constructorName}" : ""}${children.isNotEmpty ? " (${children.length} children)" : ""}',
+        '✅ [Widget] $className${constructorName != null ? ".$constructorName" : ""}${children.isNotEmpty ? " (${children.length} children)" : ""}',
       );
 
       return widget;

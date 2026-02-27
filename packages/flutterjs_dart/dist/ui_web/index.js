@@ -1,18 +1,2 @@
-
-export const platformViewRegistry = {
-    registerViewFactory: (viewType, viewFactory, { isVisible } = {}) => {
-        console.debug(`[flutterjs] platformViewRegistry.registerViewFactory called for ${viewType}`);
-    }
-};
-
-export const assetManager = {
-    getAssetUrl: (asset) => asset
-};
-
-export const urlStrategy = {
-    getPath: () => window.location.pathname,
-    pushState: (state, title, url) => window.history.pushState(state, title, url),
-    replaceState: (state, title, url) => window.history.replaceState(state, title, url),
-    addPopStateListener: (listener) => window.addEventListener('popstate', listener),
-    removePopStateListener: (listener) => window.removeEventListener('popstate', listener),
-};
+const o={registerViewFactory:(e,t,{isVisible:r}={})=>{console.debug(`[flutterjs] platformViewRegistry.registerViewFactory called for ${e}`)}},a={getAssetUrl:e=>e},s={getPath:()=>window.location.pathname,pushState:(e,t,r)=>window.history.pushState(e,t,r),replaceState:(e,t,r)=>window.history.replaceState(e,t,r),addPopStateListener:e=>window.addEventListener("popstate",e),removePopStateListener:e=>window.removeEventListener("popstate",e)};export{a as assetManager,o as platformViewRegistry,s as urlStrategy};
+//# sourceMappingURL=index.js.map

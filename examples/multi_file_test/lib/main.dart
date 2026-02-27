@@ -13,7 +13,7 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   final List<User> users = const [
     User(name: 'Jay', role: 'Developer', avatarUrl: ''),

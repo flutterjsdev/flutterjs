@@ -136,8 +136,8 @@ class LifecycleAnalysis extends IRNode {
   final int healthScore;
 
   LifecycleAnalysis({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     this.initStateOperations = const [],
     this.disposeOperations = const [],
     this.didUpdateWidgetOperations = const [],
@@ -152,7 +152,7 @@ class LifecycleAnalysis extends IRNode {
     this.callsSuperInAllMethods = false,
     this.issues = const [],
     this.healthScore = 100,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   /// Whether there are critical lifecycle bugs
   bool get hasCriticalIssues =>
@@ -386,14 +386,14 @@ class UseBeforeInitIR extends IRNode {
   final LifecycleMethodType methodInitializing;
 
   UseBeforeInitIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.fieldName,
     required this.accessLocation,
     required this.initializationLocation,
     required this.methodAccessing,
     required this.methodInitializing,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() =>
@@ -416,13 +416,13 @@ class OrderingIssueIR extends IRNode {
   final String suggestion;
 
   OrderingIssueIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.issueType,
     required this.description,
     required this.involvedOperations,
     required this.suggestion,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() => 'Ordering: ${issueType.name} - $description';
@@ -444,13 +444,13 @@ class MissingOperationIR extends IRNode {
   final String? whatWasFound;
 
   MissingOperationIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.missingOperation,
     required this.method,
     required this.reason,
     this.whatWasFound,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() =>

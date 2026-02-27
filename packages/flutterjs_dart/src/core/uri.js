@@ -79,4 +79,23 @@ export class Uri {
             return new Uri({ path: uri });
         }
     }
+
+    static tryParse(uri) {
+        // Returns null if parsing fails, unlike parse() which may throw
+        try {
+            // Use browser/node URL API if available
+            const u = new URL(uri);
+            return new Uri({
+                scheme: u.protocol.replace(':', ''),
+                host: u.hostname,
+                port: u.port ? parseInt(u.port) : null,
+                path: u.pathname,
+                query: u.search,
+                fragment: u.hash
+            });
+        } catch (e) {
+            // Return null on parse failure
+            return null;
+        }
+    }
 }

@@ -354,7 +354,7 @@ class ModelToJSPipeline {
       try {
         _log('  Generating complex variable: ${variable.name}');
         final safeName = exprGen.safeIdentifier(variable.name);
-        
+
         // Complex variables are often top-level finals that map to `const` in JS if they don't change
         // But since we split declaration, we might need to handle circular deps?
         // For now, just generate them here.
@@ -427,7 +427,152 @@ class ModelToJSPipeline {
       }
     }
 
-    return buffer.toString();
+    // ✅ FIX: Detect nullAssert usage and add import if missing
+    var code = buffer.toString();
+    if (code.contains('nullAssert(') &&
+        !code.contains("import { nullAssert }")) {
+      // Insert nullAssert import
+      final lines = code.split('\n');
+
+      // Check if there's already a foundation import we can extend
+      final foundationImportIndex = lines.indexWhere(
+        (line) => line.contains("} from '@flutterjs/foundation'"),
+      );
+
+      if (foundationImportIndex != -1) {
+        // Add nullAssert to existing foundation import
+        final existingImport = lines[foundationImportIndex];
+        if (!existingImport.contains('nullAssert')) {
+          lines[foundationImportIndex] = existingImport.replaceFirst(
+            '} from',
+            ', nullAssert } from',
+          );
+        }
+        code = lines.join('\n');
+      } else {
+        // Add new foundation import for nullAssert after other imports
+        final lastImportIndex = lines.lastIndexWhere(
+          (line) => line.startsWith('import '),
+        );
+        if (lastImportIndex != -1) {
+          lines.insert(
+            lastImportIndex + 1,
+            "import { nullAssert } from '@flutterjs/foundation';",
+          );
+          code = lines.join('\n');
+        }
+      }
+    }
+
+    // ✅ FIX: Detect AssertionError usage and add import if missing
+    if (code.contains('AssertionError') &&
+        !code.contains("import { identical, AssertionError }") &&
+        !code.contains("import { AssertionError")) {
+      // Insert AssertionError import
+      final lines = code.split('\n');
+
+      // Check if there's already a dart/core import with identical
+      final coreImportIndex = lines.indexWhere(
+        (line) =>
+            line.contains("} from '@flutterjs/dart/core'") &&
+            line.contains('identical'),
+      );
+
+      if (coreImportIndex != -1) {
+        // Add AssertionError to existing dart/core import
+        final existingImport = lines[coreImportIndex];
+        if (!existingImport.contains('AssertionError')) {
+          lines[coreImportIndex] = existingImport.replaceFirst(
+            'identical',
+            'identical, AssertionError',
+          );
+        }
+        code = lines.join('\n');
+      } else {
+        // Check if there's any dart/core import we can extend
+        final anyCoreImportIndex = lines.indexWhere(
+          (line) => line.contains("} from '@flutterjs/dart/core'"),
+        );
+
+        if (anyCoreImportIndex != -1) {
+          // Add AssertionError to existing import
+          final existingImport = lines[anyCoreImportIndex];
+          if (!existingImport.contains('AssertionError')) {
+            lines[anyCoreImportIndex] = existingImport.replaceFirst(
+              '} from',
+              ', AssertionError } from',
+            );
+          }
+          code = lines.join('\n');
+        } else {
+          // Add new dart/core import for AssertionError after other imports
+          final lastImportIndex = lines.lastIndexWhere(
+            (line) => line.startsWith('import '),
+          );
+          if (lastImportIndex != -1) {
+            lines.insert(
+              lastImportIndex + 1,
+              "import { AssertionError } from '@flutterjs/dart/core';",
+            );
+            code = lines.join('\n');
+          }
+        }
+      }
+    }
+
+    // ✅ FIX: Detect linkViewType usage and add import if missing
+    if (code.contains('linkViewType') &&
+        !code.contains('import { linkViewFactory, linkViewType }')) {
+      final lines = code.split('\n');
+
+      // Find the import line that imports linkViewFactory from src/link.js
+      final linkImportIndex = lines.indexWhere(
+        (line) =>
+            line.contains("import { linkViewFactory }") &&
+            line.contains("from './src/link.js'"),
+      );
+
+      if (linkImportIndex != -1) {
+        // Add linkViewType to the existing import
+        final existingImport = lines[linkImportIndex];
+        if (!existingImport.contains('linkViewType')) {
+          lines[linkImportIndex] = existingImport.replaceFirst(
+            'linkViewFactory',
+            'linkViewFactory, linkViewType',
+          );
+        }
+        code = lines.join('\n');
+      }
+    }
+
+    // ✅ FIX: Remove incorrect this. prefix for top-level functions in url_launcher_web
+    // Top-level functions like _getUrlScheme should not have this. prefix
+    if (code.contains('this._getUrlScheme') ||
+        code.contains('this._isDisallowedScheme') ||
+        code.contains('this._isSafariTargetTopScheme')) {
+      code = code.replaceAll('this._getUrlScheme', '_getUrlScheme');
+      code = code.replaceAll('this._isDisallowedScheme', '_isDisallowedScheme');
+      code = code.replaceAll(
+        'this._isSafariTargetTopScheme',
+        '_isSafariTargetTopScheme',
+      );
+    }
+
+    // ✅ FIX: Fix Uri.tryParse(url).scheme to use optional chaining
+    // In Dart: Uri.tryParse(url)?.scheme becomes Uri.tryParse(url)?.scheme in JS
+    if (code.contains('Uri.tryParse(url).scheme')) {
+      code = code.replaceAll(
+        'Uri.tryParse(url).scheme',
+        'Uri.tryParse(url)?.scheme',
+      );
+    }
+
+    // ✅ FIX: Remove .jsify() calls since we're already in JavaScript
+    // In Dart, .jsify() converts Dart objects to JS interop objects
+    // In generated JS, objects are already JS objects, so remove these calls
+    code = code.replaceAll(RegExp(r'\.jsify\(\)'), '');
+
+    return code;
   }
 
   Future<String> _generateMergedGetterSetter(
@@ -618,6 +763,20 @@ class ModelToJSPipeline {
       );
     }
 
+    // 2b. Check if we need package:flutter/foundation types (nullAssert, etc.)
+    final needsFoundationTypes = <String>{};
+    if (usedSymbolsByUri.containsKey('package:flutter/foundation.dart')) {
+      needsFoundationTypes.addAll(
+        usedSymbolsByUri['package:flutter/foundation.dart']!,
+      );
+    }
+
+    if (needsFoundationTypes.isNotEmpty) {
+      buffer.writeln(
+        "import { ${needsFoundationTypes.join(', ')} } from '@flutterjs/foundation';",
+      );
+    }
+
     // 3. Grouping by JS path to avoid duplicate import statements for the same file
     final symbolsByPath = <String, Set<String>>{};
     final sideEffectImportsByPath = <String>{};
@@ -633,9 +792,25 @@ class ModelToJSPipeline {
     // ✅ Register hardcoded material imports to prevent duplicates
     if (hasMaterial) {
       const materialPath = '@flutterjs/material';
-      const materialSymbols = ['runApp', 'Widget', 'State', 'StatefulWidget', 'StatelessWidget', 'BuildContext', 'Key'];
+      const materialSymbols = [
+        'runApp',
+        'Widget',
+        'State',
+        'StatefulWidget',
+        'StatelessWidget',
+        'BuildContext',
+        'Key',
+      ];
       for (final symbol in materialSymbols) {
         symbolToPath[symbol] = materialPath;
+      }
+    }
+
+    // ✅ Register foundation imports to prevent duplicates
+    if (needsFoundationTypes.isNotEmpty) {
+      const foundationPath = '@flutterjs/foundation';
+      for (final symbol in needsFoundationTypes) {
+        symbolToPath[symbol] = foundationPath;
       }
     }
 
@@ -690,7 +865,30 @@ class ModelToJSPipeline {
         continue;
       }
 
-      final jsPath = _calculateJsPath(import.uri, dartFile.filePath);
+      // ✅ Resolve conditional imports (Prioritize Web over IO/native)
+      // Dart uses conditional imports like:
+      //   import 'io_client.dart' if (dart.library.js_interop) 'browser_client.dart'
+      // For web target, we must pick the web variant (js_interop/html/ui_web).
+      var resolvedUri = import.uri;
+      if (import.configurations.isNotEmpty) {
+        for (final config in import.configurations) {
+          if (config.name == 'dart.library.js_interop' ||
+              config.name == 'dart.library.html' ||
+              config.name == 'dart.library.ui_web' ||
+              config.name == 'dart.library.js' ||
+              config.name == 'dart.library.js_util') {
+            resolvedUri = config.uri;
+            break;
+          }
+        }
+      }
+
+      // ✅ Skip dart:io imports - not available on web platform
+      if (resolvedUri == 'dart:io' || resolvedUri.startsWith('dart:io/')) {
+        continue;
+      }
+
+      final jsPath = _calculateJsPath(resolvedUri, dartFile.filePath);
 
       // Handle prefix imports immediately
       if (import.prefix != null) {
@@ -724,7 +922,9 @@ class ModelToJSPipeline {
       if (import.showList.isNotEmpty) {
         final validSymbols = import.showList
             .where((s) => !_isErasedSymbol(import.uri, s))
-            .where((s) => !symbolToPath.containsKey(s)) // Skip already-assigned symbols
+            .where(
+              (s) => !symbolToPath.containsKey(s),
+            ) // Skip already-assigned symbols
             .toSet();
 
         if (validSymbols.isNotEmpty) {
@@ -736,7 +936,9 @@ class ModelToJSPipeline {
         }
       } else if (directUsedSymbols.isNotEmpty || import.uri == 'dart:async') {
         // Filter out already-assigned symbols
-        final newSymbols = directUsedSymbols.where((s) => !symbolToPath.containsKey(s)).toSet();
+        final newSymbols = directUsedSymbols
+            .where((s) => !symbolToPath.containsKey(s))
+            .toSet();
 
         if (newSymbols.isNotEmpty) {
           // Track these symbols as assigned to this path
@@ -773,11 +975,52 @@ class ModelToJSPipeline {
     // ✅ STEP 2: Process globally-resolved transitive symbols
     // symbolToPath already declared above to track duplicates across both steps
 
+    // ✅ Build a redirect map for URIs resolved away by conditional imports
+    // Maps: resolved-away URI → web variant URI (the one that should be used instead)
+    final conditionalRedirectMap = <String, String>{};
+    for (final import in dartFile.imports) {
+      if (import.configurations.isNotEmpty) {
+        String? webUri;
+        for (final config in import.configurations) {
+          if (config.name == 'dart.library.js_interop' ||
+              config.name == 'dart.library.html' ||
+              config.name == 'dart.library.ui_web' ||
+              config.name == 'dart.library.js' ||
+              config.name == 'dart.library.js_util') {
+            webUri = config.uri;
+            break;
+          }
+        }
+        if (webUri != null) {
+          // Map the default URI → web URI
+          conditionalRedirectMap[import.uri] = webUri;
+          // Map all non-web config URIs → web URI
+          for (final config in import.configurations) {
+            if (config.name == 'dart.library.io' ||
+                config.name == 'dart.library.ffi') {
+              conditionalRedirectMap[config.uri] = webUri;
+            }
+          }
+        }
+      }
+    }
+
     for (final entry in usedSymbolsByUri.entries) {
-      final uri = entry.key;
+      var uri = entry.key;
       final symbols = entry.value;
 
       if (uri.startsWith('dart:')) continue;
+      if (uri == 'dart:io' || uri.startsWith('dart:io/')) continue;
+
+      // ✅ Redirect URIs that were resolved away by conditional imports to web variant
+      for (final redirectEntry in conditionalRedirectMap.entries) {
+        if (uri.endsWith(redirectEntry.key) ||
+            redirectEntry.key.endsWith(uri.split('/').last)) {
+          uri = redirectEntry.value;
+          break;
+        }
+      }
+
       final jsPath = _calculateJsPath(uri, dartFile.filePath);
 
       if (symbols.isNotEmpty) {
@@ -852,9 +1095,15 @@ class ModelToJSPipeline {
           .where((s) => !locallyDefined.contains(s)) // Use model data
           .where((s) => !importPrefixes.contains(s))
           .where((s) => !typedefs.contains(s))
-          .where((s) => !alreadyImported.contains(s)) // ✅ NEW: Prevent duplicate imports
-          .where((s) => !_isLikelyInstanceMethod(s, path)) // ✅ FIX: Skip private instance methods
-          .where((s) => !_isLikelyLocalVariable(s)) // ✅ FIX: Skip common local variable names
+          .where(
+            (s) => !alreadyImported.contains(s),
+          ) // ✅ NEW: Prevent duplicate imports
+          .where(
+            (s) => !_isLikelyInstanceMethod(s, path),
+          ) // ✅ FIX: Skip private instance methods
+          .where(
+            (s) => !_isLikelyLocalVariable(s),
+          ) // ✅ FIX: Skip common local variable names
           .toSet();
 
       if (validSymbols.isNotEmpty) {
@@ -1425,10 +1674,7 @@ class ModelToJSPipeline {
   /// These symbols are detected by ImportAnalyzer but should not be imported.
   bool _isLikelyLocalVariable(String symbol) {
     // Blacklist of known local variable names that get misidentified
-    const localVariableNames = {
-      'semanticsLink',
-      'triggerLink',
-    };
+    const localVariableNames = {'semanticsLink', 'triggerLink'};
     return localVariableNames.contains(symbol);
   }
 }
@@ -1478,7 +1724,7 @@ class GenerationResult {
         );
         for (final issue in issues.take(3)) {
           final msg = '  - ${issue.message}'.length > 50
-              ? '  - ${issue.message}'.substring(0, 47) + '...'
+              ? '${'  - ${issue.message}'.substring(0, 47)}...'
               : '  - ${issue.message}'.padRight(50);
           print('║ $msg ║');
         }

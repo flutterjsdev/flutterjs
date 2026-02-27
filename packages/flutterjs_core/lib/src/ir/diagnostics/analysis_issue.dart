@@ -220,7 +220,7 @@ class AnalysisIssue {
   /// Full diagnostic with location and suggestion
   String get fullReport {
     final buffer = StringBuffer();
-    buffer.writeln('$displayMessage');
+    buffer.writeln(displayMessage);
     buffer.writeln('  at ${sourceLocation.humanReadable}');
     if (suggestion != null) {
       buffer.writeln('  💡 ${suggestion!}');

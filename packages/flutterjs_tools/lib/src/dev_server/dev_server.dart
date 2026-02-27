@@ -616,7 +616,7 @@ class DevServer {
         '''
 <script>
 (function() {
-  const ws = new WebSocket('ws://${_host}:${_port}/__hot_reload');
+  const ws = new WebSocket('ws://$_host:$_port/__hot_reload');
   
   ws.onopen = () => {
     console.log('[Hot Reload] Connected');

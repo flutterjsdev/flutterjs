@@ -923,6 +923,9 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       statements: bodyStatements,
     );
 
+    // Extract super() call from initializers
+    final superCall = _extractSuperConstructorCall(member.initializers);
+
     final constructorDecl = ConstructorDecl(
       id: builder.generateId(
         'ctor',
@@ -936,6 +939,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         member.initializers,
         member.offset,
       ),
+      superCall: superCall,
       isConst: member.constKeyword != null,
       isFactory: member.factoryKeyword != null,
       body: constructorBody,
@@ -1059,7 +1063,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
       _log('   ⏱️  Extraction time: ${durationMs}ms');
 
       return methodDecl;
-    } catch (e, stack) {
+    } catch (e) {
       // Error recovery
       final fallbackBody = FunctionBodyIR(
         statements: [],
@@ -1507,6 +1511,37 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
     }
 
     return result;
+  }
+
+  cd.SuperConstructorCall? _extractSuperConstructorCall(
+    NodeList<ast.ConstructorInitializer> initializers,
+  ) {
+    for (final init in initializers) {
+      if (init is SuperConstructorInvocation) {
+        final positionalArgs = <ExpressionIR>[];
+        final namedArgs = <String, ExpressionIR>{};
+
+        if (init.argumentList != null) {
+          for (final arg in init.argumentList!.arguments) {
+            if (arg is NamedExpression) {
+              namedArgs[arg.name.label.name] =
+                  _statementExtractor.extractExpression(arg.expression);
+            } else {
+              positionalArgs.add(_statementExtractor.extractExpression(arg));
+            }
+          }
+        }
+
+        return cd.SuperConstructorCall(
+          constructorName: init.constructorName?.name,
+          arguments: positionalArgs,
+          namedArguments: namedArgs,
+          sourceLocation: _extractSourceLocation(init, init.offset),
+        );
+      }
+    }
+
+    return null;
   }
 
   TypeIR? _extractSuperclass(ClassDeclaration node) {

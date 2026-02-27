@@ -307,7 +307,8 @@ class RunCommand extends Command<void> {
       ..addOption(
         'target',
         abbr: 't',
-        help: 'Compilation target: web (Flutter/browser) or node (Node.js server-side).',
+        help:
+            'Compilation target: web (Flutter/browser) or node (Node.js server-side).',
         allowed: ['web', 'node'],
         defaultsTo: 'web',
       );
@@ -817,30 +818,29 @@ class RunCommand extends Command<void> {
 
     Timer? debounce;
 
-    _watchSub = watchDir.watch(events: FileSystemEvent.modify, recursive: true).listen(
-      (event) {
-        if (!event.path.endsWith('.js')) return;
+    _watchSub = watchDir
+        .watch(events: FileSystemEvent.modify, recursive: true)
+        .listen((event) {
+          if (!event.path.endsWith('.js')) return;
 
-        // Debounce rapid successive saves
-        debounce?.cancel();
-        debounce = Timer(const Duration(milliseconds: 500), () async {
-          if (_nodeProcess == null) return;
-          print('\n🔄 Change detected — restarting server…');
+          // Debounce rapid successive saves
+          debounce?.cancel();
+          debounce = Timer(const Duration(milliseconds: 500), () async {
+            if (_nodeProcess == null) return;
+            print('\n🔄 Change detected — restarting server…');
 
-          // Kill old process (runtime handles SIGTERM gracefully)
-          _nodeProcess!.kill(ProcessSignal.sigterm);
-          await _nodeProcess!.exitCode;
-          _nodeProcess = null;
+            // Kill old process (runtime handles SIGTERM gracefully)
+            _nodeProcess!.kill(ProcessSignal.sigterm);
+            await _nodeProcess!.exitCode;
+            _nodeProcess = null;
 
-          // Small delay to ensure port is released
-          await Future<void>.delayed(const Duration(milliseconds: 300));
+            // Small delay to ensure port is released
+            await Future<void>.delayed(const Duration(milliseconds: 300));
 
-          // Start fresh
-          await _startNodeServer(config, context);
-        });
-      },
-      onError: (e) => print('   ⚠️  File watcher error: $e'),
-    );
+            // Start fresh
+            await _startNodeServer(config, context);
+          });
+        }, onError: (e) => print('   ⚠️  File watcher error: $e'));
   }
 
   // =========================================================================
@@ -1108,7 +1108,7 @@ class DevToolsManager {
   static Future<void> _openBrowserAsync(String url) async {
     try {
       if (Platform.isWindows) {
-        await Process.run('start', [url]);
+        await Process.run('cmd', ['/c', 'start', '""', url]);
       } else if (Platform.isMacOS) {
         await Process.run('open', [url]);
       } else if (Platform.isLinux) {
@@ -1374,6 +1374,34 @@ class JSConversionPhase {
         if (warnings.isNotEmpty) print('  Warnings: ${warnings.length} ⚠️');
         if (errors.isNotEmpty) print('  Errors: ${errors.length} ❌');
         print('');
+      }
+
+      // ===== GENERATE WEB PLUGIN REGISTRANT =====
+      // After all files are processed, scan for web plugins and generate registrant
+      if (config.target == 'web') {
+        try {
+          final buildDir = path.dirname(context.jsOutputPath);
+          final plugins = await WebPluginRegistrant.findWebPlugins(buildDir);
+
+          if (plugins.isNotEmpty) {
+            final registrant = WebPluginRegistrant(
+              buildDir: buildDir,
+              webPlugins: plugins,
+            );
+            await registrant.writeRegistrantFile();
+
+            if (!config.jsonOutput) {
+              print('✅ Generated plugin registrant for ${plugins.length} web plugin(s): ${plugins.join(", ")}');
+            }
+          }
+        } catch (e, stackTrace) {
+          if (!config.jsonOutput) {
+            print('⚠️  Failed to generate web plugin registrant: $e');
+          }
+          if (verbose) {
+            print('Stack trace: $stackTrace');
+          }
+        }
       }
 
       return JSConversionResult(

@@ -9,7 +9,7 @@ import 'action_button.dart';
 class UserProfileCard extends StatefulWidget {
   final User user;
 
-  const UserProfileCard({Key? key, required this.user}) : super(key: key);
+  const UserProfileCard({super.key, required this.user});
 
   @override
   State<UserProfileCard> createState() => _UserProfileCardState();

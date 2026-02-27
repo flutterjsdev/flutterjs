@@ -65,8 +65,10 @@ class FunctionTypeIR extends TypeIR {
     required super.sourceLocation,
   });
 
+  @override
   bool get isBuiltIn => false;
 
+  @override
   bool get isGeneric => typeParameters.isNotEmpty;
 
   bool get hasParameters => parameters.isNotEmpty;

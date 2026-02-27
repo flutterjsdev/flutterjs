@@ -437,6 +437,7 @@ class ConstantFolder implements ExpressionVisitor<dynamic> {
     return null; // Non-constant
   }
 
+  @override
   dynamic visitEnumMemberAccess(EnumMemberAccessExpressionIR expr) {
     // Enum member access is considered constant (compile-time known value)
     // Return the member name as the constant value

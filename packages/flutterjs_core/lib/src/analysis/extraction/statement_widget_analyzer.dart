@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import 'package:flutterjs_core/flutterjs_core.dart';
-import '../../ir/expressions/cascade_expression_ir.dart';
 
 /// =============================================================================
 ///  STATEMENT WIDGET ANALYZER

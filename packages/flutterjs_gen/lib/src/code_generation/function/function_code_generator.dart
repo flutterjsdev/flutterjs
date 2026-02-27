@@ -436,7 +436,31 @@ class FunctionCodeGen {
           .map((p) => p.name)
           .join(', ');
 
-      if (ctor.superCall != null || superParams.isNotEmpty) {
+      if (ctor.superCall != null) {
+        // Generate super() call with arguments from superCall
+        final positionalArgs = ctor.superCall!.arguments
+            .map((arg) => exprGen.generate(arg, parenthesize: false))
+            .toList();
+
+        final namedArgs = ctor.superCall!.namedArguments.entries
+            .map((e) => '${e.key}: ${exprGen.generate(e.value, parenthesize: false)}')
+            .toList();
+
+        // Combine positional and named args
+        String superArgs;
+        if (positionalArgs.isEmpty && namedArgs.isEmpty) {
+          superArgs = '';
+        } else if (namedArgs.isEmpty) {
+          superArgs = positionalArgs.join(', ');
+        } else if (positionalArgs.isEmpty) {
+          superArgs = '{ ${namedArgs.join(', ')} }';
+        } else {
+          // Both positional and named
+          superArgs = '${positionalArgs.join(', ')}, { ${namedArgs.join(', ')} }';
+        }
+
+        buffer.writeln(indenter.line('super($superArgs);'));
+      } else if (superParams.isNotEmpty) {
         buffer.writeln(indenter.line('super($superParams);'));
       } else if (hasSuperclass) {
         final hasKey = ctor.parameters.any((p) => p.name == 'key');
@@ -489,8 +513,35 @@ class FunctionCodeGen {
         buffer.writeln(indenter.line('}).call(instance);'));
       } else {
         // Normal body (or factory body which already has returns)
+        // ✅ FIX: For instance constructors, we need to add 'this.' prefix to field assignments
         for (final stmt in ctor.body!.statements) {
-          buffer.writeln(stmtGen.generate(stmt));
+          var stmtCode = stmtGen.generate(stmt);
+
+          // Post-process to add 'this.' prefix to field assignments and accesses in constructor body
+          // Match: fieldName = (but not this.fieldName = or ClassName.fieldName =)
+          // This fixes cases like: _isSafari = value -> this._isSafari = value
+          stmtCode = stmtCode.replaceAllMapped(
+            RegExp(r'(?<!this\.)(?<!\.)\b(_[a-zA-Z]\w*|[a-z][a-zA-Z0-9]*)\s*=(?!=)'),
+            (match) {
+              final fieldName = match.group(1)!;
+              // Don't prefix if it's a local variable or parameter
+              // Check if this field exists in the class (we can't check here easily)
+              // For now, prefix all _ prefixed identifiers (private fields) and lowercase identifiers
+              if (fieldName.startsWith('_')) {
+                return 'this.$fieldName =';
+              }
+              return match.group(0)!; // Keep original for non-private fields
+            },
+          );
+
+          // Also fix field accesses (reading): _field.prop -> this._field.prop
+          // Match: _fieldName. (but not this._fieldName. or ClassName._fieldName.)
+          stmtCode = stmtCode.replaceAllMapped(
+            RegExp(r'(?<!this\.)(?<!\w)(_[a-zA-Z]\w*)\.'),
+            (match) => 'this.${match.group(1)}.',
+          );
+
+          buffer.writeln(stmtCode);
         }
       }
     } else if (ctor.body == null && !ctor.isFactory) {

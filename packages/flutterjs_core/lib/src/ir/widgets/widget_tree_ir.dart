@@ -75,8 +75,8 @@ class WidgetTreeIR extends IRNode {
   final TreeMetricsIR metrics;
 
   WidgetTreeIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.root,
     this.nodeCount = 0,
     this.depth = 0,
@@ -86,7 +86,7 @@ class WidgetTreeIR extends IRNode {
     this.nonConstWidgetCount = 0,
     this.unkeyedDynamicWidgetCount = 0,
     required this.metrics,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   /// Percentage of widgets using const keyword
   double get constWidgetPercentage =>
@@ -181,13 +181,13 @@ class ConditionalBranchIR extends IRNode {
   final BranchTypeIR branchType;
 
   ConditionalBranchIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.conditionExpression,
     required this.thenWidgetType,
     this.elseWidgetType,
     required this.branchType,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() =>
@@ -243,15 +243,15 @@ class IterationPatternIR extends IRNode {
   final int? expectedItemCount;
 
   IterationPatternIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.loopType,
     required this.iterableExpression,
     required this.loopVariableName,
     required this.generatedWidgetType,
     this.hasKeys = false,
     this.expectedItemCount,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() =>

@@ -395,7 +395,7 @@ class BuildMethodCodeGen {
       case NullAwareOperationType.property:
         return '$target?.${expr.operationData}';
       default:
-        return '$target';
+        return target;
     }
   }
 

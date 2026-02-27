@@ -14,6 +14,8 @@
     "./collection/queue": "./dist/collection/queue.js",
     "./collection/queue_list": "./dist/collection/queue_list.js",
     "./convert": "./dist/convert/index.js",
+    "./core/duration": "./dist/core/duration.js",
+    "./core/errors": "./dist/core/errors.js",
     "./core": "./dist/core/index.js",
     "./core/uri": "./dist/core/uri.js",
     "./developer": "./dist/developer/index.js",

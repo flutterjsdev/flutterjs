@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/core/identical.js"],
+  "sourcesContent": ["/**\r\n * Check whether two references are to the same object.\r\n *\r\n * In Dart, identical() checks reference equality (same object in memory).\r\n * In JavaScript, this is equivalent to === for object references.\r\n *\r\n * @param {*} a - First value\r\n * @param {*} b - Second value\r\n * @returns {boolean} - true if a and b are the same object\r\n */\r\nexport function identical(a, b) {\r\n  return a === b;\r\n}\r\n"],
+  "mappings": "AAUO,SAASA,EAAUC,EAAGC,EAAG,CAC9B,OAAOD,IAAMC,CACf",
+  "names": ["identical", "a", "b"]
+}

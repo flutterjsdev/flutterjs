@@ -3,14 +3,7 @@
 // found in the LICENSE file.
 
 import 'package:flutterjs_core/ast_it.dart';
-import 'package:flutterjs_core/src/ir/expressions/enum_member_access_expression.dart';
 
-import '../../ir/expressions/expression_ir.dart';
-import '../../ir/expressions/advanced.dart';
-import '../../ir/expressions/function_method_calls.dart';
-import '../../ir/expressions/literals.dart';
-import '../../ir/expressions/operations.dart';
-import '../../ir/expressions/vaibales_access.dart';
 
 /// =============================================================================
 ///  VARIABLE COLLECTOR

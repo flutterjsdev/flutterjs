@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import esbuild from 'esbuild';
-import { readFileSync, writeFileSync, readdirSync, statSync, watch, existsSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, statSync, watch, existsSync, copyFileSync, mkdirSync } from 'fs';
 import { join, relative, extname, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
@@ -76,12 +76,27 @@ async function buildAllFiles() {
 
     console.log(`📁 Found ${allFiles.length} JS files in src/\n`);
 
-    // ✅ Build each file separately
+    // Ensure dist/ directory exists
+    if (!existsSync(outDir)) {
+      mkdirSync(outDir, { recursive: true });
+    }
+
+    // ✅ Build each file separately, but COPY index.js directly
+    // (esbuild with bundle:false strips `export *` barrel exports)
     for (const srcFile of allFiles) {
       const relativePath = relative(srcDir, srcFile);
       const outFile = join(outDir, relativePath);
 
       console.log(`📦 ${relativePath}`);
+
+      // Barrel export files (index.js) must be copied directly.
+      // esbuild with bundle:false turns `export * from './xxx.js'`
+      // into an empty file (strips re-exports). So we fs.copy instead.
+      if (relativePath === 'index.js' || relativePath.endsWith('\\index.js') || relativePath.endsWith('/index.js')) {
+        copyFileSync(srcFile, outFile);
+        console.log(`   ✓ Copied barrel export: ${relativePath}`);
+        continue;
+      }
 
       await esbuild.build({
         entryPoints: [srcFile],

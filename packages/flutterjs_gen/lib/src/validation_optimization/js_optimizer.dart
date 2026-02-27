@@ -265,7 +265,7 @@ class JSOptimizer {
         final varName = '_cse${counter++}';
         final declaration = 'const $varName = ${entry.key};';
         result = result.replaceAll(entry.key, varName);
-        result = declaration + '\n' + result;
+        result = '$declaration\n$result';
         optimizationLog.add(
           'CSE: Extracted ${entry.key} (used ${entry.value.length}x)',
         );

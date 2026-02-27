@@ -338,6 +338,7 @@ class FieldDecl extends VariableDecl {
   /// Whether this is a computed property (getter/setter, not a backing field)
   bool get isComputedProperty => isGetter || isSetter;
 
+  @override
   Map<String, dynamic> toJson() {
     return {
       'name': name,

@@ -25,6 +25,7 @@ workspace:
   - examples/pub_test_app/
   - examples/flutterjs_website/
   - packages/flutterjs_server/
+  - packages/flutterjs_server/example/
   - examples/dart_api/
   - packages/flutterjs_dev_utils/
   - packages/flutterjs_tools/

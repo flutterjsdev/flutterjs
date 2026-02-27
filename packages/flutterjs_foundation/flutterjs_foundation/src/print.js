@@ -20,7 +20,7 @@ export function debugPrintThrottled(message, { wrapWidth = null } = {}) {
 }
 
 // debugPrint is a reassignable function variable in Flutter (defaults to throttled)
-export let debugPrint = debugPrintThrottled;
+export const debugPrint = debugPrintThrottled;
 
 export const debugPrintDone = Promise.resolve();
 

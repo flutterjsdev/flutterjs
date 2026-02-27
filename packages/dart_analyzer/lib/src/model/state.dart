@@ -257,8 +257,8 @@ class VariableDeclarationDeclaration extends StatementDeclaration {
     this.isFinal = false,
     this.isConst = false,
     this.isLate = false,
-    required SourceLocation location,
-  }) : super(type: StatementType.variableDeclaration, location: location);
+    required super.location,
+  }) : super(type: StatementType.variableDeclaration);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -296,8 +296,8 @@ class ExpressionStatementDeclaration extends StatementDeclaration {
 
   ExpressionStatementDeclaration({
     required this.expression,
-    required SourceLocation location,
-  }) : super(type: StatementType.expressionStatement, location: location);
+    required super.location,
+  }) : super(type: StatementType.expressionStatement);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -323,8 +323,8 @@ class ReturnStatementDeclaration extends StatementDeclaration {
 
   ReturnStatementDeclaration({
     this.expression,
-    required SourceLocation location,
-  }) : super(type: StatementType.returnStatement, location: location);
+    required super.location,
+  }) : super(type: StatementType.returnStatement);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -356,8 +356,8 @@ class IfStatementDeclaration extends StatementDeclaration {
     required this.condition,
     required this.thenStatement,
     this.elseStatement,
-    required SourceLocation location,
-  }) : super(type: StatementType.ifStatement, location: location);
+    required super.location,
+  }) : super(type: StatementType.ifStatement);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -399,8 +399,8 @@ class ForStatementDeclaration extends StatementDeclaration {
     required this.body,
     this.isForEach = false,
     this.loopVariable,
-    required SourceLocation location,
-  }) : super(type: StatementType.forStatement, location: location);
+    required super.location,
+  }) : super(type: StatementType.forStatement);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -446,8 +446,8 @@ class WhileStatementDeclaration extends StatementDeclaration {
   WhileStatementDeclaration({
     required this.condition,
     required this.body,
-    required SourceLocation location,
-  }) : super(type: StatementType.whileStatement, location: location);
+    required super.location,
+  }) : super(type: StatementType.whileStatement);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -477,8 +477,8 @@ class SwitchStatementDeclaration extends StatementDeclaration {
   SwitchStatementDeclaration({
     required this.expression,
     required this.cases,
-    required SourceLocation location,
-  }) : super(type: StatementType.switchStatement, location: location);
+    required super.location,
+  }) : super(type: StatementType.switchStatement);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -542,8 +542,8 @@ class TryStatementDeclaration extends StatementDeclaration {
     required this.body,
     required this.catchClauses,
     this.finallyBlock,
-    required SourceLocation location,
-  }) : super(type: StatementType.tryStatement, location: location);
+    required super.location,
+  }) : super(type: StatementType.tryStatement);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -607,8 +607,8 @@ class BlockStatementDeclaration extends StatementDeclaration {
 
   BlockStatementDeclaration({
     required this.statements,
-    required SourceLocation location,
-  }) : super(type: StatementType.block, location: location);
+    required super.location,
+  }) : super(type: StatementType.block);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -634,8 +634,8 @@ class BlockStatementDeclaration extends StatementDeclaration {
 class BreakStatementDeclaration extends StatementDeclaration {
   final String? label;
 
-  BreakStatementDeclaration({this.label, required SourceLocation location})
-    : super(type: StatementType.breakStatement, location: location);
+  BreakStatementDeclaration({this.label, required super.location})
+    : super(type: StatementType.breakStatement);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -659,8 +659,8 @@ class BreakStatementDeclaration extends StatementDeclaration {
 class ContinueStatementDeclaration extends StatementDeclaration {
   final String? label;
 
-  ContinueStatementDeclaration({this.label, required SourceLocation location})
-    : super(type: StatementType.continueStatement, location: location);
+  ContinueStatementDeclaration({this.label, required super.location})
+    : super(type: StatementType.continueStatement);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -686,8 +686,8 @@ class ThrowStatementDeclaration extends StatementDeclaration {
 
   ThrowStatementDeclaration({
     required this.expression,
-    required SourceLocation location,
-  }) : super(type: StatementType.throwStatement, location: location);
+    required super.location,
+  }) : super(type: StatementType.throwStatement);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -715,8 +715,8 @@ class AssertStatementDeclaration extends StatementDeclaration {
   AssertStatementDeclaration({
     required this.condition,
     this.message,
-    required SourceLocation location,
-  }) : super(type: StatementType.assertStatement, location: location);
+    required super.location,
+  }) : super(type: StatementType.assertStatement);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -838,8 +838,8 @@ class LiteralExpressionDeclaration extends ExpressionDeclaration {
   LiteralExpressionDeclaration({
     required this.value,
     required this.literalType,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.literal, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.literal);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -872,8 +872,8 @@ class IdentifierExpressionDeclaration extends ExpressionDeclaration {
 
   IdentifierExpressionDeclaration({
     required this.name,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.identifier, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.identifier);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -903,8 +903,8 @@ class BinaryOperationDeclaration extends ExpressionDeclaration {
     required this.left,
     required this.operator,
     required this.right,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.binaryOperation, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.binaryOperation);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -938,8 +938,8 @@ class UnaryOperationDeclaration extends ExpressionDeclaration {
     required this.operator,
     required this.operand,
     this.isPrefix = true,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.unaryOperation, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.unaryOperation);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -977,8 +977,8 @@ class MethodCallDeclaration extends ExpressionDeclaration {
     this.arguments = const [],
     this.namedArguments = const {},
     this.typeArguments,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.methodCall, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.methodCall);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1026,8 +1026,8 @@ class PropertyAccessDeclaration extends ExpressionDeclaration {
     required this.target,
     required this.propertyName,
     this.isNullAware = false,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.propertyAccess, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.propertyAccess);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1067,8 +1067,8 @@ class InstanceCreationDeclaration extends ExpressionDeclaration {
     this.namedArguments = const {},
     this.typeArguments,
     this.isConst = false,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.instanceCreation, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.instanceCreation);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1116,8 +1116,8 @@ class ListLiteralDeclaration extends ExpressionDeclaration {
     required this.elements,
     this.typeArgument,
     this.isConst = false,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.listLiteral, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.listLiteral);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1155,8 +1155,8 @@ class MapLiteralDeclaration extends ExpressionDeclaration {
     this.keyType,
     this.valueType,
     this.isConst = false,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.mapLiteral, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.mapLiteral);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1213,8 +1213,8 @@ class ConditionalExpressionDeclaration extends ExpressionDeclaration {
     required this.condition,
     required this.thenExpression,
     required this.elseExpression,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.conditionalExpression, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.conditionalExpression);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1252,8 +1252,8 @@ class FunctionExpressionDeclaration extends ExpressionDeclaration {
     this.expressionBody,
     this.isAsync = false,
     this.isGenerator = false,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.functionExpression, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.functionExpression);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1299,8 +1299,8 @@ class AssignmentExpressionDeclaration extends ExpressionDeclaration {
     required this.target,
     required this.operator,
     required this.value,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.assignment, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.assignment);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1330,8 +1330,8 @@ class AwaitExpressionDeclaration extends ExpressionDeclaration {
 
   AwaitExpressionDeclaration({
     required this.expression,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.awaitExpression, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.awaitExpression);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1359,8 +1359,8 @@ class IndexAccessDeclaration extends ExpressionDeclaration {
   IndexAccessDeclaration({
     required this.target,
     required this.index,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.indexAccess, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.indexAccess);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1384,8 +1384,8 @@ class IndexAccessDeclaration extends ExpressionDeclaration {
 // =============================================================================
 
 class ThisExpressionDeclaration extends ExpressionDeclaration {
-  ThisExpressionDeclaration({required SourceLocation location})
-    : super(type: ExpressionType.thisExpression, location: location);
+  ThisExpressionDeclaration({required super.location})
+    : super(type: ExpressionType.thisExpression);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1405,8 +1405,8 @@ class ThisExpressionDeclaration extends ExpressionDeclaration {
 // =============================================================================
 
 class SuperExpressionDeclaration extends ExpressionDeclaration {
-  SuperExpressionDeclaration({required SourceLocation location})
-    : super(type: ExpressionType.superExpression, location: location);
+  SuperExpressionDeclaration({required super.location})
+    : super(type: ExpressionType.superExpression);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1432,8 +1432,8 @@ class CascadeExpressionDeclaration extends ExpressionDeclaration {
   CascadeExpressionDeclaration({
     required this.target,
     required this.cascadeSections,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.cascade, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.cascade);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1467,8 +1467,8 @@ class IsExpressionDeclaration extends ExpressionDeclaration {
     required this.expression,
     required this.checkedType,
     this.isNegated = false,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.isExpression, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.isExpression);
 
   @override
   Map<String, dynamic> toJson() => {
@@ -1500,8 +1500,8 @@ class AsExpressionDeclaration extends ExpressionDeclaration {
   AsExpressionDeclaration({
     required this.expression,
     required this.targetType,
-    required SourceLocation location,
-  }) : super(type: ExpressionType.asExpression, location: location);
+    required super.location,
+  }) : super(type: ExpressionType.asExpression);
 
   @override
   Map<String, dynamic> toJson() => {

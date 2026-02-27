@@ -489,7 +489,7 @@ class ValidationPass {
         severity: IssueSeverity.info,
         category: IssueCategory.flutterExcessiveRebuild,
         message:
-            'Only ${accessedCount}/${fieldCount} state fields are used in build()',
+            'Only $accessedCount/$fieldCount state fields are used in build()',
         sourceLocation: SourceLocationIR(
           id: 'loc_unused_fields_${stateClass.id}',
           file: dartFile.filePath,
@@ -543,7 +543,7 @@ class ValidationPass {
       addIssue(
         severity: IssueSeverity.info,
         category: IssueCategory.flutterMissingConst,
-        message: 'No const widgets in build() (${totalWidgets} total widgets)',
+        message: 'No const widgets in build() ($totalWidgets total widgets)',
         sourceLocation: SourceLocationIR(
           id: 'loc_no_const_${stateClass.id}',
           file: dartFile.filePath,
@@ -1196,7 +1196,7 @@ extension ValidationStatistics on List<AnalysisIssue> {
     final buffer = StringBuffer();
 
     buffer.writeln('# Validation Report');
-    buffer.writeln('- Total Issues: ${length}');
+    buffer.writeln('- Total Issues: $length');
     buffer.writeln('- Critical: ${where((i) => i.category.isCritical).length}');
     buffer.writeln('- Errors: ${countBySeverity(IssueSeverity.error)}');
     buffer.writeln('- Warnings: ${countBySeverity(IssueSeverity.warning)}');

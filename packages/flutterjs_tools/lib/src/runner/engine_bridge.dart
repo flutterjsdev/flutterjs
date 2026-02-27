@@ -155,8 +155,9 @@ class FlutterJSEngineBridge {
       final binaryName = _getPlatformBinaryName();
       final envBinary = path.join(envEngineRoot, 'dist', binaryName);
       if (File(envBinary).existsSync()) {
-        if (config.verbose)
+        if (config.verbose) {
           print('  ✓ Using engine binary from env: $envBinary');
+        }
         return path.normalize(envBinary);
       }
     }
@@ -177,10 +178,11 @@ class FlutterJSEngineBridge {
           'index.js',
         );
         if (File(candidate).existsSync() && _isNodeAvailable()) {
-          if (config.verbose)
+          if (config.verbose) {
             print(
               '  ✓ Found engine relative to script (packages sibling): $candidate',
             );
+          }
           return path.normalize(candidate);
         }
 
@@ -221,10 +223,11 @@ class FlutterJSEngineBridge {
         }
 
         if (File(candidateSource).existsSync() && _isNodeAvailable()) {
-          if (config.verbose)
+          if (config.verbose) {
             print(
               '  ✓ Found engine by searching up from project: $candidateSource',
             );
+          }
           return path.normalize(candidateSource);
         }
 
@@ -586,8 +589,9 @@ class EngineBridgeManager {
           path.join(buildPath, 'dist', 'node_modules'),
         );
         if (distNodeModules.existsSync()) {
-          if (verbose)
+          if (verbose) {
             print('   🧹 Cleaning up duplicate dist/node_modules...');
+          }
           try {
             distNodeModules.deleteSync(recursive: true);
           } catch (e) {
@@ -704,8 +708,9 @@ class EngineBridgeManager {
       final packageManager = RuntimePackageManager();
 
       // Get SDK packages (all @flutterjs/* packages) AND project dependencies
-      if (verbose)
+      if (verbose) {
         print('   [DEBUG] Calling packageManager.resolvePackages...');
+      }
       final sdkPackages = await packageManager.resolvePackages(
         [], // Empty list since we want all SDK packages initially
         projectPath: Directory(buildPath).parent.parent.path,
@@ -727,8 +732,9 @@ class EngineBridgeManager {
         final packageMapDest = File(path.join(buildPath, 'package_map.json'));
 
         if (packageMapSource.existsSync()) {
-          if (verbose)
+          if (verbose) {
             print('   [DEBUG] Copying package_map.json to build directory...');
+          }
           packageMapSource.copySync(packageMapDest.path);
         } else {
           print(

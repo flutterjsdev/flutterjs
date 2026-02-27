@@ -5,7 +5,6 @@
 import 'package:meta/meta.dart';
 import '../core/source_location.dart';
 import '../core/ir_node.dart';
-import 'function_type_ir.dart';
 import 'generic_type_ir.dart';
 
 abstract class TypeIR extends IRNode {

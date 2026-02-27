@@ -126,7 +126,7 @@ class ParameterCodeGen {
       }
 
       // Add type comment (optional)
-      if (config.useTypeComments && param.type != null) {
+      if (config.useTypeComments) {
         final typeStr = param.type.displayName();
         part += ' /* $typeStr */';
       }
@@ -167,7 +167,7 @@ class ParameterCodeGen {
 
     for (final param in parameters) {
       final typeStr = _typeToJSDocType(param.type);
-      final nullable = param.type?.isNullable ?? false;
+      final nullable = param.type.isNullable ?? false;
       final fullType = nullable ? '$typeStr|null' : typeStr;
 
       // Optional parameters shown with square brackets

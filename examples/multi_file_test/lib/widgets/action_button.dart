@@ -10,11 +10,11 @@ class ActionButton extends StatelessWidget {
   final Color color;
 
   const ActionButton({
-    Key? key,
+    super.key,
     required this.label,
     required this.onPressed,
     this.color = Colors.blue,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

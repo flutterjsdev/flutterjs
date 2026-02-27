@@ -4,7 +4,6 @@
 
 import 'package:meta/meta.dart';
 import '../core/ir_node.dart';
-import '../core/source_location.dart';
 import '../types/type_ir.dart';
 
 /// Represents an enum declaration in Dart

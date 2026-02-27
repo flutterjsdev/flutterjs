@@ -102,6 +102,8 @@ class ClassCodeGen {
 
     // ✅ Set class context for function generation
     funcGen.setClassContext(cls);
+    // ✅ Set class context for expression generation (needed for static field initializers)
+    exprGen.setClassContext(cls);
 
     indenter.indent();
 
@@ -183,6 +185,10 @@ class ClassCodeGen {
 
     indenter.dedent();
     buffer.write(indenter.line('}'));
+
+    // ✅ Clear class context after generation
+    funcGen.setClassContext(null);
+    exprGen.setClassContext(null);
 
     // ✅ FORCE REGISTER CLASS IN GLOBAL REGISTRY (Fixes circular dependencies)
     // This allows lazy lookup of classes before they are fully imported/initialized
@@ -352,7 +358,26 @@ class ClassCodeGen {
         field.initializer!,
         field.type.displayName(),
       );
-      declaration += ' = ${result.code}';
+      var code = result.code;
+
+      // ✅ FIX: Qualify unqualified static method references in static field initializers
+      // This handles cases like "_onGlobalKeydown.toJS" which should be "ClassName._onGlobalKeydown.toJS"
+      if (isStatic && className != null) {
+        // Get the class declaration to access static methods
+        // Note: We need to pass the ClassDecl through the call chain or store it
+        // For now, use a pattern-based approach
+        // Match identifiers followed by a dot that are likely static method names
+        code = code.replaceAllMapped(
+          RegExp(r'(?<![.\w$])(_\w+)(?=\.)'),
+          (match) {
+            // Only qualify if it looks like a method reference (has a dot after it)
+            // and starts with underscore (private method convention)
+            return '$className.${match.group(1)}';
+          },
+        );
+      }
+
+      declaration += ' = $code';
     } else if (field.isFinal || field.isConst) {
       declaration += ' = null';
     } else {

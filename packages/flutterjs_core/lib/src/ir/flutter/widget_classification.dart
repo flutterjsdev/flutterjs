@@ -4,10 +4,8 @@
 
 import 'package:flutterjs_core/flutterjs_core.dart';
 import 'package:meta/meta.dart';
-import '../declarations/class_decl.dart';
 import 'dart:core';
 
-import '../declarations/function_decl.dart';
 
 /// <---------------------------------------------------------------------------->
 /// widget_classification.dart

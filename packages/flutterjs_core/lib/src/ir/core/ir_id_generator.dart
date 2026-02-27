@@ -113,7 +113,7 @@ class IRIdGenerator {
     final input = '$type:$fullyQualifiedName:${filePath ?? ""}';
     final hash = _shortHash(input);
 
-    return '${type}_${hash}';
+    return '${type}_$hash';
   }
 
   /// Generate simple incremental ID

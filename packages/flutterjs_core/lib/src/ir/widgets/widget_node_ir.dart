@@ -92,8 +92,8 @@ class WidgetNodeIR extends IRNode {
   final WidgetNodeAnalysisIR? analysis;
 
   WidgetNodeIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.widgetType,
     this.constructorName,
     this.properties = const {},
@@ -104,7 +104,7 @@ class WidgetNodeIR extends IRNode {
     this.isConditional = false,
     this.isInLoop = false,
     this.analysis,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   /// Number of widgets in this subtree (including self)
   int get subtreeSize {
@@ -232,14 +232,14 @@ class WidgetNodeAnalysisIR extends IRNode {
   final List<String> performanceIssues;
 
   WidgetNodeAnalysisIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     this.triggersParentRebuild = false,
     this.stateFieldDependencies = const [],
     this.providerDependencies = const [],
     this.estimatedRenderTimeUs = 0,
     this.performanceIssues = const [],
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() =>

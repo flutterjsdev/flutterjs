@@ -531,7 +531,7 @@ class GraphAnalysisIR extends IRNode {
 
   @override
   String toShortString() =>
-      'Analysis [${totalStateFields} fields → ${totalBuildMethods} builds, avg: ${averageRebuildCostMs.toStringAsFixed(2)}ms, fits budget: $fitsInFrameBudget]';
+      'Analysis [$totalStateFields fields → $totalBuildMethods builds, avg: ${averageRebuildCostMs.toStringAsFixed(2)}ms, fits budget: $fitsInFrameBudget]';
 
   Map<String, dynamic> toJson() {
     return {

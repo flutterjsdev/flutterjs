@@ -5,6 +5,8 @@
 import 'package:flutter/material.dart';
 
 class UtilsWidget extends StatelessWidget {
+  const UtilsWidget({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -15,7 +17,7 @@ class UtilsWidget extends StatelessWidget {
 }
 
 class UnusedWidget extends StatelessWidget {
-  const UnusedWidget({Key? key}) : super(key: key);
+  const UnusedWidget({super.key});
   @override
   Widget build(BuildContext context) {
     return Container();

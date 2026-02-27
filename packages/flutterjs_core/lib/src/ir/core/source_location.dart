@@ -134,7 +134,7 @@ class SourceLocationIR {
     final offset = json['offset'] as int? ?? 0;
     final length = json['length'] as int? ?? 0;
     final id =
-        json['id'] as String? ?? 'loc_${file.hashCode}_${line}_${column}';
+        json['id'] as String? ?? 'loc_${file.hashCode}_${line}_$column';
 
     return SourceLocationIR(
       id: id,

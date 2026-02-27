@@ -515,6 +515,7 @@ class MethodDecl extends FunctionDecl {
   /// Full method name with class context
   String get fullQualifiedName => className != null ? '$className.$name' : name;
 
+  @override
   Map<String, dynamic> toJson() {
     return {
       'className': className,
@@ -566,48 +567,36 @@ class ConstructorDecl extends FunctionDecl {
   final RedirectedConstructorCall? redirectedCall;
 
   ConstructorDecl({
-    required String id,
-    required String name,
-    required String constructorClass,
-    String? constructorName,
-    List<ParameterDecl> parameters = const [],
-    FunctionBodyIR?
-    body, // ✅ FIXED: Changed from StatementIR? to List<StatementIR>?
-    bool isFactory = false,
-    bool isConst = false,
-    bool isExternal = false,
-    List<TypeParameterDecl> typeParameters = const [],
-    required SourceLocationIR sourceLocation,
-    String? documentation,
-    List<AnnotationIR> annotations = const [],
+    required super.id,
+    required super.name,
+    required String super.constructorClass,
+    super.constructorName,
+    super.parameters,
+    super.body, // ✅ FIXED: Changed from StatementIR? to List<StatementIR>?
+    super.isFactory,
+    super.isConst,
+    super.isExternal,
+    super.typeParameters,
+    required super.sourceLocation,
+    super.documentation,
+    super.annotations,
     this.initializers = const [],
     this.superCall,
     this.redirectedCall,
     super.isWidgetFunction = false,
   }) : super(
-         id: id,
-         name: name,
          returnType: VoidTypeIR(
            id: '${id}_returnType',
            sourceLocation: sourceLocation,
          ),
-         parameters: parameters,
-         body: body,
-         typeParameters: typeParameters,
-         sourceLocation: sourceLocation,
-         documentation: documentation,
-         annotations: annotations,
-         isFactory: isFactory,
-         isConst: isConst,
-         isExternal: isExternal,
-         constructorClass: constructorClass,
-         constructorName: constructorName,
        );
 
   /// Whether this is a default (unnamed) constructor
+  @override
   bool get isDefaultConstructor => constructorName == null;
 
   /// Whether this is a named constructor
+  @override
   bool get isNamedConstructor => constructorName != null;
 
   /// Declaration including initializers
@@ -631,6 +620,7 @@ class ConstructorDecl extends FunctionDecl {
     return '$sig : ${inits.join(", ")}';
   }
 
+  @override
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -713,7 +703,7 @@ class SuperConstructorCall {
         .map((e) => '${e.key}: ${e.value.toShortString()}')
         .join(', ');
     final allArgs = [args, named].where((s) => s.isNotEmpty).join(', ');
-    return 'super$name(${allArgs})';
+    return 'super$name($allArgs)';
   }
 }
 
@@ -749,7 +739,7 @@ class RedirectedConstructorCall {
         .map((e) => '${e.key}: ${e.value.toShortString()}')
         .join(', ');
     final allArgs = [args, named].where((s) => s.isNotEmpty).join(', ');
-    return 'this$name(${allArgs})';
+    return 'this$name($allArgs)';
   }
 }
 

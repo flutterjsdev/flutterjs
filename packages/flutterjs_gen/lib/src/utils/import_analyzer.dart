@@ -68,20 +68,23 @@ class ImportAnalyzer {
       // ✅ FIX: Force createInternal for path.dart (unconditional)
       // Inject into multiple potential keys to catch all cases
       final contextKey1 = 'package:path/src/context.dart';
-      if (!_symbolsByImport.containsKey(contextKey1))
+      if (!_symbolsByImport.containsKey(contextKey1)) {
         _symbolsByImport[contextKey1] = {};
+      }
       _symbolsByImport[contextKey1]!.add('Context');
       _symbolsByImport[contextKey1]!.add('createInternal');
 
       final contextKey2 = 'src/context.dart';
-      if (!_symbolsByImport.containsKey(contextKey2))
+      if (!_symbolsByImport.containsKey(contextKey2)) {
         _symbolsByImport[contextKey2] = {};
+      }
       _symbolsByImport[contextKey2]!.add('Context');
       _symbolsByImport[contextKey2]!.add('createInternal');
 
       final contextKey3 = './src/context.dart';
-      if (!_symbolsByImport.containsKey(contextKey3))
+      if (!_symbolsByImport.containsKey(contextKey3)) {
         _symbolsByImport[contextKey3] = {};
+      }
       _symbolsByImport[contextKey3]!.add('Context');
       _symbolsByImport[contextKey3]!.add('createInternal');
 
@@ -93,7 +96,28 @@ class ImportAnalyzer {
     }
 
     for (final import in dartFile.imports) {
-      final importUri = import.uri;
+      // ✅ Resolve conditional imports (Prioritize Web over IO/native)
+      // Dart uses conditional imports like:
+      //   import 'client_stub.dart' if (dart.library.js_interop) 'browser_client.dart'
+      // For web target, we must pick the web variant.
+      var importUri = import.uri;
+      if (import.configurations.isNotEmpty) {
+        for (final config in import.configurations) {
+          if (config.name == 'dart.library.js_interop' ||
+              config.name == 'dart.library.html' ||
+              config.name == 'dart.library.ui_web' ||
+              config.name == 'dart.library.js' ||
+              config.name == 'dart.library.js_util') {
+            importUri = config.uri;
+            break;
+          }
+        }
+      }
+
+      // ✅ Skip dart:io imports - not available on web platform
+      if (importUri == 'dart:io' || importUri.startsWith('dart:io/')) {
+        continue;
+      }
 
       if (fileName == 'style.dart') {
         if (importUri.contains('posix') ||
@@ -170,9 +194,7 @@ class ImportAnalyzer {
 
   void _scanFunction(FunctionDecl func) {
     // Scan return type
-    if (func.returnType != null) {
-      // _recordTypeUsage(func.returnType!); // Fix: Type is erased in JS return
-    }
+    // _recordTypeUsage(func.returnType!); // Fix: Type is erased in JS return
 
     // Scan parameters
     for (final param in func.parameters) {
@@ -422,8 +444,7 @@ class ImportAnalyzer {
   }
 
   void _scanUnknownExpression(UnknownExpressionIR expr) {
-    if (expr.source == null) return;
-    final source = expr.source!;
+    final source = expr.source;
 
     // 1. Detect Dart 3 Pattern Matching: "case Type("
     // e.g. "response case BaseResponseWithUrl(: final url)"
@@ -508,18 +529,7 @@ class ImportAnalyzer {
   }
 
   void _recordSymbolUsage(String symbolName, {String? libraryUri}) {
-    // ✅ FIX: Force Uri to dart:core unconditionally and RETURN to prevent override
-    if (symbolName == 'Uri') {
-      const coreUri = 'dart:core';
-      if (!_symbolsByImport.containsKey(coreUri)) {
-        _symbolsByImport[coreUri] = {};
-      }
-      _symbolsByImport[coreUri]!.add(symbolName);
-      _importBySymbol[symbolName] = coreUri;
-      return;
-    }
-
-    // Skip built-in types and primitives
+    // Skip built-in types and primitives (int, double, String, bool, etc.)
     if (_isBuiltInType(symbolName)) {
       return;
     }
@@ -554,7 +564,10 @@ class ImportAnalyzer {
     }
 
     // ✅ PHASE 2: Check Global Symbol Table (Exact Match from exports.json)
-    if (globalSymbolTable.containsKey(symbolName)) {
+    // But do NOT override symbols already resolved from direct imports
+    // (e.g. conditional imports already resolved to browser_client.dart)
+    if (globalSymbolTable.containsKey(symbolName) &&
+        !_importBySymbol.containsKey(symbolName)) {
       final exactUri = globalSymbolTable[symbolName]!;
       if (!_symbolsByImport.containsKey(exactUri)) {
         _symbolsByImport[exactUri] = {};
@@ -700,6 +713,38 @@ class ImportAnalyzer {
 
   // Moved map to getter or static const to access in _recordSymbolUsage
   Map<String, Set<String>> get _knownSymbolsMap => {
+    'dart:core': {
+      'Duration',
+      'DateTime',
+      'Uri',
+      'Stopwatch',
+      'StringBuffer',
+      'RegExp',
+      'Match',
+      'Pattern',
+      'Comparable',
+      'Iterator',
+      'Iterable',
+      'ArgumentError',
+      'AssertionError',
+      'CastError',
+      'ConcurrentModificationError',
+      'Error',
+      'FormatException',
+      'IndexError',
+      'NoSuchMethodError',
+      'RangeError',
+      'StateError',
+      'TimeoutException',
+      'TypeError',
+      'UnimplementedError',
+      'UnsupportedError',
+      'Exception',
+      'StackTrace',
+      'Symbol',
+      'Type',
+      'identical',
+    },
     'dart:convert': {
       'jsonDecode',
       'jsonEncode',
@@ -774,6 +819,11 @@ class ImportAnalyzer {
       'PlatformException',
       'Clipboard',
       'ClipboardData',
+      'JSONMethodCodec',
+      'MethodCodec',
+      'StandardMethodCodec',
+      'MethodCall',
+      'PlatformViewController',
     },
     'package:flutter/foundation.dart': {
       'TargetPlatform',
@@ -786,6 +836,7 @@ class ImportAnalyzer {
       'ChangeNotifier',
       'ValueNotifier',
       'Key',
+      'nullAssert',
     },
     'package:flutter/widgets.dart': {
       'WidgetsBinding',
@@ -820,6 +871,12 @@ class ImportAnalyzer {
       'debugPrint',
       'kDebugMode',
       'kIsWeb',
+      'EdgeInsets',
+      'BorderRadius',
+      'BorderRadiusGeometry',
+      'Border',
+      'BorderSide',
+      'BoxDecoration',
     },
     'package:collection/collection.dart': {
       'CanonicalizedMap',
@@ -848,14 +905,24 @@ class ImportAnalyzer {
       final symbols = entry.value;
 
       if (symbols.contains(symbol)) {
-        // Find matching import
+        // Check if we already have an import for this library
+        String? existingImport;
         for (final importUri in _symbolsByImport.keys) {
           if (importUri == libUrl || importUri.endsWith(libUrl)) {
-            _symbolsByImport[importUri]!.add(symbol);
-            _importBySymbol[symbol] = importUri;
-            return;
+            existingImport = importUri;
+            break;
           }
         }
+
+        // If no matching import exists, create one (handles implicit dart:core)
+        if (existingImport == null) {
+          existingImport = libUrl;
+          _symbolsByImport[existingImport] = {};
+        }
+
+        _symbolsByImport[existingImport]!.add(symbol);
+        _importBySymbol[symbol] = existingImport;
+        return;
       }
     }
   }

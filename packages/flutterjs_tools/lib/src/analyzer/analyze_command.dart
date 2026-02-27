@@ -620,7 +620,7 @@ class AnalyzeCommand extends Command<void> {
     const width = 30;
     final filled = (width * percentage / 100).round();
     final empty = width - filled;
-    return '[' + '█' * filled + '░' * empty + ']';
+    return '[${'█' * filled}${'░' * empty}]';
   }
 
   String _formatDuration(int milliseconds) {

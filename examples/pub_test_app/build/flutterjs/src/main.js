@@ -1,7 +1,11 @@
+// Copyright 2025 The FlutterJS Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // ============================================================================
 // Generated from Dart IR - Advanced Code Generation (Phase 10)
 // WARNING: Do not edit manually - changes will be lost
-// Generated at: 2026-01-28 23:23:08.240572
+// Generated at: 2026-02-27 11:10:22.490023
 //
 // Smart Features Enabled:
 // ✓ Intelligent import detection
@@ -12,35 +16,7 @@
 // ============================================================================
 
 
-import {
-  Alignment,
-  BorderRadius,
-  BoxDecoration,
-  BoxShadow,
-  BoxShape,
-  BuildContext,
-  Colors,
-  CrossAxisAlignment,
-  EdgeInsets,
-  FontWeight,
-  Icons,
-  Key,
-  MainAxisAlignment,
-  MediaQuery,
-  MediaQueryData,
-  Offset,
-  Spacer,
-  State,
-  StatefulWidget,
-  StatelessWidget,
-  TextButtonThemeData,
-  TextStyle,
-  Theme,
-  ThemeData,
-  Widget,
-  runApp,
-} from '@flutterjs/material';
-import * as _import_0 from './package:uuid/uuid.js';
+import * as _import_0 from 'uuid';
 
 // Merging local imports for symbol resolution
 const __merged_imports = Object.assign({}, _import_0);
@@ -95,6 +71,7 @@ function main() {
 let uuid = new Uuid();
 print(`Generated UUID: ${uuid.v4()}`);
 }
+
 
 
 

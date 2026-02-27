@@ -1798,10 +1798,9 @@ class StatementExtractionPass {
     return UnknownExpressionIR(
       id: builder.generateId('expr_pattern'),
       source:
-          '${lhs.toSource()} case ${pattern.toString()}' +
-          (whenClause != null
+          '${lhs.toSource()} case ${pattern.toString()}${whenClause != null
               ? ' when ${whenClause.expression.toString()}'
-              : ''),
+              : ''}',
       sourceLocation: _extractSourceLocation(caseClause, caseClause.offset),
       metadata: {},
     );

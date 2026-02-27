@@ -33,6 +33,8 @@
 ///
 /// All collections are immutable in the final [DartFile] for thread-safety.
 /// <---------------------------------------------------------------------------->
+library;
+
 
 import 'package:meta/meta.dart';
 import 'package:crypto/crypto.dart';

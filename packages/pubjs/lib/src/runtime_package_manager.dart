@@ -210,10 +210,11 @@ class RuntimePackageManager {
           nodeModulesSearchPath,
           targetFlutterJsPackage,
         );
-        if (verbose)
+        if (verbose) {
           print(
             '   ✔ $packageName -> ${resolvedPaths[packageName]} (registry)',
           );
+        }
       } else {
         // Fallback: Check node_modules for direct existence
         final nodeModulesSearchPath =
@@ -222,10 +223,11 @@ class RuntimePackageManager {
         // Return absolute path to ensure correct resolution in build tools
         resolvedPaths[packageName] = p.join(nodeModulesSearchPath, packageName);
 
-        if (verbose)
+        if (verbose) {
           print(
             '   ✔ $packageName -> ${resolvedPaths[packageName]} (fallback)',
           );
+        }
       }
     }
 
@@ -418,8 +420,9 @@ class RuntimePackageManager {
       final sdkPackages =
           preResolvedSdkPackages ?? await _resolveSDKPackages(projectPath);
       if (verbose && sdkPackages.isNotEmpty) {
-        if (preResolvedSdkPackages == null)
+        if (preResolvedSdkPackages == null) {
           print('   💡 Found ${sdkPackages.length} local SDK packages');
+        }
       }
 
       // 🎁 NEW: Explicitly link ALL SDK packages found in monorepo
@@ -455,8 +458,9 @@ class RuntimePackageManager {
           // If package is scoped (e.g. @flutterjs/runtime), strip scope because destDir already includes @flutterjs
           final linkName = pkgName.substring('@flutterjs/'.length);
 
-          if (verbose)
+          if (verbose) {
             print('   🔗 Pre-linking SDK package: $pkgName -> $linkName');
+          }
           await _linkLocalPackage(linkName, absPath, nodeModulesFlutterJS);
 
           // Also link under the Dart package name (e.g. 'flutterjs_server') in root
@@ -470,8 +474,9 @@ class RuntimePackageManager {
           }
         } else {
           // Non-scoped package (e.g. flutter_web_plugins) goes to root node_modules
-          if (verbose)
+          if (verbose) {
             print('   🔗 Pre-linking SDK package: $pkgName ->Root');
+          }
           await _linkLocalPackage(pkgName, absPath, nodeModulesRoot);
         }
 
@@ -576,10 +581,12 @@ class RuntimePackageManager {
         final packagesToBuildSet = <String>{};
         for (final pkgName in allDetectedPackages) {
           if (sdkPackages.containsKey(pkgName) ||
-              pkgName.startsWith('@flutterjs/'))
+              pkgName.startsWith('@flutterjs/')) {
             continue;
-          if (pkgName == 'flutter' || pkgName == 'flutter_web_plugins')
+          }
+          if (pkgName == 'flutter' || pkgName == 'flutter_web_plugins') {
             continue;
+          }
           packagesToBuildSet.add(pkgName);
         }
 
@@ -763,10 +770,11 @@ class RuntimePackageManager {
     print('DEBUG: preparePackages: sdkPaths count=${sdkPaths.length}');
 
     // PHASE 2: Build SDK packages (Build FIRST so artifacts exist when copied)
-    if (verbose)
+    if (verbose) {
       print(
         '\nPhase 1: Building SDK packages...',
       ); // Renamed to Phase 1 in log logic
+    }
 
     final builder = PackageBuilder();
     final buildStats = await builder.buildSDKPackages(
@@ -782,14 +790,16 @@ class RuntimePackageManager {
       print(
         'DEBUG: preparePackages: buildSDKPackages failed with ${buildStats.failedCount} errors',
       );
-      if (verbose)
+      if (verbose) {
         print('❌ Build failed with ${buildStats.failedCount} errors');
+      }
       return false;
     }
 
     // PHASE 1: Resolve Dependencies (Link/Copy built packages)
-    if (verbose)
+    if (verbose) {
       print('\nPhase 2: Resolving dependencies...'); // Renamed to Phase 2
+    }
 
     final resolved = await resolveProjectDependencies(
       projectPath: projectPath,
@@ -1034,8 +1044,9 @@ class RuntimePackageManager {
     await destination.create(recursive: true);
     await for (final entity in source.list(recursive: false)) {
       final name = p.basename(entity.path);
-      if (name == 'node_modules' || name == '.git' || name == '.dart_tool')
+      if (name == 'node_modules' || name == '.git' || name == '.dart_tool') {
         continue;
+      }
 
       if (entity is Directory) {
         final newDirectory = Directory(p.join(destination.path, name));
@@ -1322,16 +1333,17 @@ class RuntimePackageManager {
           userConfig.flutterJsPackage == './...' ||
           userConfig.flutterJsPackage!.trim().isEmpty) {
         print(
-          '⚠️  WARNING: Ignoring malformed userConfig.flutterJsPackage \"${userConfig.flutterJsPackage}\" for $packageName',
+          '⚠️  WARNING: Ignoring malformed userConfig.flutterJsPackage "${userConfig.flutterJsPackage}" for $packageName',
         );
         // Don't use the malformed config, let it fall through to registry/direct resolution
       } else {
         targetFlutterJsPackage = userConfig.flutterJsPackage;
         targetVersion = userConfig.version;
-        if (verbose)
+        if (verbose) {
           print(
             '   📦 $packageName -> $targetFlutterJsPackage (Config Override)',
           );
+        }
       }
     } else {
       print(
@@ -1349,8 +1361,9 @@ class RuntimePackageManager {
         print(
           '🔍 DEBUG (_resolveAndInstallPackage): Found in registry: $packageName -> $targetFlutterJsPackage',
         );
-        if (verbose)
+        if (verbose) {
           print('   📦 $packageName -> $targetFlutterJsPackage (Registry)');
+        }
       } else {
         // Fallback: Assume direct pub.dev package
         targetFlutterJsPackage = packageName;
@@ -1376,12 +1389,11 @@ class RuntimePackageManager {
 
     // ✅ DEFENSIVE FIX: Validate and sanitize targetFlutterJsPackage
     // Reject malformed values like './...' that come from corrupted configs or bugs
-    if (targetFlutterJsPackage != null &&
-        (targetFlutterJsPackage.contains('./...') ||
+    if ((targetFlutterJsPackage.contains('./...') ||
             targetFlutterJsPackage == './...' ||
             targetFlutterJsPackage.trim().isEmpty)) {
       print(
-        '⚠️  WARNING: Rejecting malformed targetFlutterJsPackage \"$targetFlutterJsPackage\" for $packageName, using direct name instead',
+        '⚠️  WARNING: Rejecting malformed targetFlutterJsPackage "${targetFlutterJsPackage}" for $packageName, using direct name instead',
       );
       targetFlutterJsPackage = packageName;
       print(
@@ -1389,66 +1401,64 @@ class RuntimePackageManager {
       );
     }
 
-    if (targetFlutterJsPackage != null) {
-      final isOverridden = force || overridePackages.contains(packageName) || packageName == 'collection' || packageName == 'url_launcher' || packageName == 'url_launcher_platform_interface';
-      print(
-        '🔍 DEBUG (_resolveAndInstallPackage): isOverridden for $packageName: $isOverridden',
-      );
+    final isOverridden = force || overridePackages.contains(packageName) || packageName == 'collection' || packageName == 'url_launcher' || packageName == 'url_launcher_platform_interface';
+    print(
+      '🔍 DEBUG (_resolveAndInstallPackage): isOverridden for $packageName: $isOverridden',
+    );
 
-      final isCached =
-          !isOverridden &&
-          await _isPackageCached(
-            targetFlutterJsPackage,
-            nodeModulesRoot,
-            targetVersion,
-          );
-
-      if (isCached) {
-        print('🔍 DEBUG (CACHED): $packageName detected as cached');
-        if (verbose) print('      ✓ Using cached $packageName');
-        // ADD TRANSITIVE DEPS from cached package
-        final pkgPath = p.join(nodeModulesRoot, targetFlutterJsPackage);
-        print('🔍 DEBUG (CACHED): Resolved path for $packageName: $pkgPath');
-
-        // ✅ RECORD
-        resolvedMap[packageName] = pkgPath;
-        print(
-          '🔍 DEBUG (CACHED): Recorded in resolvedMap: $packageName -> $pkgPath',
-        );
-
-        return _getDependenciesFromPubspec(pkgPath);
-      } else {
-        if (isOverridden && verbose) {
-          print('   ⚡ Force converting $packageName...');
-        }
-
-        print(
-          '🔍 DEBUG: Installing $packageName as $targetFlutterJsPackage to $nodeModulesRoot',
-        );
-        final success = await _installPubDevPackage(
+    final isCached =
+        !isOverridden &&
+        await _isPackageCached(
           targetFlutterJsPackage,
           nodeModulesRoot,
           targetVersion,
-          verbose,
-          builder: builder,
         );
-        if (!success) {
-          print('❌ DEBUG: Install FAILED for $packageName');
-          return null;
-        }
 
-        // ✅ FIX: Read dependencies from newly installed package
-        final pkgPath = p.join(nodeModulesRoot, targetFlutterJsPackage);
-        print('🔍 DEBUG: Resolved path for $packageName: $pkgPath');
+    if (isCached) {
+      print('🔍 DEBUG (CACHED): $packageName detected as cached');
+      if (verbose) print('      ✓ Using cached $packageName');
+      // ADD TRANSITIVE DEPS from cached package
+      final pkgPath = p.join(nodeModulesRoot, targetFlutterJsPackage);
+      print('🔍 DEBUG (CACHED): Resolved path for $packageName: $pkgPath');
 
-        // ✅ RECORD
-        resolvedMap[packageName] = pkgPath;
-        print('🔍 DEBUG: Recorded in resolvedMap: $packageName -> $pkgPath');
+      // ✅ RECORD
+      resolvedMap[packageName] = pkgPath;
+      print(
+        '🔍 DEBUG (CACHED): Recorded in resolvedMap: $packageName -> $pkgPath',
+      );
 
-        return await _getDependenciesFromPubspec(pkgPath);
+      return _getDependenciesFromPubspec(pkgPath);
+    } else {
+      if (isOverridden && verbose) {
+        print('   ⚡ Force converting $packageName...');
       }
-    }
 
+      print(
+        '🔍 DEBUG: Installing $packageName as $targetFlutterJsPackage to $nodeModulesRoot',
+      );
+      final success = await _installPubDevPackage(
+        targetFlutterJsPackage,
+        nodeModulesRoot,
+        targetVersion,
+        verbose,
+        builder: builder,
+      );
+      if (!success) {
+        print('❌ DEBUG: Install FAILED for $packageName');
+        return null;
+      }
+
+      // ✅ FIX: Read dependencies from newly installed package
+      final pkgPath = p.join(nodeModulesRoot, targetFlutterJsPackage);
+      print('🔍 DEBUG: Resolved path for $packageName: $pkgPath');
+
+      // ✅ RECORD
+      resolvedMap[packageName] = pkgPath;
+      print('🔍 DEBUG: Recorded in resolvedMap: $packageName -> $pkgPath');
+
+      return await _getDependenciesFromPubspec(pkgPath);
+    }
+  
     print('\n❌ MISSING CONFIGURATION: "$packageName"');
     return null;
   }

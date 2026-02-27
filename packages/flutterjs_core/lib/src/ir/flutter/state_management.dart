@@ -581,7 +581,7 @@ class ProviderPerformanceIR extends IRNode {
 
   @override
   String toShortString() =>
-      'Performance [${stateChangeProcessingTimeMs.toStringAsFixed(2)}ms, ${widgetsRebuiltPerChange} rebuilds, efficient: $isEfficient]';
+      'Performance [${stateChangeProcessingTimeMs.toStringAsFixed(2)}ms, $widgetsRebuiltPerChange rebuilds, efficient: $isEfficient]';
 }
 
 // =============================================================================

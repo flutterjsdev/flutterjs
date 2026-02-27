@@ -67,8 +67,10 @@ class NullableTypeIR extends TypeIR {
     );
   }
 
+  @override
   bool get isBuiltIn => innerType.isBuiltIn;
 
+  @override
   bool get isGeneric => (innerType as dynamic).isGeneric == true;
 
   /// Unwraps and returns the inner non-nullable type

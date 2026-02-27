@@ -105,11 +105,11 @@ class LifecycleMapping {
   /// Get all defined lifecycle methods
   List<MethodDecl> getAllMethods() {
     return [
-      if (initState != null) initState!,
-      if (dispose != null) dispose!,
-      if (didUpdateWidget != null) didUpdateWidget!,
-      if (didChangeDependencies != null) didChangeDependencies!,
-      if (build != null) build!,
+      ?initState,
+      ?dispose,
+      ?didUpdateWidget,
+      ?didChangeDependencies,
+      ?build,
     ];
   }
 

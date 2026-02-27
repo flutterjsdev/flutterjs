@@ -46,11 +46,64 @@ export class Comparable {
 
 // Export all core types
 import { Uri } from './uri.js';
-export { Uri };
+import { Duration } from './duration.js';
+import {
+    Error as DartError,
+    AssertionError,
+    TypeError,
+    ArgumentError,
+    RangeError,
+    IndexError,
+    NoSuchMethodError,
+    UnsupportedError,
+    UnimplementedError,
+    StateError,
+    ConcurrentModificationError,
+    CastError,
+    TimeoutException,
+    FormatException,
+    identical,
+} from './errors.js';
+
+export {
+    Uri,
+    Duration,
+    identical,
+    DartError as Error,
+    AssertionError,
+    TypeError,
+    ArgumentError,
+    RangeError,
+    IndexError,
+    NoSuchMethodError,
+    UnsupportedError,
+    UnimplementedError,
+    StateError,
+    ConcurrentModificationError,
+    CastError,
+    TimeoutException,
+    FormatException,
+};
 
 export default {
     Iterator,
     Iterable,
     Comparable,
     Uri,
+    Duration,
+    identical,
+    Error: DartError,
+    AssertionError,
+    TypeError,
+    ArgumentError,
+    RangeError,
+    IndexError,
+    NoSuchMethodError,
+    UnsupportedError,
+    UnimplementedError,
+    StateError,
+    ConcurrentModificationError,
+    CastError,
+    TimeoutException,
+    FormatException,
 };

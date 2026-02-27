@@ -112,10 +112,11 @@ class PackageCompiler {
     // ✅ Build Global Symbol Table from Dependencies
     final globalSymbolTable = <String, String>{};
     if (dependencyPaths != null) {
-      if (verbose)
+      if (verbose) {
         print(
           '   🔍 Loading exports from ${dependencyPaths.length} dependencies...',
         );
+      }
 
       for (final depName in dependencyPaths.keys) {
         final depPath = dependencyPaths[depName]!;
@@ -140,12 +141,13 @@ class PackageCompiler {
                   // Fallback to inference (Legacy support)
                   var uriPath = jsPath;
                   if (uriPath.startsWith('./')) uriPath = uriPath.substring(2);
-                  if (uriPath.startsWith('dist/'))
+                  if (uriPath.startsWith('dist/')) {
                     uriPath = uriPath.substring(5);
+                  }
 
                   if (uriPath.endsWith('.js')) {
                     uriPath =
-                        uriPath.substring(0, uriPath.length - 3) + '.dart';
+                        '${uriPath.substring(0, uriPath.length - 3)}.dart';
                   }
 
                   final inferredUri = 'package:$depName/$uriPath';
@@ -154,8 +156,9 @@ class PackageCompiler {
               }
             }
           } catch (e) {
-            if (verbose)
+            if (verbose) {
               print('   ⚠️ Failed to read exports.json for $depName: $e');
+            }
           }
         }
       }
@@ -451,10 +454,11 @@ ${statements.join('\n')}
             i.uri == 'dart:isolate' ||
             i.uri == 'dart:mirrors',
       )) {
-        if (verbose)
+        if (verbose) {
           print(
             '   ⚠️ Warning: $relativePath uses platform specific dependencies (runtime failure possible)',
           );
+        }
       }
 
       return dartFile;

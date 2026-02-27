@@ -25,3 +25,4 @@ export 'src/model_to_js_integration.dart';
 export 'src/validation_optimization/js_optimizer.dart';
 
 export 'src/file_generation/runtime_requirements.dart';
+export 'src/file_generation/web_plugin_registrant.dart';

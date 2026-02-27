@@ -506,7 +506,7 @@ class UnifiedConversionPipeline {
 
         // ✅ Initialize OutputValidator with generated code
         final validator = OutputValidator(jsCode);
-        final validationReport = await validator.validate();
+        final validationReport = validator.validate();
 
         if (validationReport.hasCriticalIssues) {
           _log(
@@ -535,10 +535,10 @@ class UnifiedConversionPipeline {
         );
 
         final reduction = jsCode.length - optimizedCode.length;
-        final reduction_pct = (reduction / jsCode.length * 100).toStringAsFixed(
+        final reductionPct = (reduction / jsCode.length * 100).toStringAsFixed(
           1,
         );
-        _log('  - ✅ Optimization: -$reduction bytes ($reduction_pct%)');
+        _log('  - ✅ Optimization: -$reduction bytes ($reductionPct%)');
         _log('     Before: ${jsCode.length}, After: ${optimizedCode.length}');
 
         jsCode = optimizedCode;
@@ -547,7 +547,7 @@ class UnifiedConversionPipeline {
           'original_size': jsCode.length,
           'optimized_size': optimizedCode.length,
           'reduction_bytes': reduction,
-          'reduction_percent': reduction_pct,
+          'reduction_percent': reductionPct,
         };
       }
 

@@ -4,10 +4,6 @@
 
 import 'package:meta/meta.dart';
 import '../../../ast_it.dart';
-import '../core/source_location.dart';
-import 'operations.dart';
-import '../core/ir_node.dart';
-import '../types/type_ir.dart';
 
 /// =============================================================================
 ///  EXPRESSION IR REPRESENTATIONS

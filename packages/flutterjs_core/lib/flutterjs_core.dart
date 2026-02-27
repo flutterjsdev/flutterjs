@@ -51,6 +51,8 @@
 ///
 /// This file should remain lightweight and contain only exports, not logic.
 /// <---------------------------------------------------------------------------->
+library;
+
 
 export 'ast_it.dart';
 export 'src/analysis/visitors/declaration_pass.dart';

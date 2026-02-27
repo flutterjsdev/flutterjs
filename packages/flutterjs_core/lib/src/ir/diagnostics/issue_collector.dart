@@ -37,6 +37,8 @@
 /// collector.printAllIssues();
 /// ```
 /// <---------------------------------------------------------------------------->
+library;
+
 
 import 'analysis_issue.dart';
 import 'issue_categorizer.dart';

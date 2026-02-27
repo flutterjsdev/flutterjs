@@ -177,12 +177,17 @@ class FileCodeGen {
       if (cls.superclass != null) {
         final parentName = cls.superclass!.displayName();
         classDependencies.putIfAbsent(cls.name, () => []).add(parentName);
+        usedTypes.add(parentName);
       }
 
       for (final iface in cls.interfaces) {
-        classDependencies
-            .putIfAbsent(cls.name, () => [])
-            .add(iface.displayName());
+        final ifaceName = iface.displayName();
+        classDependencies.putIfAbsent(cls.name, () => []).add(ifaceName);
+        usedTypes.add(ifaceName);
+      }
+
+      for (final mixin in cls.mixins) {
+        usedTypes.add(mixin.displayName());
       }
 
       for (final field in cls.instanceFields) {
@@ -249,12 +254,17 @@ class FileCodeGen {
     code.writeln();
     code.writeln(await _generateExportsAsync(dartFile));
 
-    // Auto-invoke main() for entry-point files (target=node, file named main.dart/main.js)
-    // Dart's `main()` is the program entry point; in a JS module it must be called explicitly.
+    // Auto-invoke main() for entry-point files ONLY in Node.js
+    // In web apps, app.js or the HTML harness is responsible for invoking main()
     final hasMain = dartFile.functionDeclarations.any((f) => f.name == 'main');
-    if (hasMain) {
+    if (hasMain && target == 'node') {
       code.writeln('\n// Entry point — invoke main() automatically');
       code.writeln('main();');
+    } else if (hasMain && target == 'web') {
+      // For web, import and call plugin registrant before exporting main
+      code.writeln('\n// Web Plugin Registration');
+      code.writeln("import { registerPlugins } from './generated_plugin_registrant.js';");
+      code.writeln('registerPlugins();');
     }
 
     return code.toString();
@@ -391,16 +401,33 @@ class FileCodeGen {
         // Node.js target: skip all Flutter/material/services imports entirely
       } else {
         // Sort widgets to ensure deterministic output
+        final candidatesForMaterial = <String>{
+          ...usedWidgets,
+          ...usedTypes,
+          ...usedFunctions,
+        };
+        final cleanCandidates = <String>{};
+        for (final symbol in candidatesForMaterial) {
+          var s = symbol;
+          if (s.endsWith('?')) s = s.substring(0, s.length - 1);
+          if (s.contains('<')) s = s.substring(0, s.indexOf('<'));
+          cleanCandidates.add(s);
+        }
+
         final sortedWidgets =
-            usedWidgets.where((w) => !definedNames.contains(w)).toSet().toList()
+            cleanCandidates
+                .where((w) => !definedNames.contains(w))
+                .toSet()
+                .toList()
               ..sort();
 
         // Resolver already declared above
 
         for (final widget in sortedWidgets) {
           // Skip runtime types if they accidentally got into usedWidgets
-          if (widget.startsWith('_') || materialImports.contains(widget))
+          if (widget.startsWith('_') || materialImports.contains(widget)) {
             continue;
+          }
 
           if (widget == 'Uri') continue;
           if (widget == 'Seo') continue;
@@ -439,6 +466,7 @@ class FileCodeGen {
               widget == 'MediaQueryData' ||
               widget == 'Spacer' ||
               widget == 'TextButtonThemeData' ||
+              widget == 'EdgeInsets' ||
               widget == 'debugPrint') {
             // Fallback for symbols not yet in registry but known to be Material
             materialImports.add(widget);
@@ -488,6 +516,15 @@ class FileCodeGen {
             }
           }
 
+          // ✅ TEMP FIX: Always add commonly used symbols that aren't detected properly
+          // TODO: Fix the detection logic to properly scan for static method calls like EdgeInsets.symmetric()
+          const alwaysImport = ['EdgeInsets', 'MediaQuery', 'MediaQueryData'];
+          for (final symbol in alwaysImport) {
+            if (!materialImports.contains(symbol)) {
+              materialImports.add(symbol);
+            }
+          }
+
           code.writeln('import {');
           final sortedImports = materialImports.toList()..sort();
           for (final symbol in sortedImports) {
@@ -516,8 +553,9 @@ class FileCodeGen {
         for (final widget in sortedWidgets) {
           if (widget.startsWith('_') ||
               materialImports.contains(widget) ||
-              coreImports.contains(widget))
+              coreImports.contains(widget)) {
             continue;
+          }
 
           final resolvedPkg = resolver.resolve(widget);
           if (resolvedPkg == '@flutterjs/services') {
@@ -533,8 +571,10 @@ class FileCodeGen {
           if (const {
             'MethodCall',
             'MethodCodec',
+            'StandardMethodCodec',
             'JSONMethodCodec',
             'PlatformException',
+            'PlatformViewController',
           }.contains(symbol)) {
             servicesImports.add(symbol);
           }
@@ -741,7 +781,7 @@ class FileCodeGen {
         } else {
           // Relative import
           if (jsPath.endsWith('.dart')) {
-            jsPath = jsPath.substring(0, jsPath.length - 5) + '.js';
+            jsPath = '${jsPath.substring(0, jsPath.length - 5)}.js';
           } else {
             jsPath += '.js';
           }
@@ -900,8 +940,9 @@ function _filterNamespace(ns, show, hide) {
           code.writeln('const {');
           for (final symbol in requiredSymbols.toList()..sort()) {
             // Skip Likely noise
-            if (symbol.contains('.'))
+            if (symbol.contains('.')) {
               continue; // Prefixed usage (Prefix.Symbol)
+            }
 
             // Skip private symbols (starting with _) - they are class members, not imports
             if (symbol.startsWith('_')) continue;
@@ -1107,7 +1148,7 @@ function _filterNamespace(ns, show, hide) {
 
     for (int i = 0; i < sorted.length; i++) {
       try {
-        code.writeln(await classCodeGen.generate(sorted[i]));
+        code.writeln(classCodeGen.generate(sorted[i]));
         if (i < sorted.length - 1) {
           code.writeln();
         }
@@ -1169,7 +1210,7 @@ function _filterNamespace(ns, show, hide) {
         // Handle normally (single functions or non-pairs)
         for (var i = 0; i < group.length; i++) {
           try {
-            code.writeln(await funcCodeGen.generate(group[i]));
+            code.writeln(funcCodeGen.generate(group[i]));
             code.writeln();
           } catch (e) {
             code.writeln(
@@ -1280,7 +1321,7 @@ function _filterNamespace(ns, show, hide) {
     DartFile dartFile,
   ) async {
     final validator = outputValidator ?? OutputValidator(jsCode);
-    validationReport = await validator.validate();
+    validationReport = validator.validate();
     if (validationReport!.hasCriticalIssues) {
       generationWarnings.add(
         '⚠️  CRITICAL VALIDATION ISSUES FOUND: ${validationReport!.errorCount} errors',
@@ -1340,7 +1381,7 @@ function _filterNamespace(ns, show, hide) {
       );
 
       final reduction = jsCode.length - optimizedCode.length;
-      final reductionPercent = jsCode.length > 0
+      final reductionPercent = jsCode.isNotEmpty
           ? (reduction / jsCode.length * 100).toStringAsFixed(2)
           : '0.00';
 
@@ -1394,7 +1435,9 @@ function _filterNamespace(ns, show, hide) {
 
   void _analyzeStatement(StatementIR stmt) {
     if (stmt is BlockStmt) {
-      for (final s in stmt.statements) _analyzeStatement(s);
+      for (final s in stmt.statements) {
+        _analyzeStatement(s);
+      }
     } else if (stmt is IfStmt) {
       _analyzeExpression(stmt.condition);
       _analyzeStatement(stmt.thenBranch);
@@ -1414,7 +1457,9 @@ function _filterNamespace(ns, show, hide) {
         _analyzeExpression(stmt.initialization as ExpressionIR);
       }
       if (stmt.condition != null) _analyzeExpression(stmt.condition);
-      for (final u in stmt.updaters) _analyzeExpression(u);
+      for (final u in stmt.updaters) {
+        _analyzeExpression(u);
+      }
       _analyzeStatement(stmt.body);
     } else if (stmt is ForEachStmt) {
       _analyzeExpression(stmt.iterable);
@@ -1425,10 +1470,14 @@ function _filterNamespace(ns, show, hide) {
     } else if (stmt is SwitchStmt) {
       _analyzeExpression(stmt.expression);
       for (final c in stmt.cases) {
-        for (final s in c.statements) _analyzeStatement(s);
+        for (final s in c.statements) {
+          _analyzeStatement(s);
+        }
       }
       if (stmt.defaultCase != null) {
-        for (final s in stmt.defaultCase!.statements) _analyzeStatement(s);
+        for (final s in stmt.defaultCase!.statements) {
+          _analyzeStatement(s);
+        }
       }
     } else if (stmt is TryStmt) {
       _analyzeStatement(stmt.tryBlock);

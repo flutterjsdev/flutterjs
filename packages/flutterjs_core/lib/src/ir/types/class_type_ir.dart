@@ -67,8 +67,10 @@ class ClassTypeIR extends TypeIR {
     super.isNullable = false,
   });
 
+  @override
   bool get isBuiltIn => false;
 
+  @override
   bool get isGeneric => typeArguments.isNotEmpty;
 
   String get fullyQualifiedName =>

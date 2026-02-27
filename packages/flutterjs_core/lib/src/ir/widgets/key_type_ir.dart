@@ -48,14 +48,14 @@ class KeyTypeIR extends IRNode {
   final bool isConst;
 
   KeyTypeIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.kind,
     this.valueType,
     this.targetStateType,
     this.keyValue,
     this.isConst = false,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   @override
   String toShortString() {
@@ -136,8 +136,8 @@ class AsyncBuilderIR extends IRNode {
   final bool handlesLoading;
 
   AsyncBuilderIR({
-    required String id,
-    required SourceLocationIR sourceLocation,
+    required super.id,
+    required super.sourceLocation,
     required this.kind,
     required this.futureOrStreamExpression,
     required this.dataType,
@@ -146,7 +146,7 @@ class AsyncBuilderIR extends IRNode {
     this.canFail = true,
     this.handlesErrors = false,
     this.handlesLoading = false,
-  }) : super(id: id, sourceLocation: sourceLocation);
+  });
 
   /// Display name based on kind
   String get builderTypeName => kind == AsyncBuilderKindIR.futureBuilder

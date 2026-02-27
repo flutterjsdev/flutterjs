@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../src/core/assertion_error.js"],
+  "sourcesContent": ["/**\r\n * Error thrown by assert() when an assertion fails.\r\n *\r\n * In Dart, AssertionError is thrown when an assert statement fails.\r\n * This is typically only in debug/development mode.\r\n */\r\nexport class AssertionError extends Error {\r\n  /**\r\n   * Creates an AssertionError.\r\n   * @param {string|null} message - The assertion message\r\n   */\r\n  constructor(message) {\r\n    super(message || 'Assertion failed');\r\n    this.name = 'AssertionError';\r\n  }\r\n}\r\n"],
+  "mappings": "AAMO,MAAMA,UAAuB,KAAM,CAKxC,YAAYC,EAAS,CACnB,MAAMA,GAAW,kBAAkB,EACnC,KAAK,KAAO,gBACd,CACF",
+  "names": ["AssertionError", "message"]
+}

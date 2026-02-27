@@ -3,6 +3,18 @@
 This guide shows you the **easiest ways** to run FlutterJS commands without typing long paths.
 
 ## 🎯 Quick Commands
+1) delete build from C:\Jay\_Plugin\flutterjs\examples\flutterjs_website
+2) dart run C:\Jay\_Plugin\flutterjs\bin\flutterjs.dart get
+3) dart run C:\Jay\_Plugin\flutterjs\bin\flutterjs.dart run --to-js --serve
+4) check consle find error
+5) fix the error or add missing any file for funcion
+6) if chnage in package node:  npm run build 
+
+what you need to do is repeat above step till when website run and content load success fuly
+
+repate again and again
+
+
 
 ### Option 1: Global CLI (Recommended)
 

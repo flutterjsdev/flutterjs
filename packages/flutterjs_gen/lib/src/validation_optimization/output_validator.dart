@@ -32,7 +32,7 @@ class ValidationError {
     final parts = ['${severity.name.toUpperCase()}: $message'];
     if (lineNumber != null) parts.add('Line: $lineNumber');
     if (code != null) parts.add('Code: $code');
-    if (suggestion != null) parts.add('Suggestion ${suggestion}');
+    if (suggestion != null) parts.add('Suggestion $suggestion');
     return parts.join('\n  ');
   }
 }
