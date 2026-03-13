@@ -976,6 +976,41 @@ class ImportRewriter {
    * ✅ NEW: Generate import map from package.json exports
    * ========================================================================
    */
+  /**
+   * ========================================================================
+   * ✅ NEW: Check if package has dart2js compiled version
+   * ========================================================================
+   */
+  _hasDart2jsVersion(packageName) {
+    // Skip FlutterJS SDK packages - they don't use dart2js
+    if (packageName.startsWith('@flutterjs/')) {
+      return false;
+    }
+
+    // Check if dart2js compiled file exists
+    const dart2jsPath = path.join(
+      this.config.projectRoot,
+      `build/flutterjs/node_modules/${packageName}/${packageName}.js`
+    );
+
+    const exists = fs.existsSync(dart2jsPath);
+
+    if (this.config.debugMode && exists) {
+      console.log(chalk.cyan(`  ✓ Found dart2js version: ${packageName}.js`));
+    }
+
+    return exists;
+  }
+
+  /**
+   * ========================================================================
+   * ✅ NEW: Get dart2js package path
+   * ========================================================================
+   */
+  _getDart2jsPath(packageName) {
+    return `/node_modules/${packageName}/${packageName}.js`;
+  }
+
   generateDynamicImportMap() {
     if (this.config.debugMode) {
       console.log(
@@ -996,6 +1031,34 @@ class ImportRewriter {
         console.log(`[ImportRewriter]   Generating mappings for http_parser`);
       }
       try {
+        // ✅ NEW: Check for dart2js compiled version first
+        const hasDart2js = this._hasDart2jsVersion(packageName);
+
+        if (hasDart2js) {
+          // Use dart2js compiled version
+          const dart2jsPath = this._getDart2jsPath(packageName);
+
+          // Add bare package mapping
+          this.result.importMap.addImport(packageName, dart2jsPath);
+
+          // Add Dart-style package URI mapping
+          const dartPackageUri = `package:${packageName}/${packageName}.dart`;
+          this.result.importMap.addImport(dartPackageUri, dart2jsPath);
+
+          // Add trailing slash for sub-modules (though dart2js is monolithic)
+          const scopeName = `${packageName}/`;
+          const scopePath = `${baseDir}/${packageName}/`.replace(/\/+/g, "/");
+          this.result.importMap.addImport(scopeName, scopePath);
+
+          if (this.config.debugMode) {
+            console.log(chalk.green(`  ✓ Using dart2js for ${packageName}`));
+            console.log(chalk.gray(`    → ${dart2jsPath}`));
+          }
+
+          // Skip FlutterJS transpiler exports for this package
+          continue;
+        }
+
         const entries = exportConfig.getExportEntries(baseDir); // ✅ Pass /node_modules
 
         // ✅ NEW: Add bare package mapping (e.g. "@flutterjs/runtime" -> "/node_modules/@flutterjs/runtime/dist/index.js")
@@ -1107,10 +1170,32 @@ class ImportRewriter {
             "dart:async",
             "/node_modules/@flutterjs/dart/dist/async/index.js"
           );
-          this.result.importMap.addImport(
-            "dart:collection",
-            "/node_modules/@flutterjs/dart/dist/collection/index.js"
+
+          // ✅ dart2js: Check if collection was compiled with dart2js
+          const dart2jsCollectionPath = path.join(
+            this.config.projectRoot,
+            "build/flutterjs/node_modules/collection/collection.js"
           );
+          const hasDart2jsCollection = fs.existsSync(dart2jsCollectionPath);
+
+          if (hasDart2jsCollection) {
+            // Use dart2js compiled version
+            this.result.importMap.addImport(
+              "dart:collection",
+              "/node_modules/collection/collection.js"
+            );
+            this.result.importMap.addImport(
+              "package:collection/collection.dart",
+              "/node_modules/collection/collection.js"
+            );
+          } else {
+            // Fallback to FlutterJS transpiled version
+            this.result.importMap.addImport(
+              "dart:collection",
+              "/node_modules/@flutterjs/dart/dist/collection/index.js"
+            );
+          }
+
           this.result.importMap.addImport(
             "dart:convert",
             "/node_modules/@flutterjs/dart/dist/convert/index.js"
@@ -1133,14 +1218,17 @@ class ImportRewriter {
           );
 
           // ✅ FIX: Redirect missing collection files to manual implementation
-          this.result.importMap.addImport(
-            "/node_modules/collection/dist/src/priority_queue.js",
-            "/node_modules/@flutterjs/dart/dist/collection/priority_queue.js"
-          );
-          this.result.importMap.addImport(
-            "/node_modules/collection/dist/src/queue_list.js",
-            "/node_modules/@flutterjs/dart/dist/collection/queue_list.js"
-          );
+          // Only add these redirects if NOT using dart2js
+          if (!hasDart2jsCollection) {
+            this.result.importMap.addImport(
+              "/node_modules/collection/dist/src/priority_queue.js",
+              "/node_modules/@flutterjs/dart/dist/collection/priority_queue.js"
+            );
+            this.result.importMap.addImport(
+              "/node_modules/collection/dist/src/queue_list.js",
+              "/node_modules/@flutterjs/dart/dist/collection/queue_list.js"
+            );
+          }
         }
 
         // ✅ CRITICAL FIX: ALWAYS add wildcard mapping for every package

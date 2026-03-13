@@ -401,6 +401,71 @@ class JSOptimizer {
     return result;
   }
 
+  /// Strips JS single-line (//) and block (/* */) comments while preserving
+  /// the content of string literals (single/double quotes, backticks) so that
+  /// URLs like "https://..." are never accidentally truncated.
+  /// Block comments beginning with "KEEP:" are left intact.
+  String _stripCommentsAware(String code) {
+    final buf = StringBuffer();
+    int i = 0;
+    final len = code.length;
+    while (i < len) {
+      final ch = code[i];
+
+      // String literal: copy verbatim until the matching closing quote
+      if (ch == '"' || ch == "'" || ch == '`') {
+        buf.write(ch);
+        i++;
+        while (i < len) {
+          final sc = code[i];
+          if (sc == '\\' && i + 1 < len) {
+            buf.write(sc);
+            i++;
+            buf.write(code[i]); // escaped character
+          } else if (sc == ch) {
+            buf.write(sc); // closing quote
+            break;
+          } else {
+            buf.write(sc);
+          }
+          i++;
+        }
+        i++;
+        continue;
+      }
+
+      // Single-line comment: skip to end of line
+      if (ch == '/' && i + 1 < len && code[i + 1] == '/') {
+        while (i < len && code[i] != '\n') {
+          i++;
+        }
+        continue;
+      }
+
+      // Block comment: preserve KEEP:, strip everything else
+      if (ch == '/' && i + 1 < len && code[i + 1] == '*') {
+        final rest = i + 2 < len ? code.substring(i + 2) : '';
+        if (rest.startsWith('KEEP:')) {
+          // Preserve this block comment verbatim
+          buf.write(ch);
+          i++;
+          continue;
+        }
+        // Skip block comment
+        i += 2;
+        while (i + 1 < len && !(code[i] == '*' && code[i + 1] == '/')) {
+          i++;
+        }
+        i += 2; // skip closing */
+        continue;
+      }
+
+      buf.write(ch);
+      i++;
+    }
+    return buf.toString();
+  }
+
   String _minify(String input) {
     var result = input;
 
@@ -411,10 +476,9 @@ class JSOptimizer {
       return '/*KEEP:${keepComments.length - 1}*/';
     });
 
-    // 2. Remove regular comments (if not preserving)
+    // 2. Remove regular comments (if not preserving) — string-literal-aware
     if (!preserveComments) {
-      result = result.replaceAll(RegExp(r'//[^\n]*'), '');
-      result = result.replaceAll(RegExp(r'/\*(?!KEEP:)[\s\S]*?\*/'), '');
+      result = _stripCommentsAware(result);
     }
 
     // 3. Collapse whitespace (preserve newlines in some cases for readability)

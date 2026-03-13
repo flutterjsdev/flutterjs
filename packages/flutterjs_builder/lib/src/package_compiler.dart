@@ -180,10 +180,8 @@ class PackageCompiler {
       final localExports = <String, String>{};
 
       // PHASE 1: Parse all files and collect local exports
-      print('DEBUG: Scanned sourceDir: ${sourceDir.path}');
       await for (final entity in sourceDir.list(recursive: true)) {
         if (entity is File && entity.path.endsWith('.dart')) {
-          print('DEBUG: Found Dart file: ${entity.path}');
           final dartFile = await _parseFile(entity);
           if (dartFile != null) {
             parsedFiles[entity] = dartFile;
@@ -256,25 +254,6 @@ class PackageCompiler {
       // This ensures that files in this package can resolve symbols
       // defined in other files of the SAME package using absolute package: URIs.
       globalSymbolTable.addAll(localExports);
-
-      // DEBUG: Verify Style for path package
-      if (packageName == 'path') {
-        print(
-          'DEBUG: [PackageCompiler] Global Symbol Table for $packageName has ${globalSymbolTable.length} entries',
-        );
-        if (globalSymbolTable.containsKey('Style')) {
-          print(
-            'DEBUG: [PackageCompiler] Style -> ${globalSymbolTable['Style']}',
-          );
-        } else {
-          print(
-            'DEBUG: [PackageCompiler] Style NOT FOUND in globalSymbolTable for $packageName',
-          );
-          print(
-            'DEBUG: [PackageCompiler] Local Exports has Style? ${localExports.containsKey('Style')}',
-          );
-        }
-      }
 
       // PHASE 2: Generate JS using the populated symbol table
       for (final entry in parsedFiles.entries) {

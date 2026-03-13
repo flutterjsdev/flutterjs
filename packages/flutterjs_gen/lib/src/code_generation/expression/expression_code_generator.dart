@@ -722,6 +722,14 @@ class ExpressionCodeGen {
     // This was breaking 'for (i < n)' loops.
     // if (expr.source != null && expr.source.contains('<')) { ... } REMOVED
 
+    // ✅ FIX: Handle Dart 'rethrow' keyword → JS 'throw e'
+    // In Dart, 'rethrow' re-throws the current exception inside a catch block.
+    // JavaScript doesn't have 'rethrow'; the equivalent is 'throw <catchVariable>'.
+    if (expr.source.trim() == 'rethrow') {
+      print('   🔧 Converting rethrow → throw e');
+      return 'throw e';
+    }
+
     String source = expr.source;
 
     // ✅ FIX: Replace embedded Symbol literals: #symbol -> "dart.symbol.symbol"
@@ -1498,6 +1506,19 @@ class ExpressionCodeGen {
         if (isMap) return 'Object.keys($target).length';
         // strings and arrays already have .length
         break;
+      // ✅ FIX: Dart .first → JS [0], .last → .at(-1)
+      case 'first':
+        if (isList || typeStr == 'dynamic') {
+          print('🔧 Converting .first → [0]');
+          return '$target[0]';
+        }
+        break;
+      case 'last':
+        if (isList || typeStr == 'dynamic') {
+          print('🔧 Converting .last → .at(-1)');
+          return '$target.at(-1)';
+        }
+        break;
       // .values and .keys are unambiguously Dart Map operations on plain JS objects.
       // JS arrays/strings don't have a `.values` property, so always convert.
       case 'values':
@@ -2040,6 +2061,108 @@ class ExpressionCodeGen {
         return target; // Array.toList() is the identity in JS
       }
 
+      // ✅ FIX: Dart .take(n) → JS .slice(0, n)
+      if (expr.methodName == 'take' && expr.arguments.length == 1) {
+        final n = generate(expr.arguments.first, parenthesize: false);
+        print('🔧 Converting .take($n) → .slice(0, $n)');
+        return '$target.slice(0, $n)';
+      }
+
+      // ✅ FIX: Dart .skip(n) → JS .slice(n)
+      if (expr.methodName == 'skip' && expr.arguments.length == 1) {
+        final n = generate(expr.arguments.first, parenthesize: false);
+        print('🔧 Converting .skip($n) → .slice($n)');
+        return '$target.slice($n)';
+      }
+
+      // ✅ FIX: Dart .sublist(start, [end]) → JS .slice(start, end)
+      if (expr.methodName == 'sublist') {
+        final start = generate(expr.arguments.first, parenthesize: false);
+        if (expr.arguments.length >= 2) {
+          final end = generate(expr.arguments[1], parenthesize: false);
+          return '$target.slice($start, $end)';
+        }
+        return '$target.slice($start)';
+      }
+
+      // ✅ FIX: json.decode(str) → JSON.parse(str)
+      // Dart's dart:convert json.decode maps to browser's JSON.parse
+      if (target == 'json' &&
+          expr.methodName == 'decode' &&
+          expr.arguments.isNotEmpty) {
+        final arg = generate(expr.arguments.first, parenthesize: false);
+        print('🔧 Converting json.decode() → JSON.parse()');
+        return 'JSON.parse($arg)';
+      }
+
+      // ✅ FIX: json.encode(obj) → JSON.stringify(obj)
+      if (target == 'json' &&
+          expr.methodName == 'encode' &&
+          expr.arguments.isNotEmpty) {
+        final arg = generate(expr.arguments.first, parenthesize: false);
+        print('🔧 Converting json.encode() → JSON.stringify()');
+        return 'JSON.stringify($arg)';
+      }
+
+      // ✅ FIX: jsonDecode(str) → JSON.parse(str) (top-level function from dart:convert)
+      // (handled below in the no-target section)
+
+      // ✅ FIX: $int.tryParse(str) → parseInt with NaN check
+      // Dart's `int.tryParse` becomes `$int.tryParse` after safeIdentifier transforms 'int' → '$int'
+      if ((target == '\$int' || target == 'int') &&
+          expr.methodName == 'tryParse' &&
+          expr.arguments.isNotEmpty) {
+        final arg = generate(expr.arguments.first, parenthesize: false);
+        print('🔧 Converting \$int.tryParse() → parseInt() with NaN check');
+        return '(((v) => { const n = parseInt(v, 10); return isNaN(n) ? null : n; })($arg))';
+      }
+
+      // ✅ FIX: $int.parse(str) → parseInt(str, 10)
+      if ((target == '\$int' || target == 'int') &&
+          expr.methodName == 'parse' &&
+          expr.arguments.isNotEmpty) {
+        final arg = generate(expr.arguments.first, parenthesize: false);
+        print('🔧 Converting \$int.parse() → parseInt()');
+        return 'parseInt($arg, 10)';
+      }
+
+      // ✅ FIX: $double.tryParse(str) → parseFloat with NaN check
+      if ((target == '\$double' || target == 'double') &&
+          expr.methodName == 'tryParse' &&
+          expr.arguments.isNotEmpty) {
+        final arg = generate(expr.arguments.first, parenthesize: false);
+        print(
+          '🔧 Converting \$double.tryParse() → parseFloat() with NaN check',
+        );
+        return '(((v) => { const n = parseFloat(v); return isNaN(n) ? null : n; })($arg))';
+      }
+
+      // ✅ FIX: $double.parse(str) → parseFloat(str)
+      if ((target == '\$double' || target == 'double') &&
+          expr.methodName == 'parse' &&
+          expr.arguments.isNotEmpty) {
+        final arg = generate(expr.arguments.first, parenthesize: false);
+        print('🔧 Converting \$double.parse() → parseFloat()');
+        return 'parseFloat($arg)';
+      }
+
+      // ✅ FIX: DateTime.now() → new Date()
+      if (target == 'DateTime' &&
+          expr.methodName == 'now' &&
+          expr.arguments.isEmpty) {
+        print('🔧 Converting DateTime.now() → new Date()');
+        return 'new Date()';
+      }
+
+      // ✅ FIX: DateTime.parse(str) → new Date(str)
+      if (target == 'DateTime' &&
+          expr.methodName == 'parse' &&
+          expr.arguments.isNotEmpty) {
+        final arg = generate(expr.arguments.first, parenthesize: false);
+        print('🔧 Converting DateTime.parse() → new Date()');
+        return 'new Date($arg)';
+      }
+
       // String.isEmpty / List.isEmpty already handled in property access,
       // but handle them as method calls too in case IR wraps them differently.
 
@@ -2076,6 +2199,38 @@ class ExpressionCodeGen {
 
     // ✅ FIXED: When target is null
     final args = _generateArgumentList(expr.arguments, expr.namedArguments);
+
+    // ✅ FIX: int.tryParse(str) / $int.tryParse(str) → (parseInt(str, 10) || null check)
+    if ((expr.methodName == 'tryParse') && expr.arguments.isNotEmpty) {
+      // Check if this is being used like $int.tryParse or int.tryParse
+      final arg = generate(expr.arguments.first, parenthesize: false);
+      print('🔧 Converting int.tryParse() → parseInt() with NaN check');
+      return '(((v) => { const n = parseInt(v, 10); return isNaN(n) ? null : n; })($arg))';
+    }
+
+    // ✅ FIX: int.parse(str) → parseInt(str, 10)
+    if ((expr.methodName == 'parse') && expr.arguments.isNotEmpty) {
+      // Heuristic: Only convert if there's no target (static call like int.parse)
+      final arg = generate(expr.arguments.first, parenthesize: false);
+      // Check for int context from the type arguments or method name prefix
+      // This handles the import-level $int reference
+      print('🔧 Converting int.parse() → parseInt()');
+      return 'parseInt($arg, 10)';
+    }
+
+    // ✅ FIX: jsonDecode(str) → JSON.parse(str)
+    if (expr.methodName == 'jsonDecode' && expr.arguments.isNotEmpty) {
+      final arg = generate(expr.arguments.first, parenthesize: false);
+      print('🔧 Converting jsonDecode() → JSON.parse()');
+      return 'JSON.parse($arg)';
+    }
+
+    // ✅ FIX: jsonEncode(obj) → JSON.stringify(obj)
+    if (expr.methodName == 'jsonEncode' && expr.arguments.isNotEmpty) {
+      final arg = generate(expr.arguments.first, parenthesize: false);
+      print('🔧 Converting jsonEncode() → JSON.stringify()');
+      return 'JSON.stringify($arg)';
+    }
 
     // Check if this is a widget/class constructor
     // Include both:

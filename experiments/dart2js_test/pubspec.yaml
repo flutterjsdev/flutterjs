@@ -1,0 +1,6 @@
+name: dart2js_test
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+dependencies:
+  http: ^1.0.0
+  path: ^1.8.0

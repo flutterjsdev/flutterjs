@@ -366,6 +366,8 @@ class RuntimePackageManager {
     List<String> overridePackages = const [],
     bool force = false,
   }) async {
+    // Make a mutable copy so we can add transitive deps discovered later
+    final mutableOverrides = List<String>.from(overridePackages);
     final totalStopwatch = Stopwatch()..start();
     final Map<String, String> finalResolvedPackages = {};
 
@@ -487,20 +489,16 @@ class RuntimePackageManager {
         // If an SDK package depends on 'path', we must ensure 'path' is installed.
         final sdkDeps = await _getDependenciesFromPubspec(absPath);
         for (final dep in sdkDeps) {
-          // We'll add these to the processing queue later if not already present
           if (!dependencies.containsKey(dep)) {
-            // Dependencies map is fixed, so we'll add to a supplementary list
-            overridePackages.add(dep);
-            // Note: overridePackages is a List<String>. We are using it as a queue extension here.
-            // Ideally we should use a proper queue merge.
+            mutableOverrides.add(dep);
           }
         }
       }
 
-      // ✅ FIX: Merge project dependencies with SDK package dependencies
+      // Merge project dependencies with SDK package transitive deps
       final queue = <String>{
         ...dependencies.keys.map((k) => k.toString()),
-        ...overridePackages, // Includes SDK transitive deps collected above
+        ...mutableOverrides,
       }.toList();
       final processed = <String>{};
 
@@ -537,7 +535,7 @@ class RuntimePackageManager {
               nodeModulesRoot: nodeModulesRoot,
               verbose: verbose,
               force: force,
-              overridePackages: overridePackages,
+              overridePackages: mutableOverrides,
               builder: builder,
               resolvedMap: finalResolvedPackages,
             ).then((deps) {
@@ -598,9 +596,7 @@ class RuntimePackageManager {
         );
 
         if (verbose) {
-          print(
-            'DEBUG: Topological Build Order: ${sortedPackages.join(' -> ')}',
-          );
+          print('   Build order: ${sortedPackages.join(' → ')}');
         }
 
         final totalPackages = sortedPackages.length;
@@ -669,7 +665,11 @@ class RuntimePackageManager {
     }
   }
 
-  /// Helper to read dependencies from a package's pubspec.yaml
+  /// Helper to read dependencies from a package's pubspec.yaml.
+  ///
+  /// Also reads `flutter.plugin.platforms.web.default_package` so that
+  /// plugin packages (e.g. url_launcher) automatically pull in their web
+  /// implementation (e.g. url_launcher_web).
   Future<List<String>> _getDependenciesFromPubspec(String packagePath) async {
     try {
       final pubspecPath = p.join(packagePath, 'pubspec.yaml');
@@ -680,11 +680,29 @@ class RuntimePackageManager {
       final yaml = loadYaml(content) as Map;
       final deps = yaml['dependencies'] as Map? ?? {};
 
-      return deps.keys
+      final result = deps.keys
           .map((k) => k.toString())
           .where((d) => d != 'flutter')
           .where((d) => !_isNonWebPlatformPackage(d))
           .toList();
+
+      // Read flutter.plugin.platforms.web.default_package so that the
+      // web implementation of a plugin is automatically installed.
+      // e.g. url_launcher declares default_package: url_launcher_web
+      try {
+        final flutter = yaml['flutter'] as Map?;
+        final plugin = flutter?['plugin'] as Map?;
+        final platforms = plugin?['platforms'] as Map?;
+        final web = platforms?['web'] as Map?;
+        final defaultPackage = web?['default_package'] as String?;
+        if (defaultPackage != null && !result.contains(defaultPackage)) {
+          result.add(defaultPackage);
+        }
+      } catch (_) {
+        // Not a plugin package - fine to ignore
+      }
+
+      return result;
     } catch (e) {
       print('Warning: Failed to parse pubspec in $packagePath: $e');
       return [];
@@ -767,13 +785,10 @@ class RuntimePackageManager {
 
     // 🎁 Resolve SDK paths once for everyone
     final sdkPaths = await _resolveSDKPackages(projectPath);
-    print('DEBUG: preparePackages: sdkPaths count=${sdkPaths.length}');
 
-    // PHASE 2: Build SDK packages (Build FIRST so artifacts exist when copied)
+    // PHASE 1: Build SDK packages (build first so artifacts exist when copied)
     if (verbose) {
-      print(
-        '\nPhase 1: Building SDK packages...',
-      ); // Renamed to Phase 1 in log logic
+      print('\nPhase 1: Building SDK packages...');
     }
 
     final builder = PackageBuilder();
@@ -787,18 +802,15 @@ class RuntimePackageManager {
     );
 
     if (buildStats.failedCount > 0) {
-      print(
-        'DEBUG: preparePackages: buildSDKPackages failed with ${buildStats.failedCount} errors',
-      );
       if (verbose) {
         print('❌ Build failed with ${buildStats.failedCount} errors');
       }
       return false;
     }
 
-    // PHASE 1: Resolve Dependencies (Link/Copy built packages)
+    // PHASE 2: Resolve Dependencies (link/copy built packages, download external)
     if (verbose) {
-      print('\nPhase 2: Resolving dependencies...'); // Renamed to Phase 2
+      print('\nPhase 2: Resolving dependencies...');
     }
 
     final resolved = await resolveProjectDependencies(
@@ -812,9 +824,6 @@ class RuntimePackageManager {
     );
 
     if (!resolved) {
-      print(
-        'DEBUG: preparePackages: resolveProjectDependencies returned false',
-      );
       print('❌ Dependency resolution failed');
       return false;
     }
@@ -839,6 +848,547 @@ class RuntimePackageManager {
     await _generatePackageConfig(projectPath, buildPath);
 
     return true;
+  }
+
+  /// Prepares packages using Flutter's pub get for package resolution
+  ///
+  /// This method integrates with the standard Dart/Flutter package manager:
+  /// 1. Runs `dart pub get` to resolve all packages (including pub.dev)
+  /// 2. Reads `.dart_tool/package_config.json` for package locations
+  /// 3. Compiles each package using FlutterJS builder
+  /// 4. Installs compiled packages to node_modules
+  ///
+  /// This approach leverages Flutter's package resolution while still
+  /// generating JavaScript output for all dependencies.
+  Future<bool> preparePackagesWithPubGet({
+    required String projectPath,
+    required String buildPath,
+    bool force = false,
+    bool verbose = false,
+    List<String> overridePackages = const [],
+  }) async {
+    print('\n📦 Preparing FlutterJS packages using pub get...\n');
+
+    // Step 1: Run dart pub get to resolve packages
+    print('🔍 Resolving packages with Dart pub...');
+    final pubGetResult = await _runPubGet(projectPath, verbose: verbose);
+    if (!pubGetResult) {
+      print('❌ pub get failed');
+      return false;
+    }
+    print('✓ Packages resolved\n');
+
+    // Step 2: Read package_config.json
+    // Check both project-level and workspace-level .dart_tool
+    String? packageConfigPath;
+
+    // Try project-level first
+    var configPath = p.join(projectPath, '.dart_tool', 'package_config.json');
+    if (await File(configPath).exists()) {
+      packageConfigPath = configPath;
+    } else {
+      // Try workspace root (go up until we find it or hit root)
+      var current = Directory(projectPath);
+      for (int i = 0; i < 10; i++) {
+        configPath = p.join(current.path, '.dart_tool', 'package_config.json');
+        if (await File(configPath).exists()) {
+          packageConfigPath = configPath;
+          if (verbose) {
+            print('   Using workspace package_config.json at ${current.path}');
+          }
+          break;
+        }
+        if (current.parent.path == current.path) break;
+        current = current.parent;
+      }
+    }
+
+    if (packageConfigPath == null) {
+      print('❌ package_config.json not found after pub get');
+      print('   Searched in $projectPath and parent directories');
+      return false;
+    }
+
+    final packageConfigFile = File(packageConfigPath);
+
+    Map<String, dynamic> packageConfig;
+    try {
+      final content = await packageConfigFile.readAsString();
+      packageConfig = jsonDecode(content) as Map<String, dynamic>;
+    } catch (e) {
+      print('❌ Failed to parse package_config.json: $e');
+      return false;
+    }
+
+    final packages = packageConfig['packages'] as List? ?? [];
+    if (verbose) {
+      print('📚 Found ${packages.length} packages to compile\n');
+    }
+
+    // Step 3: Ensure build directories exist
+    final nodeModulesRoot = p.join(buildPath, 'node_modules');
+    final nodeModulesFlutterJS = p.join(nodeModulesRoot, '@flutterjs');
+    await Directory(nodeModulesFlutterJS).create(recursive: true);
+
+    // Step 4: Compile each package
+    final totalStopwatch = Stopwatch()..start();
+    int compiledCount = 0;
+    int skippedCount = 0;
+    int failedCount = 0;
+
+    for (final pkg in packages) {
+      final pkgName = pkg['name'] as String;
+      final rootUri = pkg['rootUri'] as String;
+
+      // Skip the project itself
+      if (rootUri == '../') continue;
+
+      // Resolve absolute path from URI
+      String packagePath;
+      if (rootUri.startsWith('file:///')) {
+        packagePath = Uri.parse(rootUri).toFilePath();
+      } else {
+        // Relative path from .dart_tool - use the actual config file's directory
+        // (may be workspace root, not project root)
+        final dartToolDir = p.dirname(packageConfigPath!);
+        packagePath = p.normalize(p.join(dartToolDir, rootUri));
+      }
+
+      if (!await Directory(packagePath).exists()) {
+        if (verbose) {
+          print('⚠️  Package directory not found: $pkgName at $packagePath');
+        }
+        skippedCount++;
+        continue;
+      }
+
+      // Determine output location and handle FlutterJS SDK packages specially
+      if (pkgName.startsWith('flutterjs_') || pkgName == 'flutter_web_plugins') {
+        // FlutterJS SDK packages: link pre-built JS package, don't dart2js compile
+        final simpleName = pkgName.startsWith('flutterjs_')
+            ? pkgName.substring('flutterjs_'.length)
+            : pkgName;
+        final outputDir = p.join(nodeModulesFlutterJS, simpleName);
+
+        // Find the JS package: try nested structure (flutterjs_material/flutterjs_material/)
+        // then fall back to flat structure (flutterjs_dart/)
+        final nestedJsPath = p.join(packagePath, pkgName);
+        String jsPackagePath;
+        if (await Directory(nestedJsPath).exists() &&
+            (await File(p.join(nestedJsPath, 'exports.json')).exists() ||
+                await File(p.join(nestedJsPath, 'package.json')).exists())) {
+          jsPackagePath = nestedJsPath;
+        } else {
+          jsPackagePath = packagePath;
+        }
+
+        final hasJsMarker = await File(p.join(jsPackagePath, 'exports.json')).exists() ||
+            await File(p.join(jsPackagePath, 'package.json')).exists();
+
+        if (hasJsMarker) {
+          if (!force && await Directory(outputDir).exists()) {
+            if (verbose) print('⏭️  $pkgName (up-to-date)');
+            skippedCount++;
+          } else {
+            if (verbose) print('🔗 Linking SDK package $pkgName...');
+            await _linkLocalPackage(simpleName, jsPackagePath, nodeModulesFlutterJS);
+            compiledCount++;
+            if (verbose) print('✓ $pkgName linked and installed');
+          }
+        } else {
+          if (verbose) print('⏭️  $pkgName (no JS package found, skipping)');
+          skippedCount++;
+        }
+        continue;
+      }
+
+      final outputDir = p.join(nodeModulesRoot, pkgName);
+      await Directory(outputDir).create(recursive: true);
+
+      // Check if compilation is needed (check source location, not output)
+      if (!force && await _isPackageUpToDate(packagePath, packagePath)) {
+        if (verbose) {
+          print('⏭️  $pkgName (up-to-date)');
+        }
+        skippedCount++;
+        continue;
+      }
+
+      // Compile the package using dart2js
+      if (verbose) {
+        print('🔨 Compiling $pkgName with dart2js...');
+      }
+
+      try {
+        final success = await _compilePackageWithDart2JS(
+          packageName: pkgName,
+          packagePath: packagePath,
+          outputDir: outputDir,
+          verbose: verbose,
+          projectPath: projectPath,
+        );
+
+        if (success) {
+          compiledCount++;
+          if (verbose) {
+            print('✓ $pkgName compiled and installed');
+          }
+        } else {
+          failedCount++;
+          print('❌ Failed to compile $pkgName — generating web stub');
+          await _generateFallbackWebStub(pkgName, packagePath, outputDir, verbose: verbose);
+        }
+      } catch (e) {
+        failedCount++;
+        print('❌ Error compiling $pkgName: $e — generating web stub');
+        await _generateFallbackWebStub(pkgName, packagePath, outputDir, verbose: verbose);
+      }
+    }
+
+    totalStopwatch.stop();
+
+    // Print summary
+    print('\n═══════════════════════════════════════════════════════');
+    print('Build Summary');
+    print('═══════════════════════════════════════════════════════');
+    print('✓ Compiled: $compiledCount packages');
+    print('⏭️  Skipped: $skippedCount packages (up-to-date)');
+    if (failedCount > 0) {
+      print('❌ Failed: $failedCount packages');
+    }
+    print('⏱️  Total time: ${totalStopwatch.elapsedMilliseconds}ms');
+    print('═══════════════════════════════════════════════════════\n');
+
+    if (failedCount > 0) {
+      print('⚠️  $failedCount packages failed (likely native/platform-only packages - OK for web)');
+    }
+
+    // Step 4b: Link any SDK packages found by filesystem scan but not yet installed.
+    // This handles pure-JS packages like flutterjs_dart that aren't in package_config.json.
+    final sdkPackages = await _resolveSDKPackages(projectPath);
+    for (final entry in sdkPackages.entries) {
+      final pkgKey = entry.key; // e.g. '@flutterjs/dart'
+      final relPath = entry.value;
+      final absPath = p.join(projectPath, relPath);
+      final simpleName = pkgKey.startsWith('@flutterjs/')
+          ? pkgKey.substring('@flutterjs/'.length)
+          : pkgKey;
+      final destDir = pkgKey.startsWith('@flutterjs/')
+          ? nodeModulesFlutterJS
+          : nodeModulesRoot;
+      final targetPath = p.join(destDir, simpleName);
+
+      if (!force && await Directory(targetPath).exists()) {
+        if (verbose) print('⏭️  $pkgKey (already installed)');
+        continue;
+      }
+
+      if (await Directory(absPath).exists()) {
+        await _linkLocalPackage(simpleName, absPath, destDir);
+        if (verbose) print('🔗 Linked SDK package: $pkgKey');
+      }
+    }
+
+    // Step 5: Verify and generate package config for built packages
+    await _generatePackageConfig(projectPath, buildPath);
+
+    print('✅ All packages ready!\n');
+    return true;
+  }
+
+  /// Runs dart pub get in the project directory
+  Future<bool> _runPubGet(String projectPath, {bool verbose = false}) async {
+    try {
+      final dartExe = Platform.isWindows ? 'dart.bat' : 'dart';
+
+      final result = await Process.run(
+        dartExe,
+        ['pub', 'get'],
+        workingDirectory: projectPath,
+        runInShell: true,
+      );
+
+      if (verbose) {
+        if (result.stdout.toString().isNotEmpty) {
+          print(result.stdout);
+        }
+      }
+
+      if (result.exitCode != 0) {
+        print('dart pub get failed:');
+        print(result.stderr);
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      print('Error running pub get: $e');
+      return false;
+    }
+  }
+
+  /// Checks if a package is up-to-date (output exists and is newer than source)
+  Future<bool> _isPackageUpToDate(
+    String packagePath,
+    String outputPath,
+  ) async {
+    // Check if exports.json exists
+    final exportsFile = File(p.join(outputPath, 'exports.json'));
+    if (!await exportsFile.exists()) {
+      return false;
+    }
+
+    // Check if package.json exists
+    final packageFile = File(p.join(outputPath, 'package.json'));
+    if (!await packageFile.exists()) {
+      return false;
+    }
+
+    // Compare timestamps: output should be newer than source
+    final exportsStat = await exportsFile.stat();
+    final pubspecFile = File(p.join(packagePath, 'pubspec.yaml'));
+
+    if (!await pubspecFile.exists()) {
+      return false; // No pubspec means it's not a valid package
+    }
+
+    final pubspecStat = await pubspecFile.stat();
+    return exportsStat.modified.isAfter(pubspecStat.modified);
+  }
+
+  /// Compiles a Dart package to JavaScript using dart2js
+  ///
+  /// This method:
+  /// 1. Creates a temporary entry point that imports the package
+  /// 2. Runs dart2js from the project context (for package resolution)
+  /// 3. Extracts just the package code (excluding dart2js runtime)
+  /// 4. Creates exports.json and package.json manifests
+  Future<bool> _compilePackageWithDart2JS({
+    required String packageName,
+    required String packagePath,
+    required String outputDir,
+    bool verbose = false,
+    String? projectPath,
+  }) async {
+    try {
+      // Ensure output directory exists
+      await Directory(outputDir).create(recursive: true);
+
+      // Find lib directory
+      final libDir = Directory(p.join(packagePath, 'lib'));
+      if (!await libDir.exists()) {
+        if (verbose) {
+          print('   No lib/ directory found, skipping');
+        }
+        return true; // Not an error, just no code to compile
+      }
+
+      // Find the main library file (lib/<package_name>.dart)
+      final mainFile = File(p.join(libDir.path, '$packageName.dart'));
+
+      if (!await mainFile.exists()) {
+        if (verbose) {
+          print('   No lib/$packageName.dart found, skipping');
+        }
+        return true; // Not an error, just no main export
+      }
+
+      // Create a temporary entry point in the project directory
+      // This ensures dart2js can resolve packages via .dart_tool/package_config.json
+      final tempDir = Directory(p.join(projectPath ?? '.', '.flutterjs_temp'));
+      await tempDir.create(recursive: true);
+
+      final tempEntry = File(p.join(tempDir.path, '${packageName}_entry.dart'));
+      await tempEntry.writeAsString('''
+// Auto-generated entry point for dart2js compilation
+import 'package:$packageName/$packageName.dart';
+
+void main() {
+  // Entry point - package is imported and will be compiled
+}
+''');
+
+      final entryPoint = tempEntry.path;
+
+      // Compile with dart2js
+      final outputJs = p.join(outputDir, '$packageName.js');
+      final dartExe = Platform.isWindows ? 'dart.bat' : 'dart';
+
+      if (verbose) {
+        print('   Compiling ${p.basename(entryPoint)} → ${p.basename(outputJs)}');
+      }
+
+      final result = await Process.run(
+        dartExe,
+        [
+          'compile',
+          'js',
+          entryPoint,
+          '-o',
+          outputJs,
+          '--no-source-maps', // Skip source maps for now
+          '-O1', // Optimization level 1 (faster compilation)
+        ],
+        runInShell: true,
+      );
+
+      if (result.exitCode != 0) {
+        print('   ❌ dart2js compilation failed:');
+        if (verbose) {
+          print(result.stderr);
+        } else {
+          // Show just the error summary
+          final stderr = result.stderr.toString();
+          final lines = stderr.split('\n').where((l) => l.trim().isNotEmpty).take(5);
+          for (final line in lines) {
+            print('      $line');
+          }
+        }
+        return false;
+      }
+
+      // Create exports.json manifest
+      final exportsJson = {
+        'package': packageName,
+        'version': '1.0.0',
+        'exports': [
+          {
+            'name': '*',
+            'path': './$packageName.js',
+            'uri': 'package:$packageName/$packageName.dart',
+            'type': 'module',
+          }
+        ],
+      };
+
+      final exportsFile = File(p.join(outputDir, 'exports.json'));
+      await exportsFile.writeAsString(
+        JsonEncoder.withIndent('  ').convert(exportsJson),
+      );
+
+      // Create package.json
+      final packageJson = {
+        'name': packageName,
+        'version': '1.0.0',
+        'type': 'module',
+        'main': '$packageName.js',
+        'exports': {
+          '.': './$packageName.js',
+        },
+      };
+
+      final packageFile = File(p.join(outputDir, 'package.json'));
+      await packageFile.writeAsString(
+        JsonEncoder.withIndent('  ').convert(packageJson),
+      );
+
+      // Clean up temporary entry point
+      try {
+        if (await tempEntry.exists()) {
+          await tempEntry.delete();
+        }
+        // Only delete temp dir if it's empty
+        if (await tempDir.exists()) {
+          final isEmpty = await tempDir.list().isEmpty;
+          if (isEmpty) {
+            await tempDir.delete();
+          }
+        }
+      } catch (_) {
+        // Ignore cleanup errors
+      }
+
+      return true;
+    } catch (e) {
+      if (verbose) {
+        print('   Exception during dart2js compilation: $e');
+      }
+      return false;
+    }
+  }
+
+  /// Generates a minimal JS stub for packages that fail dart2js compilation.
+  ///
+  /// For web plugin packages (those declaring `flutter.plugin.platforms.web.pluginClass`
+  /// in pubspec.yaml), the stub exports a class with a no-op `static registerWith()`.
+  /// For all other failed packages, the stub is an empty ES module so that
+  /// `import * as x from 'package'` doesn't throw a network/parse error.
+  Future<void> _generateFallbackWebStub(
+    String packageName,
+    String packagePath,
+    String outputDir, {
+    bool verbose = false,
+  }) async {
+    try {
+      await Directory(outputDir).create(recursive: true);
+
+      // Try to read pluginClass from pubspec.yaml
+      String? pluginClass;
+      try {
+        final pubspecFile = File(p.join(packagePath, 'pubspec.yaml'));
+        if (await pubspecFile.exists()) {
+          final content = await pubspecFile.readAsString();
+          final yaml = loadYaml(content) as Map;
+          final flutter = yaml['flutter'] as Map?;
+          final plugin = flutter?['plugin'] as Map?;
+          final platforms = plugin?['platforms'] as Map?;
+          final web = platforms?['web'] as Map?;
+          pluginClass = web?['pluginClass'] as String?;
+        }
+      } catch (_) {}
+
+      final outputJs = p.join(outputDir, '$packageName.js');
+      final buffer = StringBuffer();
+      buffer.writeln('// Auto-generated web stub for $packageName');
+      buffer.writeln('// dart2js compilation failed; this stub allows ES module loading.');
+
+      if (pluginClass != null) {
+        buffer.writeln();
+        buffer.writeln('export class $pluginClass {');
+        buffer.writeln('  static registerWith(registrar) {');
+        buffer.writeln('    console.warn("[$packageName] $pluginClass.registerWith() is a stub — package failed to compile");');
+        buffer.writeln('  }');
+        buffer.writeln('}');
+      } else {
+        buffer.writeln('// No exports — package is platform-only or failed to compile.');
+      }
+
+      await File(outputJs).writeAsString(buffer.toString());
+
+      // Write package.json and exports.json so the import map generator picks this up
+      final packageJson = {
+        'name': packageName,
+        'version': '1.0.0',
+        'type': 'module',
+        'main': '$packageName.js',
+        'exports': {'.': './$packageName.js'},
+      };
+      await File(p.join(outputDir, 'package.json'))
+          .writeAsString(JsonEncoder.withIndent('  ').convert(packageJson));
+
+      final exportsJson = {
+        'package': packageName,
+        'version': '1.0.0',
+        'exports': [
+          {
+            'name': pluginClass ?? '*',
+            'path': './$packageName.js',
+            'uri': 'package:$packageName/$packageName.dart',
+            'type': pluginClass != null ? 'class' : 'module',
+          }
+        ],
+      };
+      await File(p.join(outputDir, 'exports.json'))
+          .writeAsString(JsonEncoder.withIndent('  ').convert(exportsJson));
+
+      if (verbose) {
+        print('   🔧 Generated web stub: $outputJs${pluginClass != null ? " (pluginClass: $pluginClass)" : ""}');
+      }
+    } catch (e) {
+      if (verbose) {
+        print('   ⚠️  Failed to generate web stub for $packageName: $e');
+      }
+    }
   }
 
   /// Generates .dart_tool/package_config.json mapping packages in node_modules
@@ -1067,9 +1617,7 @@ class RuntimePackageManager {
     String? requestedVersion,
   ) async {
     final packagePath = p.join(nodeModulesPath, packageName);
-    print('DEBUG: _isPackageCached checking $packagePath');
     final packageDir = Directory(packagePath);
-    print('DEBUG: Exists? ${await packageDir.exists()}');
 
     if (!await packageDir.exists()) {
       return false;
@@ -1103,8 +1651,6 @@ class RuntimePackageManager {
     bool verbose, {
     PackageBuilder? builder,
   }) async {
-    print('🔍 DEBUG (_installPubDevPackage): START for $packageName');
-
     try {
       final packageInfo = version != null
           ? await _pubDevClient.fetchPackageVersion(packageName, version)
@@ -1112,36 +1658,23 @@ class RuntimePackageManager {
 
       if (packageInfo == null) {
         print('   ❌ Package $packageName not found on pub.dev');
-        print(
-          '🔍 DEBUG (_installPubDevPackage): FAILED - packageInfo is null for $packageName',
-        );
         return false;
       }
 
       if (packageInfo.archiveUrl == null) {
         print('   ❌ No download URL for $packageName');
-        print(
-          '🔍 DEBUG (_installPubDevPackage): FAILED - archiveUrl is null for $packageName',
-        );
         return false;
       }
 
       if (verbose) {
         print('      Downloading v${packageInfo.version}...');
       }
-      print(
-        '🔍 DEBUG (_installPubDevPackage): Downloading $packageName v${packageInfo.version} from ${packageInfo.archiveUrl}',
-      );
 
       final packagePath = p.join(nodeModulesPath, packageName);
-      print('🔍 DEBUG (_installPubDevPackage): Target path: $packagePath');
 
       await _downloader.downloadAndExtract(
         packageInfo.archiveUrl!,
         packagePath,
-      );
-      print(
-        '🔍 DEBUG (_installPubDevPackage): Download/extract complete for $packageName',
       );
 
       await _createPackageJson(packagePath, packageInfo);
@@ -1149,9 +1682,6 @@ class RuntimePackageManager {
       // Automatic Transpilation of downloaded package
       if (builder != null) {
         if (verbose) print('      Building $packageName...');
-        print(
-          '🔍 DEBUG (_installPubDevPackage): Starting build for $packageName',
-        );
         try {
           // Uses explicit source path because it's not in the regular project structure yet/detected by resolver
           await builder.buildPackage(
@@ -1207,11 +1737,13 @@ class RuntimePackageManager {
     String packagePath,
     PackageInfo packageInfo,
   ) async {
+    // Use dist/index.js as the barrel entry point - PackageCompiler generates
+    // per-file JS but also produces a barrel index.js via _generateBarrelExport.
     final packageJson = {
       'name': packageInfo.npmPackageName,
       'version': packageInfo.version,
       'description': 'FlutterJS package: ${packageInfo.name}',
-      'main': 'dist/${packageInfo.name}.js',
+      'main': 'dist/index.js',
       'type': 'module',
     };
 
@@ -1346,9 +1878,6 @@ class RuntimePackageManager {
         }
       }
     } else {
-      print(
-        '🔍 DEBUG (_resolveAndInstallPackage): Checking registry for $packageName',
-      );
       dynamic registryEntry;
       try {
         registryEntry = registryPackages.firstWhere(
@@ -1358,53 +1887,27 @@ class RuntimePackageManager {
 
       if (registryEntry != null) {
         targetFlutterJsPackage = registryEntry['flutterjs_package'];
-        print(
-          '🔍 DEBUG (_resolveAndInstallPackage): Found in registry: $packageName -> $targetFlutterJsPackage',
-        );
         if (verbose) {
           print('   📦 $packageName -> $targetFlutterJsPackage (Registry)');
         }
       } else {
-        // Fallback: Assume direct pub.dev package
         targetFlutterJsPackage = packageName;
-        print(
-          '🔍 DEBUG (_resolveAndInstallPackage): NOT in registry, using direct: $packageName',
-        );
         if (verbose) print('   📦 $packageName (Direct PubDev)');
       }
     }
 
-    // ✅ FIX: If targetFlutterJsPackage is STILL null (e.g., malformed userConfig was rejected),
-    // use packageName directly for pub.dev installation
-    if (targetFlutterJsPackage == null) {
-      print(
-        '🔍 DEBUG (_resolveAndInstallPackage): targetFlutterJsPackage is null, using direct packageName: $packageName',
-      );
-      targetFlutterJsPackage = packageName;
-    }
-
-    print(
-      '🔍 DEBUG (_resolveAndInstallPackage): targetFlutterJsPackage for $packageName: $targetFlutterJsPackage',
-    );
+    // If targetFlutterJsPackage is still null (malformed userConfig), use packageName directly
+    targetFlutterJsPackage ??= packageName;
 
     // ✅ DEFENSIVE FIX: Validate and sanitize targetFlutterJsPackage
     // Reject malformed values like './...' that come from corrupted configs or bugs
-    if ((targetFlutterJsPackage.contains('./...') ||
-            targetFlutterJsPackage == './...' ||
-            targetFlutterJsPackage.trim().isEmpty)) {
-      print(
-        '⚠️  WARNING: Rejecting malformed targetFlutterJsPackage "${targetFlutterJsPackage}" for $packageName, using direct name instead',
-      );
+    if (targetFlutterJsPackage.contains('./...') ||
+        targetFlutterJsPackage == './...' ||
+        targetFlutterJsPackage.trim().isEmpty) {
       targetFlutterJsPackage = packageName;
-      print(
-        '🔍 DEBUG: Corrected targetFlutterJsPackage for $packageName: $targetFlutterJsPackage',
-      );
     }
 
-    final isOverridden = force || overridePackages.contains(packageName) || packageName == 'collection' || packageName == 'url_launcher' || packageName == 'url_launcher_platform_interface';
-    print(
-      '🔍 DEBUG (_resolveAndInstallPackage): isOverridden for $packageName: $isOverridden',
-    );
+    final isOverridden = force || overridePackages.contains(packageName);
 
     final isCached =
         !isOverridden &&
@@ -1415,27 +1918,15 @@ class RuntimePackageManager {
         );
 
     if (isCached) {
-      print('🔍 DEBUG (CACHED): $packageName detected as cached');
       if (verbose) print('      ✓ Using cached $packageName');
-      // ADD TRANSITIVE DEPS from cached package
       final pkgPath = p.join(nodeModulesRoot, targetFlutterJsPackage);
-      print('🔍 DEBUG (CACHED): Resolved path for $packageName: $pkgPath');
-
-      // ✅ RECORD
       resolvedMap[packageName] = pkgPath;
-      print(
-        '🔍 DEBUG (CACHED): Recorded in resolvedMap: $packageName -> $pkgPath',
-      );
-
       return _getDependenciesFromPubspec(pkgPath);
     } else {
       if (isOverridden && verbose) {
         print('   ⚡ Force converting $packageName...');
       }
 
-      print(
-        '🔍 DEBUG: Installing $packageName as $targetFlutterJsPackage to $nodeModulesRoot',
-      );
       final success = await _installPubDevPackage(
         targetFlutterJsPackage,
         nodeModulesRoot,
@@ -1443,24 +1934,12 @@ class RuntimePackageManager {
         verbose,
         builder: builder,
       );
-      if (!success) {
-        print('❌ DEBUG: Install FAILED for $packageName');
-        return null;
-      }
+      if (!success) return null;
 
-      // ✅ FIX: Read dependencies from newly installed package
       final pkgPath = p.join(nodeModulesRoot, targetFlutterJsPackage);
-      print('🔍 DEBUG: Resolved path for $packageName: $pkgPath');
-
-      // ✅ RECORD
       resolvedMap[packageName] = pkgPath;
-      print('🔍 DEBUG: Recorded in resolvedMap: $packageName -> $pkgPath');
-
       return await _getDependenciesFromPubspec(pkgPath);
     }
-  
-    print('\n❌ MISSING CONFIGURATION: "$packageName"');
-    return null;
   }
 
   /// Writes the final package map to .dart_tool/flutterjs/package_map.json

@@ -811,12 +811,7 @@ class DeclarationPass extends RecursiveAstVisitor<void> {
         }, // ✅ FIX: Pass metadata during construction
       );
 
-      // 🔍 DEBUG: Confirm we're about to add it
-      print('🔍 [BEFORE ADD] About to add extension type: $typeName');
-
       _classes.add(classDecl);
-
-      print('🔍 [AFTER ADD] Successfully added extension type: $typeName');
       super.visitExtensionTypeDeclaration(node);
     } catch (e, st) {
       _log('   ❌ Error processing extension type: $e');

@@ -865,6 +865,16 @@ class ModelToJSPipeline {
         continue;
       }
 
+      // 🔄 CIRCULAR DEPENDENCY FIX:
+      // source_span package: span.dart imports span_with_context.dart (for documentation only)
+      // span_with_context.dart extends SourceSpanBase from span.dart, creating a cycle.
+      // Since SourceSpanWithContext is only mentioned in doc comments in span.dart,
+      // we can safely skip this import.
+      if (dartFile.filePath.endsWith('${p.separator}span.dart') &&
+          import.uri.contains('span_with_context')) {
+        continue;
+      }
+
       // ✅ Resolve conditional imports (Prioritize Web over IO/native)
       // Dart uses conditional imports like:
       //   import 'io_client.dart' if (dart.library.js_interop) 'browser_client.dart'
@@ -948,8 +958,9 @@ class ModelToJSPipeline {
           symbolsByPath.putIfAbsent(jsPath, () => {}).addAll(newSymbols);
         }
 
-        // Special case for dart:async
+        // Special case for dart:async - ensure Zone, runZoned, and detected symbols are included
         if (import.uri == 'dart:async') {
+          // Always include Zone and runZoned
           if (!symbolToPath.containsKey('Zone')) {
             symbolsByPath.putIfAbsent(jsPath, () => {}).add('Zone');
             symbolToPath['Zone'] = jsPath;
@@ -957,6 +968,19 @@ class ModelToJSPipeline {
           if (!symbolToPath.containsKey('runZoned')) {
             symbolsByPath.putIfAbsent(jsPath, () => {}).add('runZoned');
             symbolToPath['runZoned'] = jsPath;
+          }
+
+          // Merge detected symbols and symbols that were already added (newSymbols)
+          final asyncSymbols = <String>{
+            ...newSymbols,
+            ...?usedSymbolsByUri['dart:async'],
+          };
+
+          for (final symbol in asyncSymbols) {
+            if (!symbolToPath.containsKey(symbol)) {
+              symbolsByPath.putIfAbsent(jsPath, () => {}).add(symbol);
+              symbolToPath[symbol] = jsPath;
+            }
           }
         }
       } else {
@@ -1315,6 +1339,67 @@ class ModelToJSPipeline {
         }
       }
     }
+
+    // ✅ FILTER: Browser built-in types from package:web
+    // These are available globally in the browser and should not be imported
+    if (importUri == 'package:web/web.dart' || importUri.startsWith('package:web/')) {
+      const browserBuiltInTypes = {
+        'AbortController',
+        'DOMException',
+        'ReadableStreamDefaultReader',
+        'Response',
+        'Request',
+        'Headers',
+        'XMLHttpRequest',
+        'Blob',
+        'File',
+        'FileReader',
+        'FormData',
+        'URL',
+        'URLSearchParams',
+        'WebSocket',
+        'Worker',
+        'MessageChannel',
+        'MessagePort',
+        'ImageData',
+        'HTMLElement',
+        'HTMLDivElement',
+        'HTMLSpanElement',
+        'HTMLAnchorElement',
+        'HTMLButtonElement',
+        'HTMLInputElement',
+        'HTMLCanvasElement',
+        'Event',
+        'MouseEvent',
+        'KeyboardEvent',
+        'TouchEvent',
+        'CustomEvent',
+        'Window',
+        'Document',
+        'Element',
+        'CanvasRenderingContext2D',
+        'WebGLRenderingContext',
+        'AudioContext',
+        'MediaStream',
+        'RTCPeerConnection',
+        'IDBDatabase',
+        'IDBObjectStore',
+        'IDBTransaction',
+        'Notification',
+        'PerformanceObserver',
+        'IntersectionObserver',
+        'MutationObserver',
+        'ResizeObserver',
+      };
+
+      if (browserBuiltInTypes.contains(symbolName)) {
+        return true;
+      }
+    }
+
+    // NOTE: Platform channel APIs (MethodChannel, EventChannel, etc.) have web stub
+    // implementations in flutterjs_services/src/platform_channel.js, so they are NOT filtered.
+    // Only truly native-only APIs that have no web equivalent should be filtered here.
 
     return false;
   }

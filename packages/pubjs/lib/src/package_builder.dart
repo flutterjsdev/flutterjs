@@ -567,21 +567,6 @@ export default {
       return true;
     }
 
-    // TEMPORARY: Force rebuild of url_launcher_platform_interface and collection to pick up compiler fix
-    if (packagePath.contains('url_launcher_platform_interface') ||
-        packagePath.contains('collection') ||
-        packagePath.contains('url_launcher')) {
-      return true;
-    }
-
-    // 🚀 OPTIMIZATION: If in node_modules, assume immutable (fast skip)
-    // DISABLED: We need to build 3rd party packages like http that live in node_modules
-    // if (packagePath.contains('node_modules')) {
-    //   return false;
-    // }
-
-    print('🔍 DEBUG: needsBuild($packagePath) -> checking hash...');
-
     try {
       // Content Hashing Strategy
       final currentHash = await _calculatePackageHash(packagePath);

@@ -47,7 +47,10 @@ export class Comparable {
 // Export all core types
 import { Uri } from './uri.js';
 import { Duration } from './duration.js';
+import { StringBuffer } from './string_buffer.js';
+import { DateTime } from './date_time.js';
 import {
+    Exception,
     Error as DartError,
     AssertionError,
     TypeError,
@@ -65,10 +68,17 @@ import {
     identical,
 } from './errors.js';
 
+// Re-export JavaScript built-in RegExp as Dart RegExp
+const DartRegExp = RegExp;
+export { DartRegExp as RegExp };
+
 export {
     Uri,
     Duration,
+    StringBuffer,
+    DateTime,
     identical,
+    Exception,
     DartError as Error,
     AssertionError,
     TypeError,
@@ -91,7 +101,10 @@ export default {
     Comparable,
     Uri,
     Duration,
+    StringBuffer,
+    DateTime,
     identical,
+    Exception,
     Error: DartError,
     AssertionError,
     TypeError,

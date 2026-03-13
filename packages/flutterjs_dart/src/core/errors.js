@@ -8,6 +8,22 @@
  */
 
 /**
+ * Base Exception class - represents expected error conditions
+ */
+export class Exception extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'Exception';
+    this.message = message;
+  }
+
+  toString() {
+    if (this.message == null) return 'Exception';
+    return `Exception: ${this.message}`;
+  }
+}
+
+/**
  * Base Error class - represents program failures that should have been avoided
  */
 export class DartError extends Error {

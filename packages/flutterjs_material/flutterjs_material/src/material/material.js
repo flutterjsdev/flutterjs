@@ -91,8 +91,9 @@ export {
 } from "../widgets/compoment/sized_box.js";
 
 export {
-    Divider
-} from "../widgets/compoment/divider.js";
+    Divider,
+    VerticalDivider
+} from "./divider.js";
 
 export {
     ElevatedButton
@@ -576,6 +577,111 @@ export {
     TextStyle
 } from "../painting/text_style.js";
 
+// ============================================================================
+// NEW WIDGETS - Added from Flutter Material Library
+// ============================================================================
+
+export {
+    DividerTheme,
+    DividerThemeData
+} from "./divider_theme.js";
+
+export {
+    ChoiceChip
+} from "./choice_chip.js";
+
+export {
+    FilterChip
+} from "./filter_chip.js";
+
+export {
+    InputChip
+} from "./input_chip.js";
+
+export {
+    SegmentedButton,
+    ButtonSegment
+} from "./segmented_button.js";
+
+export {
+    SegmentedButtonTheme,
+    SegmentedButtonThemeData
+} from "./segmented_button_theme.js";
+
+export {
+    SelectableText
+} from "./selectable_text.js";
+
+export {
+    Stepper,
+    Step,
+    StepState,
+    StepperType
+} from "./stepper.js";
+
+export {
+    Scrollbar
+} from "./scrollbar.js";
+
+export {
+    DropdownMenu,
+    DropdownMenuEntry
+} from "./dropdown_menu.js";
+
+export {
+    SearchAnchor,
+    SearchBar
+} from "./search_anchor.js";
+
+export {
+    SearchBarTheme,
+    SearchBarThemeData,
+    SearchViewTheme,
+    SearchViewThemeData,
+    DropdownMenuTheme,
+    DropdownMenuThemeData
+} from "./search_theme.js";
+
+export {
+    FlexibleSpaceBar,
+    CollapseMode,
+    StretchMode
+} from "./flexible_space_bar.js";
+
+export {
+    PaginatedDataTable,
+    DataTableSource
+} from "./paginated_data_table.js";
+
+export {
+    ReorderableListView
+} from "./reorderable_list.js";
+
+export {
+    showDatePicker,
+    DatePickerDialog
+} from "./date_picker.js";
+
+export {
+    showTimePicker,
+    TimeOfDay,
+    TimePickerDialog
+} from "./time_picker.js";
+
+export {
+    ExpansionTileTheme,
+    ExpansionTileThemeData
+} from "./expansion_tile_theme.js";
+
+export {
+    NavigationRailTheme,
+    NavigationRailThemeData
+} from "./navigation_rail_theme.js";
+
+export {
+    TextButtonTheme,
+    TextButtonThemeData
+} from "./text_button_theme.js";
 
 
 

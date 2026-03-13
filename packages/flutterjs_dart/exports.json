@@ -2,146 +2,875 @@
   "package": "@flutterjs/dart",
   "version": "1.0.0",
   "exports": [
-    "ArgumentError",
-    "AssertionError",
-    "Brightness",
-    "ByteBuffer",
-    "ByteData",
-    "BytesBuilder",
-    "CanonicalizedMap",
-    "CastError",
-    "Codec",
-    "Color",
-    "Comparable",
-    "Completer",
-    "ConcurrentModificationError",
-    "Converter",
-    "DartError",
-    "Duration",
-    "E",
-    "Encoding",
-    "Error",
-    "Float32List",
-    "Float32x4",
-    "Float32x4List",
-    "Float64List",
-    "Float64x2",
-    "Float64x2List",
-    "FormatException",
-    "Future",
-    "HashMap",
-    "HashSet",
-    "IndexError",
-    "Int16List",
-    "Int32List",
-    "Int32x4",
-    "Int32x4List",
-    "Int64List",
-    "Int8List",
-    "Iterable",
-    "IterableBase",
-    "Iterator",
-    "JSAny",
-    "JSArray",
-    "JSBigInt",
-    "JSBoolean",
-    "JSFunction",
-    "JSNumber",
-    "JSObject",
-    "JSString",
-    "JSSymbol",
-    "LN10",
-    "LN2",
-    "LOG10E",
-    "LOG2E",
-    "LinkedHashMap",
-    "LinkedList",
-    "LinkedListEntry",
-    "ListBase",
-    "ListMixin",
-    "MapBase",
-    "MapMixin",
-    "MapView",
-    "MutableRectangle",
-    "NoSuchMethodError",
-    "Offset",
-    "PI",
-    "Point",
-    "PriorityQueue",
-    "Queue",
-    "QueueList",
-    "RRect",
-    "Radius",
-    "Random",
-    "RangeError",
-    "Rect",
-    "Rectangle",
-    "SQRT1_2",
-    "SQRT2",
-    "SetBase",
-    "SetMixin",
-    "Size",
-    "StateError",
-    "Stream",
-    "StreamController",
-    "StreamSubscription",
-    "StreamTransformer",
-    "StreamView",
-    "Timeline",
-    "TimeoutException",
-    "Timer",
-    "TypeError",
-    "Uint16List",
-    "Uint32List",
-    "Uint64List",
-    "Uint8ClampedList",
-    "Uint8List",
-    "UnimplementedError",
-    "UnmodifiableListView",
-    "UnmodifiableMapBase",
-    "UnmodifiableMapView",
-    "UnmodifiableSetView",
-    "UnsupportedError",
-    "Uri",
-    "Utf8Decoder",
-    "Utf8Encoder",
-    "Zone",
-    "acos",
-    "asin",
-    "assetManager",
-    "atan",
-    "atan2",
-    "base64",
-    "base64Decode",
-    "base64Encode",
-    "callMethod",
-    "core",
-    "cos",
-    "debugger_",
-    "exp",
-    "getProperty",
-    "globalJS",
-    "hasProperty",
-    "identical",
-    "inspect",
-    "json",
-    "jsonDecode",
-    "jsonEncode",
-    "log",
-    "max",
-    "min",
-    "platformViewRegistry",
-    "pow",
-    "runZoned",
-    "runZonedGuarded",
-    "setProperty",
-    "sign",
-    "sin",
-    "sqrt",
-    "tan",
-    "toDart",
-    "toJS",
-    "urlStrategy",
-    "utf8"
+    {
+      "name": "acos",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "ArgumentError",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "asin",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "AssertionError",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "assetManager",
+      "path": "./dist/ui_web/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "atan",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "atan2",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "base64",
+      "path": "./dist/convert/index.js",
+      "uri": "dart:convert",
+      "type": "class"
+    },
+    {
+      "name": "base64Decode",
+      "path": "./dist/convert/index.js",
+      "uri": "dart:convert",
+      "type": "class"
+    },
+    {
+      "name": "base64Encode",
+      "path": "./dist/convert/index.js",
+      "uri": "dart:convert",
+      "type": "class"
+    },
+    {
+      "name": "Brightness",
+      "path": "./dist/ui/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "ByteBuffer",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "ByteData",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "BytesBuilder",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "callMethod",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "CanonicalizedMap",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "CastError",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Codec",
+      "path": "./dist/convert/index.js",
+      "uri": "dart:convert",
+      "type": "class"
+    },
+    {
+      "name": "Color",
+      "path": "./dist/ui/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Comparable",
+      "path": "./dist/core/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Completer",
+      "path": "./dist/async/index.js",
+      "uri": "dart:async",
+      "type": "class"
+    },
+    {
+      "name": "ConcurrentModificationError",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Converter",
+      "path": "./dist/convert/index.js",
+      "uri": "dart:convert",
+      "type": "class"
+    },
+    {
+      "name": "core",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "cos",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "DartError",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "DateTime",
+      "path": "./dist/core/date_time.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "debugger_",
+      "path": "./dist/developer/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Duration",
+      "path": "./dist/core/duration.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "E",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "Encoding",
+      "path": "./dist/convert/index.js",
+      "uri": "dart:convert",
+      "type": "class"
+    },
+    {
+      "name": "Error",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Exception",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "exp",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "Float32List",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Float32x4",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Float32x4List",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Float64List",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Float64x2",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Float64x2List",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "FormatException",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Future",
+      "path": "./dist/async/index.js",
+      "uri": "dart:async",
+      "type": "class"
+    },
+    {
+      "name": "getProperty",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "globalJS",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "HashMap",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "HashSet",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "hasProperty",
+      "path": "./dist/js_interop_unsafe/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "identical",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "IndexError",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "inspect",
+      "path": "./dist/developer/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Int16List",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Int32List",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Int32x4",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Int32x4List",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Int64List",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Int8List",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Iterable",
+      "path": "./dist/core/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "IterableBase",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "Iterator",
+      "path": "./dist/core/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "JSAny",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "JSArray",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "JSBigInt",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "JSBoolean",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "JSFunction",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "JSNumber",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "JSObject",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "json",
+      "path": "./dist/convert/index.js",
+      "uri": "dart:convert",
+      "type": "class"
+    },
+    {
+      "name": "jsonDecode",
+      "path": "./dist/convert/index.js",
+      "uri": "dart:convert",
+      "type": "class"
+    },
+    {
+      "name": "jsonEncode",
+      "path": "./dist/convert/index.js",
+      "uri": "dart:convert",
+      "type": "class"
+    },
+    {
+      "name": "JSString",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "JSSymbol",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "LinkedHashMap",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "LinkedList",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "LinkedListEntry",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "ListBase",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "ListMixin",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "LN10",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "LN2",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "log",
+      "path": "./dist/developer/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "LOG10E",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "LOG2E",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "MapBase",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "MapMixin",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "MapView",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "max",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "min",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "MutableRectangle",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "NoSuchMethodError",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Offset",
+      "path": "./dist/ui/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "PI",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "platformViewRegistry",
+      "path": "./dist/ui_web/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Point",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "pow",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "PriorityQueue",
+      "path": "./dist/collection/priority_queue.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "Queue",
+      "path": "./dist/collection/queue.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "QueueList",
+      "path": "./dist/collection/queue_list.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "Radius",
+      "path": "./dist/ui/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Random",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "RangeError",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Rect",
+      "path": "./dist/ui/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Rectangle",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "RegExp",
+      "path": "./dist/core/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "RRect",
+      "path": "./dist/ui/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "runZoned",
+      "path": "./dist/async/index.js",
+      "uri": "dart:async",
+      "type": "class"
+    },
+    {
+      "name": "runZonedGuarded",
+      "path": "./dist/async/index.js",
+      "uri": "dart:async",
+      "type": "class"
+    },
+    {
+      "name": "SetBase",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "SetMixin",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "setProperty",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "sign",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "sin",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "Size",
+      "path": "./dist/ui/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "sqrt",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "SQRT1_2",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "SQRT2",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "StateError",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Stream",
+      "path": "./dist/async/stream.js",
+      "uri": "dart:async",
+      "type": "class"
+    },
+    {
+      "name": "StreamController",
+      "path": "./dist/async/stream.js",
+      "uri": "dart:async",
+      "type": "class"
+    },
+    {
+      "name": "StreamSubscription",
+      "path": "./dist/async/stream.js",
+      "uri": "dart:async",
+      "type": "class"
+    },
+    {
+      "name": "StreamTransformer",
+      "path": "./dist/async/stream.js",
+      "uri": "dart:async",
+      "type": "class"
+    },
+    {
+      "name": "StreamView",
+      "path": "./dist/async/stream_view.js",
+      "uri": "dart:async",
+      "type": "class"
+    },
+    {
+      "name": "StringBuffer",
+      "path": "./dist/core/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "tan",
+      "path": "./dist/math/index.js",
+      "uri": "dart:math",
+      "type": "class"
+    },
+    {
+      "name": "Timeline",
+      "path": "./dist/developer/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "TimeoutException",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Timer",
+      "path": "./dist/async/index.js",
+      "uri": "dart:async",
+      "type": "class"
+    },
+    {
+      "name": "toDart",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "toJS",
+      "path": "./dist/js_interop/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "TypeError",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Uint16List",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Uint32List",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Uint64List",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Uint8ClampedList",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "Uint8List",
+      "path": "./dist/typed_data/index.js",
+      "uri": "dart:typed_data",
+      "type": "class"
+    },
+    {
+      "name": "UnimplementedError",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "UnmodifiableListView",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "UnmodifiableMapBase",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "UnmodifiableMapView",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "UnmodifiableSetView",
+      "path": "./dist/collection/index.js",
+      "uri": "dart:collection",
+      "type": "class"
+    },
+    {
+      "name": "UnsupportedError",
+      "path": "./dist/core/errors.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "Uri",
+      "path": "./dist/core/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "urlStrategy",
+      "path": "./dist/ui_web/index.js",
+      "uri": "dart:core",
+      "type": "class"
+    },
+    {
+      "name": "utf8",
+      "path": "./dist/convert/index.js",
+      "uri": "dart:convert",
+      "type": "class"
+    },
+    {
+      "name": "Utf8Decoder",
+      "path": "./dist/convert/index.js",
+      "uri": "dart:convert",
+      "type": "class"
+    },
+    {
+      "name": "Utf8Encoder",
+      "path": "./dist/convert/index.js",
+      "uri": "dart:convert",
+      "type": "class"
+    },
+    {
+      "name": "Zone",
+      "path": "./dist/async/index.js",
+      "uri": "dart:async",
+      "type": "class"
+    }
   ]
 }

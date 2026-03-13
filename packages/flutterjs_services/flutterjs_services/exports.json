@@ -1,1 +1,22 @@
-{"package":"flutterjs_services","version":"1.0.0","exports":[]}
+{
+  "package": "flutterjs_services",
+  "version": "1.0.0",
+  "exports": [
+    {"name": "MessageCodec", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "MethodCall", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "MethodCodec", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "PlatformException", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "MissingPluginException", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "BinaryCodec", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "StringCodec", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "JSONMessageCodec", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "JSONMethodCodec", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "StandardMessageCodec", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "StandardMethodCodec", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "SystemNavigator", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "MethodChannel", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "BasicMessageChannel", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "EventChannel", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"},
+    {"name": "OptionalMethodChannel", "path": "./dist/index.js", "uri": "package:flutter/services.dart", "type": "class"}
+  ]
+}

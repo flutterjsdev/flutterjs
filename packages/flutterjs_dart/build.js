@@ -137,6 +137,17 @@ function generateExports(sourceFiles) {
  * Scan all source files and generate exports.json manifest
  * This manifest tells the Dart code generator what symbols this package exports
  */
+// Maps src sub-directory name → dart: library URI
+const dartLibUriMap = {
+    'core':       'dart:core',
+    'async':      'dart:async',
+    'collection': 'dart:collection',
+    'convert':    'dart:convert',
+    'math':       'dart:math',
+    'typed_data': 'dart:typed_data',
+    'html':       'dart:html',
+};
+
 function generateExportManifest(sourceFiles) {
     const manifest = {
         package: '@flutterjs/dart',
@@ -150,38 +161,45 @@ function generateExportManifest(sourceFiles) {
     const functionRegex = /export\s+function\s+(\w+)/g;
     const constRegex = /export\s+const\s+(\w+)/g;
 
+    const seen = new Set();
+
     for (const srcFile of sourceFiles) {
         const content = readFileSync(srcFile, 'utf8');
 
-        // Find named exports: export { Foo, Bar }
-        for (const match of content.matchAll(exportRegex)) {
-            const symbols = match[1]
-                .split(',')
-                .map(s => s.trim())
-                .map(s => s.split(/\s+as\s+/).pop()) // Handle "export { Foo as Bar }"
-                .filter(s => s && !s.includes('from'));
+        // Derive dart: URI from the source file path (e.g. src/core/index.js -> dart:core)
+        const relPath = relative(srcDir, srcFile).replace(/\\/g, '/');
+        const subDir = relPath.split('/')[0];
+        const dartUri = dartLibUriMap[subDir] || 'dart:core';
+        // Corresponding dist path (e.g. src/core/index.js -> ./dist/core/index.js)
+        const distPath = './' + outDir + '/' + relPath;
 
-            manifest.exports.push(...symbols);
+        const addSymbol = (name) => {
+            name = name.trim();
+            if (!name || name === 'default' || name.startsWith('_') || seen.has(name)) return;
+            seen.add(name);
+            manifest.exports.push({ name, path: distPath, uri: dartUri, type: 'class' });
+        };
+
+        // Find named exports: export { Foo, Bar } or export { Foo as Bar }
+        for (const match of content.matchAll(exportRegex)) {
+            match[1].split(',')
+                .map(s => s.trim().split(/\s+as\s+/).pop())
+                .filter(s => s && !s.includes('from'))
+                .forEach(addSymbol);
         }
 
         // Find class exports: export class Foo
-        for (const match of content.matchAll(classRegex)) {
-            manifest.exports.push(match[1]);
-        }
+        for (const match of content.matchAll(classRegex)) addSymbol(match[1]);
 
         // Find function exports: export function foo()
-        for (const match of content.matchAll(functionRegex)) {
-            manifest.exports.push(match[1]);
-        }
+        for (const match of content.matchAll(functionRegex)) addSymbol(match[1]);
 
         // Find const exports: export const FOO
-        for (const match of content.matchAll(constRegex)) {
-            manifest.exports.push(match[1]);
-        }
+        for (const match of content.matchAll(constRegex)) addSymbol(match[1]);
     }
 
-    // Remove duplicates and sort
-    manifest.exports = [...new Set(manifest.exports)].sort();
+    // Sort by name for readability
+    manifest.exports.sort((a, b) => a.name.localeCompare(b.name));
 
     writeFileSync('./exports.json', JSON.stringify(manifest, null, 2) + '\n');
     console.log(`📋 Generated exports.json with ${manifest.exports.length} symbols\n`);

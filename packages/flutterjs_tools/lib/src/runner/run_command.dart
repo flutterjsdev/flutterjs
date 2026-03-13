@@ -1377,21 +1377,24 @@ class JSConversionPhase {
       }
 
       // ===== GENERATE WEB PLUGIN REGISTRANT =====
-      // After all files are processed, scan for web plugins and generate registrant
+      // Always generate the registrant file for web targets — even when no plugins
+      // are found — because file_code_gen.dart always emits:
+      //   import { registerPlugins } from './generated_plugin_registrant.js';
       if (config.target == 'web') {
         try {
           final buildDir = path.dirname(context.jsOutputPath);
           final plugins = await WebPluginRegistrant.findWebPlugins(buildDir);
+          final registrant = WebPluginRegistrant(
+            buildDir: buildDir,
+            webPlugins: plugins,
+          );
+          await registrant.writeRegistrantFile();
 
-          if (plugins.isNotEmpty) {
-            final registrant = WebPluginRegistrant(
-              buildDir: buildDir,
-              webPlugins: plugins,
-            );
-            await registrant.writeRegistrantFile();
-
-            if (!config.jsonOutput) {
+          if (!config.jsonOutput) {
+            if (plugins.isNotEmpty) {
               print('✅ Generated plugin registrant for ${plugins.length} web plugin(s): ${plugins.join(", ")}');
+            } else {
+              print('✅ Generated empty plugin registrant (no web plugins found)');
             }
           }
         } catch (e, stackTrace) {

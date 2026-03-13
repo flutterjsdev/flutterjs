@@ -19,3 +19,15 @@ export class TextButtonThemeData {
         };
     }
 }
+
+export class TextButtonTheme {
+    constructor({ data, child, key } = {}) {
+        this.data = data;
+        this.child = child;
+        this.key = key;
+    }
+
+    static of(context) {
+        return new TextButtonThemeData();
+    }
+}

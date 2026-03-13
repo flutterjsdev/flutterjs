@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "FlutterJS Website",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "C:/Jay/_Plugin/flutterjs/examples/flutterjs_website/build/flutterjs"],
+      "port": 8080
+    },
+    {
+      "name": "FlutterJS Engine Dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["packages/flutterjs_engine/bin/index.js", "dev", "--port", "3001"],
+      "port": 3001
+    },
+    {
+      "name": "FlutterJS Engine Preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["packages/flutterjs_engine/bin/index.js", "preview", "--port", "4173"],
+      "port": 4173
+    },
+    {
+      "name": "Dart API Example Server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["examples/dart_api/server.js"],
+      "port": 3000
+    }
+  ]
+}

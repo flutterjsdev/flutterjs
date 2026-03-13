@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -d packages/flutterjs_*/)",
+      "Bash(ls -lh dist/core/*.js)",
+      "Bash(grep -o '\"\"name\"\"' exports.json)",
+      "mcp__Claude_Preview__preview_start"
+    ]
+  }
+}

@@ -468,8 +468,8 @@ ${closing}`;
       console.log(chalk.blue('📦 Ensuring exports...\n'));
     }
 
-    // Check if file already has exports
-    if (sourceCode.includes('export {') || sourceCode.includes('export default')) {
+    // Check if file already has exports (handle both minified `export{` and formatted `export {`)
+    if (sourceCode.includes('export{') || sourceCode.includes('export {') || sourceCode.includes('export default')) {
       if (this.config.debugMode) {
         console.log(chalk.green('✓ Exports already present\n'));
       }

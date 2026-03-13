@@ -1,6 +1,6 @@
 // Auto-generated barrel export for @flutterjs/flutterjs_services
 // Do not edit manually - regenerated on each build
-// Generated at: 2026-02-18 17:55:57.309354
+// Generated at: 2026-02-28 12:19:18.751587
 
 export * from './_background_isolate_binary_messenger_web.js';
 export * from './asset_manifest.js';
