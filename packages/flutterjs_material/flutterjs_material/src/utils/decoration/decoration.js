@@ -732,7 +732,10 @@ export class BoxDecoration extends Decoration {
     if (this.gradient) {
       style.background = this.gradient.toCSSString();
     } else if (this.color) {
-      style.backgroundColor = this.color;
+      // Convert Color object to CSS string; fall back to String() if no toCSSString method
+      style.backgroundColor = typeof this.color.toCSSString === 'function'
+        ? this.color.toCSSString()
+        : String(this.color);
     }
 
     // Border

@@ -3,9 +3,9 @@
   "configurations": [
     {
       "name": "FlutterJS Website",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "C:/Jay/_Plugin/flutterjs/examples/flutterjs_website/build/flutterjs"],
-      "port": 8080
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["examples/flutterjs_website/build/flutterjs/serve.js"],
+      "port": 8000
     },
     {
       "name": "FlutterJS Engine Dev",
@@ -18,6 +18,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["packages/flutterjs_engine/bin/index.js", "preview", "--port", "4173"],
       "port": 4173
+    },
+    {
+      "name": "FlutterJS SSR Server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["examples/flutterjs_website/build/flutterjs/ssr_server.js"],
+      "port": 8081
     },
     {
       "name": "Dart API Example Server",

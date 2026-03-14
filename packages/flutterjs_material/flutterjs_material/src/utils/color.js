@@ -4,6 +4,12 @@
 
 class Color {
   constructor(value) {
+    // Identity copy: if passed an existing Color (e.g. MaterialColor extends Color), copy it directly
+    if (value instanceof Color) {
+      this._value = value._value;
+      this._css = value._css;
+      return;
+    }
     if (typeof value === 'string') {
       // Handle hex strings: #RRGGBB or #AARRGGBB
       const hex = value.replace('#', '');

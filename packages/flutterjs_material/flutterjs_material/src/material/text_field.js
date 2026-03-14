@@ -36,6 +36,7 @@ class TextField extends StatefulWidget {
         expands = false,
         maxLength = null,
         onChange = null,
+        onChanged = null,
         onEditingComplete = null,
         onSubmitted = null,
         onTap = null,
@@ -73,7 +74,7 @@ class TextField extends StatefulWidget {
         this.minLines = minLines;
         this.expands = expands;
         this.maxLength = maxLength;
-        this.onChange = onChange;
+        this.onChange = onChange || onChanged;  // accept both Flutter-standard onChanged and onChange
         this.onEditingComplete = onEditingComplete;
         this.onSubmitted = onSubmitted;
         this.onTap = onTap;

@@ -156,9 +156,20 @@ class State extends Diagnosticable {
       Object.assign(this, updateFn);
     }
 
-    // Trigger rebuild
+    // Trigger rebuild — also walk up to nearest ancestor with a real DOM element
+    // so Navigator and other container widgets that own the VNode hierarchy re-render
     if (this._element && typeof this._element.markNeedsBuild === 'function') {
       this._element.markNeedsBuild();
+      let ancestor = this._element._parent;
+      while (ancestor) {
+        if (ancestor._vnode && ancestor._vnode._element) {
+          if (typeof ancestor.markNeedsBuild === 'function') {
+            ancestor.markNeedsBuild();
+          }
+          break;
+        }
+        ancestor = ancestor._parent;
+      }
     }
   }
 

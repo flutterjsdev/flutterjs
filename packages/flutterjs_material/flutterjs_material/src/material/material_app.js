@@ -55,9 +55,11 @@ class MaterialApp extends StatefulWidget {
     this.builder = builder;
 
     // Deep linking support: If in browser, use current URL as initial route
+    // Only override if URL path has no file extension AND is a known app route
     if (typeof window !== 'undefined' && window.location && window.location.pathname) {
-      if (initialRoute === '/' && window.location.pathname !== '/') {
-        this.initialRoute = window.location.pathname;
+      const urlPath = window.location.pathname;
+      if (initialRoute === '/' && urlPath !== '/' && !urlPath.includes('.') && routes[urlPath]) {
+        this.initialRoute = urlPath;
       }
     }
 

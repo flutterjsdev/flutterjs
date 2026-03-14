@@ -210,15 +210,17 @@ class NavigatorState extends State {
             window.addEventListener('popstate', this._popstateHandler);
         }
 
-        // Get the initial route name
-        const initialRouteName = (typeof window !== 'undefined' && window.location.pathname !== '/')
-            ? window.location.pathname
-            : this.widget.initialRoute;
+        // Get the initial route name from widget (MaterialApp already validated URL path)
+        const initialRouteName = this.widget.initialRoute || '/';
 
         console.log('[Navigator] Initializing with route:', initialRouteName);
 
-        // Create and push initial route
-        const route = this._createRoute(initialRouteName, null);
+        // Create and push initial route, with fallback to '/'
+        let route = this._createRoute(initialRouteName, null);
+        if (!route && initialRouteName !== '/') {
+            console.warn('[Navigator] Route not found, falling back to /');
+            route = this._createRoute('/', null);
+        }
 
         if (route) {
             this._history.push(route);
@@ -383,8 +385,14 @@ class NavigatorState extends State {
 
     build(context) {
         if (this._history.length === 0) {
-            console.warn('[Navigator] No routes in history');
-            return null;
+            console.warn('[Navigator] No routes in history, attempting recovery');
+            const fallbackRoute = this._createRoute(this.widget.initialRoute || '/', null)
+                || this._createRoute('/', null);
+            if (fallbackRoute) {
+                this._history.push(fallbackRoute);
+            } else {
+                return new NavigationContainer({ key: 'nav_empty', routeId: 'empty', child: null });
+            }
         }
 
         const route = this._history[this._history.length - 1];
