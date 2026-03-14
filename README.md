@@ -120,6 +120,10 @@ dart run tool/init.dart
 ✅ **Ecosystem Launch**: First official package [`flutterjs_seo`](https://pub.dev/packages/flutterjs_seo) is now live on pub.dev.
 ✅ **Modern Dart Support**: Fully compatible with Dart 3.10+ features including dot shorthand and records.
 ✅ **Monorepo Readiness**: Standardized workspace structure across all 20+ packages.
+✅ **SPA Navigation Fixed**: `State.setState()` now correctly propagates dirty-marking through the ancestor element chain, fixing all page-level navigation.
+✅ **TextField `onChanged` Fixed**: `TextField(onChanged: ...)` — the Flutter-standard parameter — now correctly wires callbacks from compiled Dart code.
+✅ **Color System Fixed**: `Color` constructor handles `MaterialColor` subclasses (e.g. `Colors.indigo`) without throwing.
+✅ **FlutterJS Website Example**: Complete multi-page website with SPA routing, responsive nav, blog, and contact form — runnable in one command.
 
 ---
 
